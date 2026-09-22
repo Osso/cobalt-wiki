@@ -460,6 +460,8 @@ class TransportTests(unittest.TestCase):
         for method, params in (
             ("page_get", {"page": "home:start"}),
             ("session_get", ["private"]),
+            ("page_import", {"slug": "home:start"}),
+            ("file_create", {"name": "test.png"}),
         ):
             client.opener = Opener()
             with self.subTest(method=method), patch.object(poc.time, "sleep") as sleep:
@@ -467,7 +469,7 @@ class TransportTests(unittest.TestCase):
                 self.assertEqual(sleep.call_args.args, (3.0,))
         client.opener = Opener()
         with self.assertRaises(poc.PocImportError):
-            client.rpc("page_import", {"slug": "home:start"})
+            client.rpc("page_edit", {"page": 10, "tags": []})
         self.assertEqual(client.opener.calls, 1)
 
     def test_transport_refuses_non_loopback_and_redirect_endpoints(self):
