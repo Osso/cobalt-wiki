@@ -381,16 +381,19 @@ class LoopbackRpc:
         raise AssertionError("unreachable")
 
     def rpc(self, method, params):
+        headers = {
+            "Content-Type": "application/json",
+            "X-Deepwell-Session-Token": self.token,
+            "X-Deepwell-Site-Id": str(self.site_id),
+        }
+        if method == "page_edit" and isinstance(params, dict) and "page" in params:
+            headers["X-Deepwell-Page"] = str(params["page"])
         request = Request(
             self.endpoint,
             data=json.dumps(
                 {"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
             ).encode(),
-            headers={
-                "Content-Type": "application/json",
-                "X-Deepwell-Session-Token": self.token,
-                "X-Deepwell-Site-Id": str(self.site_id),
-            },
+            headers=headers,
         )
         response = json.loads(
             self._request(request, method in {"page_get", "file_get", "session_get"})
