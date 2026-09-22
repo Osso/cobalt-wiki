@@ -5,9 +5,9 @@ import gzip
 import hashlib
 import json
 import os
-from pathlib import Path
 import subprocess
 import time
+from pathlib import Path
 
 from .queue_recovery import APPLY, RESTORE, SELECT
 
@@ -63,8 +63,11 @@ def read_batches(path, size=4096):
 
 def restore_journal(client, path, cutoff_ms):
     restored = 0
-    with gzip.open(path, "rt") as stream:
+    with path.open("rb") as stream:
         for line in stream:
+            # An incomplete final write was never fsynced before APPLY.
+            if not line.endswith(b"\n"):
+                break
             restored += client.evaluate(RESTORE, json.loads(line), cutoff_ms)
     return restored
 
@@ -79,27 +82,23 @@ def apply_plan(client, plan, journal, cutoff_ms, seconds):
         with journal.open("xb") as raw:
             journal_created = True
             os.chmod(journal, 0o600)
-            with gzip.GzipFile(fileobj=raw, mode="wb", compresslevel=1) as writer:
-                for candidates in read_batches(plan):
-                    if time.monotonic() - started > seconds:
-                        raise TimeoutError("apply budget reached; restoring journal")
-                    selected = json.loads(
-                        client.evaluate(SELECT, candidates, cutoff_ms, readonly=True)
-                    )
-                    result["skipped"] += len(candidates) - len(selected)
-                    result["batches"] += 1
-                    if not selected:
-                        continue
-                    writer.write(
-                        (json.dumps(selected, separators=(",", ":")) + "\n").encode()
-                    )
-                    writer.flush()
-                    raw.flush()
-                    os.fsync(raw.fileno())
-                    removed = client.evaluate(APPLY, selected, cutoff_ms)
-                    if removed != len(selected):
-                        raise RuntimeError("unexpected guarded removal count")
-                    result["removed"] += removed
+            for candidates in read_batches(plan):
+                if time.monotonic() - started > seconds:
+                    raise TimeoutError("apply budget reached; restoring journal")
+                selected = json.loads(
+                    client.evaluate(SELECT, candidates, cutoff_ms, readonly=True)
+                )
+                result["skipped"] += len(candidates) - len(selected)
+                result["batches"] += 1
+                if not selected:
+                    continue
+                raw.write((json.dumps(selected, separators=(",", ":")) + "\n").encode())
+                raw.flush()
+                os.fsync(raw.fileno())
+                removed = client.evaluate(APPLY, selected, cutoff_ms)
+                if removed != len(selected):
+                    raise RuntimeError("unexpected guarded removal count")
+                result["removed"] += removed
             raw.flush()
             os.fsync(raw.fileno())
         result["after"] = client.read_depth()
@@ -120,24 +119,58 @@ def apply_plan(client, plan, journal, cutoff_ms, seconds):
     return result
 
 
-def main():
+def require_stopped():
+    for unit in ("cobalt-wiki-deepwell", "cobalt-wiki-framerail"):
+        result = subprocess.run(
+            ["systemctl", "show", unit, "--property=LoadState,ActiveState,MainPID"],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        state = dict(
+            line.split("=", 1) for line in result.stdout.splitlines() if "=" in line
+        )
+        if state != {"LoadState": "loaded", "ActiveState": "inactive", "MainPID": "0"}:
+            raise RuntimeError(
+                f"{unit} must be loaded and stopped before queue recovery"
+            )
+
+
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("action", choices=("apply", "restore"))
     parser.add_argument("--valkey-cli", required=True)
     parser.add_argument("--port", type=int, required=True)
-    parser.add_argument("--plan", type=Path, required=True)
-    parser.add_argument("--sha256", required=True)
+    parser.add_argument("--plan", type=Path)
+    parser.add_argument("--sha256")
     parser.add_argument("--journal", type=Path, required=True)
     parser.add_argument("--cutoff-ms", type=int, required=True)
-    parser.add_argument("--seconds", type=int, required=True)
-    args = parser.parse_args()
-    if not 0 < args.seconds <= 210:
-        parser.error("apply budget must be between 1 and 210 seconds")
-    with args.plan.open("rb") as stream:
-        if hashlib.file_digest(stream, "sha256").hexdigest() != args.sha256:
-            parser.error("candidate plan hash does not match")
+    parser.add_argument("--seconds", type=int)
+    args = parser.parse_args(argv)
+    if args.action == "apply":
+        if (
+            args.plan is None
+            or args.sha256 is None
+            or args.seconds is None
+            or not 0 < args.seconds <= 210
+        ):
+            parser.error("apply requires a sealed plan and a 1–210 second budget")
+        with args.plan.open("rb") as stream:
+            if hashlib.file_digest(stream, "sha256").hexdigest() != args.sha256:
+                parser.error("candidate plan hash does not match")
+    require_stopped()
     os.umask(0o077)
     client = QueueClient(args.valkey_cli, ["-h", "127.0.0.1", "-p", str(args.port)])
-    result = apply_plan(client, args.plan, args.journal, args.cutoff_ms, args.seconds)
+    if args.action == "restore":
+        result = {
+            "restored": restore_journal(client, args.journal, args.cutoff_ms),
+            "depth": client.read_depth(),
+        }
+    else:
+        result = apply_plan(
+            client, args.plan, args.journal, args.cutoff_ms, args.seconds
+        )
     print(json.dumps(result))
 
 

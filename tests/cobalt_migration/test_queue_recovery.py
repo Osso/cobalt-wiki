@@ -1,13 +1,13 @@
 """Explicit local Redis protocol tests; only UUID-namespaced fixture keys change."""
 
+import gzip
 import json
 import os
 import subprocess
 import tempfile
-from pathlib import Path
-import gzip
 import unittest
 import uuid
+from pathlib import Path
 
 from tools.cobalt_migration.queue_recovery import APPLY, RESTORE, SELECT
 from tools.cobalt_migration.queue_recovery_run import (
@@ -15,7 +15,6 @@ from tools.cobalt_migration.queue_recovery_run import (
     apply_plan,
     restore_journal,
 )
-
 
 SOCKET = os.environ.get("QUEUE_TEST_SOCKET")
 CUTOFF = 1790117529000

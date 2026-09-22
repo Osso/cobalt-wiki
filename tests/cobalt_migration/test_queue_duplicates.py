@@ -3,7 +3,6 @@ import unittest
 
 from tools.cobalt_migration.queue_duplicates import duplicate_candidates
 
-
 SITE_ID = 6000000
 CUTOFF_MS = 1790110000000
 
