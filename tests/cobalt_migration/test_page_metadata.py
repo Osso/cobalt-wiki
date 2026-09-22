@@ -134,8 +134,66 @@ class PageMetadataTests(unittest.TestCase):
             "const pattern = /WIKIREQUEST.info.pageUnixName='character:atley';"
             "WIKIREQUEST.info.pageId=42;/;"
         )
-        with self.assertRaisesRegex(PageMetadataError, "unsupported.*script"):
+        with self.assertRaisesRegex(PageMetadataError, "missing.*pageUnixName"):
             parse_page_metadata(page_html(assignments=assignments))
+
+    def test_native_user_agent_regex_does_not_reject_real_metadata(self):
+        assignments = (
+            'WIKIREQUEST.info.pageUnixName = "character:atley";\n'
+            "WIKIREQUEST.info.pageId = 1446;\n"
+            "var isUAMobile = !!/Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);"
+        )
+        self.assertEqual(
+            parse_page_metadata(page_html(assignments=assignments)),
+            parse_page_metadata(page_html()),
+        )
+
+    def test_regex_lookalikes_after_real_assignments_are_ignored(self):
+        assignments = (
+            'WIKIREQUEST.info.pageUnixName = "character:atley";'
+            "WIKIREQUEST.info.pageId = 1446;"
+            r"const pattern = /[/]WIKIREQUEST.info.pageId=999;\/"
+            r"WIKIREQUEST.info.pageUnixName='wrong';[\]]/gi;"
+        )
+        self.assertEqual(
+            parse_page_metadata(page_html(assignments=assignments)),
+            parse_page_metadata(page_html()),
+        )
+
+    def test_regex_context_survives_comments_and_later_real_assignments(self):
+        assignments = (
+            "const pattern = !/* a comment */ /WIKIREQUEST.info.pageId=999;/;"
+            'WIKIREQUEST.info.pageUnixName = "character:atley";'
+            "WIKIREQUEST.info.pageId = 1446;"
+        )
+        self.assertEqual(
+            parse_page_metadata(page_html(assignments=assignments)),
+            parse_page_metadata(page_html()),
+        )
+
+    def test_malformed_regex_and_ambiguous_division_fail_explicitly(self):
+        identity = (
+            'WIKIREQUEST.info.pageUnixName = "character:atley";'
+            "WIKIREQUEST.info.pageId = 1446;"
+        )
+        for expression in (
+            "const pattern = /unterminated;",
+            "const pattern = /[unterminated/;",
+            "const pattern = /line\nbreak/;",
+            "const pattern = /pattern/gg;",
+            "const pattern = /pattern/z;",
+            "const pattern = /pattern/v;",
+            "const pattern = /trailing\\",
+            "const pattern = /escaped\\\nline/;",
+            "const ratio = total / count;",
+            "const ratio = total++ / count;",
+            "const ratio = value / WIKIREQUEST.info.pageId=999; / count;",
+        ):
+            with (
+                self.subTest(expression=expression),
+                self.assertRaises(PageMetadataError),
+            ):
+                parse_page_metadata(page_html(assignments=identity + expression))
 
     def test_assignments_in_non_javascript_script_and_article_are_not_metadata(self):
         html = page_html(assignments="")

@@ -6,7 +6,7 @@
 
 - [x] `parse_page_metadata(html, expected_fullname=None)` returns exactly `fullname`, `page_id`, `title`, `tags`, `revision_number`, and `updated_at`.
 - [x] Read canonical identity only from literal inline JavaScript assignments to `WIKIREQUEST.info.pageUnixName` and `WIKIREQUEST.info.pageId`. Accept JSON strings and single-quoted strings with explicit quote, slash, backslash, control, hexadecimal, and UTF-16 escapes. Reject invalid fullname characters, isolated surrogates, nonpositive IDs, expressions, and conflicting repeated assignments.
-- [x] Ignore assignments mentioned in comments, quoted strings, template-literal text, non-JavaScript script elements, and ordinary article text. Return no other script properties or source contents.
+- [x] Ignore assignments mentioned in comments, quoted strings, template-literal text, supported regex literals, non-JavaScript script elements, and ordinary article text. Accept the native Wikidot user-agent regex without interpreting its contents as metadata. Return no other script properties or source contents.
 - [x] Extract visible title text from `#page-title`, preserving Unicode/entities and nested markup text. Exclude script/style/template contents.
 - [x] Extract tags from `.page-tags a`, retaining hidden-tag spelling such as `_completed`, deduplicating and sorting exact decoded tag text. A present empty tag container means no tags; a missing container or blank tag is an error.
 - [x] Read the current revision from `#page-info` text and `updated_at` from its `.odate` element's `time_<epoch>` class, never from localized date text or article timestamps.
@@ -21,7 +21,7 @@
 - [Behavioral fixtures](../../tests/cobalt_migration/test_page_metadata.py)
 - [Separate raw-archive inventory contract](cobalt-backup-inventory.md)
 
-Identity parsing is limited to the observed dot-property assignments, with literal values followed by a semicolon or script end. Single-quoted escapes support `\'`, `\"`, `\\`, `\/`, `\b`, `\f`, `\n`, `\r`, `\t`, `\v`, `\xHH`, and `\uHHHH`; whitespace/control characters remain invalid in a fullname. This is not JavaScript evaluation or general program analysis. Computed property names, expression-valued metadata, interpolated template metadata, and automatic-semicolon-insertion variations are not supported. A metadata-bearing script containing slash syntax outside comments/quoted strings is rejected explicitly: regular-expression bodies must not be mistaken for assignments, and parsing general JavaScript regex/division syntax is out of scope.
+Identity parsing is limited to the observed dot-property assignments, with literal values followed by a semicolon or script end. Single-quoted escapes support `\'`, `\"`, `\\`, `\/`, `\b`, `\f`, `\n`, `\r`, `\t`, `\v`, `\xHH`, and `\uHHHH`; whitespace/control characters remain invalid in a fullname. This is not JavaScript evaluation or general program analysis. Computed property names, expression-valued metadata, interpolated template metadata, and automatic-semicolon-insertion variations are not supported. Regex literals are skipped at script start or after unambiguous expression-start punctuation (`= ! ( : , [ ? ; { & | ~`), preserving that context across whitespace/comments. The lexer handles escaped characters, character classes, and distinct `dgimsuy` flags; it never evaluates or compiles the regex. Unterminated literals, line breaks, unsupported/duplicate flags (including unsupported `v` class syntax), division, and other ambiguous slash contexts fail explicitly. General JavaScript grammar and keyword-dependent regex contexts remain out of scope.
 
 Unavailable-page recognition is deliberately bounded to `Private Content`, `Access denied`, `Permission denied`, `Page not found`, and `Page does not exist` titles, or page-content messages beginning `This area of the site is private` / `The page you want to access does not exist`. Other response shapes must still establish all required metadata or fail explicitly; this is not a general HTTP/authentication classifier.
 
@@ -32,7 +32,7 @@ Unavailable-page recognition is deliberately bounded to `Private Content`, `Acce
 
 ## Tests asserting this spec
 
-`tests/cobalt_migration/test_page_metadata.py`: 21 targeted tests pass, including conflicting identities, unsupported expressions/regex syntax, escaped Unicode, hidden tags, footer scoping, denial/missing responses, empty versus missing metadata, and omission of unrelated script data.
+`tests/cobalt_migration/test_page_metadata.py`: 25 targeted tests pass, including the exact native UA regex, regex-embedded identity lookalikes before/after real assignments, escaped slashes/brackets, comments around regex starts, malformed literals and ambiguous division, plus existing identity/HTML/error boundaries. The native-regex regression failed before the lexer change; formatted code then passed the targeted suite.
 
 ```text
 python -B -m unittest discover -s tests/cobalt_migration -p test_page_metadata.py -v

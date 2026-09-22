@@ -275,27 +275,74 @@ def _skip_comment(script: str, position: int) -> int:
     return end + 2
 
 
+def _regex_flags_end(script: str, position: int) -> int:
+    start = position
+    while (
+        position < len(script)
+        and script[position].isascii()
+        and script[position].isalpha()
+    ):
+        position += 1
+    flags = script[start:position]
+    if any(flag not in "dgimsuy" for flag in flags) or len(set(flags)) != len(flags):
+        raise PageMetadataError("unsupported regular-expression flags")
+    return position
+
+
+def _regex_end(script: str, start: int) -> int:
+    position = start + 1
+    in_class = False
+    while position < len(script):
+        character = script[position]
+        if character in "\r\n\u2028\u2029":
+            raise PageMetadataError("line break in regular-expression literal")
+        if character == "\\":
+            if (
+                position + 1 == len(script)
+                or script[position + 1] in "\r\n\u2028\u2029"
+            ):
+                raise PageMetadataError("invalid regular-expression escape")
+            position += 2
+            continue
+        if character == "/" and not in_class:
+            return _regex_flags_end(script, position + 1)
+        if character == "[":
+            in_class = True
+        elif character == "]":
+            in_class = False
+        position += 1
+    raise PageMetadataError("unterminated regular-expression literal")
+
+
 def _script_assignments(script: str):
     if _ASSIGNMENT.search(script) is None:
         return
     position = 0
+    regex_can_start = True
     while position < len(script):
-        if script.startswith(("//", "/*"), position):
+        character = script[position]
+        if character.isspace():
+            position += 1
+        elif script.startswith(("//", "/*"), position):
             position = _skip_comment(script, position)
-        elif script[position] in "\"'`":
+        elif character in "\"'`":
             position = _quoted_end(script, position)
-        elif script[position] == "/":
-            # Do not interpret regex bodies as assignments or implement a JS lexer.
-            raise PageMetadataError(
-                "unsupported slash syntax in metadata-bearing script"
-            )
+            regex_can_start = False
+        elif character == "/":
+            if not regex_can_start:
+                raise PageMetadataError("unsupported or ambiguous script slash syntax")
+            position = _regex_end(script, position)
+            regex_can_start = False
         else:
             match = _ASSIGNMENT.match(script, position)
             if match is None:
+                # Only unambiguous expression-start punctuation is supported.
+                regex_can_start = character in "=!(:,[?;{&|~"
                 position += 1
                 continue
             field = match.group("field")
             value, position = _read_assignment(script, match.end(), field)
+            regex_can_start = True
             yield field, value
 
 
