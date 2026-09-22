@@ -8,7 +8,7 @@
 - [x] Read canonical identity only from literal inline JavaScript assignments to `WIKIREQUEST.info.pageUnixName` and `WIKIREQUEST.info.pageId`. Accept JSON strings and single-quoted strings with explicit quote, slash, backslash, control, hexadecimal, and UTF-16 escapes. Reject invalid fullname characters, isolated surrogates, nonpositive IDs, expressions, and conflicting repeated assignments.
 - [x] Ignore assignments mentioned in comments, quoted strings, template-literal text, supported regex literals, non-JavaScript script elements, and ordinary article text. Accept the native Wikidot user-agent regex without interpreting its contents as metadata. Return no other script properties or source contents.
 - [x] Extract visible title text from `#page-title`, preserving Unicode/entities and nested markup text. Exclude script/style/template contents.
-- [x] Extract tags from `.page-tags a`, retaining hidden-tag spelling such as `_completed`, deduplicating and sorting exact decoded tag text. A present empty tag container means no tags; a missing container or blank tag is an error.
+- [x] Extract tags from `.page-tags a`, retaining hidden-tag spelling such as `_completed`, deduplicating and sorting exact decoded tag text. An absent or present empty tag container means no tags. Multiple containers remain ambiguous and a blank tag remains an error.
 - [x] Read the current revision from `#page-info` text and `updated_at` from its `.odate` element's `time_<epoch>` class, never from localized date text or article timestamps.
 - [x] Reject missing, duplicate, malformed, or ambiguous required metadata. Require exact canonical fullname agreement when `expected_fullname` is supplied.
 - [x] Raise `SourcePageUnavailable` with `reason="denied"` or `reason="not_found"` for recognized denial/missing-page titles or source messages, even when a fetch returned HTTP 200.
@@ -32,7 +32,7 @@ Unavailable-page recognition is deliberately bounded to `Private Content`, `Acce
 
 ## Tests asserting this spec
 
-`tests/cobalt_migration/test_page_metadata.py`: 25 targeted tests pass, including the exact native UA regex, regex-embedded identity lookalikes before/after real assignments, escaped slashes/brackets, comments around regex starts, malformed literals and ambiguous division, plus existing identity/HTML/error boundaries. The native-regex regression failed before the lexer change; formatted code then passed the targeted suite.
+`tests/cobalt_migration/test_page_metadata.py`: 28 targeted tests cover, including the exact native UA regex, regex-embedded identity lookalikes before/after real assignments, escaped slashes/brackets, comments around regex starts, malformed literals and ambiguous division, plus existing identity/HTML/error boundaries. The native-regex regression failed before the lexer change; formatted code then passed the targeted suite.
 
 ```text
 python -B -m unittest discover -s tests/cobalt_migration -p test_page_metadata.py -v
@@ -40,7 +40,7 @@ python -B -m unittest discover -s tests/cobalt_migration -p test_page_metadata.p
 
 ## Known gaps (current cycle)
 
-- [ ] Caller integration and bulk authenticated acquisition are not part of this slice. A protected `character:atley` response passed exact parser acceptance at `bec4ba1`; no other live response shape is established.
+- [ ] Caller integration and bulk authenticated acquisition are not part of this slice. A protected tagged response passed exact parser acceptance at `bec4ba1`. A later protected HTTP 200 response has a closed HTML document, one title/content/footer, one footer timestamp, and no `.page-tags` container anywhere in its DOM. The old exactly-one-tag-container requirement rejected this native no-tags shape. Synthetic regression reproduces that absence; post-fix live acceptance and export resume remain caller-owned.
 - [ ] Other Wikidot localization, denial wording, or identity-assignment syntax needs source evidence and tests before support can be claimed.
 
 ## Out of scope

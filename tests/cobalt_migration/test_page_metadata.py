@@ -25,8 +25,12 @@ def page_html(
         f"<html><head><script>{assignments}</script></head><body>"
         f'<div id="main-content"><h1 id="page-title">{title}</h1>'
         f'<div id="page-content">{content}</div>'
-        f'<div class="page-tags"><span>{tags}</span></div>'
-        f'<div id="page-info">{info}</div></div></body></html>'
+        + (
+            f'<div class="page-tags"><span>{tags}</span></div>'
+            if tags is not None
+            else ""
+        )
+        + f'<div id="page-info">{info}</div></div></body></html>'
     )
 
 
@@ -104,6 +108,38 @@ class PageMetadataTests(unittest.TestCase):
         self.assertEqual(record["tags"], [])
         self.assertEqual(record["revision_number"], 0)
         self.assertEqual(record["updated_at"], 0)
+
+    def test_absent_native_tag_container_means_no_tags(self):
+        expected = parse_page_metadata(page_html(tags=""))
+        self.assertEqual(
+            parse_page_metadata(
+                page_html(tags=None), expected_fullname="character:atley"
+            ),
+            expected,
+        )
+
+    def test_duplicate_tag_containers_are_ambiguous_even_when_empty(self):
+        for tags in ("", "<a>human</a>"):
+            with (
+                self.subTest(tags=tags),
+                self.assertRaisesRegex(PageMetadataError, "page-tags"),
+            ):
+                parse_page_metadata(
+                    page_html(tags=tags) + '<div class="page-tags"></div>'
+                )
+
+    def test_absent_tags_do_not_bypass_required_metadata_or_denial(self):
+        cases = [
+            page_html(tags=None, title="Private Content"),
+            page_html(tags=None, assignments="WIKIREQUEST.info.pageId=42;"),
+            page_html(tags=None).replace('id="page-info"', 'id="different"'),
+            page_html(tags=None, info="page revision: 2"),
+        ]
+        for html in cases:
+            with self.subTest(html=html), self.assertRaises(PageMetadataError):
+                parse_page_metadata(html)
+        with self.assertRaisesRegex(PageMetadataError, "expected_fullname"):
+            parse_page_metadata(page_html(tags=None), expected_fullname="other:page")
 
     def test_script_and_style_text_do_not_pollute_title_tags_or_footer(self):
         html = page_html(
@@ -216,7 +252,6 @@ class PageMetadataTests(unittest.TestCase):
             ),
             "title": page_html().replace('id="page-title"', 'id="different"'),
             "empty title": page_html(title=" \n "),
-            "tags": page_html().replace('class="page-tags"', 'class="different"'),
             "footer": page_html().replace('id="page-info"', 'id="different"'),
             "revision": page_html(info='<span class="odate time_4">now</span>'),
             "timestamp": page_html(info="page revision: 2"),

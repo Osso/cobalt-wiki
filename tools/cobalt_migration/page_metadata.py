@@ -360,11 +360,13 @@ def _identity(parsed: _PageHTML) -> dict:
 
 
 def _visible_metadata(parsed: _PageHTML) -> dict:
-    for section in ("page-title", "page-tags", "page-info"):
+    for section in ("page-title", "page-info"):
         if parsed.counts.get(section, 0) != 1:
             raise PageMetadataError(
                 f"expected exactly one {section} metadata container"
             )
+    if parsed.counts.get("page-tags", 0) > 1:
+        raise PageMetadataError("expected at most one page-tags metadata container")
     title = _compact_text(parsed.text["page-title"])
     if not title:
         raise PageMetadataError("page-title is empty")
@@ -388,7 +390,7 @@ def parse_page_metadata(html: str, expected_fullname: str | None = None) -> dict
     """Parse one source response; errors never include source text or scalar values.
 
     Only literal WIKIREQUEST assignments and scoped HTML metadata are supported.
-    Missing or ambiguous metadata is an error, not an empty/default record.
+    Absent native tag containers mean no tags; required metadata stays mandatory.
     """
     parsed = _PageHTML()
     parsed.feed(html)
