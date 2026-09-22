@@ -215,7 +215,7 @@ impl ViewService {
                         &CheckPermissionContext {
                             user_id: user_session.as_ref().map(|s| s.user.user_id),
                             site_id,
-                            page_reference: None,
+                            page_reference: Some(Reference::Id(page.page_id)),
                         },
                         [
                             Permission {
@@ -784,6 +784,11 @@ impl ViewService {
         user_id: Option<i64>,
         slug: &str,
     ) -> Result<Option<String>> {
+        let Some(template) =
+            PageService::get_optional(ctx, site_id, Reference::Slug(cow!(slug))).await?
+        else {
+            return Ok(None);
+        };
         let (category_slug, _) = split_category(slug);
         let category_id = Self::get_category_id(ctx, site_id, category_slug).await?;
         let [can_view] = PermissionService::batch_check_user_can(
@@ -791,7 +796,7 @@ impl ViewService {
             &CheckPermissionContext {
                 user_id,
                 site_id,
-                page_reference: None,
+                page_reference: Some(Reference::Id(template.page_id)),
             },
             [Permission {
                 resource_type: Resource::Page,
@@ -803,11 +808,6 @@ impl ViewService {
         if !can_view {
             return Ok(None);
         }
-        let Some(template) =
-            PageService::get_optional(ctx, site_id, Reference::Slug(cow!(slug))).await?
-        else {
-            return Ok(None);
-        };
         let revision =
             PageRevisionService::get_latest(ctx, site_id, template.page_id).await?;
         TextService::get(ctx, &revision.wikitext_hash)
