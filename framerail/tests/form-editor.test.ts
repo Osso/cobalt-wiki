@@ -1,12 +1,11 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
-import {
-  createDraft,
-  changedFields,
-  editContent,
-  fieldText
-} from "../src/lib/form-editor.ts"
-import type { PageForm } from "../src/lib/form-editor.ts"
+import { createJiti } from "jiti"
+import type { PageForm } from "../src/lib/form-editor"
+
+const { createDraft, changedFields, editContent, fieldText } = await createJiti(
+  import.meta.url
+).import<typeof import("../src/lib/form-editor")>("../src/lib/form-editor")
 
 const form: PageForm = {
   schema: {

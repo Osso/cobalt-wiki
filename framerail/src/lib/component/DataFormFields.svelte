@@ -27,26 +27,26 @@
           {#if !field.options.some((option) => option.code === draft[field.name])}
             <option value={draft[field.name]}>{scalarText(draft[field.name])}</option>
           {/if}
-          {#each field.options as option}
+          {#each field.options as option, optionIndex (optionIndex)}
             <option value={option.code}>{scalarText(option.label)}</option>
           {/each}
         </select>
       {:else if field.kind === "wiki"}
         <textarea
           {id}
-          rows={dimension(field.properties.height)}
-          cols={dimension(field.properties.width)}
           aria-describedby={hint ? `${id}-hint` : undefined}
-          value={scalarText(draft[field.name])}
-          oninput={(event) => (draft[field.name] = event.currentTarget.value)}></textarea>
+          cols={dimension(field.properties.width)}
+          oninput={(event) => (draft[field.name] = event.currentTarget.value)}
+          rows={dimension(field.properties.height)}
+          value={scalarText(draft[field.name])}></textarea>
       {:else}
         <input
           {id}
-          type="text"
-          size={dimension(field.properties.width)}
           aria-describedby={hint ? `${id}-hint` : undefined}
-          value={scalarText(draft[field.name])}
           oninput={(event) => (draft[field.name] = event.currentTarget.value)}
+          size={dimension(field.properties.width)}
+          type="text"
+          value={scalarText(draft[field.name])}
         />
       {/if}
     {/if}

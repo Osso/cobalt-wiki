@@ -28,7 +28,7 @@ Framerail edits the optional backend `Found.form` payload using ordered source-d
 
 - `framerail/tests/form-editor.test.ts`: concrete draft changes, scalar codes, readonly/unknown exclusions and wire payloads.
 - `framerail/tests/form-fields.test.mjs`: bounded Svelte server-rendered control markup; not browser interaction proof.
-- Run with Node's built-in test runner: `node --test tests/form-editor.test.ts tests/form-fields.test.mjs` from Framerail. Requires existing project Svelte dependencies; no full application build/server.
+- Run with Node's built-in test runner: `node --test tests/form-editor.test.ts tests/form-fields.test.mjs` from Framerail. Uses the existing `jiti` dependency for extensionless TypeScript imports and existing Svelte dependencies; no full application build/server.
 
 ## Known gaps (current cycle)
 
