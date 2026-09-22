@@ -25,17 +25,17 @@ The gateway runs inside the existing capped wiki slice. Its standalone nginx ins
 
 ## Tests asserting this spec
 
-Targeted Nix evaluation covers configuration generation. Main additionally verified deployed loopback Basic-auth denial across 29 unauthenticated or wrong-password route/method checks, including an immutable asset; authenticated WWS behavior remains unproven.
+Targeted Nix evaluation covers configuration generation. Main additionally verified deployed loopback Basic-auth denial across 29 unauthenticated or wrong-password route/method checks, including an immutable asset. Public HTTPS tests verify authentication/no-index headers and archive-matching theme-image downloads; see [current proof](../wiki/systems/cobalt-replica-status.md).
 
 ## Known gaps (current cycle)
 
 - [x] Production bootstrap assigned site ID `6000000` on 2026-09-22. The protected loopback gateway is deployed for that ID.
 - [x] Deployed gateway returned `401` for 29 unauthenticated or wrong-password route/method checks, including pages, assets, file/download paths, robots, and `.well-known`.
-- [ ] Authenticated WWS file routing remains unaccepted. The deployed positional `site_domain` RPC fix allows missing-file routes to return `404`, but authenticated `robots.txt` still returns `502`.
+- [x] Authenticated WWS file routing serves imported images over public HTTPS with archive-matching hashes. The positional `site_domain` and trusted target-server-header fixes are deployed. WWS's authenticated robots implementation remains unsupported; unauthenticated robots requests receive the shared challenge and no-index header.
 - [ ] Invalid forged session-cookie handling returns a server error; it is not an authentication bypass, but authenticated session behavior is not accepted.
 - [x] Runtime htpasswd ownership/readability was corrected for `cobalt-wiki`.
 - [x] Public HTTPS ingress is configured through the existing Sakuin Cloudflare Tunnel as a proxied CNAME to the loopback gateway. Browser-like requests receive the gateway's `401 Basic` challenge. Python's default client is blocked upstream with Cloudflare `1010`.
-- [ ] Full source import and authenticated routing acceptance remain incomplete; public ingress does not establish source ACL parity.
+- [x] Full source/attachment import completed and authenticated file routing was exercised. Public ingress does not establish source ACL parity.
 - [ ] Source ACLs and WWS per-page authorization remain unfinished. The POC gate grants its holders access to the whole POC; it is not source-permission parity.
 
 ## Out of scope

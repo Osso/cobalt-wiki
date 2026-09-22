@@ -5,13 +5,13 @@
 ## What it must do
 
 - [x] Validate all archive members and a complete canonical listing before writing a protected immutable plan; reject duplicate/colliding identities, missing/extra source pages, and orphan attachment owners.
-- [ ] Retain exact canonical page names, including multiple colons, source bytes and attachment bytes; verify target readback with SHA-256 and size.
+- [x] Retain exact canonical page names, including multiple colons, source bytes and attachment bytes; verify target readback with SHA-256 and size.
 - [x] Resume after a committed page creation whose response was lost without creating duplicate pages.
 - [x] Refuse existing records not marked with this plan and technical principal; refuse modified imported content rather than overwrite it.
 - [x] Preserve acquired title/tags and supplemental source revision/time metadata. Missing metadata remains explicitly unacquired; canonical fullname is the POC display label, not a claimed original title.
 - [x] Write plans as owner-only files; reject changed archives before target calls.
-- [ ] Reconcile the full protected 6,092-source/1,471-attachment archive against a real provisioned Deepwell instance.
-- [ ] Prove actual `page_import` exact-name readback, attachment upload/readback, authorization, parser-limit and metadata-normalization behavior in the native runtime.
+- [x] Reconcile the full protected 6,092-source/1,471-attachment archive against a real provisioned Deepwell instance.
+- [x] Prove actual `page_import` exact-name readback, attachment upload/readback, technical-principal authorization and metadata retention in the native runtime. Source ACL parity remains separate.
 
 ## How it works
 
@@ -30,8 +30,8 @@
 
 ## Known gaps (current cycle)
 
-- [ ] Full endpoint acceptance remains pending. Production has 164 active source pages and no attachments (verified: 2026-09-22). Atomic exact-name import and tag edits reached this point; ordinary `page_create` normalization remains unchanged.
-- [ ] Complete native acceptance of unmatched `))`: the exact next archive member reproduces an FTML bibliography-parser assertion. The corrected token dispatch passes a native DB/rendering regression; full import remains blocked until deployment/readback. Logging suppression and blind create retries were reverted because neither resolves this parser fault.
+- [x] Full archive apply completed with 6,092 pages and 1,471 attachments (verified: 2026-09-22). SQL reconciliation independently matches every page's name/title/tags/source size/SHA-256 and migration attribution. Attachment ownership/name/size inventory matches; apply verified all attachment bytes. See [current proof](../wiki/systems/cobalt-replica-status.md).
+- [x] Unmatched `))` is accepted through corrected FTML token dispatch. The exact archive fixture, native DB/rendering regression and complete 6,092-source parser corpus pass. Ordinary `page_create` normalization remains unchanged; logging suppression and blind mutation retries were reverted.
 - [ ] Provisioning must supply an existing positive-ID target site and a dedicated technical import principal with an authenticated session authorized to edit/import that site. The principal may be the seeded administrator (ID −1) or a positive user ID; the session identity must match the immutable plan. Runtime must allow the source archive's largest pages/attachments.
 - [ ] Deepwell and presigned S3 endpoints must be loopback IPv4/IPv6 literals (run on target or forward both ports). Session file and plan must be `0600` in an owner-only directory.
 - [ ] Host owner must protect every POC route before import. No source ACL parity is claimed.

@@ -35,7 +35,7 @@ No checked-in runtime tests yet. Targeted module evaluation establishes generate
 - [x] Production bootstrap completed on 2026-09-22 after seed correction `660fe2c`; Deepwell assigned Cobalt Company site ID `6000000`.
 - [ ] Verify module-managed service restart persistence, actual socket bindings, capped-slice behavior under load, and continued Sakuin health after subsequent Cobalt activation.
 - [ ] Email-provider configuration and credentials must be supplied deliberately; this module does not select a mock provider.
-- [ ] Verify the optional [POC gateway](cobalt-poc-gateway.md), which supplies trusted site headers, same-origin routing, and all-route authentication. It is publicly reachable through the existing Sakuin tunnel using site ID `6000000`; browser-like unauthenticated requests receive `401`, but authenticated `robots.txt` still returns `502` and full WWS acceptance remains open.
+- [x] The optional [POC gateway](cobalt-poc-gateway.md) is publicly reachable through the existing Sakuin tunnel using site ID `6000000`. Public tests verify authentication/no-index headers and archive-matching image downloads; source ACL parity remains open. See [current proof](../wiki/systems/cobalt-replica-status.md).
 
 ### Integration contract
 
