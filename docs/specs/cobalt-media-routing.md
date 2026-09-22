@@ -4,10 +4,10 @@ FTML must render same-site attachment references through the deployed site's pro
 
 ## What it must do
 
-- [ ] Emit same-origin file URLs for current-page, same-site other-page, and explicitly same-site references.
-- [ ] Preserve explicit external URLs and unrelated cross-site references.
-- [ ] Preserve source bytes and revision identity while refreshing derived HTML.
-- [ ] Serve actual imported image bytes behind authentication and no-index controls.
+- [x] Emit same-origin file URLs for current-page, same-site other-page, and explicitly same-site references.
+- [x] Preserve explicit external URLs and unrelated cross-site references.
+- [x] Preserve source bytes and revision identity while refreshing derived HTML.
+- [x] Serve actual imported image bytes behind authentication and no-index controls.
 
 ## How it works
 
@@ -24,7 +24,7 @@ FTML must render same-site attachment references through the deployed site's pro
 
 ## Known gaps (current cycle)
 
-- [ ] Native tests, deployment, affected rendering refresh and browser image checks.
+- [x] Native routing test and all 121 FTML AST fixtures pass; fmt/check pass. Deployed and refreshed 28 affected pages, preserving source hashes and revision identity. Browser loads both homepage images backed by imported attachments, with matching hashes through public authenticated HTTPS.
 - [ ] Two homepage images still depend on unresolved template variables; routing must not pretend their requested assets exist.
 
 ## Out of scope

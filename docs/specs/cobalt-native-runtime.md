@@ -13,7 +13,7 @@
 - [ ] Disable seeding during ordinary startup and refuse backend startup before explicit production provisioning.
 - [x] Offer a manual-only bootstrap unit when a private reviewed seed directory is explicitly supplied; apply packaged migrations, seed, and mark success only after both commands succeed.
 - [ ] Use a fixed HTTPS Framerail origin and production adapter-node server, without disabling CSRF checks.
-- [ ] Keep dependent WWS/Framerail startup ordered after a successful Deepwell JSON-RPC ping, with bounded retries for transient startup failures.
+- [x] Keep dependent WWS/Framerail startup ordered after a successful Deepwell JSON-RPC ping, with bounded retries for transient startup failures. Four HTTP tests pass; production switch completed with successful first WWS ping and zero automatic restarts.
 
 ## How it works
 
