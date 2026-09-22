@@ -25,7 +25,7 @@ mod prelude {
     pub use super::structs::*;
 }
 
-mod form;
+pub(crate) mod form;
 mod options;
 mod service;
 mod structs;

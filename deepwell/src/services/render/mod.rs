@@ -33,6 +33,9 @@ mod prelude {
 
 mod includes;
 mod link_titles;
+mod list_pages;
+mod live_template;
+mod page_tokens;
 mod service;
 mod structs;
 
