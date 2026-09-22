@@ -59,10 +59,11 @@ let
     nativeBuildInputs = [
       nodejs
       pnpm
-      pnpm.configHook
+      pkgs.pnpmConfigHook
       pkgs.makeWrapper
     ];
-    pnpmDeps = pnpm.fetchDeps {
+    pnpmDeps = pkgs.fetchPnpmDeps {
+      inherit pnpm;
       pname = "cobalt-framerail";
       version = "2026.3.25";
       src = root + /framerail;
