@@ -84,7 +84,10 @@ impl Handle {
             FileSource::File3 { site, page, file } => (site, page, file),
         };
 
-        // TODO: emit url
+        if site == info.site.as_ref() {
+            return Some(Cow::Owned(format!("/-/file/{page}/{file}")));
+        }
+
         Some(Cow::Owned(format!(
             "https://{site}.wjfiles.com/local--files/{page}/{file}",
         )))
