@@ -176,10 +176,17 @@ impl RenderService {
         // since we want to do the processing for non-ftml work
         // outside the timeout guards.
 
-        let tokens = timeout(config.preprocess_timeout, async {
-            // TODO include
+        let (tokens, included_pages) = timeout(config.preprocess_timeout, async {
+            let (expanded, included_pages) = super::includes::expand_includes(
+                ctx,
+                std::mem::take(&mut wikitext),
+                &page_info.site,
+                settings,
+            )
+            .await?;
+            wikitext = expanded;
             ftml::preprocess(&mut wikitext);
-            ftml::tokenize(&wikitext)
+            Ok::<_, ExnError>((ftml::tokenize(&wikitext), included_pages))
         })
         .await
         .or_raise(|| {
@@ -187,9 +194,9 @@ impl RenderService {
                 "failed to preprocess and tokenize due to timeout",
                 ErrorType::RenderTimeout,
             )
-        })?;
+        })??;
 
-        let (tree, html_output, errors) = timeout(config.render_timeout, async {
+        let (tree, mut html_output, errors) = timeout(config.render_timeout, async {
             let result = ftml::parse(&tokens, page_info, settings);
             let (tree, errors) = result.into();
             super::link_titles::fetch_page_titles(ctx, &tree, &page_info.site)
@@ -207,6 +214,8 @@ impl RenderService {
                 ErrorType::RenderTimeout,
             )
         })??;
+
+        html_output.backlinks.included_pages.extend(included_pages);
 
         // Insert compiled HTML into text table
         let compiled_hash = TextService::create(ctx, html_output.body.clone())

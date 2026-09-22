@@ -31,6 +31,7 @@ mod prelude {
     pub use ftml::{self};
 }
 
+mod includes;
 mod link_titles;
 mod service;
 mod structs;
