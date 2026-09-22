@@ -26,13 +26,13 @@
 
 ## Tests asserting this spec
 
-No checked-in runtime tests yet. Targeted module evaluation can establish generated configuration, not running-service or migration correctness. Requirements remain unchecked until behavioral runtime proof exists.
+No checked-in runtime tests yet. Targeted module evaluation establishes generated configuration, not running-service or migration correctness. A separate isolated local PostgreSQL 17, Valkey, and Silo environment completed migrations and the stock development seeder, then supported three Deepwell form-edit DB tests and four view-helper tests; its protected logs are under `/home/osso/.local/share/cobalt-wiki/integration/`. That proves only those local application paths, not this NixOS module's services, production provisioning, private ACLs, or deployment.
 
 ## Known gaps (current cycle)
 
 - [x] `aeb81fe` replaces rejected insecure `pkgs.minio` with pinned `pgsty/silo` release `RELEASE.2026-09-16T00-00-00Z` (`2a4d51406b7ed87af5fe6fe0f801f3290f96eb3c`), which contains fixes for CVE-2026-40344 and CVE-2026-41145. Agent44 independently realized Silo at `/nix/store/am512fba05178mdfzlzsngd3anz7w1xb-silo-2026-09-16`; enabled-module evaluation passes and reports `DEVELOPMENT.GOGET` on Go 1.27.1. Do not permit the rejected MinIO package as a fallback.
 - [ ] Main must import the module and supply domains, the private EnvironmentFile, and reviewed production provisioning data.
-- [ ] No runtime services have run. Verify PostgreSQL initialization, SQL migrations, storage buckets, application startup, restart persistence, and actual socket bindings.
+- [ ] No `services.cobaltWiki` runtime services have run. An isolated local native test stack completed migrations, buckets, and the stock development seeder; still verify module-managed PostgreSQL initialization, storage, application startup, restart persistence, and actual socket bindings.
 - [ ] Main must verify all services remain in the capped slice under load and that existing Sakuin services remain healthy.
 - [ ] Email-provider configuration and credentials must be supplied deliberately; this module does not select a mock provider.
 - [ ] Proxy routing must preserve the public HTTPS origin and supply trusted Wikijump site headers; no reverse proxy is provided here.

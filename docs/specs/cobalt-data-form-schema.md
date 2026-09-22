@@ -41,9 +41,9 @@ Updates apply to the entire stored YAML mapping using `apply_field_updates`. Onl
 - [x] Wire scalar updates preserve unknown stored values and decoded types; invalid fields/static changes/select codes/nested values fail.
 - [x] Raw and form modes conflict; absent updates preserve the raw request.
 - [x] The reused revision guard rejects a different latest revision without rewriting the caller's revision.
-- [ ] Endpoint authorization ordering, template self-exclusion, stored round-trips, and stale-edit non-mutation are asserted in the DB harness but not runtime-proven in this slice.
+- [x] The native DB harness proves authorization ordering, template self-exclusion, scalar update persistence, and stale-edit non-mutation for the three endpoint cases below.
 
-Six filtered backend library tests passed after behavioral RED. `deepwell/tests/page_form_edit.rs` compiles and contains three endpoint tests: scalar round-trip followed by an intervening raw edit and stale submission; invalid/conflicting/template updates without revision creation; anonymous request-context denial before parsing malformed source/template or conflicting modes, despite an administrator attribution in the body. These tests were not executed: the existing harness requires seeded PostgreSQL, Valkey, and S3 services. Compilation is not DB/concurrency proof; concurrent commits between preparation and the final service check remain untested. Only offline targeted development tests, test-target compilation, and formatting were run; no broad checks, network, operations, or delegation.
+Six filtered backend library tests passed after behavioral RED. `deepwell/tests/page_form_edit.rs` contains three endpoint tests: scalar update followed by an intervening raw edit and stale submission preserves the newer source; invalid/conflicting/template updates create no revision; anonymous request-context denial occurs before malformed form validation and ignores an administrator attribution in the body. On September 22, 2026, an isolated local PostgreSQL 17, Valkey, and Silo environment ran all three tests successfully after migrations and the stock development seeder; protected log: `/home/osso/.local/share/cobalt-wiki/integration/page-form-edit-tests.log`. Four view-helper tests also passed; protected log: `/home/osso/.local/share/cobalt-wiki/integration/form-view-tests.log`. This proves those seeded local endpoint paths, not production data, concurrent interleavings beyond the stale-revision case, deployment, or source ACL parity.
 
 ## How it works
 
@@ -74,7 +74,7 @@ Dependencies: Serde supplies the transport serialization contract; maintained `s
 ## Known gaps (current cycle)
 
 - [ ] The legacy NPC definition's apparent `orc: Orc:` syntax remains an error, not an automatic repair. The source inventory contains no saved NPC records. No real template or private record is included in fixtures.
-- [ ] Frontend form work is in progress but not claimed here. Rendering/editor integration and database-backed page-view/permission tests remain open; backend payload/edit wiring alone is not form-workflow parity.
+- [ ] Frontend controls have seven SSR/model tests, but hydrated interaction and save/reload roundtrip remain unproven. Backend payload/edit wiring and local endpoint cases are not form-workflow parity.
 - [ ] Private attachment authorization is separate and missing: current WWS attachment routes do not enforce page-view authorization. Do not expose private attachments.
 - [ ] Independent verification, readability, and broader checks belong to the integration owner.
 

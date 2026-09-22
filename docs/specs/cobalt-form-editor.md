@@ -7,9 +7,9 @@ Framerail edits the optional backend `Found.form` payload using ordered source-d
 - [x] Preserve unchanged scalar types, including numeric text values and nulls; defaults display without generating updates.
 - [x] Submit only changed editable known fields; omit static and unknown values from updates. Select codes retain scalar types; text/wiki edits are strings.
 - [x] Construct mutually exclusive `form_updates` and `wikitext` wire payloads, including empty update maps.
-- [ ] Render ordered static/text/select/wiki fields with visible labels, source hints, defaults and supported numeric dimensions. Static content remains escaped readonly text.
-- [ ] Use form controls whenever a form exists; retain the raw editor only for nonform/template pages.
-- [ ] Preserve existing title, alternate title, tags, comments, revision and authentication handling through the edit action.
+- [x] Render ordered static/text/select/wiki fields with visible labels, source hints, defaults and supported numeric dimensions. Static content remains escaped readonly text.
+- [x] Use form controls whenever a form exists; retain the raw editor only for nonform/template pages.
+- [x] Preserve existing title, alternate title, tags, comments, revision and authentication handling through the edit action.
 
 ## How it works
 
@@ -32,9 +32,9 @@ Framerail edits the optional backend `Found.form` payload using ordered source-d
 
 ## Known gaps (current cycle)
 
-- [ ] Hydrated browser interaction, action validation and database save/reload roundtrip require independent runtime verification.
-- [ ] Backend unknown-value preservation is relied upon, not reimplemented or proved by frontend tests.
-- [ ] Full frontend check/readability gate remains verifier-owned.
+- [ ] Hydrated browser interaction and save/reload roundtrip require independent runtime verification.
+- [ ] Backend unknown-value preservation is relied upon, not reimplemented by frontend tests.
+- [ ] The seven SSR/model tests pass, but TypeScript checking has 62 diagnostics pending baseline verification; do not claim a clean frontend check.
 
 ## Out of scope
 
