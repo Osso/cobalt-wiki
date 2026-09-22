@@ -73,9 +73,10 @@ impl TextRender {
             },
         );
 
+        let handle = Handle::default();
         let mut ctx = TextContext::new(
             page_info,
-            &Handle,
+            &handle,
             settings,
             table_of_contents,
             footnotes,

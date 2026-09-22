@@ -192,8 +192,13 @@ impl RenderService {
         let (tree, html_output, errors) = timeout(config.render_timeout, async {
             let result = ftml::parse(&tokens, page_info, settings);
             let (tree, errors) = result.into();
-            let html_output = HtmlRender.render(&tree, page_info, settings);
-            (tree, html_output, errors)
+            super::link_titles::fetch_page_titles(ctx, &tree, &page_info.site)
+                .await
+                .map(|titles| {
+                    let html_output = HtmlRender
+                        .render_with_page_titles(&tree, page_info, settings, titles);
+                    (tree, html_output, errors)
+                })
         })
         .await
         .or_raise(|| {
@@ -201,7 +206,7 @@ impl RenderService {
                 "failed to parse and render due to timeout",
                 ErrorType::RenderTimeout,
             )
-        })?;
+        })??;
 
         // Insert compiled HTML into text table
         let compiled_hash = TextService::create(ctx, html_output.body.clone())

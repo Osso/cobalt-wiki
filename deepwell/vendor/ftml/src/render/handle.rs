@@ -23,10 +23,13 @@ use crate::settings::WikitextSettings;
 use crate::tree::{FileSource, LinkLabel, LinkLocation, Module};
 use crate::url::BuildSiteUrl;
 use std::borrow::Cow;
+use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
 
-#[derive(Debug)]
-pub struct Handle;
+#[derive(Debug, Default)]
+pub struct Handle {
+    pub page_titles: BTreeMap<(String, String), String>,
+}
 
 impl Handle {
     pub fn render_module(&self, buffer: &mut String, module: &Module) {
@@ -35,11 +38,8 @@ impl Handle {
         str_write!(buffer, "<p>TODO: module {}</p>", module.name());
     }
 
-    pub fn get_page_title(&self, _site: &str, _page: &str) -> Option<String> {
-        debug!("Fetching page title");
-
-        // TODO
-        Some(format!("TODO: actual title ({_site} {_page})"))
+    pub fn get_page_title(&self, site: &str, page: &str) -> Option<String> {
+        self.page_titles.get(&(site.to_owned(), page.to_owned())).cloned()
     }
 
     pub fn get_page_exists(&self, _site: &str, _page: &str) -> bool {
