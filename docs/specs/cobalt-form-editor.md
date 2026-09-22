@@ -7,7 +7,7 @@ Framerail edits the optional backend `Found.form` payload using ordered source-d
 - [x] Preserve unchanged scalar types, including numeric text values and nulls; defaults display without generating updates.
 - [x] Submit only changed editable known fields; omit static and unknown values from updates. Select codes retain scalar types; text/wiki edits are strings.
 - [x] Construct mutually exclusive `form_updates` and `wikitext` wire payloads, including empty update maps.
-- [x] Render ordered static/text/select/wiki fields with visible labels, source hints, defaults and supported numeric dimensions. A select with 2–4 choices uses labeled radio buttons; larger sets remain dropdowns. Radio choices retain numeric/string/boolean/null codes, including distinct codes with identical displayed text. Missing or unrecognized stored values are not silently replaced by the first choice. Static content remains escaped readonly text.
+- [x] Render ordered static/text/select/wiki fields with visible labels, source hints, defaults and supported numeric dimensions. A select with 2–4 choices uses labeled radio buttons; larger sets remain dropdowns. Radio choices retain numeric/string/boolean/null codes, including distinct numeric `1` and string `"1"` values. Missing or unrecognized stored values are not silently replaced by the first choice. Static content remains escaped readonly text.
 - [x] Use form controls whenever a form exists; retain the raw editor only for nonform/template pages.
 - [x] Preserve existing title, alternate title, tags, comments, revision and authentication handling through the edit action.
 
