@@ -308,6 +308,34 @@ fn literal_and_folded_blocks_preserve_token_like_text() {
 }
 
 #[test]
+fn extension_sequence_and_root_blocks_are_not_rewritten() {
+    let source = "fields: {}\nnotes:\n  - |\n    @@: No\n    default: @@\ndefault: @@\n";
+    let expected =
+        "fields: {}\nnotes:\n  - |\n    @@: No\n    default: @@\ndefault: '@@'\n";
+    assert_eq!(normalize_legacy_yaml(source), expected);
+    let schema = parse_schema(source).unwrap();
+    assert_eq!(
+        schema.properties["notes"][0],
+        Value::String("@@: No\ndefault: @@\n".into())
+    );
+    let root_block = "|\n  default: @@\n  @@: No\n";
+    assert_eq!(normalize_legacy_yaml(root_block), root_block);
+}
+
+#[test]
+fn compact_flow_quoted_text_preserves_braces_and_multiline_tokens() {
+    let source =
+        "fields: {}\nextra: {\"text\":\"brace }\n  default: @@\n  end\"}\ndefault: @@\n";
+    let expected = "fields: {}\nextra: {\"text\":\"brace }\n  default: @@\n  end\"}\ndefault: '@@'\n";
+    assert_eq!(normalize_legacy_yaml(source), expected);
+    let schema = parse_schema(source).unwrap();
+    assert_eq!(
+        schema.properties["extra"]["text"],
+        Value::String("brace } default: @@ end".into())
+    );
+}
+
+#[test]
 fn plain_apostrophes_and_flow_quotes_do_not_hide_later_bare_tokens() {
     let source = "after: The character's model\nmetadata: {text: 'default: @@', quoted: \"@@: No\"}\ndefault: @@\n";
     let expected = "after: The character's model\nmetadata: {text: 'default: @@', quoted: \"@@: No\"}\ndefault: '@@'\n";

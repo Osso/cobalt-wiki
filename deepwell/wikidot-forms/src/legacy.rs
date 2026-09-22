@@ -16,6 +16,7 @@ struct LineScan<'a> {
     indent: usize,
     offset: usize,
     node_start: bool,
+    after_quote: bool,
     mapping_value: bool,
     replacements: Vec<usize>,
 }
@@ -40,6 +41,7 @@ impl<'a> LineScan<'a> {
             indent,
             offset: 0,
             node_start: true,
+            after_quote: false,
             mapping_value: false,
             replacements: Vec::new(),
         }
@@ -67,6 +69,7 @@ impl<'a> LineScan<'a> {
             (Quote::Double, b'"', _) | (Quote::Single, b'\'', _) => {
                 state.quote = None;
                 self.node_start = false;
+                self.after_quote = true;
                 self.offset += 1;
             }
             _ => self.offset += 1,
@@ -91,11 +94,15 @@ impl<'a> LineScan<'a> {
     }
 
     fn advance_token(&mut self, state: &mut LexicalState, current: u8) {
+        let compact_flow_separator = state.flow_depth > 0 && self.after_quote;
+        if !current.is_ascii_whitespace() {
+            self.after_quote = false;
+        }
         match current {
             b' ' | b'\t' => {}
             b'\'' if self.node_start => state.quote = Some(Quote::Single),
             b'"' if self.node_start => state.quote = Some(Quote::Double),
-            b':' if self.separator_after(self.offset) => {
+            b':' if self.separator_after(self.offset) || compact_flow_separator => {
                 self.mapping_value = true;
                 self.node_start = true;
             }
@@ -140,8 +147,7 @@ impl<'a> LineScan<'a> {
     }
 
     fn is_block_header(&self, state: &LexicalState) -> bool {
-        let at_block_value =
-            self.node_start && self.mapping_value && state.flow_depth == 0;
+        let at_block_value = self.node_start && state.flow_depth == 0;
         if !at_block_value || !matches!(self.line.as_bytes()[self.offset], b'|' | b'>') {
             return false;
         }
