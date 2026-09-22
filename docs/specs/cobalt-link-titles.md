@@ -27,7 +27,7 @@ Deepwell must render automatic page-link labels from target page revisions rathe
 ## Known gaps (current cycle)
 
 - [x] Two native DB/render tests and all 121 FTML AST fixtures pass; Rust fmt/check pass.
-- [ ] Deploy and refresh the four cached pages containing placeholder titles, then verify browser output and unchanged revision/source data.
+- [x] Deployed and refreshed all four cached pages containing placeholder titles. SQL finds zero remaining placeholder-title pages; public browser confirms removal. Source hashes, revision IDs/counts, original creation timestamps and attribution are unchanged; derived-render timestamps may change.
 - [ ] FTML's separate multi-colon reference normalization remains a compatibility limitation; this slice does not repair link destinations.
 
 ## Out of scope
