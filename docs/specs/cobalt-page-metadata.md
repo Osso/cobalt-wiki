@@ -16,7 +16,7 @@
 
 ## How it works
 
-- [Replica proof boundaries](../wiki/systems/cobalt-replica-status.md): 25 synthetic tests and one protected authenticated response prove parser behavior separately from bulk acquisition.
+- [Replica proof boundaries](../wiki/systems/cobalt-replica-status.md): 30 synthetic tests and protected tagged, untagged, and NBSP-tagged responses prove parser behavior separately from bulk acquisition.
 - [Parser and public exceptions](../../tools/cobalt_migration/page_metadata.py)
 - [Behavioral fixtures](../../tests/cobalt_migration/test_page_metadata.py)
 - [Separate raw-archive inventory contract](cobalt-backup-inventory.md)
@@ -42,7 +42,7 @@ Protected fixture inspection found 10 and 13 tag anchors in the two tagged respo
 
 ## Known gaps (current cycle)
 
-- [ ] Caller integration and bulk authenticated acquisition are not part of this slice. A protected tagged response passed exact parser acceptance at `bec4ba1`. A later protected HTTP 200 response has a closed HTML document, one title/content/footer, one footer timestamp, and no `.page-tags` container anywhere in its DOM. The old exactly-one-tag-container requirement rejected this native no-tags shape. Synthetic regression reproduces that absence; post-fix live acceptance and export resume remain caller-owned.
+- [ ] Caller integration and bulk authenticated acquisition are not part of this slice. Protected tagged, untagged, and NBSP-tagged responses passed independent acceptance. The untagged HTTP 200 response has no `.page-tags` container; the parser returns `tags: []`. The NBSP-tagged response establishes exact href-derived tag identities. Bulk acquisition remains caller-owned and records accepted, denied, and unresolved redirect outcomes separately.
 - [ ] Other Wikidot localization, denial wording, or identity-assignment syntax needs source evidence and tests before support can be claimed.
 
 ## Out of scope

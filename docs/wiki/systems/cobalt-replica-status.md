@@ -7,20 +7,20 @@ This page records current proof boundaries for the Cobalt replica. It is not a d
 | Component | Proven | Not proven |
 |---|---|---|
 | [Native backup inventory](cobalt-backup-inventory.md) | Synthetic behavior and a protected real-archive manifest | Canonical page identity or target import |
-| [Form schema library](../../specs/cobalt-data-form-schema.md) | Pure synthetic unit behavior for template splitting, schema/value preservation, and narrow `@@` normalization | Deepwell, renderer, editor, database, query, or UI integration |
-| [Page metadata parser](../../specs/cobalt-page-metadata.md) | 25 synthetic tests and one protected authenticated `character:atley` response | Bulk acquisition, other live response shapes, and import |
-| [Listing export](../../specs/cobalt-listing-export.md) | Protected authenticated run: 277/277 listing pages and 6,092 literal fullnames | Native-archive reconciliation, metadata/ACL acquisition, import, and deployment |
+| [Form schema library](../../specs/cobalt-data-form-schema.md) | Pure synthetic schema/value behavior and standalone serializable `FormView` payload | Deepwell, renderer, editor, database, query, or UI integration |
+| [Page metadata parser](../../specs/cobalt-page-metadata.md) | 30 synthetic tests; protected tagged, untagged, and NBSP-tagged responses | Full acquisition, other live response shapes, and import |
+| [Listing export](../../specs/cobalt-listing-export.md) | Protected authenticated run: 277/277 listing pages, 6,092 literal fullnames, forward reconciliation to all 6,092 archive source keys with zero gaps/collisions | Metadata/ACL acquisition, import, and deployment |
 | [Native packages](cobalt-native-packages.md) | Deepwell, WWS, Framerail, and Silo realize; enabled runtime module evaluates with Silo `DEVELOPMENT.GOGET` on Go 1.27.1 | Client compatibility/security, running services, integration, and deployment |
 
 ## Source-data limits
 
-Native archive paths retain export keys, not canonical fullnames: underscore conversion does not establish original slugs, titles, tags, authors, or categories. Creation timestamps, authorship, revision history, forum history, and user-account mapping are not exported or reconstructed by current tooling.
+Native archive paths retain export keys, not canonical fullnames. The protected listing establishes a forward-only reconciliation: replacing each canonical colon with an underscore maps all 6,092 listed names to archive source keys without gaps or collisions. This does not permit inverse underscore-to-colon reconstruction or establish titles, tags, authors, or categories. Creation timestamps, authorship, revision history, forum history, and user-account mapping are not exported or reconstructed by current tooling.
 
 The legacy NPC template's apparent invalid `orc: Orc:` YAML remains unrepaired. No saved NPC record is present in the archived source inventory.
 
 ## Authenticated metadata boundary
 
-The Wikidot API is disabled with its original settings. The user chose to continue without an API key. Current metadata tooling therefore must not prompt for a key, enable the API, or claim API-derived fields. The parser accepted one protected authenticated `character:atley` response at `bec4ba1`; this proves that response only. Listing export subsequently completed a protected authenticated 277-page run with 6,092 literal canonical fullnames. Native-archive reconciliation is pending, so this does not establish a matching archive record set. Bulk metadata collection and ACL export remain unproven.
+The Wikidot API is disabled with its original settings. The user chose to continue without an API key. Current metadata tooling therefore must not prompt for a key, enable the API, or claim API-derived fields. Protected tagged, untagged, and NBSP-tagged parser fixtures passed independently. Listing export completed a protected authenticated 277-page run with 6,092 literal canonical fullnames; its forward reconciliation to the 6,092 archive source keys has zero gaps or collisions. Bulk metadata acquisition is ongoing: accepted records are distinct from explicit `denied` and unresolved `redirect` records, and none of those outcomes proves ACL export or target import.
 
 ## Native-build boundary
 
