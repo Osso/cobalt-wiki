@@ -49,7 +49,7 @@ class QueueClient:
         )
 
 
-def read_batches(path, size=4096):
+def read_batches(path, size=512):
     with gzip.open(path, "rt") as stream:
         batch = []
         for line in stream:
