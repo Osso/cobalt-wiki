@@ -63,8 +63,8 @@
   input,
   textarea,
   select {
-    max-width: 100%;
     box-sizing: border-box;
+    max-width: 100%;
   }
   .static-field {
     white-space: pre-wrap;
