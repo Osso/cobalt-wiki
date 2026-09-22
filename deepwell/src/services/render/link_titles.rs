@@ -1,6 +1,9 @@
 use super::prelude::*;
 use crate::models::page::Entity as Page;
-use ftml::tree::{Element, LinkLabel, LinkLocation, ListItem, SyntaxTree};
+use ftml::tree::{
+    DefinitionListItem, Element, LinkLabel, LinkLocation, ListItem, SyntaxTree, Tab,
+    Table,
+};
 use sea_orm::{DatabaseBackend, FromQueryResult, Statement, Value};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -20,20 +23,7 @@ pub(super) async fn fetch_page_titles(
     if references.is_empty() {
         return Ok(BTreeMap::new());
     }
-    let (sites, pages): (Vec<_>, Vec<_>) = references.into_iter().unzip();
-    let query = Statement::from_sql_and_values(
-        DatabaseBackend::Postgres,
-        "SELECT s.slug AS site, p.slug AS page, r.title
-         FROM unnest($1::text[], $2::text[]) AS wanted(site, page)
-         JOIN site s ON s.slug = wanted.site AND s.deleted_at IS NULL
-         JOIN page p ON p.site_id = s.site_id AND p.slug = wanted.page AND p.deleted_at IS NULL
-         JOIN LATERAL (
-             SELECT title FROM page_revision
-             WHERE site_id = p.site_id AND page_id = p.page_id
-             ORDER BY revision_number DESC LIMIT 1
-         ) r ON true",
-        [Value::from(sites), Value::from(pages)],
-    );
+    let query = build_title_query(references);
     let rows = Page::find()
         .from_raw_sql(query)
         .into_model::<PageTitle>()
@@ -46,6 +36,23 @@ pub(super) async fn fetch_page_titles(
         .into_iter()
         .map(|row| ((row.site, row.page), row.title))
         .collect())
+}
+
+fn build_title_query(references: BTreeSet<(String, String)>) -> Statement {
+    let (sites, pages): (Vec<_>, Vec<_>) = references.into_iter().unzip();
+    Statement::from_sql_and_values(
+        DatabaseBackend::Postgres,
+        "SELECT s.slug AS site, p.slug AS page, r.title
+         FROM unnest($1::text[], $2::text[]) AS wanted(site, page)
+         JOIN site s ON s.slug = wanted.site AND s.deleted_at IS NULL
+         JOIN page p ON p.site_id = s.site_id AND p.slug = wanted.page AND p.deleted_at IS NULL
+         JOIN LATERAL (
+             SELECT title FROM page_revision
+             WHERE site_id = p.site_id AND page_id = p.page_id
+             ORDER BY revision_number DESC LIMIT 1
+         ) r ON true",
+        [Value::from(sites), Value::from(pages)],
+    )
 }
 
 fn collect_page_references(
@@ -99,23 +106,41 @@ fn collect_element(
             collect_elements(elements, site, references)
         }
         Element::List { items, .. } => collect_list(items, site, references),
-        Element::Table(table) => {
-            for cell in table.rows.iter().flat_map(|row| &row.cells) {
-                collect_elements(&cell.elements, site, references);
-            }
-        }
-        Element::TabView(tabs) => {
-            for tab in tabs {
-                collect_elements(&tab.elements, site, references);
-            }
-        }
-        Element::DefinitionList(items) => {
-            for item in items {
-                collect_elements(&item.key_elements, site, references);
-                collect_elements(&item.value_elements, site, references);
-            }
-        }
+        Element::Table(table) => collect_table(table, site, references),
+        Element::TabView(tabs) => collect_tabs(tabs, site, references),
+        Element::DefinitionList(items) => collect_definitions(items, site, references),
         _ => {}
+    }
+}
+
+fn collect_table(
+    table: &Table<'_>,
+    site: &str,
+    references: &mut BTreeSet<(String, String)>,
+) {
+    for cell in table.rows.iter().flat_map(|row| &row.cells) {
+        collect_elements(&cell.elements, site, references);
+    }
+}
+
+fn collect_tabs(
+    tabs: &[Tab<'_>],
+    site: &str,
+    references: &mut BTreeSet<(String, String)>,
+) {
+    for tab in tabs {
+        collect_elements(&tab.elements, site, references);
+    }
+}
+
+fn collect_definitions(
+    items: &[DefinitionListItem<'_>],
+    site: &str,
+    references: &mut BTreeSet<(String, String)>,
+) {
+    for item in items {
+        collect_elements(&item.key_elements, site, references);
+        collect_elements(&item.value_elements, site, references);
     }
 }
 
