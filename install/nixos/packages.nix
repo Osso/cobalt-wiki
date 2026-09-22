@@ -6,6 +6,50 @@ let
   pnpm = pkgs.pnpm.override { inherit nodejs; };
   version = "2026.8.20";
 
+  # Isolated toolchain: Silo requires Go 1.27.1, newer than the host pin.
+  siloGo = pkgs.go_1_26.overrideAttrs (old: {
+    version = "1.27.1";
+    src = pkgs.fetchurl {
+      url = "https://go.dev/dl/go1.27.1.src.tar.gz";
+      sha256 = "4e408abae126d916b6164627193f2c54f0e3ca1312d693b86db45f862ab238b1";
+    };
+    patches = map (
+      patch:
+      if builtins.baseNameOf (toString patch) == "go_no_vendor_checks-1.26.patch" then
+        pkgs.writeText "go_no_vendor_checks-1.27.patch" (
+          builtins.replaceStrings [ "loaderstate" ] [ "ld" ] (builtins.readFile patch)
+        )
+      else
+        patch
+    ) old.patches;
+    env = old.env // {
+      GOROOT_BOOTSTRAP = "${pkgs.go_1_26}/share/go";
+    };
+  });
+
+  silo = (pkgs.buildGoModule.override { go = siloGo; }) {
+    pname = "silo";
+    version = "2026-09-16";
+    src = pkgs.fetchzip {
+      url = "https://github.com/pgsty/silo/archive/2a4d51406b7ed87af5fe6fe0f801f3290f96eb3c.tar.gz";
+      hash = "sha256-M9sBb2pFY00kYCUBk2ctWEM4xraEXdGcaEgvzQna+9w=";
+    };
+    vendorHash = "sha256-STpltATG8UVhJMuUn3NeNOpHLv3jBdtyheB0jQ28qjY=";
+    subPackages = [ "." ];
+    # Storage integration tests belong to the configured runtime gate.
+    doCheck = false;
+    postInstall = ''
+      mv "$out/bin/minio" "$out/bin/silo"
+    '';
+    meta = {
+      description = "Pinned Silo S3 server for native Wikijump storage";
+      homepage = "https://github.com/pgsty/silo";
+      license = lib.licenses.agpl3Plus;
+      platforms = [ "x86_64-linux" ];
+      mainProgram = "silo";
+    };
+  };
+
   deepwell = pkgs.rustPlatform.buildRustPackage {
     pname = "cobalt-deepwell";
     inherit version;
@@ -92,5 +136,10 @@ let
   };
 in
 {
-  inherit deepwell wws framerail;
+  inherit
+    deepwell
+    wws
+    framerail
+    silo
+    ;
 }

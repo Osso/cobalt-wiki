@@ -80,14 +80,14 @@ let
         subprocess.run(["${postgres}/bin/createdb", "--host=${socket}", "--username=${account}", "--owner=${account}", "cobalt_wiki"], check=True)
     subprocess.run(["${postgres}/bin/psql", "--host=${socket}", "--username=${account}", "--dbname=cobalt_wiki", "--set=ON_ERROR_STOP=1", "--command=CREATE EXTENSION IF NOT EXISTS pgcrypto"], check=True)
   '';
-  startStorage = pkgs.writeText "cobalt-minio-start.py" ''
+  startStorage = pkgs.writeText "cobalt-silo-start.py" ''
     import os
     for source, target in [("S3_ACCESS_KEY_ID", "MINIO_ROOT_USER"), ("S3_SECRET_ACCESS_KEY", "MINIO_ROOT_PASSWORD")]:
         value = os.environ.get(source)
         if not value:
             raise RuntimeError(f"Required storage credential is missing: {source}")
         os.environ[target] = value
-    os.execv("${pkgs.minio}/bin/minio", ["minio", "server", "--address", "127.0.0.1:9000", "--console-address", "127.0.0.1:9001", "--config-dir", "/var/lib/cobalt-wiki-s3-config", "/var/lib/cobalt-wiki-s3"])
+    os.execv("${packages.silo}/bin/silo", ["silo", "server", "--address", "127.0.0.1:9000", "--console-address", "127.0.0.1:9001", "--config-dir", "/var/lib/cobalt-wiki-s3-config", "/var/lib/cobalt-wiki-s3"])
   '';
   prepareBuckets = pkgs.writeText "cobalt-storage-buckets.py" ''
     import os
@@ -150,7 +150,7 @@ in
     packages = lib.mkOption {
       type = lib.types.attrsOf lib.types.package;
       default = import ./packages.nix { inherit pkgs; };
-      description = "Native deepwell, wws, and framerail packages.";
+      description = "Native deepwell, wws, framerail, and silo packages.";
     };
     environmentFile = lib.mkOption {
       type = lib.types.str;
