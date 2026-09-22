@@ -7,8 +7,10 @@
  *   cancel: (id: number) => void
  * }} IdleShim
  *
+ *
  * @typedef {typeof globalThis & {
  *   idleCallbackShim?: IdleShim
+ *   cancelRequestAnimationFrame?: (handle: number) => void
  *   IdleCallbackDeadline?: { prototype: object }
  * }} IdleGlobal
  */
@@ -219,9 +221,12 @@
       root.requestIdleCallback(() => {}, { timeout: 0 })
     } catch (e) {
       ;(
-        /** @param {(callback: IdleRequestCallback, timeout?: number) => number} rIC */ function (
-          rIC
-        ) {
+        /**
+         * @param {(
+         *   callback: IdleRequestCallback,
+         *   timeout?: number
+         * ) => number} rIC
+         */ function (rIC) {
           root.requestIdleCallback = function (fn, timeout) {
             if (timeout && typeof timeout.timeout === "number") {
               return rIC(fn, timeout.timeout)
@@ -248,9 +253,12 @@
           }
         }
       )(
-        /** @type {(callback: IdleRequestCallback, timeout?: number) => number} */ (
-          root.requestIdleCallback
-        )
+        /**
+         * @type {(
+         *   callback: IdleRequestCallback,
+         *   timeout?: number
+         * ) => number}
+         */ (root.requestIdleCallback)
       )
     }
   }
