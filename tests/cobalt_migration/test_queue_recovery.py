@@ -3,10 +3,18 @@
 import json
 import os
 import subprocess
+import tempfile
+from pathlib import Path
+import gzip
 import unittest
 import uuid
 
 from tools.cobalt_migration.queue_recovery import APPLY, RESTORE, SELECT
+from tools.cobalt_migration.queue_recovery_run import (
+    QueueClient,
+    apply_plan,
+    restore_journal,
+)
 
 
 SOCKET = os.environ.get("QUEUE_TEST_SOCKET")
@@ -88,6 +96,61 @@ class QueueRecoveryTest(unittest.TestCase):
     def select(self, candidates):
         result = json.loads(self.evaluate(SELECT, candidates))
         return result if result else []
+
+    def write_plan(self, path, rows):
+        with gzip.open(path, "wt") as stream:
+            for row in rows[1:]:
+                stream.write(
+                    json.dumps({"keeper_id": rows[0]["id"], "record": row}) + "\n"
+                )
+
+    def test_driver_journals_multiple_batches_and_can_restore_them(self):
+        rows = [record("keeper")] + [record(f"driver-{i}") for i in range(5000)]
+        self.seed(rows)
+        client = QueueClient("valkey-cli", ["-s", SOCKET], (self.queue, self.hash))
+        with tempfile.TemporaryDirectory() as directory:
+            plan, journal = Path(directory) / "plan.gz", Path(directory) / "journal.gz"
+            self.write_plan(plan, rows)
+            result = apply_plan(client, plan, journal, CUTOFF, 10)
+            self.assertEqual(result["removed"], 5000)
+            self.assertGreater(result["batches"], 1)
+            self.assertEqual(client.read_depth(), 1)
+            self.assertEqual(restore_journal(client, journal, CUTOFF), 5000)
+            self.assertEqual(client.read_depth(), 5001)
+
+    def test_driver_restores_after_ambiguous_completed_write(self):
+        class LostReply(QueueClient):
+            def evaluate(self, script, records, cutoff_ms, *, readonly=False):
+                result = super().evaluate(script, records, cutoff_ms, readonly=readonly)
+                if script == APPLY:
+                    raise ConnectionError("reply lost after completed mutation")
+                return result
+
+        rows = [record("keeper"), record("duplicate")]
+        self.seed(rows)
+        client = LostReply("valkey-cli", ["-s", SOCKET], (self.queue, self.hash))
+        with tempfile.TemporaryDirectory() as directory:
+            plan, journal = Path(directory) / "plan.gz", Path(directory) / "journal.gz"
+            self.write_plan(plan, rows)
+            with self.assertRaises(ConnectionError):
+                apply_plan(client, plan, journal, CUTOFF, 10)
+            self.assertEqual(client.read_depth(), 2)
+            self.assertEqual(
+                self.command("HGET", self.hash, "duplicate"), rows[1]["payload"]
+            )
+
+    def test_existing_journal_is_not_replayed_or_overwritten(self):
+        rows = [record("keeper"), record("duplicate")]
+        self.seed(rows)
+        client = QueueClient("valkey-cli", ["-s", SOCKET], (self.queue, self.hash))
+        with tempfile.TemporaryDirectory() as directory:
+            plan, journal = Path(directory) / "plan.gz", Path(directory) / "journal.gz"
+            self.write_plan(plan, rows)
+            journal.write_bytes(b"existing unrelated file")
+            with self.assertRaises(FileExistsError):
+                apply_plan(client, plan, journal, CUTOFF, 10)
+            self.assertEqual(journal.read_bytes(), b"existing unrelated file")
+            self.assertEqual(client.read_depth(), 2)
 
     def test_preserves_non_navigation_received_future_and_foreign_work(self):
         rows = [
