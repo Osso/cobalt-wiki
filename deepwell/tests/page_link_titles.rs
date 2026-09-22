@@ -80,3 +80,66 @@ async fn automatic_titles_use_target_revision_and_preserve_explicit_labels() {
     assert!(html.contains(">link-title-missing</a>"), "{html}");
     assert!(!html.contains("TODO:"), "{html}");
 }
+
+#[tokio::test]
+async fn rerender_resolves_later_imported_target_without_new_revision() {
+    let runner = TestRunner::setup().await;
+    let site_id = run_endpoint!(runner, site_get, json!({"site": "test"}))
+        .unwrap()
+        .site
+        .site_id;
+    let source = "[[[later-title-target|]]]";
+    create_page(&runner, site_id, "earlier-title-source", "Source", source).await;
+    let before = run_endpoint!(
+        runner,
+        page_get,
+        json!({
+            "site_id": site_id, "page": "earlier-title-source",
+            "details": {"wikitext": true, "compiled": true}
+        })
+    )
+    .unwrap();
+    assert!(
+        before
+            .compiled_body_html
+            .as_deref()
+            .unwrap()
+            .contains(">later-title-target</a>")
+    );
+    create_page(
+        &runner,
+        site_id,
+        "later-title-target",
+        "Resolved target",
+        "Target",
+    )
+    .await;
+    run_endpoint!(
+        runner,
+        page_rerender,
+        json!({
+            "site_id": site_id, "category_id": before.page_category_id, "page_id": before.page_id
+        })
+    );
+    let after = run_endpoint!(
+        runner,
+        page_get,
+        json!({
+            "site_id": site_id, "page": before.page_id,
+            "details": {"wikitext": true, "compiled": true}
+        })
+    )
+    .unwrap();
+    assert!(
+        after
+            .compiled_body_html
+            .as_deref()
+            .unwrap()
+            .contains(">Resolved target</a>")
+    );
+    assert_eq!(after.revision_id, before.revision_id);
+    assert_eq!(after.page_revision_count, before.page_revision_count);
+    assert_eq!(after.revision_created_at, before.revision_created_at);
+    assert_eq!(after.revision_user_id, before.revision_user_id);
+    assert_eq!(after.wikitext.as_deref(), Some(source));
+}
