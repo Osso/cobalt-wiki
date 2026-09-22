@@ -4,11 +4,11 @@ Deepwell must render automatic page-link labels from target page revisions rathe
 
 ## What it must do
 
-- [ ] Use the current title for automatic labels (`[[[page|]]]`), including nested links.
-- [ ] Preserve explicit labels and escape resolved titles as text.
-- [ ] Resolve the referenced site, not a same-named page on another site.
-- [ ] Display the literal page reference when no live target exists, without fabricating a title.
-- [ ] Preserve stored source bytes and original revision attribution when refreshing derived rendering.
+- [x] Use the current title for automatic labels (`[[[page|]]]`), including nested links.
+- [x] Preserve explicit labels and escape resolved titles as text.
+- [x] Resolve the referenced site, not a same-named page on another site.
+- [x] Display the literal page reference when no live target exists, without fabricating a title.
+- [x] Preserve stored source bytes and original revision attribution when refreshing derived rendering.
 
 ## How it works
 
@@ -26,7 +26,9 @@ Deepwell must render automatic page-link labels from target page revisions rathe
 
 ## Known gaps (current cycle)
 
-- [ ] Native tests, deployment and existing compiled-page refresh remain pending.
+- [x] Two native DB/render tests and all 121 FTML AST fixtures pass; Rust fmt/check pass.
+- [ ] Deploy and refresh the four cached pages containing placeholder titles, then verify browser output and unchanged revision/source data.
+- [ ] FTML's separate multi-colon reference normalization remains a compatibility limitation; this slice does not repair link destinations.
 
 ## Out of scope
 
