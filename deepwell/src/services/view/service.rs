@@ -29,6 +29,7 @@
 //! The service also contains the core method `ViewService::get_viewer()`, which converts the
 //! requesting domain and session token into a site and user, respectively.
 
+use super::form::{extract_page_form, template_slug};
 use super::prelude::*;
 use crate::models::page::Model as PageModel;
 use crate::models::page_revision::Model as PageRevisionModel;
@@ -423,17 +424,28 @@ impl ViewService {
                 page,
                 page_revision,
                 attributions,
-            } => GetPageViewOutput::Found {
-                options,
-                page,
-                page_revision,
-                attributions,
-                redirect_page,
-                wikitext,
-                compiled_body_html,
-                compiled_top_bar_html,
-                compiled_side_bar_html,
-            },
+            } => {
+                let form = Self::load_page_form(
+                    ctx,
+                    &page,
+                    user_session.as_ref().map(|s| s.user.user_id),
+                    &wikitext,
+                )
+                .await
+                .or_raise(make_error)?;
+                GetPageViewOutput::Found {
+                    options,
+                    page,
+                    page_revision,
+                    attributions,
+                    form,
+                    redirect_page,
+                    wikitext,
+                    compiled_body_html,
+                    compiled_top_bar_html,
+                    compiled_side_bar_html,
+                }
+            }
             PageStatus::Missing => GetPageViewOutput::Missing {
                 options,
                 redirect_page,
@@ -739,6 +751,62 @@ impl ViewService {
         };
 
         Ok(user_session)
+    }
+
+    async fn load_page_form(
+        ctx: &ServiceContext<'_>,
+        page: &PageModel,
+        user_id: Option<i64>,
+        wikitext: &str,
+    ) -> Result<Option<wikidot_forms::FormView>> {
+        let Some(slug) = template_slug(&page.slug) else {
+            return Ok(None);
+        };
+        let source =
+            Self::load_visible_template_source(ctx, page.site_id, user_id, &slug).await?;
+        extract_page_form(source.as_deref(), wikitext).or_raise(|| {
+            Error::new(
+                "failed to extract page form",
+                ErrorType::GetView(ViewType::Page),
+            )
+        })
+    }
+
+    async fn load_visible_template_source(
+        ctx: &ServiceContext<'_>,
+        site_id: i64,
+        user_id: Option<i64>,
+        slug: &str,
+    ) -> Result<Option<String>> {
+        let (category_slug, _) = split_category(slug);
+        let category_id = Self::get_category_id(ctx, site_id, category_slug).await?;
+        let [can_view] = PermissionService::batch_check_user_can(
+            ctx,
+            &CheckPermissionContext {
+                user_id,
+                site_id,
+                page_reference: None,
+            },
+            [Permission {
+                resource_type: Resource::Page,
+                resource_category: category_id.map(Reference::Id),
+                action: Action::View,
+            }],
+        )
+        .await?;
+        if !can_view {
+            return Ok(None);
+        }
+        let Some(template) =
+            PageService::get_optional(ctx, site_id, Reference::Slug(cow!(slug))).await?
+        else {
+            return Ok(None);
+        };
+        let revision =
+            PageRevisionService::get_latest(ctx, site_id, template.page_id).await?;
+        TextService::get(ctx, &revision.wikitext_hash)
+            .await
+            .map(Some)
     }
 
     fn should_redirect_page(slug: &str) -> Option<String> {

@@ -73,6 +73,7 @@ arrayvec = "0.7.6"
 
 # Local crates
 deepwell-relation-impl-derive = { path = "relation-impl-derive" }
+wikidot-forms = { path = "wikidot-forms" }
 
 [dev-dependencies]
 maplit = "1"

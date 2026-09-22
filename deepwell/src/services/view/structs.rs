@@ -69,7 +69,7 @@ pub struct GetPreloadViewOutput {
 ///
 /// Note that compiled_xxx_bar_html is Option because None means that this page
 /// does not have that nav bar / it is disabled in this context.
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Debug)]
 #[serde(rename_all = "snake_case", tag = "type", content = "data")]
 pub enum GetPageViewOutput {
     Found {
@@ -77,6 +77,7 @@ pub enum GetPageViewOutput {
         page: PageModel,
         page_revision: PageRevisionModel,
         attributions: Vec<PageAttribution>,
+        form: Option<wikidot_forms::FormView>,
         redirect_page: Option<String>,
         wikitext: String,
         compiled_body_html: String,
