@@ -94,6 +94,9 @@ pub(super) async fn expand_includes(
         dependencies.extend(pages);
         source = expanded;
     }
+    if parse_includes(&source).is_empty() {
+        return Ok((source, dependencies.into_iter().collect()));
+    }
     Err(Error::new(
         "include expansion exceeds its nesting limit",
         ErrorType::Render,
@@ -113,6 +116,9 @@ async fn fetch_include_sources(
         .filter(|reference| !fetched.0.contains_key(*reference))
         .cloned()
         .collect();
+    if pending.is_empty() {
+        return Ok(());
+    }
     let local_slugs: Vec<_> = pending
         .iter()
         .filter(|reference| reference.site().is_none_or(|site| site == site_slug))

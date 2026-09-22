@@ -272,3 +272,71 @@ async fn cyclic_includes_fail_without_replacing_the_stored_revision() {
     );
     assert_eq!(after.wikitext_hash, source_hash.to_vec());
 }
+
+#[tokio::test]
+async fn a_chain_at_the_nesting_limit_renders_its_terminal_source() {
+    let runner = TestRunner::setup().await;
+    let site_id = run_endpoint!(runner, site_get, json!({"site":"test"}))
+        .unwrap()
+        .site
+        .site_id;
+    for index in 0..=16 {
+        import_page(
+            &runner,
+            site_id,
+            &format!("include-depth-{index}"),
+            "Depth endpoint",
+        )
+        .await;
+    }
+    for index in 0..16 {
+        let page = PageService::get(
+            runner.context(),
+            site_id,
+            Reference::Slug(format!("include-depth-{index}").into()),
+        )
+        .await
+        .unwrap();
+        let revision =
+            PageRevisionService::get_latest(runner.context(), site_id, page.page_id)
+                .await
+                .unwrap();
+        let hash = TextService::create(
+            runner.context(),
+            format!("[[include include-depth-{}]]", index + 1),
+        )
+        .await
+        .unwrap();
+        page_revision::ActiveModel {
+            revision_id: Set(revision.revision_id),
+            wikitext_hash: Set(hash.to_vec()),
+            ..Default::default()
+        }
+        .update(runner.context().transaction())
+        .await
+        .unwrap();
+    }
+    let page = PageService::get(
+        runner.context(),
+        site_id,
+        Reference::Slug("include-depth-0".into()),
+    )
+    .await
+    .unwrap();
+    PageRevisionService::rerender(
+        runner.context(),
+        PageId::from_page_model(&page),
+        RerenderDepth::default(),
+        RerenderType::Full,
+    )
+    .await
+    .expect("sixteen include levels must reach the terminal source");
+    let revision =
+        PageRevisionService::get_latest(runner.context(), site_id, page.page_id)
+            .await
+            .unwrap();
+    let html = TextService::get(runner.context(), &revision.compiled_body_html_hash)
+        .await
+        .unwrap();
+    assert!(html.contains("Depth endpoint"), "{html}");
+}
