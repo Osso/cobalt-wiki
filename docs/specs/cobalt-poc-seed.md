@@ -5,7 +5,7 @@
 ## What it must do
 
 - [x] Require explicit output directory, HTTPS origin, site slug, default page, and administrator password file; never guess the front page.
-- [x] Emit one Cobalt Company site with the supplied domain/default page, Wikidot layout, English locale, and source CC-BY-SA 3.0 license. Emit no demo sites, pages, attachments, or filters.
+- [x] Emit one Cobalt Company site using native subdomain routing, the supplied default page, Wikidot layout, English locale, and source CC-BY-SA 3.0 license. Register no custom domains or preferred-domain override. Emit no demo sites, pages, attachments, or filters.
 - [x] Preserve system IDs −2 through −5 as password-disabled system records; create only one login-enabled account, `cobalt-import` (ID −1), explicitly described as a technical administrator/import principal, not a source author.
 - [x] Consume an owner-owned regular 0600 password file without following symlinks. Accept one trailing newline; reject control characters, stock demo credentials, and secrets shorter than 16 characters. Never print the secret.
 - [x] Write exactly six JSON files in a new 0700 directory, each 0600. Refuse existing directories, files, and symlinks without modifying them.
@@ -14,6 +14,7 @@
 ## How it works
 
 - Seeder input contract: `deepwell/src/database/seeder/data.rs` (`SeedData::load`, `User`, `Site`, `Role`). Only `users`, `sites`, `pages`, `files`, `filters`, and `roles` JSON are read; no seed TOML or `permissions.json` is required.
+- Native hostname is the site slug plus the runtime main domain. Emit `domains: []` and omit `preferred-domain`; registering the native hostname as a custom domain is rejected. The caller must ensure the supplied origin matches that runtime hostname; the origin supplies the technical account's email domain.
 - Seeder behavior: `deepwell/src/database/seeder/mod.rs` grants the `admin` role to ID −1 and skips an already-seeded database when that user exists. The generator neither creates a provisioning marker nor decides whether database seeding should run.
 - Stock `parent_role` and `is-system` fields are not consumed by the current kebab-case `Role` parser. Generated `parent-role` preserves the currently parsed value (null), rather than silently enabling a different hierarchy.
 - Stock role definitions are POC defaults, **not imported source ACLs**. The all-route authentication gate remains mandatory. No registration-disable option was found in the inspected runtime configuration; generation does not claim to disable registration.

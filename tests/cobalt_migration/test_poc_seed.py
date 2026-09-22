@@ -38,7 +38,7 @@ class PocSeedTests(unittest.TestCase):
     def load(self, name):
         return json.loads((self.output / f"{name}.json").read_text())
 
-    def test_single_site_explicit_default_and_source_license(self):
+    def test_native_subdomain_site_without_custom_domain_registration(self):
         self.generate()
         self.assertEqual(
             self.load("sites"),
@@ -49,10 +49,7 @@ class PocSeedTests(unittest.TestCase):
                     "tagline": "",
                     "description": "Access-restricted Cobalt Company proof of concept; source attribution and permissions remain under reconciliation.",
                     "aliases": [],
-                    "domains": [
-                        {"domain": "cobalt-company.sakuin.org", "www-redirect": False}
-                    ],
-                    "preferred-domain": "cobalt-company.sakuin.org",
+                    "domains": [],
                     "default-page": "home:start",
                     "layout": "wikidot",
                     "license": "cc-by-sa-3.0",
