@@ -130,6 +130,35 @@ class MetadataExportTests(unittest.TestCase):
         )
         self.assertEqual(state["completed_position"], 2)
 
+    def test_redirect_after_28_accepted_persists_unresolved_and_resumes(self):
+        from tools.cobalt_migration import browser_transport
+
+        redirect_error = getattr(browser_transport, "SourcePageRedirect", None)
+        self.assertIsNotNone(redirect_error, "permanent redirect outcome is missing")
+        names = [f"character:person-{i}" for i in range(28)] + ["admin", "home"]
+        with self.assertRaises(ListingExportError):
+            self.acquire(
+                [
+                    *[page(name) for name in names[:28]],
+                    redirect_error(),
+                    FetchResponse(403, ""),
+                ],
+                names=names,
+            )
+        state = json.loads(self.path.read_text())
+        self.assertEqual(state["completed_position"], 29)
+        self.assertEqual(
+            state["records"][-1],
+            {"fullname": "admin", "archive_key": "admin", "status": "redirect"},
+        )
+        self.assertEqual(self.calls, ["/" + name for name in names])
+        self.assertEqual(self.delays, [1] * 29)
+        resumed = self.acquire([page("home")], names=names)
+        self.assertEqual(resumed["completed_position"], 30)
+        self.assertEqual(resumed["records"][:29], state["records"])
+        self.assertEqual(self.calls[-1], "/home")
+        self.assertEqual(self.acquire([], names=names), resumed)
+
     def test_identity_or_parser_failure_does_not_advance(self):
         for response in [page("wrong:identity"), FetchResponse(200, "broken")]:
             with self.subTest(response=response):

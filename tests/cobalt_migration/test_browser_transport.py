@@ -3,6 +3,8 @@
 import importlib
 import json
 import subprocess
+import tempfile
+from pathlib import Path
 import unittest
 
 
@@ -38,6 +40,8 @@ const context = vm.createContext({
     if (input.settle && pending) {
       if (input.settle === 'network') pending.reject(new Error('secret body'));
       else if (input.settle === 'timeout') for (const fn of timers.values()) fn();
+      else if (input.settle === 'redirect') pending.resolve({status: 0, type: 'opaqueredirect',
+        text: async () => {throw new Error('redirect body must not be read');}});
       else pending.resolve({status: 429, text: async () => '<div>private synthetic fixture</div>',
         headers: {get: name => name.toLowerCase() === 'retry-after' ? '7' : null}});
       pending = null;
@@ -142,13 +146,31 @@ class BrowserTransportTests(unittest.TestCase):
                     {
                         "path": "/pagelist/p/2",
                         "credentials": "same-origin",
-                        "redirect": "error",
+                        "redirect": "manual",
                     },
                 )
                 self.assertEqual(len(runner.observations[0]["slots"]), 1)
                 self.assertEqual(runner.observations[1]["result"]["state"], "pending")
                 self.assertEqual(runner.observations[-1]["slots"], [])
                 self.assertEqual(runner.observations[-1]["timers"], 0)
+
+    def test_opaque_redirect_permanently_stops_listing_without_checkpoint(self):
+        from tools.cobalt_migration.listing_export import export_listing
+
+        runner = self.runner(settle="redirect")
+        with tempfile.TemporaryDirectory() as directory:
+            checkpoint = Path(directory) / "listing.json"
+            delays = []
+            with self.assertRaises(RuntimeError) as raised:
+                export_listing(
+                    ORIGIN, checkpoint, self.fetch(runner), sleep=delays.append
+                )
+            self.assertEqual(type(raised.exception).__name__, "SourcePageRedirect")
+            self.assertFalse(checkpoint.exists())
+        self.assertEqual(delays, [])
+        self.assertEqual(runner.calls, 4)
+        self.assertEqual(runner.observations[-1]["slots"], [])
+        self.assertEqual(runner.observations[-1]["timers"], 0)
 
     def test_unique_slots_between_fetches(self):
         first, second = self.runner(), self.runner()

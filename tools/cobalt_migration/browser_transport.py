@@ -14,6 +14,10 @@ class BrowserTransportError(RuntimeError):
     """Browser state or CLI protocol prevents safe acquisition (not retryable)."""
 
 
+class SourcePageRedirect(BrowserTransportError):
+    """Source GET redirected; target is not followed and metadata is unresolved."""
+
+
 def _validate_origin(origin):
     if not isinstance(origin, str) or any(c.isspace() for c in origin):
         raise ValueError("source_origin must be an HTTP(S) origin")
@@ -134,8 +138,10 @@ class BrowserFetch:
             "const controller = new AbortController(); "
             "const entry = {state:'pending', controller}; window[key] = entry; "
             f"entry.timer = setTimeout(() => controller.abort(), {math.ceil(remaining * 1000)}); "
-            "fetch(path, {credentials:'same-origin', redirect:'error', signal:controller.signal})"
-            ".then(async response => { const html = await response.text(); "
+            "fetch(path, {credentials:'same-origin', redirect:'manual', signal:controller.signal})"
+            ".then(async response => { "
+            "if (response.type === 'opaqueredirect') { entry.state = 'redirect'; return; } "
+            "const html = await response.text(); "
             "Object.assign(entry, {state:'done', status:response.status, html, "
             "retry_after:response.headers.get('Retry-After')}); })"
             ".catch(() => { entry.state = controller.signal.aborted ? 'timeout' : 'error'; })"
@@ -162,6 +168,10 @@ class BrowserFetch:
             state = result["state"]
             if state == "done":
                 return _response(result)
+            if state == "redirect":
+                raise SourcePageRedirect(
+                    "source page redirected; metadata unresolved"
+                ) from None
             if state == "timeout":
                 raise TimeoutError("browser fetch timed out") from None
             if state == "error":
@@ -204,6 +214,7 @@ def make_browser_fetch(source_origin, **options):
     """Return a FetchResponse callback; runner accepts subprocess.run keywords.
 
     TimeoutError/ConnectionError are retryable by export_listing. CLI/protocol
-    and origin failures are permanent. Cleanup has a separate <=5 second budget.
+    and origin failures are permanent. SourcePageRedirect is permanent and never
+    follows the target. Cleanup has a separate <=5 second budget.
     """
     return BrowserFetch(source_origin, **options)

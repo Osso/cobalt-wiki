@@ -8,7 +8,7 @@ It does not acquire credentials or start bulk acquisition.
 
 - [x] Return `FetchResponse(status, html, retry_after)` through `make_browser_fetch(source_origin)`; preserve HTTP errors and Retry-After for the caller's retry policy.
 - [x] Use the installed `browser-cli` executable with argv, captured text output, and bounded command timeouts; never print response HTML.
-- [x] Start a same-origin credentialed GET with redirects rejected, then poll synchronous evaluations because browser-cli does not await promises.
+- [x] Start a same-origin credentialed GET with `redirect: manual`, then poll synchronous evaluations because browser-cli does not await promises. Detect `opaqueredirect` before reading a body and raise permanent `SourcePageRedirect`; never follow the redirect or acquire target identity. Listing export propagates this failure without advancing its checkpoint.
 - [x] Guard every evaluation, including cleanup, against a changed origin; reject absolute URLs, authority-relative URLs, backslashes, fragments, and control/whitespace characters in requested paths.
 - [x] Give each request a unique temporary slot; remove it and cancel outstanding work in `finally`. Report sole cleanup failures explicitly and annotate, rather than replace, an existing failure.
 - [x] Decode direct JSON objects and JSON-encoded strings. Reject invalid protocol data without including captured bodies in error messages.
@@ -26,7 +26,7 @@ It does not acquire credentials or start bulk acquisition.
 
 ## Tests asserting this spec
 
-- `tests/cobalt_migration/test_browser_transport.py`: synthetic CLI failures and emitted JavaScript executed by local Node against a fake browser/fetch. Covers pending/done, network rejection, browser timeout, polling deadline, origin changes, unique slots, cleanup precedence, and both JSON encodings. Node is a test-only dependency already present for this project; production transport uses Python standard library and registered browser-cli.
+- `tests/cobalt_migration/test_browser_transport.py`: synthetic CLI failures and emitted JavaScript executed by local Node against a fake browser/fetch. Covers pending/done, opaque redirect without retries or listing checkpoint advancement, network rejection, browser timeout, polling deadline, origin changes, unique slots, cleanup precedence, and both JSON encodings. Node is a test-only dependency already present for this project; production transport uses Python standard library and registered browser-cli.
 
 ## Known gaps (current cycle)
 

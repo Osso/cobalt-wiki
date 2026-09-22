@@ -7,6 +7,7 @@ import random
 import time
 from urllib.parse import quote, urlsplit
 
+from .browser_transport import SourcePageRedirect
 from .listing_export import _fetch_page, _prepare_path, _save_checkpoint
 from .page_metadata import SourcePageUnavailable, parse_page_metadata
 
@@ -88,7 +89,7 @@ def _validate_record(name, record):
     if status == "accepted":
         fields = common | {"page_id", "title", "tags", "revision_number", "updated_at"}
     if (
-        status not in {"accepted", "denied", "not_found"}
+        status not in {"accepted", "denied", "not_found", "redirect"}
         or set(record) != fields
         or record["fullname"] != name
         or record["archive_key"] != name.replace(":", "_")
@@ -130,11 +131,25 @@ def export_metadata(
     state = _load_checkpoint(path, source_origin, digest, names)
     previous_get = False
     for name in names[state["completed_position"] :]:
-        html = _fetch_page(
-            fetch, "/" + quote(name, safe=":"), sleep, 1.0, previous_get, jitter, now
-        )
+        try:
+            html = _fetch_page(
+                fetch,
+                "/" + quote(name, safe=":"),
+                sleep,
+                1.0,
+                previous_get,
+                jitter,
+                now,
+            )
+        except SourcePageRedirect:
+            record = {
+                "fullname": name,
+                "archive_key": name.replace(":", "_"),
+                "status": "redirect",
+            }
+        else:
+            record = _parse_record(html, name)
         previous_get = True
-        record = _parse_record(html, name)
         state = {
             **state,
             "completed_position": state["completed_position"] + 1,
