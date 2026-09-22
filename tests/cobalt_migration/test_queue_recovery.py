@@ -55,6 +55,7 @@ class QueueRecoveryTest(unittest.TestCase):
             text=True,
             capture_output=True,
             timeout=10,
+            check=False,
         )
         if not succeeds:
             self.assertNotEqual(result.returncode, 0)
