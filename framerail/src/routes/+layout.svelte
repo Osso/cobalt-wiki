@@ -51,18 +51,18 @@
   <title>{page.data.site?.name}</title>
   {#if pageLayoutState.current === Layout.WIKIDOT}
     <link
-      rel="stylesheet"
       href="https://d3g0gp89917ko0.cloudfront.net/v--7690939296dc/common--theme/base/css/style.css"
+      rel="stylesheet"
     />
     <link
-      rel="stylesheet"
       href="https://d3g0gp89917ko0.cloudfront.net/v--7690939296dc/common--modules/css/pagerate/PageRateWidgetModule.css"
+      rel="stylesheet"
     />
     <link
-      rel="stylesheet"
       href={page.data.site?.slug === "cobalt-company"
         ? "/-/cobalt-theme.css"
         : "https://cdn.scpwiki.com/theme/en/sigma/css/sigma.min.css"}
+      rel="stylesheet"
     />
   {/if}
 </svelte:head>
