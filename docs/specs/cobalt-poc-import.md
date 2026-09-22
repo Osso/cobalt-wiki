@@ -30,7 +30,7 @@
 ## Known gaps (current cycle)
 
 - [ ] Real endpoint acceptance remains pending; mocked datastore proof is not database/network integration proof.
-- [ ] Provisioning must supply an existing target site and dedicated technical import user with an authenticated session authorized to edit/import that site. Runtime must allow the source archive's largest pages/attachments.
+- [ ] Provisioning must supply an existing positive-ID target site and a dedicated technical import principal with an authenticated session authorized to edit/import that site. The principal may be the seeded administrator (ID −1) or a positive user ID; the session identity must match the immutable plan. Runtime must allow the source archive's largest pages/attachments.
 - [ ] Deepwell and presigned S3 endpoints must be loopback IPv4/IPv6 literals (run on target or forward both ports). Session file and plan must be `0600` in an owner-only directory.
 - [ ] Host owner must protect every POC route before import. No source ACL parity is claimed.
 - [ ] Run import exclusively: concurrent human edits or another importer are unsupported and conflicting readback stops execution.
