@@ -9,6 +9,7 @@ Creating an attachment on an existing page changes that page's files, not the pa
 - [x] Do not enqueue rerenders for ordinary links to an unchanged owner page when its first file revision is created.
 - [x] Preserve site-navigation invalidation when the attachment owner is itself the navigation page.
 - [ ] Verify template/include invalidation for attachment owners with those dependencies.
+- [ ] Independently verify the isolated native attachment proof.
 
 ## How it works
 
@@ -21,13 +22,13 @@ Creating an attachment on an existing page changes that page's files, not the pa
 
 ## Tests asserting this spec
 
-- `deepwell/tests/file_attachment_invalidation.rs`: committed upload request, real S3 PUT, file creation/readback, unchanged ordinary links, and retained navigation fanout. Run explicitly with `cargo test --test file_attachment_invalidation -- --ignored` against a dedicated empty Redis database. The fixture precreates its queue before starting workers, excluding unrelated recurring maintenance producers from cumulative enqueue counts.
+- `deepwell/tests/file_attachment_invalidation.rs`: committed upload request, real S3 PUT, file creation/readback, unchanged ordinary links, and retained navigation fanout. Run explicitly with `cargo test --test file_attachment_invalidation -- --ignored` against a dedicated empty Redis database. The fixture precreates its queue before starting workers, excluding unrelated recurring maintenance producers from cumulative enqueue counts. Valid RED: `/tmp/claude/cobalt-file-invalidation-red-valid.log`; ordinary-owner GREEN: `/tmp/claude/cobalt-file-invalidation-green.log`; final isolated proof pending independent verification: `/tmp/claude/cobalt-file-invalidation-isolated-green.log`.
 
 ## Known gaps (current cycle)
 
-- [ ] Independently verify the change and legitimate invalidation behavior.
+- [ ] Independently verify the isolated fixture and legitimate invalidation behavior.
 - [ ] Deploy the verified change and recover the existing backlog under authorized maintenance conditions.
-- [ ] Establish which existing queued jobs are redundant before removing any; this correction alone does not remove queued work or explain every job.
+- [ ] Establish semantic redundancy before removing any queued job; byte-identical candidate selection (`292d7ec`) is insufficient on its own. This correction alone does not remove queued work or explain every job.
 
 ## Out of scope
 
