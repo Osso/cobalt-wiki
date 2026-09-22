@@ -51,6 +51,20 @@ pub async fn page_create(
         .or_raise(|| Error::new("failed to create page", ErrorType::Page))
 }
 
+pub async fn page_import(
+    ctx: &ServiceContext<'_>,
+    params: Params<'static>,
+) -> Result<CreatePageOutput> {
+    let input: CreatePage = parse!(params, Page);
+    info!(
+        "Importing page with exact identity in site ID {}",
+        input.site_id
+    );
+    PageService::import(ctx, input)
+        .await
+        .or_raise(|| Error::new("failed to import page", ErrorType::Page))
+}
+
 pub async fn page_get(
     ctx: &ServiceContext<'_>,
     params: Params<'static>,

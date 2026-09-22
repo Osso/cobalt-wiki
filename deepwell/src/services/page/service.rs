@@ -50,12 +50,21 @@ pub struct PageService;
 impl PageService {
     pub async fn create(
         ctx: &ServiceContext<'_>,
+        mut input: CreatePage,
+    ) -> Result<CreatePageOutput> {
+        normalize(&mut input.slug);
+        Self::import(ctx, input).await
+    }
+
+    /// Atomically create a migration page and its first revision, preserving its identity.
+    pub async fn import(
+        ctx: &ServiceContext<'_>,
         CreatePage {
             site_id,
             wikitext,
             title,
             alt_title,
-            mut slug,
+            slug,
             layout,
             revision_comments: comments,
             user_id,
@@ -64,9 +73,6 @@ impl PageService {
         }: CreatePage,
     ) -> Result<CreatePageOutput> {
         let txn = ctx.transaction();
-
-        // Ensure slug is normalized
-        normalize(&mut slug);
 
         let make_error = || {
             Error::new(
