@@ -30,6 +30,7 @@ No checked-in runtime tests yet. Targeted module evaluation can establish genera
 
 ## Known gaps (current cycle)
 
+- [ ] Enabled-module evaluation is blocked by pinned `pkgs.minio` being marked insecure and abandoned. Nix reports unauthenticated object-write vulnerabilities including CVE-2026-40344 and CVE-2026-41145. Do not permit the insecure package; main must explicitly select/package a maintained compatible storage provider before deployment.
 - [ ] Main must import the module and supply domains, the private EnvironmentFile, and reviewed production provisioning data.
 - [ ] Main must realize packages and verify PostgreSQL initialization, SQL migrations, storage buckets, application startup, restart persistence, and actual socket bindings.
 - [ ] Main must verify all services remain in the capped slice under load and that existing Sakuin services remain healthy.
