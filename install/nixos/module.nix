@@ -16,6 +16,9 @@ let
   defaults = builtins.fromTOML (builtins.readFile ../../deepwell/config.example.toml);
   runtimeConfig = (pkgs.formats.toml { }).generate "cobalt-deepwell.toml" (
     lib.recursiveUpdate defaults {
+      logger = {
+        level = "error";
+      };
       server = {
         address = "127.0.0.1:2747";
         pid-file = "";
