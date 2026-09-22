@@ -30,6 +30,7 @@ let
         proxy_set_header X-Forwarded-For $remote_addr;
         proxy_set_header X-Wikijump-Site-Id ${toString cfg.siteId};
         proxy_set_header X-Wikijump-Site-Slug cobalt-company;
+        proxy_set_header X-Wikijump-Target-Server main;
         proxy_set_header X-Wikijump-User-Id "";
         proxy_set_header Authorization "";
 
