@@ -152,7 +152,7 @@ export class PreferenceHandler {
         return true
       }
     }
-    return new Proxy(wrapped, handler)
+    return new Proxy<T>(wrapped, handler)
   }
 }
 

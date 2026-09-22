@@ -36,11 +36,12 @@ test("wrapped preferences preserve null leaves and persist nested object and arr
     else Reflect.deleteProperty(globalThis, "localStorage")
   })
   const preferences = new PreferenceHandler("test:")
-  const value = preferences.wrap("display", {
+  const defaults = {
     selected: null,
     nested: { enabled: true },
     rows: [{ label: "first" }, null]
-  })
+  }
+  const value = preferences.wrap("display", defaults)
   assert.equal(value.selected, null)
   assert.equal(value.rows[1], null)
   value.nested.enabled = false

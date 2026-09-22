@@ -20,14 +20,17 @@ test("actual RPC rejection retains the validation message, code and payload", as
       }
     })
   })
-  await assert.rejects(client.request("page_edit", {}), (error: unknown) => {
-    assert.deepEqual(requireDeepwellError(error), {
-      message: "Title is required",
-      code: -32000,
-      data: { call_trace: "page_edit", field: "title" }
-    })
-    return true
-  })
+  await assert.rejects(
+    Promise.resolve(client.request("page_edit", {})),
+    (error: unknown) => {
+      assert.deepEqual(requireDeepwellError(error), {
+        message: "Title is required",
+        code: -32000,
+        data: { call_trace: "page_edit", field: "title" }
+      })
+      return true
+    }
+  )
 })
 
 test("non-RPC thrown values are rethrown unchanged", () => {
@@ -77,6 +80,7 @@ test("action failures preserve status, form validation state and RPC payload", (
 test("popup displays only string details or a string call trace", () => {
   assert.equal(errorDetails("Validation failed"), "Validation failed")
   assert.equal(errorDetails({ call_trace: "page_edit" }), "page_edit")
-  for (const data of [null, 3, [], {}, { call_trace: 3 }])
+  for (const data of [null, 3, [], {}, { call_trace: 3 }]) {
     assert.equal(errorDetails(data), undefined)
+  }
 })

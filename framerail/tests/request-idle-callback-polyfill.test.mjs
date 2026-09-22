@@ -101,13 +101,10 @@ test("deadlines decrease with elapsed work and exhausted work defers the next ta
 })
 
 test("existing modern idle callbacks remain installed", () => {
-  /**
-   * @param {IdleRequestCallback} _callback @param {IdleRequestOptions}
-   *   [_options]
-   */
-  const requestIdleCallback = (_callback, _options) => 42
-  /** @param {number} _id */
-  const cancelIdleCallback = (_id) => {}
+  /** @type {typeof globalThis.requestIdleCallback} */
+  const requestIdleCallback = () => 42
+  /** @type {typeof globalThis.cancelIdleCallback} */
+  const cancelIdleCallback = () => {}
   const host = { requestIdleCallback, cancelIdleCallback, setTimeout, clearTimeout }
   runInNewContext(source, host)
   assert.equal(host.requestIdleCallback, requestIdleCallback)
@@ -137,8 +134,8 @@ test("legacy numeric timeout and deadline getter remain compatible", () => {
       timeouts.push(timeout)
       return 9
     },
-    /** @param {number} _id */
-    cancelIdleCallback(_id) {}
+    /** @type {typeof globalThis.cancelIdleCallback} */
+    cancelIdleCallback() {}
   }
   runInNewContext(source, host)
   assert.equal(
