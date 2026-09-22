@@ -1,8 +1,10 @@
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import io
 import json
 from pathlib import Path
 import tarfile
 import tempfile
+from threading import Thread
 import unittest
 from urllib.error import HTTPError
 from unittest.mock import patch
@@ -121,6 +123,75 @@ class ImportTests(unittest.TestCase):
         return poc.prepare_plan(
             self.archive, self.listing, self.metadata, self.path, site_id=10, user_id=20
         )
+
+    def test_cli_resolves_session_before_importing(self):
+        self.entries = self.entries[:2]
+        self.make_archive()
+        self.plan()
+        session_file = self.root / "session"
+        session_file.write_text("test-session\n")
+        session_file.chmod(0o600)
+        target = Store()
+        session = {"user_id": 20}
+
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *_):
+                pass
+
+            def do_POST(self):
+                request = json.loads(
+                    self.rfile.read(int(self.headers["Content-Length"]))
+                )
+                response = {"jsonrpc": "2.0", "id": request["id"]}
+                method, params = request["method"], request["params"]
+                if method == "session_get" and params == ["test-session"]:
+                    response["result"] = session
+                elif method in {"page_get", "page_create", "page_edit"}:
+                    response["result"] = target.rpc(method, params)
+                else:
+                    response["error"] = {"code": -32601, "message": "Method not found"}
+                data = json.dumps(response).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+
+        with ThreadingHTTPServer(("127.0.0.1", 0), Handler) as server:
+            thread = Thread(target=server.serve_forever)
+            thread.start()
+            args = [
+                "apply",
+                "--archive",
+                str(self.archive),
+                "--plan",
+                str(self.path),
+                "--endpoint",
+                f"http://127.0.0.1:{server.server_port}/jsonrpc",
+                "--session-file",
+                str(session_file),
+            ]
+            try:
+                with patch("sys.stdout", new_callable=io.StringIO) as output:
+                    poc.main(args)
+                self.assertEqual(
+                    json.loads(output.getvalue()), {"pages": 2, "attachments": 0}
+                )
+                self.assertEqual(target.pages["home:start"]["wikitext"], "Welcome\r\n")
+                self.assertEqual(target.pages["character:ada"]["tags"], ["hero"])
+                for session in ({"user_id": 21}, None):
+                    target = Store()
+                    with (
+                        self.subTest(session=session),
+                        self.assertRaisesRegex(
+                            poc.PocImportError, "session does not belong"
+                        ),
+                    ):
+                        poc.main(args)
+                    self.assertEqual(target.creates, 0)
+            finally:
+                server.shutdown()
+                thread.join()
 
     def test_full_plan_and_exact_content_idempotence(self):
         plan = self.plan()
@@ -295,10 +366,14 @@ class TransportTests(unittest.TestCase):
                 return io.BytesIO(b'{"jsonrpc":"2.0","id":1,"result":null}')
 
         client = poc.LoopbackRpc("http://127.0.0.1:2747/jsonrpc", "private", 10)
-        client.opener = Opener()
-        with patch.object(poc.time, "sleep") as sleep:
-            self.assertIsNone(client.rpc("page_get", {"page": "home:start"}))
-            self.assertEqual(sleep.call_args.args, (3.0,))
+        for method, params in (
+            ("page_get", {"page": "home:start"}),
+            ("session_get", ["private"]),
+        ):
+            client.opener = Opener()
+            with self.subTest(method=method), patch.object(poc.time, "sleep") as sleep:
+                self.assertIsNone(client.rpc(method, params))
+                self.assertEqual(sleep.call_args.args, (3.0,))
         client.opener = Opener()
         with self.assertRaises(poc.PocImportError):
             client.rpc("page_create", {"slug": "home:start"})

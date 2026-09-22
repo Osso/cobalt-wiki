@@ -393,9 +393,7 @@ class LoopbackRpc:
             },
         )
         response = json.loads(
-            self._request(
-                request, method in {"page_get", "file_get", "auth_session_get"}
-            )
+            self._request(request, method in {"page_get", "file_get", "session_get"})
         )
         if "error" in response or "result" not in response:
             raise PocImportError(
@@ -440,7 +438,7 @@ def main(argv=None):
         _prepare_path(session_path)
         token = session_path.read_text().strip()
         client = LoopbackRpc(args.endpoint, token, plan["site_id"])
-        session = client.rpc("auth_session_get", [token])
+        session = client.rpc("session_get", [token])
         if not session or session.get("user_id") != plan["user_id"]:
             raise PocImportError(
                 "session does not belong to technical import principal"
