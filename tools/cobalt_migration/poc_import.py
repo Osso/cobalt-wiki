@@ -371,7 +371,7 @@ class LoopbackRpc:
                     delay = _retry_delay(error.headers.get("Retry-After"), time.time)
                 finally:
                     error.close()
-            except (URLError, TimeoutError, ConnectionError):
+            except (URLError, TimeoutError):
                 retry, delay = True, 0
             if not safe or not retry or attempt == 3:
                 raise PocImportError(
@@ -396,17 +396,7 @@ class LoopbackRpc:
             headers=headers,
         )
         response = json.loads(
-            self._request(
-                request,
-                method
-                in {
-                    "page_get",
-                    "file_get",
-                    "session_get",
-                    "page_import",
-                    "file_create",
-                },
-            )
+            self._request(request, method in {"page_get", "file_get", "session_get"})
         )
         if "error" in response or "result" not in response:
             raise PocImportError(
