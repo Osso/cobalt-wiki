@@ -142,6 +142,52 @@ class ImportTests(unittest.TestCase):
             bytes.fromhex(next(iter(target.files.values()))["data"]), self.entries[2][1]
         )
 
+    def test_technical_admin_id_retained_in_plan_and_request_attribution(self):
+        plan = poc.prepare_plan(
+            self.archive, self.listing, self.metadata, self.path, site_id=10, user_id=-1
+        )
+        self.assertEqual(plan["user_id"], -1)
+        self.assertEqual(json.loads(self.path.read_text())["user_id"], -1)
+        target = Store()
+        requests = []
+
+        def rpc(method, params):
+            requests.append((method, params.copy()))
+            return target.rpc(method, params)
+
+        self.assertEqual(
+            poc.apply_plan(self.archive, self.path, rpc, target.put),
+            {"pages": 2, "attachments": 1},
+        )
+        writes = [
+            params
+            for method, params in requests
+            if method in {"page_create", "page_edit", "file_create"}
+        ]
+        self.assertEqual(len(writes), 4)
+        self.assertTrue(all(params["user_id"] == -1 for params in writes))
+        self.assertTrue(
+            all(page["revision_user_id"] == -1 for page in target.pages.values())
+        )
+        self.assertEqual(next(iter(target.files.values()))["revision_user_id"], -1)
+
+    def test_invalid_target_ids_rejected_before_plan_is_written(self):
+        cases = [
+            (site_id, 20) for site_id in (True, False, 0, -1, -2, 1.0, "1", None)
+        ] + [(10, user_id) for user_id in (True, False, 0, -2, -100, 1.0, "-1", None)]
+        for site_id, user_id in cases:
+            with self.subTest(site_id=site_id, user_id=user_id):
+                with self.assertRaises(poc.PocImportError):
+                    poc.prepare_plan(
+                        self.archive,
+                        self.listing,
+                        self.metadata,
+                        self.path,
+                        site_id=site_id,
+                        user_id=user_id,
+                    )
+                self.assertFalse(self.path.exists())
+
     def test_restart_after_commit_before_response_reconciles(self):
         self.plan()
         target = Store()

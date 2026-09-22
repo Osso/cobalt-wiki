@@ -56,10 +56,10 @@ def _canonical_keys(listing):
 
 def prepare_plan(archive_path, listing, metadata, output_path, *, site_id, user_id):
     """Validate the entire archive and write an immutable, protected import plan."""
-    if any(type(value) is not int or value <= 0 for value in (site_id, user_id)):
-        raise PocImportError(
-            "explicit positive target site and technical user IDs required"
-        )
+    if type(site_id) is not int or site_id <= 0:
+        raise PocImportError("explicit positive target site ID required")
+    if type(user_id) is not int or (user_id != -1 and user_id <= 0):
+        raise PocImportError("technical user ID must be -1 or a positive integer")
     keys = _canonical_keys(listing)
     evidence = {}
     names = set(keys.values())
