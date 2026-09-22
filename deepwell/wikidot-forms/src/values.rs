@@ -51,6 +51,64 @@ pub fn parse_values(source: &str) -> Result<Mapping, FormError> {
     Ok(values)
 }
 
+/// Apply scalar field updates to an entire stored YAML mapping and serialize it.
+///
+/// Unknown original fields and unchanged scalar types are retained. Static fields
+/// cannot change; changed select values must equal a declared option code. No
+/// defaults, required-field rules, or empty-value coercions are applied.
+pub fn apply_field_updates(
+    schema: &crate::FormSchema,
+    original: &Mapping,
+    updates: &Mapping,
+) -> Result<String, FormError> {
+    validate_values(original)?;
+    let fields: std::collections::HashMap<_, _> = schema
+        .fields
+        .iter()
+        .map(|field| (field.name.as_str(), field))
+        .collect();
+    let mut values = original.clone();
+    for (key, value) in updates {
+        let name = require_name(key, "submitted field mapping")?;
+        let field = fields.get(name.as_str()).ok_or_else(|| {
+            FormError::Shape(format!("unknown submitted field {name:?}"))
+        })?;
+        validate_update(field, original.get(key), value)?;
+        values.insert(key.clone(), value.clone());
+    }
+    serialize_values(&values)
+}
+
+fn validate_update(
+    field: &crate::FormField,
+    original: Option<&Value>,
+    value: &Value,
+) -> Result<(), FormError> {
+    let name = &field.name;
+    if !is_scalar(value) {
+        return Err(FormError::Shape(format!(
+            "submitted field {name:?} must be a scalar"
+        )));
+    }
+    if original == Some(value) {
+        return Ok(());
+    }
+    match field.kind {
+        crate::FieldKind::Static => Err(FormError::Shape(format!(
+            "static field {name:?} cannot be changed"
+        ))),
+        crate::FieldKind::Select => {
+            if field.options.iter().any(|option| option.code == *value) {
+                return Ok(());
+            }
+            Err(FormError::Shape(format!(
+                "select field {name:?} must match an option code"
+            )))
+        }
+        crate::FieldKind::Text | crate::FieldKind::Wiki => Ok(()),
+    }
+}
+
 /// Serialize a scalar field mapping without dropping or coercing field values.
 ///
 /// Output uses normal YAML formatting, not the original comments/quote style.

@@ -24,6 +24,12 @@ Template visibility uses the current page-view category permission semantics: th
 
 `tests/form_view.rs` asserts the standalone JSON contract. Backend `services/view/form.rs` tests category/default template selection, template self-exclusion, absent/non-form templates, full-record JSON values, and explicit malformed-input errors. Four helper tests passed through an offline isolated harness importing that exact backend module. This does not prove database lookup, permission execution, or endpoint integration. Initial backend offline resolution lacked the `arraystring` index entry. Resolution then passed using existing local Nix-vendored dependencies plus Cargo-vendored standalone YAML dependencies, without network access. Lock additions retain existing backend versions and YAML package checksums from the standalone lockfile. At `829b88e`, the offline locked backend binary test build passed in 8m42s, compiling the backend library and RPC registration. The binary-target filter ran zero tests (the helper tests live in the library); the four helper tests were proven separately by the isolated harness. Database lookup, permission execution, and live endpoint behavior remain unproven. No full `cargo check`, broad suite, or network operation was run.
 
+## Applying field updates
+
+`apply_field_updates(&FormSchema, &Mapping, &Mapping)` returns serialized YAML for the entire original record through `serialize_values`. Updates must name schema-defined fields and contain scalar values. Unknown original fields and untouched scalar types/order survive. Static fields may be submitted unchanged but cannot be changed or added. Changed select values must equal a declared option code using YAML scalar equality; an unrecognized existing code survives when omitted or submitted unchanged. Missing values are distinct from explicit nulls.
+
+No required/default rules, stringification, or empty-string-to-null coercion are introduced. Malformed update keys, nested/tagged updates, static changes, and new invalid select codes return explicit `FormError` messages. `tests/updates.rs` covers whole-map edits, retained unknown fields and scalar types, static restrictions, typed select codes, and legacy `@@` round-trips. Endpoint/editor wiring remains outside this pure API.
+
 ## How it works
 
 - [Replica proof boundaries](../wiki/systems/cobalt-replica-status.md): pure-library proof only; backend/editor/rendering integration remains open.
@@ -55,4 +61,4 @@ Dependencies: Serde supplies the transport serialization contract; maintained `s
 
 ## Out of scope
 
-HTML rendering, radio/dropdown choice, permissions, DB/network access, form-value validation against a schema, and migration are owned by the caller. Unknown property semantics are not invented. YAML serialization preserves decoded scalar values/order, not original comments, quote style, or lexical numeric formatting. Template splitting recognizes literal delimiters, not surrounding wiki escaping. Bare `@@` in flow collections and unrelated invalid YAML are not repaired.
+HTML rendering, radio/dropdown choice, permissions, DB/network access, validation beyond the field-update rules above, and migration are owned by the caller. Unknown property semantics are not invented. YAML serialization preserves decoded scalar values/order, not original comments, quote style, or lexical numeric formatting. Template splitting recognizes literal delimiters, not surrounding wiki escaping. Bare `@@` in flow collections and unrelated invalid YAML are not repaired.

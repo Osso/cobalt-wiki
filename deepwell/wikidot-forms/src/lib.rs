@@ -17,5 +17,5 @@ pub use legacy::normalize_legacy_yaml;
 pub use schema::{FieldKind, FormField, FormSchema, SelectOption, parse_schema};
 pub use serde_yaml_ng::{Mapping, Value};
 pub use template::{TemplateParts, split_template};
-pub use values::{parse_values, serialize_values};
+pub use values::{apply_field_updates, parse_values, serialize_values};
 pub use view::{FormView, extract_form_view};
