@@ -40,6 +40,7 @@ use crate::data::PageRef;
 use crate::settings::WikitextSettings;
 use crate::tree::VariableMap;
 use regex::{Regex, RegexBuilder};
+use std::ops::Range;
 use std::sync::LazyLock;
 
 static INCLUDE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
@@ -52,6 +53,29 @@ static INCLUDE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
 });
 static VARIABLE_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\{\$(?P<name>[a-zA-Z0-9_\-]+)\}").unwrap());
+
+/// Returns parsed include directives with byte ranges in the original input.
+/// Invalid directives are omitted, matching [`include`] behavior.
+pub fn parse_includes(input: &str) -> Vec<(Range<usize>, IncludeRef<'_>)> {
+    let mut directives = Vec::new();
+
+    for mtch in INCLUDE_REGEX.find_iter(input) {
+        let start = mtch.start();
+
+        trace!(
+            "Found include regex match (start {}, slice '{}')",
+            start,
+            mtch.as_str(),
+        );
+
+        match parse_include_block(input, start) {
+            Ok((include, end)) => directives.push((start..end, include)),
+            Err(_) => warn!("Unable to parse include regex match"),
+        }
+    }
+
+    directives
+}
 
 /// Replaces the include blocks in a string with the content of the pages referenced by those
 /// blocks.
@@ -78,27 +102,7 @@ where
         input.len(),
     );
 
-    let mut ranges = Vec::new();
-    let mut includes = Vec::new();
-
-    // Get include references
-    for mtch in INCLUDE_REGEX.find_iter(input) {
-        let start = mtch.start();
-
-        trace!(
-            "Found include regex match (start {}, slice '{}')",
-            start,
-            mtch.as_str(),
-        );
-
-        match parse_include_block(input, start) {
-            Ok((include, end)) => {
-                ranges.push(start..end);
-                includes.push(include);
-            }
-            Err(_) => warn!("Unable to parse include regex match"),
-        }
-    }
+    let (ranges, includes): (Vec<_>, Vec<_>) = parse_includes(input).into_iter().unzip();
 
     // Retrieve included pages
     let fetched_pages = includer.include_pages(&includes)?;
@@ -112,10 +116,7 @@ where
     //
     // We must iterate backwards for all the indices to be valid
 
-    let ranges_iter = ranges.into_iter();
-    let includes_iter = includes.into_iter();
-    let fetched_iter = fetched_pages.into_iter();
-    let joined_iter = ranges_iter.zip(includes_iter).zip(fetched_iter).rev();
+    let joined_iter = ranges.into_iter().zip(includes).zip(fetched_pages).rev();
 
     // Borrowing from the original text and doing in-place insertions
     // will not work here. We are trying to both return the page names

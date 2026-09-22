@@ -18,9 +18,57 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use super::{DebugIncluder, PageRef, include};
+use super::{DebugIncluder, PageRef, include, parse_includes};
 use crate::layout::Layout;
 use crate::settings::{WikitextMode, WikitextSettings};
+
+#[test]
+fn scans_directive_ranges_references_and_arguments() {
+    let input =
+        "Before\n[[include component:card | label=Hello]]\n[[include :other:theme:test]]";
+    let directives = parse_includes(input);
+
+    assert_eq!(directives.len(), 2);
+    assert_eq!(
+        &input[directives[0].0.clone()],
+        "[[include component:card | label=Hello]]"
+    );
+    assert_eq!(
+        directives[0].1.page_ref(),
+        &PageRef::page_only("component:card")
+    );
+    assert_eq!(
+        directives[0].1.variables().get("label").map(AsRef::as_ref),
+        Some("Hello")
+    );
+    assert_eq!(
+        &input[directives[1].0.clone()],
+        "[[include :other:theme:test]]"
+    );
+    assert_eq!(
+        directives[1].1.page_ref(),
+        &PageRef::page_and_site("other", "theme:test")
+    );
+    assert!(parse_includes("Nothing to include").is_empty());
+    assert!(parse_includes("[[include ]]").is_empty());
+}
+
+#[test]
+fn extraction_keeps_existing_include_output_and_disabled_syntax() {
+    let input = "[[include apple name=Pear]]\n[[include banana]]";
+    let settings = WikitextSettings::from_mode(WikitextMode::Page, Layout::Wikidot);
+    let (output, pages) = include(input, &settings, DebugIncluder, || panic!()).unwrap();
+    assert_eq!(output, "<MISSING-PAGE apple>\n<INCLUDED-PAGE banana {}>");
+    assert_eq!(
+        pages,
+        vec![PageRef::page_only("apple"), PageRef::page_only("banana")]
+    );
+
+    let disabled = WikitextSettings::from_mode(WikitextMode::ForumPost, Layout::Wikidot);
+    let (output, pages) = include(input, &disabled, DebugIncluder, || panic!()).unwrap();
+    assert_eq!(output, input);
+    assert!(pages.is_empty());
+}
 
 #[test]
 fn includes() {
