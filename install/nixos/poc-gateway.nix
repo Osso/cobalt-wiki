@@ -33,7 +33,7 @@ let
         proxy_set_header X-Wikijump-User-Id "";
         proxy_set_header Authorization "";
 
-        location ~ ^/(?:-/(?:files|file|download|avatar|code|html|health-check|basic-error)(?:/|$)|local--(?:files|code|html)/|[^/]+/(?:code|html|file|download)/) {
+        location ~ ^/(?:robots[.]txt/?$|[.]well-known/?$|-/(?:files|file|download|avatar|code|html|health-check|basic-error)(?:/|$)|local--(?:files|code|html)/|[^/]+/(?:code|html|file|download)/) {
           proxy_pass http://127.0.0.1:3466;
         }
         location / {
