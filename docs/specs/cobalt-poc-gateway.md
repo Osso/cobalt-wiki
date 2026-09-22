@@ -25,14 +25,16 @@ The gateway runs inside the existing capped wiki slice. Its standalone nginx ins
 
 ## Tests asserting this spec
 
-Targeted Nix evaluation covers configuration generation only. Live HTTP authentication, route coverage, spoofed-header replacement, cookies, and missing-password-file failure remain main-owned acceptance tests; no running gateway is claimed.
+Targeted Nix evaluation covers configuration generation. Main additionally verified deployed loopback Basic-auth denial across 29 unauthenticated or wrong-password route/method checks, including an immutable asset; authenticated WWS behavior remains unproven.
 
 ## Known gaps (current cycle)
 
-- [x] Production bootstrap assigned site ID `6000000` on 2026-09-22. Host commit `bf2be38` enables the protected loopback gateway for that ID; its deployment is pending.
-- [ ] Verify all-route denial and authenticated routing with the deployed proxy before importing or exposing private content.
-- [ ] Verify runtime htpasswd ownership/readability.
-- [ ] Add public tunnel ingress and DNS only after deployed gateway acceptance. No public ingress, DNS, or source import is complete.
+- [x] Production bootstrap assigned site ID `6000000` on 2026-09-22. The protected loopback gateway is deployed for that ID.
+- [x] Deployed gateway returned `401` for 29 unauthenticated or wrong-password route/method checks, including pages, assets, file/download paths, robots, and `.well-known`.
+- [ ] Authenticated WWS routes currently fail because WWS sends the valid positional-array `site_domain` RPC request but Deepwell rejects it. The compatibility fix awaits main deployment of `ff7dcf3` and repeat acceptance.
+- [ ] Invalid forged session-cookie handling returns a server error; it is not an authentication bypass, but authenticated session behavior is not accepted.
+- [x] Runtime htpasswd ownership/readability was corrected for `cobalt-wiki`.
+- [ ] Add public tunnel ingress and DNS only after deployed authenticated routing acceptance. No public ingress, DNS, or source import is complete.
 - [ ] Source ACLs and WWS per-page authorization remain unfinished. The POC gate grants its holders access to the whole POC; it is not source-permission parity.
 
 ## Out of scope

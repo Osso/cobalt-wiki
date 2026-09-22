@@ -10,7 +10,7 @@ This page records current proof boundaries for the Cobalt replica. It is not a d
 | [Form schema library](../../specs/cobalt-data-form-schema.md) | Pure schema/value behavior; bounded Deepwell page-view payload and authorized whole-record edit wiring | Frontend editor, rendering/query parity, DB-backed behavior, and complete workflow integration |
 | [Page metadata parser](../../specs/cobalt-page-metadata.md) | 30 synthetic tests; protected tagged, untagged, and NBSP-tagged responses | Full acquisition, other live response shapes, and import |
 | [Listing export](../../specs/cobalt-listing-export.md) | Protected authenticated run: 277/277 listing pages, 6,092 literal fullnames, forward reconciliation to all 6,092 archive source keys with zero gaps/collisions | Metadata/ACL acquisition, import, and deployment |
-| [Native packages](cobalt-native-packages.md) | Deepwell, WWS, Framerail, and Silo realize; enabled runtime module evaluates with Silo `DEVELOPMENT.GOGET` on Go 1.27.1 | Client compatibility/security, running services, integration, and deployment |
+| [Native packages](cobalt-native-packages.md) | Deepwell, WWS, Framerail, and Silo realize; native runtime/bootstrap deployed privately; loopback gateway rejects unauthenticated requests | Authenticated WWS file routing, full-archive import/reconciliation, public ingress, source ACL parity |
 
 ## Source-data limits
 
@@ -26,6 +26,8 @@ The Wikidot API is disabled with its original settings. The user chose to contin
 
 The permission model supports virtual member/category roles and a page-author role when a page reference is supplied. Current page views use `page_reference: None`, so they do not prove creator-specific behavior. Current WWS attachment routes do not enforce page-view authorization; private attachments must not be exposed until that route/session boundary is implemented and behaviorally verified.
 
-## Native-build boundary
+## Native-build and POC boundary
 
-Commit `f737c0c` replaces the stable-Rust-incompatible assertion macros. Deepwell, WWS, and Framerail then realized successfully; proof is `/tmp/claude/cobalt-native-package-build-fixed.log`. Commit `aeb81fe` adds pinned Silo and an isolated Go 1.27.1 toolchain. Agent44 independently realized Silo at `/nix/store/am512fba05178mdfzlzsngd3anz7w1xb-silo-2026-09-16`; enabled runtime-module evaluation passes and reports Silo `DEVELOPMENT.GOGET` on Go 1.27.1. Client compatibility/security, service startup, database/object storage behavior, hostname, Cloudflare route, and deployed wiki remain unproven.
+Commit `f737c0c` replaces the stable-Rust-incompatible assertion macros. Deepwell, WWS, and Framerail then realized successfully; proof is `/tmp/claude/cobalt-native-package-build-fixed.log`. Commit `aeb81fe` adds pinned Silo and an isolated Go 1.27.1 toolchain. Agent44 independently realized Silo at `/nix/store/am512fba05178mdfzlzsngd3anz7w1xb-silo-2026-09-16`; enabled runtime-module evaluation passes and reports Silo `DEVELOPMENT.GOGET` on Go 1.27.1.
+
+On September 22, 2026, the private native runtime bootstrapped site `6000000`. The loopback gateway's 29 unauthenticated/wrong-password route and method checks, including an asset, returned `401`. No public ingress or DNS exists. Authenticated WWS routing is blocked pending deployment of the `site_domain` positional-RPC compatibility fix. The initial full import stopped on detected ordinary page-creation slug normalization; its importer-owned wrong target was soft-deleted, and no active imported source pages remain. Atomic exact-slug import is pending runtime deployment and acceptance. Source ACL parity, attachment authorization, full reconciliation, hostname exposure, and rendering compatibility remain unproven.

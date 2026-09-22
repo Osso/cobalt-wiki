@@ -35,7 +35,7 @@ No checked-in runtime tests yet. Targeted module evaluation establishes generate
 - [x] Production bootstrap completed on 2026-09-22 after seed correction `660fe2c`; Deepwell assigned Cobalt Company site ID `6000000`.
 - [ ] Verify module-managed service restart persistence, actual socket bindings, capped-slice behavior under load, and continued Sakuin health after subsequent Cobalt activation.
 - [ ] Email-provider configuration and credentials must be supplied deliberately; this module does not select a mock provider.
-- [ ] Verify the optional [POC gateway](cobalt-poc-gateway.md), which supplies trusted site headers, same-origin routing, and all-route authentication. Host commit `bf2be38` enables it using site ID `6000000`; deployment and live acceptance remain open.
+- [ ] Verify the optional [POC gateway](cobalt-poc-gateway.md), which supplies trusted site headers, same-origin routing, and all-route authentication. It is deployed using site ID `6000000`; unauthenticated denial passed, while authenticated WWS routing awaits deployment of the positional `site_domain` RPC compatibility fix.
 
 ### Integration contract
 

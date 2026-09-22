@@ -1,17 +1,17 @@
 # Cobalt POC import
 
-`tools/cobalt_migration/poc_import.py` imports latest native page sources and attachments through existing Deepwell RPCs. It does not create sites/users or implement database compression, blob addressing, or revision storage. See [backup inventory](cobalt-backup-inventory.md) and [metadata acquisition](cobalt-metadata-export.md).
+`tools/cobalt_migration/poc_import.py` imports latest native page sources and attachments through Deepwell RPCs. It does not create sites/users or implement database compression, blob addressing, or revision storage. See [backup inventory](cobalt-backup-inventory.md) and [metadata acquisition](cobalt-metadata-export.md).
 
 ## What it must do
 
 - [x] Validate all archive members and a complete canonical listing before writing a protected immutable plan; reject duplicate/colliding identities, missing/extra source pages, and orphan attachment owners.
-- [x] Retain exact canonical page names, including multiple colons, source bytes and attachment bytes; verify target readback with SHA-256 and size.
+- [ ] Retain exact canonical page names, including multiple colons, source bytes and attachment bytes; verify target readback with SHA-256 and size.
 - [x] Resume after a committed page creation whose response was lost without creating duplicate pages.
 - [x] Refuse existing records not marked with this plan and technical principal; refuse modified imported content rather than overwrite it.
 - [x] Preserve acquired title/tags and supplemental source revision/time metadata. Missing metadata remains explicitly unacquired; canonical fullname is the POC display label, not a claimed original title.
 - [x] Write plans as owner-only files; reject changed archives before target calls.
 - [ ] Reconcile the full protected 6,092-source/1,471-attachment archive against a real provisioned Deepwell instance.
-- [ ] Prove actual RPC upload/readback, authorization, parser-limit and metadata-normalization behavior in the native runtime.
+- [ ] Prove actual `page_import` exact-name readback, attachment upload/readback, authorization, parser-limit and metadata-normalization behavior in the native runtime.
 
 ## How it works
 
@@ -30,7 +30,8 @@
 
 ## Known gaps (current cycle)
 
-- [ ] Real endpoint acceptance remains pending; mocked datastore proof is not database/network integration proof.
+- [ ] Real endpoint acceptance remains pending; mocked datastore proof is not database/network integration proof. The first production apply stopped after ordinary `page_create` normalized a canonical multi-colon name. The importer-owned incorrect page was soft-deleted; no active source pages remain imported.
+- [ ] Deploy and prove atomic `page_import`, which preserves the supplied source slug and first revision in one operation. Ordinary `page_create` normalization remains unchanged.
 - [ ] Provisioning must supply an existing positive-ID target site and a dedicated technical import principal with an authenticated session authorized to edit/import that site. The principal may be the seeded administrator (ID −1) or a positive user ID; the session identity must match the immutable plan. Runtime must allow the source archive's largest pages/attachments.
 - [ ] Deepwell and presigned S3 endpoints must be loopback IPv4/IPv6 literals (run on target or forward both ports). Session file and plan must be `0600` in an owner-only directory.
 - [ ] Host owner must protect every POC route before import. No source ACL parity is claimed.
