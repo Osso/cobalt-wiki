@@ -29,7 +29,6 @@ use crate::services::{BlobService, OutdateService, PageService};
 use crate::types::{Bytes, FetchDirection, RerenderDepth};
 use sea_orm::FromQueryResult;
 use sea_orm::prelude::*;
-use std::debug_assert_matches;
 use std::num::NonZeroI32;
 use std::sync::LazyLock;
 
@@ -77,11 +76,13 @@ impl FileRevisionService {
             )
         };
 
-        debug_assert_matches!(
-            revision_type,
-            FileRevisionType::Regular
-                | FileRevisionType::Move
-                | FileRevisionType::Rollback,
+        debug_assert!(
+            matches!(
+                revision_type,
+                FileRevisionType::Regular
+                    | FileRevisionType::Move
+                    | FileRevisionType::Rollback
+            ),
             "Invalid revision type for standard revision creation",
         );
 
