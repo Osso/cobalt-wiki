@@ -36,9 +36,10 @@ pub struct TestRunnerRequestContext {
 
 impl TestRunnerRequestContext {
     pub async fn new() -> Self {
-        let secrets = Secrets::load();
-        let config = Config::integration_testing();
+        Self::with_config(Config::integration_testing(), Secrets::load()).await
+    }
 
+    pub async fn with_config(config: Config, secrets: Secrets) -> Self {
         let state = build_server_state(config, secrets)
             .await
             .expect("Unable to set up server state");
@@ -104,6 +105,11 @@ self_cell!(
 impl TestRunner {
     pub async fn setup() -> Self {
         let request_ctx = TestRunnerRequestContext::new().await;
+        Self::new(request_ctx, TestRunnerRequestContext::build_service_context)
+    }
+
+    pub async fn setup_with_config(config: Config, secrets: Secrets) -> Self {
+        let request_ctx = TestRunnerRequestContext::with_config(config, secrets).await;
         Self::new(request_ctx, TestRunnerRequestContext::build_service_context)
     }
 
