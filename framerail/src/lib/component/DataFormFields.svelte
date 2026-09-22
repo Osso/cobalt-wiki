@@ -16,6 +16,25 @@
   <div class="form-field">
     {#if field.kind === "static"}
       <div class="static-field">{fieldText(field, form.values)}</div>
+    {:else if field.kind === "select" && field.options.length >= 2 && field.options.length <= 4}
+      <fieldset aria-describedby={hint ? `${id}-hint` : undefined}>
+        <legend>{scalarText(field.properties.label) || field.name}</legend>
+        {#if draft[field.name] !== undefined && !field.options.some((option) => option.code === draft[field.name])}
+          <output>Current value: {String(draft[field.name])}</output>
+        {/if}
+        {#each field.options as option, optionIndex (optionIndex)}
+          <label class="radio-option" for={`${id}-${optionIndex}`}>
+            <input
+              id={`${id}-${optionIndex}`}
+              name={id}
+              type="radio"
+              value={option.code}
+              bind:group={draft[field.name]}
+            />
+            {scalarText(option.label)}
+          </label>
+        {/each}
+      </fieldset>
     {:else}
       <label for={id}>{scalarText(field.properties.label) || field.name}</label>
       {#if field.kind === "select"}
@@ -68,5 +87,18 @@
   }
   .static-field {
     white-space: pre-wrap;
+  }
+  fieldset {
+    margin: 0;
+    border: 0;
+    padding: 0;
+  }
+  legend {
+    padding: 0;
+  }
+  .radio-option {
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
   }
 </style>

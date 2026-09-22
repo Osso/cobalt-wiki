@@ -5,9 +5,10 @@ import { compile } from "svelte/compiler"
 import { render } from "svelte/server"
 import { createJiti } from "jiti"
 
-const { createDraft } = /** @type {typeof import("../src/lib/form-editor")} */ (
-  await createJiti(import.meta.url).import("../src/lib/form-editor")
-)
+const { createDraft, changedFields } =
+  /** @type {typeof import("../src/lib/form-editor")} */ (
+    await createJiti(import.meta.url).import("../src/lib/form-editor")
+  )
 
 test("source-defined fields render accessible typed controls and readonly static text", async () => {
   const source = await readFile(
@@ -52,19 +53,41 @@ test("source-defined fields render accessible typed controls and readonly static
           {
             name: "rank",
             kind: "select",
-            properties: { label: "Rank" },
+            properties: { label: "Rank", hint: "Choose rank" },
             options: [
               { code: 1, label: "One" },
               { code: "1", label: "String one" },
               { code: null, label: "Null" },
               { code: "null", label: "String null" }
             ]
+          },
+          {
+            name: "sex",
+            kind: "select",
+            properties: { label: "Sex" },
+            options: [
+              { code: false, label: "Female" },
+              { code: true, label: "Male" }
+            ]
+          },
+          {
+            name: "race",
+            kind: "select",
+            properties: { label: "Race" },
+            options: [
+              { code: "human", label: "Human" },
+              { code: "elf", label: "Elf" },
+              { code: "gnome", label: "Gnome" },
+              { code: "orc", label: "Orc" },
+              { code: "troll", label: "Troll" }
+            ]
           }
         ]
       },
-      values: { name: 7, rank: "1", unknown: true }
+      values: { name: 7, rank: "1", sex: false, race: "orc", unknown: true }
     }
-    const { body } = render(Component, { props: { form, draft: createDraft(form) } })
+    const draft = createDraft(form)
+    const { body } = render(Component, { props: { form, draft } })
     assert.match(body, /Read only &lt;safe(?:&gt;|>)/)
     assert.match(body, /<label for="data-form-field-1">Name<\/label>/)
     assert.match(body, /<input[^>]*type="text"/)
@@ -72,14 +95,75 @@ test("source-defined fields render accessible typed controls and readonly static
     assert.match(body, /<input[^>]*value="7"/)
     assert.match(body, /aria-describedby="data-form-field-1-hint"/)
     assert.match(body, /<textarea[^>]*rows="8"[^>]*>\*\*hello\*\*<\/textarea>/)
-    assert.match(body, /<option[^>]*selected[^>]*>String one<\/option>/)
+    assert.match(body, /<fieldset[^>]*aria-describedby="data-form-field-3-hint"/)
+    assert.match(body, /<legend[^>]*>Rank<\/legend>/)
+    assert.match(
+      body,
+      /<input[^>]*type="radio"[^>]*checked[^>]*\/>\s*String one<\/label>/
+    )
+    assert.match(body, /<legend[^>]*>Sex<\/legend>/)
+    assert.match(body, /<input[^>]*type="radio"[^>]*checked[^>]*\/>\s*Female<\/label>/)
+    assert.match(body, /<select[^>]*id="data-form-field-5"/)
+    assert.match(body, /<option[^>]*selected[^>]*>Orc<\/option>/)
     assert.doesNotMatch(body, /unknown|name="wikitext"/)
+    assert.equal(draft.rank, "1")
+    assert.equal(draft.sex, false)
+
+    const numeric = { ...form, values: { ...form.values, rank: 1, sex: true } }
+    const numericBody = render(Component, {
+      props: { form: numeric, draft: createDraft(numeric) }
+    }).body
+    assert.match(
+      numericBody,
+      /<input[^>]*type="radio"[^>]*checked[^>]*\/>\s*One<\/label>/
+    )
+    assert.doesNotMatch(
+      numericBody,
+      /<input[^>]*type="radio"[^>]*checked[^>]*\/>\s*String one<\/label>/
+    )
+    assert.match(
+      numericBody,
+      /<input[^>]*type="radio"[^>]*checked[^>]*\/>\s*Male<\/label>/
+    )
+
     const nullable = { ...form, values: { ...form.values, rank: null } }
     const nullBody = render(Component, {
       props: { form: nullable, draft: createDraft(nullable) }
     }).body
-    assert.match(nullBody, /<option[^>]*selected[^>]*>Null<\/option>/)
-    assert.doesNotMatch(nullBody, /<option[^>]*selected[^>]*>String null<\/option>/)
+    assert.match(nullBody, /<input[^>]*type="radio"[^>]*checked[^>]*\/>\s*Null<\/label>/)
+    assert.doesNotMatch(
+      nullBody,
+      /<input[^>]*type="radio"[^>]*checked[^>]*\/>\s*String null<\/label>/
+    )
+
+    const unknown = { ...form, values: { ...form.values, rank: 99, sex: null } }
+    const unknownDraft = createDraft(unknown)
+    const unknownBody = render(Component, {
+      props: { form: unknown, draft: unknownDraft }
+    }).body
+    assert.match(unknownBody, /Current value: 99/)
+    assert.match(unknownBody, /Current value: null/)
+    assert.doesNotMatch(unknownBody, /<input[^>]*type="radio"[^>]*checked/)
+    assert.equal(unknownDraft.rank, 99)
+    assert.equal(unknownDraft.sex, null)
+    assert.deepEqual(changedFields(unknown, unknownDraft), {})
+
+    const unknownRace = { ...form, values: { ...form.values, race: "legacy" } }
+    const unknownRaceDraft = createDraft(unknownRace)
+    const unknownRaceBody = render(Component, {
+      props: { form: unknownRace, draft: unknownRaceDraft }
+    }).body
+    assert.match(unknownRaceBody, /<option[^>]*selected[^>]*>legacy<\/option>/)
+    assert.deepEqual(changedFields(unknownRace, unknownRaceDraft), {})
+
+    const missing = {
+      ...form,
+      values: { ...form.values, rank: undefined, sex: undefined }
+    }
+    const missingBody = render(Component, {
+      props: { form: missing, draft: createDraft(missing) }
+    }).body
+    assert.doesNotMatch(missingBody, /<input[^>]*type="radio"[^>]*checked/)
   } finally {
     await unlink(fixture)
   }
