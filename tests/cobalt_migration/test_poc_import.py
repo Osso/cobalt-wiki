@@ -4,6 +4,8 @@ from pathlib import Path
 import tarfile
 import tempfile
 import unittest
+from urllib.error import HTTPError
+from unittest.mock import patch
 
 from tools.cobalt_migration import poc_import as poc
 
@@ -18,6 +20,7 @@ class Store:
         self.next_id = 1
         self.creates = 0
         self.fail_after_page = False
+        self.fail_after_file = False
 
     def rpc(self, method, params):
         if method == "page_get":
@@ -63,6 +66,9 @@ class Store:
                 revision_user_id=params["user_id"],
             )
             self.creates += 1
+            if self.fail_after_file:
+                self.fail_after_file = False
+                raise ConnectionError("file committed but response lost")
             return {}
         raise AssertionError(method)
 
@@ -147,6 +153,25 @@ class ImportTests(unittest.TestCase):
         self.assertEqual(result["pages"], 2)
         self.assertEqual(target.creates, 3)
 
+    def test_restart_after_file_commit_keeps_single_attachment(self):
+        self.plan()
+        target = Store()
+        target.fail_after_file = True
+        with self.assertRaises(ConnectionError):
+            poc.apply_plan(self.archive, self.path, target.rpc, target.put)
+        result = poc.apply_plan(self.archive, self.path, target.rpc, target.put)
+        self.assertEqual(result, {"pages": 2, "attachments": 1})
+        self.assertEqual(target.creates, 3)
+        self.assertEqual(len(target.pending), 1)
+
+    def test_existing_plan_cannot_be_replaced_with_new_metadata(self):
+        self.plan()
+        before = self.path.read_bytes()
+        self.metadata["records"][0]["title"] = "Changed"
+        with self.assertRaises(poc.PocImportError):
+            self.plan()
+        self.assertEqual(self.path.read_bytes(), before)
+
     def test_foreign_existing_page_refused_before_any_writes(self):
         self.plan()
         target = Store()
@@ -207,6 +232,40 @@ class ImportTests(unittest.TestCase):
         with self.assertRaises(poc.PocImportError):
             poc.apply_plan(self.archive, self.path, target.rpc, target.put)
         self.assertEqual(target.creates, 3)
+
+
+class TransportTests(unittest.TestCase):
+    def test_transient_reads_retry_but_writes_never_repeat(self):
+        class Opener:
+            def __init__(self):
+                self.calls = 0
+
+            def open(self, request, timeout):
+                self.calls += 1
+                if self.calls == 1:
+                    raise HTTPError(
+                        request.full_url, 503, "busy", {"Retry-After": "3"}, None
+                    )
+                return io.BytesIO(b'{"jsonrpc":"2.0","id":1,"result":null}')
+
+        client = poc.LoopbackRpc("http://127.0.0.1:2747/jsonrpc", "private", 10)
+        client.opener = Opener()
+        with patch.object(poc.time, "sleep") as sleep:
+            self.assertIsNone(client.rpc("page_get", {"page": "home:start"}))
+            self.assertEqual(sleep.call_args.args, (3.0,))
+        client.opener = Opener()
+        with self.assertRaises(poc.PocImportError):
+            client.rpc("page_create", {"slug": "home:start"})
+        self.assertEqual(client.opener.calls, 1)
+
+    def test_transport_refuses_non_loopback_and_redirect_endpoints(self):
+        for url in [
+            "https://example.org/jsonrpc",
+            "http://localhost/jsonrpc",
+            "http://127.0.0.1@evil.test/jsonrpc",
+        ]:
+            with self.subTest(url=url), self.assertRaises(poc.PocImportError):
+                poc.LoopbackRpc(url, "private", 10)
 
 
 if __name__ == "__main__":

@@ -62,9 +62,10 @@ def prepare_plan(archive_path, listing, metadata, output_path, *, site_id, user_
         )
     keys = _canonical_keys(listing)
     evidence = {}
+    names = set(keys.values())
     for record in metadata.get("records", []):
         name = record.get("fullname")
-        if name not in keys.values() or name in evidence:
+        if name not in names or name in evidence:
             raise PocImportError(
                 "metadata identities are duplicate or outside the listing"
             )
@@ -366,7 +367,10 @@ class LoopbackRpc:
                     return response.read()
             except HTTPError as error:
                 retry = error.code == 429 or 500 <= error.code < 600
-                delay = _retry_delay(error.headers.get("Retry-After"), time.time)
+                try:
+                    delay = _retry_delay(error.headers.get("Retry-After"), time.time)
+                finally:
+                    error.close()
             except (URLError, TimeoutError):
                 retry, delay = True, 0
             if not safe or not retry or attempt == 3:
