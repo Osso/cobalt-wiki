@@ -1,6 +1,6 @@
 # Wikidot data-form schema compatibility
 
-`deepwell/wikidot-forms/` is a standalone pure Rust library for transporting Cobalt's form schemas and stored scalar values across future rendering/editor boundaries. It does not implement a working editor or website.
+`deepwell/wikidot-forms/` is a standalone pure Rust library for Cobalt form schemas and stored scalar values. Deepwell now consumes it for optional page-view payloads and authorized whole-record updates; it still does not provide a working frontend form editor or complete form workflow.
 
 ## What it must do
 
@@ -20,7 +20,7 @@ The Serde payload contains `schema` and `values`. Schema fields/options remain o
 
 `GetPageViewOutput::Found` now includes optional `form` data from this payload. Deepwell loads the same-site category's `_template` latest raw revision and parses the entire current page source as YAML. Default-category pages use `_template`; template pages themselves remain ordinary source. Missing, invisible, or non-form templates return `None`; malformed definitions or values fail explicitly. Existing wikitext and compiled HTML are unchanged.
 
-Template visibility uses the current page-view category permission semantics: the same viewer/site, category lookup, `Page` / `View`, and `page_reference: None`. Creator-specific authorization is not fixed by the page-view slice. That slice adds no frontend, saving, rendering, or query behavior. The pure `FormView` is serialized once to a JSON value at the backend response boundary, preserving its payload contract while satisfying JSON-RPC's `Clone` response requirement without changing the standalone types. Serialization failures are explicit.
+Template visibility uses the current page-view category permission semantics: the same viewer/site, category lookup, `Page` / `View`, and `page_reference: None`. The permission model has virtual member/category roles and a page-author role when supplied a page reference; this view path does not supply one, so it does not establish creator-specific access. That slice adds no frontend, saving, rendering, or query behavior. The pure `FormView` is serialized once to a JSON value at the backend response boundary, preserving its payload contract while satisfying JSON-RPC's `Clone` response requirement without changing the standalone types. Serialization failures are explicit.
 
 `tests/form_view.rs` asserts the standalone JSON contract. Backend `services/view/form.rs` tests category/default template selection, template self-exclusion, absent/non-form templates, full-record JSON values, and explicit malformed-input errors. Four helper tests passed through an offline isolated harness importing that exact backend module. This does not prove database lookup, permission execution, or endpoint integration. Initial backend offline resolution lacked the `arraystring` index entry. Resolution then passed using existing local Nix-vendored dependencies plus Cargo-vendored standalone YAML dependencies, without network access. Lock additions retain existing backend versions and YAML package checksums from the standalone lockfile. At `829b88e`, the offline locked backend binary test build passed in 8m42s, compiling the backend library and RPC registration. The binary-target filter ran zero tests (the helper tests live in the library); the four helper tests were proven separately by the isolated harness. Database lookup, permission execution, and live endpoint behavior remain unproven. No full `cargo check`, broad suite, or network operation was run.
 
@@ -47,7 +47,7 @@ Six filtered backend library tests passed after behavioral RED. `deepwell/tests/
 
 ## How it works
 
-- [Replica proof boundaries](../wiki/systems/cobalt-replica-status.md): pure-library proof only; backend/editor/rendering integration remains open.
+- [Replica proof boundaries](../wiki/systems/cobalt-replica-status.md): pure-library and bounded backend payload/edit proof; frontend, rendering, DB-backed behavior, and workflow integration remain open.
 - [Public API and representation](../../deepwell/wikidot-forms/src/lib.rs): `split_template`, `normalize_legacy_yaml`, `parse_schema`, `parse_values`, and `serialize_values`.
 - [Schema representation](../../deepwell/wikidot-forms/src/schema.rs): fields/options are vectors; remaining properties are ordered YAML mappings. Known scalar properties are validated as scalars, not coerced. Unknown properties are retained as YAML data, not interpreted as editor behavior.
 - [Legacy normalization](../../deepwell/wikidot-forms/src/legacy.rs): one preprocessing pass protects quoted and block text. It does not retry a failed parse with different semantics.
@@ -74,7 +74,8 @@ Dependencies: Serde supplies the transport serialization contract; maintained `s
 ## Known gaps (current cycle)
 
 - [ ] The legacy NPC definition's apparent `orc: Orc:` syntax remains an error, not an automatic repair. The source inventory contains no saved NPC records. No real template or private record is included in fixtures.
-- [ ] Rendering/editor integration and database-backed page-view/permission tests remain open; backend payload wiring alone is not form-workflow parity.
+- [ ] Frontend form work is in progress but not claimed here. Rendering/editor integration and database-backed page-view/permission tests remain open; backend payload/edit wiring alone is not form-workflow parity.
+- [ ] Private attachment authorization is separate and missing: current WWS attachment routes do not enforce page-view authorization. Do not expose private attachments.
 - [ ] Independent verification, readability, and broader checks belong to the integration owner.
 
 ## Out of scope

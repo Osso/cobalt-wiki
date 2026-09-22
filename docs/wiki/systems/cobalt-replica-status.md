@@ -7,7 +7,7 @@ This page records current proof boundaries for the Cobalt replica. It is not a d
 | Component | Proven | Not proven |
 |---|---|---|
 | [Native backup inventory](cobalt-backup-inventory.md) | Synthetic behavior and a protected real-archive manifest | Canonical page identity or target import |
-| [Form schema library](../../specs/cobalt-data-form-schema.md) | Pure synthetic schema/value behavior and standalone serializable `FormView` payload | Deepwell, renderer, editor, database, query, or UI integration |
+| [Form schema library](../../specs/cobalt-data-form-schema.md) | Pure schema/value behavior; bounded Deepwell page-view payload and authorized whole-record edit wiring | Frontend editor, rendering/query parity, DB-backed behavior, and complete workflow integration |
 | [Page metadata parser](../../specs/cobalt-page-metadata.md) | 30 synthetic tests; protected tagged, untagged, and NBSP-tagged responses | Full acquisition, other live response shapes, and import |
 | [Listing export](../../specs/cobalt-listing-export.md) | Protected authenticated run: 277/277 listing pages, 6,092 literal fullnames, forward reconciliation to all 6,092 archive source keys with zero gaps/collisions | Metadata/ACL acquisition, import, and deployment |
 | [Native packages](cobalt-native-packages.md) | Deepwell, WWS, Framerail, and Silo realize; enabled runtime module evaluates with Silo `DEVELOPMENT.GOGET` on Go 1.27.1 | Client compatibility/security, running services, integration, and deployment |
@@ -21,6 +21,10 @@ The legacy NPC template's apparent invalid `orc: Orc:` YAML remains unrepaired. 
 ## Authenticated metadata boundary
 
 The Wikidot API is disabled with its original settings. The user chose to continue without an API key. Current metadata tooling therefore must not prompt for a key, enable the API, or claim API-derived fields. Protected tagged, untagged, and NBSP-tagged parser fixtures passed independently. Listing export completed a protected authenticated 277-page run with 6,092 literal canonical fullnames; its forward reconciliation to the 6,092 archive source keys has zero gaps or collisions. Bulk metadata acquisition is ongoing: accepted records are distinct from explicit `denied` and unresolved `redirect` records, and none of those outcomes proves ACL export or target import.
+
+## Privacy boundary
+
+The permission model supports virtual member/category roles and a page-author role when a page reference is supplied. Current page views use `page_reference: None`, so they do not prove creator-specific behavior. Current WWS attachment routes do not enforce page-view authorization; private attachments must not be exposed until that route/session boundary is implemented and behaviorally verified.
 
 ## Native-build boundary
 
