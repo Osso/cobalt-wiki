@@ -45,7 +45,7 @@ def _eligible_payload(raw, site_id):
 
 
 def duplicate_candidates(records, site_id, cutoff_ms):
-    """Yield later IDs with eligible byte-identical payloads, keeping the first.
+    """Yield keeper IDs and original candidate records for live revalidation.
 
     Only unreceived rerender jobs for ``site_id`` due by ``cutoff_ms``
     participate. This pure scan holds one keeper ID per distinct eligible raw
@@ -72,4 +72,4 @@ def duplicate_candidates(records, site_id, cutoff_ms):
             continue
         keeper = keepers.setdefault(raw, message_id)
         if keeper != message_id:
-            yield message_id
+            yield {"keeper_id": keeper, "record": record}

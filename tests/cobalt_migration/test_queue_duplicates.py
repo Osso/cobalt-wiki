@@ -40,7 +40,20 @@ def record(message_id, raw_payload, *, score=CUTOFF_MS, rc=None, fr=None):
 
 class DuplicateCandidatesTest(unittest.TestCase):
     def candidates(self, records):
-        return list(duplicate_candidates(iter(records), SITE_ID, CUTOFF_MS))
+        return [
+            item["record"]["id"]
+            for item in duplicate_candidates(iter(records), SITE_ID, CUTOFF_MS)
+        ]
+
+    def test_candidate_retains_original_record_and_keeper_for_live_revalidation(self):
+        raw = payload()
+        later = record("later", raw)
+        self.assertEqual(
+            list(
+                duplicate_candidates([record("keeper", raw), later], SITE_ID, CUTOFF_MS)
+            ),
+            [{"keeper_id": "keeper", "record": later}],
+        )
 
     def test_same_bytes_keep_first_eligible_id_and_offer_only_later_ids(self):
         raw = payload()
