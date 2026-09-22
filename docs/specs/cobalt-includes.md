@@ -4,12 +4,14 @@ Expand archived Wikidot includes before FTML rendering without rewriting stored 
 
 ## What it must do
 
-- [x] Expand nested same-site includes and substitute supplied variables while preserving stored source bytes.
+- [x] Expand nested same-site includes, including empty values, and substitute supplied variables while preserving stored source bytes.
 - [x] Apply expansion to page body and both navigation regions.
 - [x] Never insert missing, deleted, foreign-site, or anonymously unreadable target content into shared compiled HTML.
-- [ ] Record included-page dependencies so later source changes can invalidate compiled output.
+- [x] Record only resolved same-site included-page dependencies; unavailable and foreign directives create none.
+- [ ] Invalidate compiled output after included-page or permission changes.
 - [x] Terminate cyclic expansion with an explicit error without replacing the stored compiled revision.
-- [ ] Reject excessive expansion at each work/size boundary.
+- [x] Accept terminal output at depth 16; reject an additional nesting level without replacing the stored compiled revision.
+- [ ] Reject excessive directive/output size before allocation; current output-size guard is post-expansion.
 
 ## How it works
 
@@ -23,14 +25,14 @@ Expand archived Wikidot includes before FTML rendering without rewriting stored 
 
 ## Tests asserting this spec
 
-- `deepwell/tests/page_includes.rs`: nested substitution, unchanged source, both navigation regions, missing/deleted/foreign/denied targets, and cyclic failure preservation.
-- `deepwell/vendor/ftml/src/includes/test.rs`: scanner and substitution contracts.
+- `deepwell/tests/page_includes.rs`: six native cases for nested body substitution, both navigation regions, empty values, unavailable/denied/foreign isolation, foreign dependency exclusion, and cycle/depth preservation.
+- `deepwell/vendor/ftml/src/includes/test.rs`: five focused scanner/substitution cases including empty values.
 
 ## Known gaps (current cycle)
 
-- [ ] Verify dependency invalidation and excessive-expansion boundaries with native fixtures.
-- [ ] Verify actual archived homepage/navigation includes in the local browser.
-- [ ] Reconcile parser coverage against source syntax, including currently unrecognized directives.
+- [ ] Verify included-page and permission-change invalidation plus pre-allocation size limits.
+- [ ] Verify actual archived homepage/navigation includes in the local browser; these still require unsupported ListPages/SUO and source-grammar work.
+- [ ] Reconcile parser coverage against source syntax, including nav directives the current scanner does not parse.
 - [ ] Establish source ACL equivalence and invalidation after permission changes; target anonymous-read checks alone do not prove either.
 - [ ] Support viewer-private includes through viewer-aware rendering; shared output cannot encode viewer-specific decisions.
 - [ ] Acquire authorized foreign include sources and establish their rendering/permission behavior.
