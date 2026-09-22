@@ -59,49 +59,72 @@ pub(super) async fn expand_includes(
     let mut fetched = FetchedIncludes(HashMap::new());
     let mut dependencies = HashSet::new();
     let mut directive_count = 0;
-    for _ in 0..MAX_INCLUDE_DEPTH {
-        let references: Vec<_> = parse_includes(&source)
-            .into_iter()
-            .map(|(_, include)| include.page_ref().clone())
-            .collect();
+    let mut depth = 0;
+    loop {
+        let references = collect_references(&source);
         if references.is_empty() {
             return Ok((source, dependencies.into_iter().collect()));
         }
         directive_count += references.len();
-        if directive_count > MAX_INCLUDE_DIRECTIVES || source.len() > MAX_EXPANDED_BYTES {
-            return Err(Error::new(
-                "include expansion exceeds its work limit",
-                ErrorType::Render,
-            )
-            .into());
-        }
+        check_work_limits(depth, directive_count, source.len())?;
         fetch_include_sources(ctx, site.site_id, site_slug, &references, &mut fetched)
             .await?;
-        let (expanded, pages) = ftml::include(&source, settings, &fetched, || {
-            Error::new(
-                "include resolver returned inconsistent pages",
-                ErrorType::Render,
-            )
-            .into()
-        })?;
-        if expanded.len() > MAX_EXPANDED_BYTES {
-            return Err(Error::new(
-                "include expansion exceeds its size limit",
-                ErrorType::Render,
-            )
-            .into());
-        }
-        dependencies.extend(pages);
+        let (expanded, pages) = substitute_fetched_sources(&source, settings, &fetched)?;
+        dependencies.extend(pages.into_iter().filter(|page| is_local(page, site_slug)));
         source = expanded;
+        depth += 1;
     }
-    if parse_includes(&source).is_empty() {
-        return Ok((source, dependencies.into_iter().collect()));
+}
+
+fn collect_references(source: &str) -> Vec<PageRef> {
+    parse_includes(source)
+        .into_iter()
+        .map(|(_, include)| include.page_ref().clone())
+        .collect()
+}
+
+fn is_local(reference: &PageRef, site_slug: &str) -> bool {
+    reference.site().is_none_or(|site| site == site_slug)
+}
+
+fn check_work_limits(depth: usize, directives: usize, source_bytes: usize) -> Result<()> {
+    if depth >= MAX_INCLUDE_DEPTH {
+        return Err(Error::new(
+            "include expansion exceeds its nesting limit",
+            ErrorType::Render,
+        )
+        .into());
     }
-    Err(Error::new(
-        "include expansion exceeds its nesting limit",
-        ErrorType::Render,
-    )
-    .into())
+    if directives > MAX_INCLUDE_DIRECTIVES || source_bytes > MAX_EXPANDED_BYTES {
+        return Err(Error::new(
+            "include expansion exceeds its work limit",
+            ErrorType::Render,
+        )
+        .into());
+    }
+    Ok(())
+}
+
+fn substitute_fetched_sources(
+    source: &str,
+    settings: &WikitextSettings,
+    fetched: &FetchedIncludes,
+) -> Result<(String, Vec<PageRef>)> {
+    let expanded = ftml::include(source, settings, fetched, || {
+        Error::new(
+            "include resolver returned inconsistent pages",
+            ErrorType::Render,
+        )
+        .into()
+    })?;
+    if expanded.0.len() > MAX_EXPANDED_BYTES {
+        return Err(Error::new(
+            "include expansion exceeds its size limit",
+            ErrorType::Render,
+        )
+        .into());
+    }
+    Ok(expanded)
 }
 
 async fn fetch_include_sources(
@@ -121,7 +144,7 @@ async fn fetch_include_sources(
     }
     let local_slugs: Vec<_> = pending
         .iter()
-        .filter(|reference| reference.site().is_none_or(|site| site == site_slug))
+        .filter(|reference| is_local(reference, site_slug))
         .map(|reference| reference.page.clone())
         .collect();
     let pages = Page::find()
@@ -136,7 +159,7 @@ async fn fetch_include_sources(
         .map(|page| (page.slug.clone(), page))
         .collect();
     for reference in pending {
-        let content = if reference.site().is_some_and(|site| site != site_slug) {
+        let content = if !is_local(&reference, site_slug) {
             None
         } else if let Some(page) = pages.get(reference.page()) {
             fetch_shared_source(ctx, page).await?

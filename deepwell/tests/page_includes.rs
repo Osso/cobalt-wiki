@@ -8,8 +8,10 @@ use deepwell::constants::ADMIN_USER_ID;
 use deepwell::models::{page, page_revision, role_permission, site};
 use deepwell::services::page::CreatePage;
 use deepwell::services::page_revision::RerenderType;
-use deepwell::services::{PageRevisionService, PageService, TextService};
-use deepwell::types::{Action, PageId, Reference, RerenderDepth, Resource};
+use deepwell::services::{LinkService, PageRevisionService, PageService, TextService};
+use deepwell::types::{
+    Action, ConnectionType, PageId, Reference, RerenderDepth, Resource,
+};
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use serde_json::json;
 
@@ -112,6 +114,24 @@ async fn missing_deleted_and_foreign_includes_do_not_reveal_target_source() {
         html.matches("Included page unavailable.").count(),
         3,
         "{html}"
+    );
+    let foreign = PageService::get(
+        runner.context(),
+        foreign_id,
+        Reference::Slug("include-foreign".into()),
+    )
+    .await
+    .unwrap();
+    let dependencies = LinkService::get_to(
+        runner.context(),
+        foreign.page_id,
+        Some(&[ConnectionType::IncludeMessy]),
+    )
+    .await
+    .unwrap();
+    assert!(
+        dependencies.connections.is_empty(),
+        "unexpanded foreign content must not create an include dependency"
     );
     for forbidden in [
         "DELETED_CONTENT",
