@@ -2,11 +2,13 @@
   import { page } from "$app/state"
   import { errorPopupState, pageLayoutState } from "$lib/stores.svelte"
   import { Layout } from "$lib/types"
+  import { errorDetails } from "$lib/deepwell-errors"
 
   interface Props {
     exitPrompt: () => void
   }
   let { exitPrompt }: Props = $props()
+  const details = $derived(errorDetails(errorPopupState.current.data))
 
   function containerExitPrompt(event: MouseEvent) {
     event.preventDefault()
@@ -54,11 +56,9 @@
         <h1 id="modal-title">
           {errorPopupState.current.message}
         </h1>
-        {#if errorPopupState.current.data}
+        {#if details !== undefined}
           <p id="model-message-extra" class="modal-message-extra">
-            {typeof errorPopupState.current.data === "string"
-              ? errorPopupState.current.data
-              : errorPopupState.current.data.call_trace}
+            {details}
           </p>
         {/if}
       </div>
@@ -94,11 +94,9 @@
       <div id="modal-message" class="modal-message">
         {errorPopupState.current.message}
       </div>
-      {#if errorPopupState.current.data}
+      {#if details !== undefined}
         <div id="model-message-extra" class="modal-message-extra">
-          {typeof errorPopupState.current.data === "string"
-            ? errorPopupState.current.data
-            : errorPopupState.current.data.call_trace}
+          {details}
         </div>
       {/if}
     </div>

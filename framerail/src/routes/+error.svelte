@@ -31,7 +31,7 @@
         const submitForm = {
           ...$editForm,
           siteId: page.data.site.site_id,
-          slug: page.params.slug ?? page.error?.site.default_page
+          slug: page.params.slug ?? page.data.site.default_page
         }
         jsonData(submitForm)
       },

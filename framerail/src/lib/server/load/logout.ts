@@ -1,4 +1,5 @@
 import defaults from "$lib/defaults"
+import { requireDeepwellError } from "$lib/deepwell-errors"
 
 import { parseAcceptLangHeader } from "$lib/locales"
 import { authLogout } from "$lib/server/auth/logout"
@@ -55,7 +56,11 @@ export async function logoutAction({ cookies, request }: RequestEvent) {
       const translateStrings = await translate(locales, {
         "error-api.NOT_LOGGED_IN": {}
       })
-      throw new Error(translateStrings?.["error-api.NOT_LOGGED_IN"])
+      return fail(400, {
+        message: translateStrings?.["error-api.NOT_LOGGED_IN"],
+        code: undefined,
+        data: undefined
+      })
     }
 
     await authLogout(sessionToken)
@@ -68,7 +73,8 @@ export async function logoutAction({ cookies, request }: RequestEvent) {
     })
 
     return { success: true }
-  } catch (error) {
+  } catch (caught) {
+    const error = requireDeepwellError(caught)
     return fail(400, {
       message: error.message,
       code: error.code,

@@ -1,4 +1,5 @@
 import type { PageForm } from "$lib/form-editor"
+import type { OwnUserData } from "$lib/user-data"
 import { client } from "$lib/server/deepwell"
 
 import type {
@@ -35,14 +36,19 @@ export async function preloadView(
   })
 }
 
-export type PreloadDataAsync = () => Promise<Viewer & { locales: string[] }>
+export type PreloadDataAsync = () => Promise<
+  Omit<Viewer, "user_session"> & {
+    locales: string[]
+    user_session: Nullable<Omit<UserSession, "user"> & { user: OwnUserData }>
+  }
+>
 
 /* ----- Page View ----- */
 export interface PageRoute {
   slug: Optional<string>
   extra: Optional<string>
 }
-interface PageViewDataBase {
+export interface PageViewDataBase {
   options: PageOptions
   redirect_page: Nullable<string>
   wikitext: string

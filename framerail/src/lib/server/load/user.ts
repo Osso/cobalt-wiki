@@ -1,4 +1,5 @@
 import defaults from "$lib/defaults"
+import { requireDeepwellError } from "$lib/deepwell-errors"
 
 import { authGetSession } from "$lib/server/auth/getSession"
 import { translate } from "$lib/server/deepwell/translate"
@@ -10,7 +11,8 @@ import { valibot } from "sveltekit-superforms/adapters"
 import { file, object, optional, string } from "valibot"
 
 import type { PreloadDataAsync } from "$lib/server/deepwell/views"
-import type { TranslateKeys, UserModel } from "$lib/types"
+import type { TranslateKeys } from "$lib/types"
+import { sanitizeUserData, type SanitizedUserData } from "$lib/user-data"
 import type { Cookies, RequestEvent } from "@sveltejs/kit"
 
 export async function loadUser(
@@ -60,7 +62,7 @@ export async function loadUser(
   }
 
   const viewData: {
-    user?: Partial<UserModel & { avatar: string }>
+    user?: SanitizedUserData
   } = response.data ?? {}
 
   if (errorStatus !== null && response.type === "user_missing") {
@@ -105,55 +107,15 @@ export async function loadUser(
   const userEditForm = await superValidate(request, valibot(userEditSchema))
 
   if (errorStatus !== null) {
-    error(errorStatus, { ...viewData, view: response.type, internationalization })
+    error(errorStatus, {
+      ...viewData,
+      message: "Unable to load user profile",
+      view: response.type,
+      internationalization
+    })
   }
 
   return { ...viewData, view: response.type, internationalization, userEditForm }
-}
-
-export function sanitizeUserData(
-  user: UserModel,
-  isViewingAnotherUser: boolean
-): Partial<UserModel> {
-  const baseSafeKeys: (keyof UserModel)[] = [
-    "user_id",
-    "user_type",
-    "created_at",
-    "updated_at",
-    "deleted_at",
-    "name",
-    "slug",
-    "avatar_s3_hash",
-    "website",
-    "user_page"
-  ]
-  if (isViewingAnotherUser) {
-    // the whitelist for viewing other user profiles should be a subset of that for
-    // viewing their own.
-    return Object.fromEntries(
-      baseSafeKeys.filter((key) => key in user).map((key) => [key, user[key]])
-    )
-  } else {
-    const safeKeys: (keyof UserModel)[] = [
-      ...baseSafeKeys,
-      "name_changes_left",
-      "last_name_change_added_at",
-      "last_renamed_at",
-      "email",
-      "email_verified_at",
-      "email_validation_info",
-      "email_validation_at",
-      "locales",
-      "real_name",
-      "gender",
-      "birthday",
-      "location",
-      "biography"
-    ]
-    return Object.fromEntries(
-      safeKeys.filter((key) => key in user).map((key) => [key, user[key]])
-    )
-  }
 }
 
 export async function userEditAction({
@@ -206,7 +168,8 @@ export async function userEditAction({
     })
 
     return withFiles({ form, res })
-  } catch (error) {
+  } catch (caught) {
+    const error = requireDeepwellError(caught)
     return fail(500, {
       form,
       message: error.message,

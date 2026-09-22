@@ -3,6 +3,8 @@
 // and what to do when importing types
 
 import type { Layout } from "$lib/types"
+import type { PageViewDataBase } from "$lib/server/deepwell/views"
+import type { createPageErrorForms } from "$lib/server/load/page"
 import type { Locales } from "./types"
 
 declare global {
@@ -155,19 +157,12 @@ declare global {
       }
     }
 
-    interface Error extends PageData {
-      /** Error message */
+    interface Error extends Partial<PageViewDataBase> {
       message: string
-      /** Error type for page/user/admin view */
-      view: string
-      /**
-       * Error internationalization as defined in the translation keys for
-       * the page. Look at /lib/types.ts for the keys type definitions.
-       */
-      internationalization?: Locales
-      /** Compiled HTML */
-      compiled_body_html?: string
-      [anyError: any]: unknown
+      view?: string
+      internationalization?: Partial<Locales>
+      html?: string
+      forms?: Awaited<ReturnType<typeof createPageErrorForms>>
     }
     // interface Platform {}
 

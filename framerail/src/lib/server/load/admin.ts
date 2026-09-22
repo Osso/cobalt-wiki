@@ -1,4 +1,5 @@
 import defaults from "$lib/defaults"
+import { requireDeepwellError } from "$lib/deepwell-errors"
 
 import { authGetSession } from "$lib/server/auth/getSession"
 import { siteUpdate } from "$lib/server/deepwell/admin"
@@ -92,7 +93,7 @@ export async function loadAdminPage(
   }
 
   if (errorStatus !== null) {
-    error(errorStatus, viewData)
+    error(errorStatus, { ...viewData, message: "Unable to load site administration" })
   }
 
   return viewData
@@ -131,7 +132,8 @@ export async function adminAction({ request, getClientAddress, cookies }: Reques
     }
 
     return { form, res: null }
-  } catch (error) {
+  } catch (caught) {
+    const error = requireDeepwellError(caught)
     return fail(500, {
       form,
       message: error?.message,
