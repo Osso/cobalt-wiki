@@ -7,7 +7,8 @@ Creating an attachment on an existing page changes that page's files, not the pa
 - [x] Commit the upload request before file finalization, matching the production transaction boundary.
 - [x] Preserve the created file's owner, filename and byte size.
 - [x] Do not enqueue rerenders for ordinary links to an unchanged owner page when its first file revision is created.
-- [ ] Preserve relevant template/include/navigation invalidation when the attachment owner itself has those dependencies.
+- [x] Preserve site-navigation invalidation when the attachment owner is itself the navigation page.
+- [ ] Verify template/include invalidation for attachment owners with those dependencies.
 
 ## How it works
 
@@ -20,7 +21,7 @@ Creating an attachment on an existing page changes that page's files, not the pa
 
 ## Tests asserting this spec
 
-- `deepwell/tests/file_attachment_invalidation.rs`: committed upload request, real S3 PUT, file creation/readback, and cumulative queue-send count on a dedicated Redis database.
+- `deepwell/tests/file_attachment_invalidation.rs`: committed upload request, real S3 PUT, file creation/readback, unchanged ordinary links, and retained navigation fanout. Run explicitly with `cargo test --test file_attachment_invalidation -- --ignored` against a dedicated empty Redis database. The fixture precreates its queue before starting workers, excluding unrelated recurring maintenance producers from cumulative enqueue counts.
 
 ## Known gaps (current cycle)
 
