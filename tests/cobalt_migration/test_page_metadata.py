@@ -129,6 +129,14 @@ class PageMetadataTests(unittest.TestCase):
             parse_page_metadata(page_html(assignments=assignments))["page_id"], 42
         )
 
+    def test_metadata_looking_regex_is_not_treated_as_assignments(self):
+        assignments = (
+            "const pattern = /WIKIREQUEST.info.pageUnixName='character:atley';"
+            "WIKIREQUEST.info.pageId=42;/;"
+        )
+        with self.assertRaisesRegex(PageMetadataError, "unsupported.*script"):
+            parse_page_metadata(page_html(assignments=assignments))
+
     def test_assignments_in_non_javascript_script_and_article_are_not_metadata(self):
         html = page_html(assignments="")
         html = html.replace(

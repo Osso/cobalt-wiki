@@ -20,7 +20,7 @@
 - [Behavioral fixtures](../../tests/cobalt_migration/test_page_metadata.py)
 - [Separate raw-archive inventory contract](cobalt-backup-inventory.md)
 
-Identity parsing is limited to the observed dot-property assignments, with literal values followed by a semicolon or script end. Single-quoted escapes support `\'`, `\"`, `\\`, `\/`, `\b`, `\f`, `\n`, `\r`, `\t`, `\v`, `\xHH`, and `\uHHHH`; whitespace/control characters remain invalid in a fullname. This is not JavaScript evaluation or general program analysis. Computed property names, expression-valued metadata, interpolated template metadata, and automatic-semicolon-insertion variations are not supported.
+Identity parsing is limited to the observed dot-property assignments, with literal values followed by a semicolon or script end. Single-quoted escapes support `\'`, `\"`, `\\`, `\/`, `\b`, `\f`, `\n`, `\r`, `\t`, `\v`, `\xHH`, and `\uHHHH`; whitespace/control characters remain invalid in a fullname. This is not JavaScript evaluation or general program analysis. Computed property names, expression-valued metadata, interpolated template metadata, and automatic-semicolon-insertion variations are not supported. A metadata-bearing script containing slash syntax outside comments/quoted strings is rejected explicitly: regular-expression bodies must not be mistaken for assignments, and parsing general JavaScript regex/division syntax is out of scope.
 
 Unavailable-page recognition is deliberately bounded to `Private Content`, `Access denied`, `Permission denied`, `Page not found`, and `Page does not exist` titles, or page-content messages beginning `This area of the site is private` / `The page you want to access does not exist`. Other response shapes must still establish all required metadata or fail explicitly; this is not a general HTTP/authentication classifier.
 
@@ -31,7 +31,7 @@ Unavailable-page recognition is deliberately bounded to `Private Content`, `Acce
 
 ## Tests asserting this spec
 
-`tests/cobalt_migration/test_page_metadata.py`: 20 targeted tests pass, including conflicting identities, unsupported expressions, escaped Unicode, hidden tags, footer scoping, denial/missing responses, empty versus missing metadata, and omission of unrelated script data.
+`tests/cobalt_migration/test_page_metadata.py`: 21 targeted tests pass, including conflicting identities, unsupported expressions/regex syntax, escaped Unicode, hidden tags, footer scoping, denial/missing responses, empty versus missing metadata, and omission of unrelated script data.
 
 ```text
 python -B -m unittest discover -s tests/cobalt_migration -p test_page_metadata.py -v

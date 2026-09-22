@@ -284,6 +284,11 @@ def _script_assignments(script: str):
             position = _skip_comment(script, position)
         elif script[position] in "\"'`":
             position = _quoted_end(script, position)
+        elif script[position] == "/":
+            # Do not interpret regex bodies as assignments or implement a JS lexer.
+            raise PageMetadataError(
+                "unsupported slash syntax in metadata-bearing script"
+            )
         else:
             match = _ASSIGNMENT.match(script, position)
             if match is None:
