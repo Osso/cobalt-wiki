@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from html.parser import HTMLParser
 import json
 import re
+from urllib.parse import unquote
 
 
 class PageMetadataError(ValueError):
@@ -50,7 +51,7 @@ class _Frame:
     tag: str
     sections: frozenset[str]
     inert: bool
-    anchor: list[str] | None = None
+    anchor: bool = False
     script: list[str] | None = None
 
 
@@ -60,7 +61,7 @@ class _PageHTML(HTMLParser):
         self.frames: list[_Frame] = []
         self.counts: dict[str, int] = {}
         self.text: dict[str, list[str]] = {name: [] for name in _SECTIONS}
-        self.tags: list[list[str]] = []
+        self.tags: list[str | None] = []
         self.timestamps: list[str] = []
         self.scripts: list[list[str]] = []
 
@@ -70,10 +71,10 @@ class _PageHTML(HTMLParser):
         parent_inert = parent.inert if parent else False
         inert = parent_inert or tag in _INERT_TAGS
         sections = parent.sections if parent else frozenset()
-        anchor = parent.anchor if parent else None
+        anchor = parent.anchor if parent else False
         if not inert:
             sections = self._open_sections(sections, attributes)
-            anchor = self._open_anchor(tag, sections, anchor)
+            anchor = self._open_anchor(tag, sections, anchor, attributes)
             self._collect_timestamp(sections, attributes)
         script = self._open_script(tag, attributes, parent_inert)
         frame = _Frame(tag, sections, inert, anchor, script)
@@ -118,14 +119,13 @@ class _PageHTML(HTMLParser):
             sections.add(name)
         return frozenset(sections)
 
-    def _open_anchor(self, tag, sections, inherited):
+    def _open_anchor(self, tag, sections, inherited, attributes):
         if tag != "a" or "page-tags" not in sections:
             return inherited
-        if inherited is not None:
+        if inherited:
             raise PageMetadataError("nested tag anchors are inconsistent")
-        anchor: list[str] = []
-        self.tags.append(anchor)
-        return anchor
+        self.tags.append(attributes.get("href"))
+        return True
 
     def _collect_timestamp(self, sections, attributes):
         classes = (attributes.get("class") or "").split()
@@ -149,8 +149,6 @@ class _PageHTML(HTMLParser):
         for section in frame.sections:
             if section in self.text:
                 self.text[section].append(data)
-        if frame.anchor is not None:
-            frame.anchor.append(data)
 
 
 def _compact_text(chunks: list[str]) -> str:
@@ -359,6 +357,18 @@ def _identity(parsed: _PageHTML) -> dict:
     return scalars
 
 
+def _decode_tag_href(href: str | None) -> str:
+    if not isinstance(href, str):
+        raise PageMetadataError("page-tags anchor requires a tag href")
+    match = re.fullmatch(r"/system:page-tags/tag/([^/?#\s]+)#pages", href)
+    if match is None or re.search(r"%(?![0-9a-fA-F]{2})", href):
+        raise PageMetadataError("page-tags contains a malformed tag href")
+    try:
+        return unquote(match[1], encoding="utf-8", errors="strict")
+    except UnicodeError:
+        raise PageMetadataError("page-tags tag href is not valid UTF-8") from None
+
+
 def _visible_metadata(parsed: _PageHTML) -> dict:
     for section in ("page-title", "page-info"):
         if parsed.counts.get(section, 0) != 1:
@@ -370,9 +380,7 @@ def _visible_metadata(parsed: _PageHTML) -> dict:
     title = _compact_text(parsed.text["page-title"])
     if not title:
         raise PageMetadataError("page-title is empty")
-    tags = ["".join(chunks).strip() for chunks in parsed.tags]
-    if any(not tag for tag in tags):
-        raise PageMetadataError("page-tags contains an empty tag")
+    tags = [_decode_tag_href(href) for href in parsed.tags]
     revisions = _REVISION.findall(_compact_text(parsed.text["page-info"]))
     if len(revisions) != 1:
         raise PageMetadataError("expected exactly one current page revision in footer")

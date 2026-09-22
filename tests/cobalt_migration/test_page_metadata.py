@@ -12,7 +12,7 @@ from tools.cobalt_migration.page_metadata import (
 def page_html(
     assignments=None,
     title="Sir <em>Dane</em> &amp; Atley",
-    tags="<a>human</a><a>_completed</a><a>human</a>",
+    tags="<a href='/system:page-tags/tag/human#pages'>human</a><a href='/system:page-tags/tag/_completed#pages'>_completed</a><a href='/system:page-tags/tag/human#pages'>human</a>",
     info='page revision: 407, last edited: <span class="odate time_1755828499">a localized date</span>',
     content="A synthetic profile.",
 ):
@@ -59,7 +59,7 @@ class PageMetadataTests(unittest.TestCase):
     def test_unicode_entities_nested_markup_and_unrelated_dates(self):
         html = page_html(
             title="  <span>Élan &#x2014; 雪</span> &amp; <b>amis</b>  ",
-            tags="<a>équipe</a><a><b>雪</b></a><a>a&amp;b</a>",
+            tags="<a href='/system:page-tags/tag/%C3%A9quipe#pages'>équipe</a><a href='/system:page-tags/tag/%E9%9B%AA#pages'><b>雪</b></a><a href='/system:page-tags/tag/a%26b#pages'>a&amp;b</a>",
             content='<span class="odate time_111">not the footer</span>',
             info='page <b>revision:</b> 7, last edited: <span class="odate time_222">yesterday</span>',
         )
@@ -68,6 +68,42 @@ class PageMetadataTests(unittest.TestCase):
         self.assertEqual(record["tags"], ["a&b", "équipe", "雪"])
         self.assertEqual(record["updated_at"], 222)
         self.assertEqual(record["revision_number"], 7)
+
+    def test_tag_identity_uses_href_without_text_normalization(self):
+        tags = (
+            '<a href="/system:page-tags/tag/%C2%A0#pages">&nbsp;</a>'
+            '<a href="/system:page-tags/tag/%C3%A9quipe#pages">other text</a>'
+            '<a href="/system:page-tags/tag/_hidden#pages"></a>'
+            '<a href="/system:page-tags/tag/%25C2%25A0#pages">double encoded</a>'
+            '<a href="/system:page-tags/tag/e%CC%81#pages">é</a>'
+            '<a href="/system:page-tags/tag/%C2%A0#pages">duplicate</a>'
+        )
+        self.assertEqual(
+            parse_page_metadata(page_html(tags=tags))["tags"],
+            sorted(["\u00a0", "équipe", "_hidden", "%C2%A0", "e\u0301"]),
+        )
+
+    def test_missing_or_malformed_tag_href_is_rejected(self):
+        anchors = ["<a>human</a>", "<a href>human</a>"]
+        for href in (
+            "",
+            "/other/tag/human#pages",
+            "/system:page-tags/tag/#pages",
+            "/system:page-tags/tag/human/extra#pages",
+            "/system:page-tags/tag/%#pages",
+            "/system:page-tags/tag/%GG#pages",
+            "/system:page-tags/tag/%FF#pages",
+            "/system:page-tags/tag/human?x=1#pages",
+            "/system:page-tags/tag/human#other",
+            "https://other.example/system:page-tags/tag/human#pages",
+        ):
+            anchors.append(f'<a href="{href}">human</a>')
+        for anchor in anchors:
+            with (
+                self.subTest(anchor=anchor),
+                self.assertRaisesRegex(PageMetadataError, "tag.*href"),
+            ):
+                parse_page_metadata(page_html(tags=anchor))
 
     def test_single_quoted_js_string_escapes_are_decoded_without_eval(self):
         assignments = (
@@ -119,7 +155,7 @@ class PageMetadataTests(unittest.TestCase):
         )
 
     def test_duplicate_tag_containers_are_ambiguous_even_when_empty(self):
-        for tags in ("", "<a>human</a>"):
+        for tags in ("", "<a href='/system:page-tags/tag/human#pages'>human</a>"):
             with (
                 self.subTest(tags=tags),
                 self.assertRaisesRegex(PageMetadataError, "page-tags"),
@@ -144,7 +180,7 @@ class PageMetadataTests(unittest.TestCase):
     def test_script_and_style_text_do_not_pollute_title_tags_or_footer(self):
         html = page_html(
             title="Title<script>ignored()</script><style>.unused{}</style>",
-            tags="<a>human<script>ignored()</script></a>",
+            tags="<a href='/system:page-tags/tag/human#pages'>human<script>ignored()</script></a>",
             info='page revision: 3 <script>"page revision: 999"</script><span class="odate time_4">then</span>',
         )
         record = parse_page_metadata(html)
@@ -343,7 +379,10 @@ class PageMetadataTests(unittest.TestCase):
                 parse_page_metadata(html)
 
     def test_void_elements_do_not_break_metadata_scope(self):
-        html = page_html(title="Sir<br>Dane", tags='<a>human<img alt="unused"></a>')
+        html = page_html(
+            title="Sir<br>Dane",
+            tags='<a href="/system:page-tags/tag/human#pages">human<img alt="unused"></a>',
+        )
         self.assertEqual(parse_page_metadata(html)["title"], "Sir Dane")
 
     def test_denial_and_missing_page_responses_are_distinct(self):

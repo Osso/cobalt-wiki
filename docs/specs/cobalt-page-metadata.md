@@ -8,7 +8,7 @@
 - [x] Read canonical identity only from literal inline JavaScript assignments to `WIKIREQUEST.info.pageUnixName` and `WIKIREQUEST.info.pageId`. Accept JSON strings and single-quoted strings with explicit quote, slash, backslash, control, hexadecimal, and UTF-16 escapes. Reject invalid fullname characters, isolated surrogates, nonpositive IDs, expressions, and conflicting repeated assignments.
 - [x] Ignore assignments mentioned in comments, quoted strings, template-literal text, supported regex literals, non-JavaScript script elements, and ordinary article text. Accept the native Wikidot user-agent regex without interpreting its contents as metadata. Return no other script properties or source contents.
 - [x] Extract visible title text from `#page-title`, preserving Unicode/entities and nested markup text. Exclude script/style/template contents.
-- [x] Extract tags from `.page-tags a`, retaining hidden-tag spelling such as `_completed`, deduplicating and sorting exact decoded tag text. An absent or present empty tag container means no tags. Multiple containers remain ambiguous and a blank tag remains an error.
+- [x] Extract tag identity exclusively from `.page-tags a` hrefs matching `/system:page-tags/tag/<encoded-tag>#pages`. Decode percent escapes exactly once as strict UTF-8; preserve NBSP, underscores, and exact Unicode codepoints without trimming or normalization. Ignore anchor display text; deduplicate and sort decoded identities. Missing hrefs, empty path segments, malformed escapes/UTF-8, unexpected routes, queries, and fragments fail explicitly. An absent or present empty tag container means no tags; multiple containers remain ambiguous.
 - [x] Read the current revision from `#page-info` text and `updated_at` from its `.odate` element's `time_<epoch>` class, never from localized date text or article timestamps.
 - [x] Reject missing, duplicate, malformed, or ambiguous required metadata. Require exact canonical fullname agreement when `expected_fullname` is supplied.
 - [x] Raise `SourcePageUnavailable` with `reason="denied"` or `reason="not_found"` for recognized denial/missing-page titles or source messages, even when a fetch returned HTTP 200.
@@ -32,11 +32,13 @@ Unavailable-page recognition is deliberately bounded to `Private Content`, `Acce
 
 ## Tests asserting this spec
 
-`tests/cobalt_migration/test_page_metadata.py`: 28 targeted tests cover, including the exact native UA regex, regex-embedded identity lookalikes before/after real assignments, escaped slashes/brackets, comments around regex starts, malformed literals and ambiguous division, plus existing identity/HTML/error boundaries. The native-regex regression failed before the lexer change; formatted code then passed the targeted suite.
+`tests/cobalt_migration/test_page_metadata.py`: 30 targeted tests cover NBSP and encoded non-ASCII tag identities, hidden tags, exactly-once decoding, malformed/missing hrefs, absent/duplicate containers, including the exact native UA regex, regex-embedded identity lookalikes before/after real assignments, escaped slashes/brackets, comments around regex starts, malformed literals and ambiguous division, plus existing identity/HTML/error boundaries. The native-regex regression failed before the lexer change; formatted code then passed the targeted suite.
 
 ```text
 python -B -m unittest discover -s tests/cobalt_migration -p test_page_metadata.py -v
 ```
+
+Protected fixture inspection found 10 and 13 tag anchors in the two tagged responses; all 23 use root-relative `/system:page-tags/tag/<encoded-tag>#pages` hrefs. The untagged fixture has none. Absolute tag URLs are not established by these fixtures and are rejected, rather than assuming an origin unavailable to this parser. The NBSP regression failed before the href change; 30 targeted tests passed afterward. Live acceptance and bulk resume remain caller-owned.
 
 ## Known gaps (current cycle)
 
