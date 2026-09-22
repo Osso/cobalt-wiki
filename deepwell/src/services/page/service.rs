@@ -1295,7 +1295,7 @@ impl PageService {
 /// the page would need to be refreshed.
 ///
 /// This check is intended for before an operation has run.
-fn check_last_revision(
+pub(crate) fn check_last_revision(
     last_revision_model: Option<&PageRevisionModel>,
     page_latest_revision_id: Option<i64>,
     arg_last_revision_id: i64,

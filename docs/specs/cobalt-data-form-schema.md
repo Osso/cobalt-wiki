@@ -20,7 +20,7 @@ The Serde payload contains `schema` and `values`. Schema fields/options remain o
 
 `GetPageViewOutput::Found` now includes optional `form` data from this payload. Deepwell loads the same-site category's `_template` latest raw revision and parses the entire current page source as YAML. Default-category pages use `_template`; template pages themselves remain ordinary source. Missing, invisible, or non-form templates return `None`; malformed definitions or values fail explicitly. Existing wikitext and compiled HTML are unchanged.
 
-Template visibility uses the current page-view category permission semantics: the same viewer/site, category lookup, `Page` / `View`, and `page_reference: None`. Creator-specific authorization is not fixed by this slice. No frontend, saving, rendering, or query behavior is added. The pure `FormView` is serialized once to a JSON value at the backend response boundary, preserving its payload contract while satisfying JSON-RPC's `Clone` response requirement without changing the standalone types. Serialization failures are explicit.
+Template visibility uses the current page-view category permission semantics: the same viewer/site, category lookup, `Page` / `View`, and `page_reference: None`. Creator-specific authorization is not fixed by the page-view slice. That slice adds no frontend, saving, rendering, or query behavior. The pure `FormView` is serialized once to a JSON value at the backend response boundary, preserving its payload contract while satisfying JSON-RPC's `Clone` response requirement without changing the standalone types. Serialization failures are explicit.
 
 `tests/form_view.rs` asserts the standalone JSON contract. Backend `services/view/form.rs` tests category/default template selection, template self-exclusion, absent/non-form templates, full-record JSON values, and explicit malformed-input errors. Four helper tests passed through an offline isolated harness importing that exact backend module. This does not prove database lookup, permission execution, or endpoint integration. Initial backend offline resolution lacked the `arraystring` index entry. Resolution then passed using existing local Nix-vendored dependencies plus Cargo-vendored standalone YAML dependencies, without network access. Lock additions retain existing backend versions and YAML package checksums from the standalone lockfile. At `829b88e`, the offline locked backend binary test build passed in 8m42s, compiling the backend library and RPC registration. The binary-target filter ran zero tests (the helper tests live in the library); the four helper tests were proven separately by the isolated harness. Database lookup, permission execution, and live endpoint behavior remain unproven. No full `cargo check`, broad suite, or network operation was run.
 
@@ -28,7 +28,22 @@ Template visibility uses the current page-view category permission semantics: th
 
 `apply_field_updates(&FormSchema, &Mapping, &Mapping)` returns serialized YAML for the entire original record through `serialize_values`. Updates must name schema-defined fields and contain scalar values. Unknown original fields and untouched scalar types/order survive. Static fields may be submitted unchanged but cannot be changed or added. Changed select values must equal a declared option code using YAML scalar equality; an unrecognized existing code survives when omitted or submitted unchanged. Missing values are distinct from explicit nulls.
 
-No required/default rules, stringification, or empty-string-to-null coercion are introduced. Malformed update keys, nested/tagged updates, static changes, and new invalid select codes return explicit `FormError` messages. `tests/updates.rs` covers whole-map edits, retained unknown fields and scalar types, static restrictions, typed select codes, and legacy `@@` round-trips. Endpoint/editor wiring remains outside this pure API.
+No required/default rules, stringification, or empty-string-to-null coercion are introduced. Malformed update keys, nested/tagged updates, static changes, and new invalid select codes return explicit `FormError` messages. `tests/updates.rs` covers whole-map edits, retained unknown fields and scalar types, static restrictions, typed select codes, and legacy `@@` round-trips. Endpoint wiring is described below; frontend wiring remains open.
+
+## Backend structured edits
+
+`page_edit` accepts optional `form_updates`, a mapping of field names to JSON scalars, in an endpoint-only wrapper around the unchanged `EditPage` service request. Raw `wikitext` and `form_updates` are mutually exclusive, including empty strings/maps. Omitting `form_updates` preserves the original raw/metadata-only edit mode. A null mapping is invalid; a null field value is an explicit scalar update.
+
+The existing `Action::Edit` check runs before mode validation or form/source reads. Structured edits load the same-site page, reject a stale `last_revision_id` before loading source, and check the fetched latest revision again before reading its text. The same-site category template must contain a valid form; missing, invisible, ordinary, malformed, and self-template cases fail explicitly. Template lookup reuses page-view visibility with the request-context viewer, not the submitted attribution `user_id`.
+
+Updates apply to the entire stored YAML mapping using `apply_field_updates`. Only the service request's `wikitext` is populated; caller revision, attribution user, comments, IP, and other edits remain unchanged. `PageService::edit` retains its existing filter and optimistic revision check. No frontend or new ACL semantics are included.
+
+- [x] Wire scalar updates preserve unknown stored values and decoded types; invalid fields/static changes/select codes/nested values fail.
+- [x] Raw and form modes conflict; absent updates preserve the raw request.
+- [x] The reused revision guard rejects a different latest revision without rewriting the caller's revision.
+- [ ] Endpoint authorization ordering, template self-exclusion, stored round-trips, and stale-edit non-mutation are asserted in the DB harness but not runtime-proven in this slice.
+
+Six filtered backend library tests passed after behavioral RED. `deepwell/tests/page_form_edit.rs` compiles and contains three endpoint tests: scalar round-trip followed by an intervening raw edit and stale submission; invalid/conflicting/template updates without revision creation; anonymous request-context denial before parsing malformed source/template or conflicting modes, despite an administrator attribution in the body. These tests were not executed: the existing harness requires seeded PostgreSQL, Valkey, and S3 services. Compilation is not DB/concurrency proof; concurrent commits between preparation and the final service check remain untested. Only offline targeted development tests, test-target compilation, and formatting were run; no broad checks, network, operations, or delegation.
 
 ## How it works
 
@@ -48,6 +63,9 @@ Dependencies: Serde supplies the transport serialization contract; maintained `s
 - `deepwell/wikidot-forms/src/values.rs` — scalar mapping parsing/serialization.
 - `deepwell/wikidot-forms/src/legacy.rs` — narrowly scoped `@@` lexical compatibility.
 - `deepwell/wikidot-forms/src/error.rs` — explicit delimiter/YAML/shape errors.
+- `deepwell/src/endpoints/page.rs`, `page/form_edit.rs` — authorized wire modes, latest-source loading and structured edit preparation.
+- `deepwell/src/services/view/{form,service}.rs` — shared template selection, extraction and visibility.
+- `deepwell/src/services/page/service.rs` — reused revision guard; existing final edit check unchanged.
 
 ## Tests asserting this spec
 

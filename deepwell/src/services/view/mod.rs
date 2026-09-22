@@ -30,5 +30,6 @@ mod options;
 mod service;
 mod structs;
 
+pub(crate) use self::form::{extract_page_form, template_slug};
 pub use self::service::ViewService;
 pub use self::structs::*;

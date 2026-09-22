@@ -778,7 +778,7 @@ impl ViewService {
         })
     }
 
-    async fn load_visible_template_source(
+    pub(crate) async fn load_visible_template_source(
         ctx: &ServiceContext<'_>,
         site_id: i64,
         user_id: Option<i64>,

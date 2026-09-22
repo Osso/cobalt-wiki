@@ -1,6 +1,6 @@
 use wikidot_forms::{FormError, FormView, extract_form_view};
 
-pub(super) fn template_slug(page_slug: &str) -> Option<String> {
+pub(crate) fn template_slug(page_slug: &str) -> Option<String> {
     let (category, name) = match page_slug.split_once(':') {
         Some((category, name)) => (Some(category), name),
         None => (None, page_slug),
@@ -14,7 +14,7 @@ pub(super) fn template_slug(page_slug: &str) -> Option<String> {
     })
 }
 
-pub(super) fn extract_page_form(
+pub(crate) fn extract_page_form(
     template_source: Option<&str>,
     page_source: &str,
 ) -> Result<Option<FormView>, FormError> {

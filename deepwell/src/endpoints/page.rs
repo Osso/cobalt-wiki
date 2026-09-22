@@ -18,13 +18,16 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+mod form_edit;
+
+use self::form_edit::EditPageRequest;
 use super::prelude::*;
 use crate::models::file::Model as FileModel;
 use crate::models::page::Model as PageModel;
 use crate::services::TextService;
 use crate::services::file::{GetFileOutput, GetPageFiles};
 use crate::services::page::{
-    CreatePage, CreatePageOutput, DeletePage, DeletePageOutput, EditPage, EditPageOutput,
+    CreatePage, CreatePageOutput, DeletePage, DeletePageOutput, EditPageOutput,
     GetDeletedPageOutput, GetPageAnyDetails, GetPageOutput, GetPageReference,
     GetPageReferenceDetails, GetPageScoreOutput, GetPageSlug, MovePage, MovePageOutput,
     PageEditPermissionOutput, RestorePage, RestorePageOutput, RollbackPage,
@@ -204,7 +207,8 @@ pub async fn page_edit(
     ctx: &ServiceContext<'_>,
     params: Params<'static>,
 ) -> Result<Option<EditPageOutput>> {
-    let input: EditPage = parse!(params, Page);
+    let request: EditPageRequest = parse!(params, Page);
+    let input = &request.edit;
     info!("Editing page {:?} in site ID {}", input.page, input.site_id);
 
     let can_edit = PageService::check_user_permission(
@@ -226,6 +230,7 @@ pub async fn page_edit(
         )
         .into());
     }
+    let input = request.load_edit(ctx).await?;
     PageService::edit(ctx, input)
         .await
         .or_raise(|| Error::new("failed to edit page", ErrorType::Page))

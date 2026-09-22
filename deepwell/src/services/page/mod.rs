@@ -28,4 +28,5 @@ mod service;
 mod structs;
 
 pub use self::service::PageService;
+pub(crate) use self::service::check_last_revision;
 pub use self::structs::*;
