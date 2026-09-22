@@ -16,6 +16,33 @@ const TITLE: &str = "Chapter three — imported";
 const SOURCE: &str = "+ Chapter three\r\n\r\n**Exact bytes:** café.\r\n";
 const COMMENTS: &str = "Technical import fixture; not source authorship";
 
+#[tokio::test]
+async fn import_preserves_unmatched_closing_parentheses() {
+    let (runner, site_id) = prepare_runner().await;
+    let source = "A closing delimiter )) remains literal.\n";
+    let mut input = import_input(site_id);
+    input.wikitext = source.into();
+    let imported = PageService::import(runner.context(), input)
+        .await
+        .expect("Unmatched closing parentheses must not panic during import");
+    let stored = read_page(&runner, site_id, SLUG).await;
+    assert_eq!(stored.page_id, imported.page_id);
+    assert_eq!(stored.revision_number, 0);
+    assert_eq!(stored.wikitext.as_deref(), Some(source));
+    let rendered = run_endpoint!(
+        runner,
+        page_get,
+        json!({"site_id": site_id, "page": SLUG, "details": {"compiled": true}})
+    )
+    .expect("Imported page must render");
+    assert!(
+        rendered
+            .compiled_body_html
+            .unwrap()
+            .contains("delimiter )) remains literal.")
+    );
+}
+
 async fn prepare_runner() -> (TestRunner, i64) {
     let mut runner = TestRunner::setup().await;
     let site_id = run_endpoint!(runner, site_get, json!({"site": "test"}))
