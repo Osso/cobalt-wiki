@@ -29,6 +29,7 @@ Success exits `0` without printing the manifest. Inventory/write failures exit `
 
 ## How it works
 
+- [Replica proof boundaries](../wiki/systems/cobalt-replica-status.md): raw archive names remain non-canonical and metadata/history mapping is still open.
 - [Inventory module](../../tools/cobalt_migration/archive.py): streamed validation, hashing, and atomic JSON output.
 
 ## Implementation inventory

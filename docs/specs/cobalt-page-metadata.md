@@ -16,6 +16,7 @@
 
 ## How it works
 
+- [Replica proof boundaries](../wiki/systems/cobalt-replica-status.md): synthetic parsing proof is separate from authenticated response acceptance and bulk acquisition.
 - [Parser and public exceptions](../../tools/cobalt_migration/page_metadata.py)
 - [Behavioral fixtures](../../tests/cobalt_migration/test_page_metadata.py)
 - [Separate raw-archive inventory contract](cobalt-backup-inventory.md)
