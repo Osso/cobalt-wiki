@@ -5,10 +5,11 @@ Expand archived Wikidot includes before FTML rendering without rewriting stored 
 ## What it must do
 
 - [x] Expand nested same-site includes and substitute supplied variables while preserving stored source bytes.
-- [ ] Apply expansion to page body and both navigation regions.
-- [ ] Never insert missing, deleted, foreign-site, or anonymously unreadable target content into shared compiled HTML.
+- [x] Apply expansion to page body and both navigation regions.
+- [x] Never insert missing, deleted, foreign-site, or anonymously unreadable target content into shared compiled HTML.
 - [ ] Record included-page dependencies so later source changes can invalidate compiled output.
-- [ ] Terminate cyclic or excessive expansion with an explicit error.
+- [x] Terminate cyclic expansion with an explicit error without replacing the stored compiled revision.
+- [ ] Reject excessive expansion at each work/size boundary.
 
 ## How it works
 
@@ -22,12 +23,12 @@ Expand archived Wikidot includes before FTML rendering without rewriting stored 
 
 ## Tests asserting this spec
 
-- `deepwell/tests/page_includes.rs`: nested substitution and unchanged stored source.
+- `deepwell/tests/page_includes.rs`: nested substitution, unchanged source, both navigation regions, missing/deleted/foreign/denied targets, and cyclic failure preservation.
 - `deepwell/vendor/ftml/src/includes/test.rs`: scanner and substitution contracts.
 
 ## Known gaps (current cycle)
 
-- [ ] Verify missing/denied targets, navigation, dependencies, and expansion limits with native fixtures.
+- [ ] Verify dependency invalidation and excessive-expansion boundaries with native fixtures.
 - [ ] Verify actual archived homepage/navigation includes in the local browser.
 - [ ] Reconcile parser coverage against source syntax, including currently unrecognized directives.
 - [ ] Establish source ACL equivalence and invalidation after permission changes; target anonymous-read checks alone do not prove either.
