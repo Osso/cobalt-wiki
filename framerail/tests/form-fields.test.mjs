@@ -3,7 +3,11 @@ import { test } from "node:test"
 import { readFile, writeFile, unlink } from "node:fs/promises"
 import { compile } from "svelte/compiler"
 import { render } from "svelte/server"
-import { createDraft } from "../src/lib/form-editor.ts"
+import { createJiti } from "jiti"
+
+const { createDraft } = /** @type {typeof import("../src/lib/form-editor")} */ (
+  await createJiti(import.meta.url).import("../src/lib/form-editor")
+)
 
 test("source-defined fields render accessible typed controls and readonly static text", async () => {
   const source = await readFile(
@@ -22,6 +26,7 @@ test("source-defined fields render accessible typed controls and readonly static
   )
   try {
     const { default: Component } = await import(fixture.href)
+    /** @type {import("../src/lib/form-editor").PageForm} */
     const form = {
       schema: {
         properties: {},
