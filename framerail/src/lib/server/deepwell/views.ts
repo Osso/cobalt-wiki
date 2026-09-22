@@ -1,3 +1,4 @@
+import type { PageForm } from "$lib/form-editor"
 import { client } from "$lib/server/deepwell"
 
 import type {
@@ -56,6 +57,7 @@ interface PageViewFound {
     page: PageModel
     page_revision: PageRevisionModel
     attributions: PageAttribution[]
+    form?: PageForm | null
   }
 }
 interface PageViewMissing {

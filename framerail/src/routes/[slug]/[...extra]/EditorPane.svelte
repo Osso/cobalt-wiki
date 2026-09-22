@@ -7,9 +7,15 @@
   import { superForm } from "sveltekit-superforms"
   import { untrack } from "svelte"
 
+  import DataFormFields from "$lib/component/DataFormFields.svelte"
+  import { createDraft, changedFields } from "$lib/form-editor"
+
   import type { PageProps } from "./$types"
 
   let { data, params }: PageProps = $props()
+
+  const sourceForm = untrack(() => data.form)
+  let draft = $state(sourceForm ? createDraft(sourceForm) : {})
 
   function cancelEdit() {
     const options: string[] = Object.entries({
@@ -31,6 +37,8 @@
       onSubmit: async ({ jsonData }) => {
         const submitForm = {
           ...$form,
+          wikitext: sourceForm ? undefined : $form.wikitext,
+          formUpdates: sourceForm ? changedFields(sourceForm, draft) : undefined,
           siteId: data.site.site_id,
           pageId: data.page?.page_id,
           lastRevisionId: data.page_revision?.revision_id
@@ -88,8 +96,12 @@
     type="text"
     bind:value={$form.altTitle}
   />
-  <textarea name="wikitext" class="editor-wikitext" bind:value={$form.wikitext}
-  ></textarea>
+  {#if sourceForm}
+    <DataFormFields form={sourceForm} bind:draft />
+  {:else}
+    <textarea name="wikitext" class="editor-wikitext" bind:value={$form.wikitext}
+    ></textarea>
+  {/if}
   <input
     name="tags"
     class="editor-tags"

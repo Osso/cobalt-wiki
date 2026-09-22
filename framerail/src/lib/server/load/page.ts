@@ -42,6 +42,11 @@ import { valibot } from "sveltekit-superforms/adapters"
 import {
   array,
   boolean,
+  check,
+  pipe,
+  record,
+  union,
+  null_,
   file,
   literal,
   nullable,
@@ -280,7 +285,12 @@ export async function loadPage(
     pageRestoreForm: await superValidate(request, valibot(pageRestoreSchema))
   }
 
-  const viewData = { ...responseData, view: responseType, internationalization }
+  const viewData = {
+    ...responseData,
+    form: response.type === "found" ? response.data.form : undefined,
+    view: responseType,
+    internationalization
+  }
 
   if (errorStatus !== null) {
     error(errorStatus, { ...viewData, forms: errorForms })
@@ -446,6 +456,7 @@ export async function pageEditAction({
       lastRevisionId,
       comments,
       wikitext,
+      formUpdates,
       title,
       altTitle,
       tags: tagsStr,
@@ -464,7 +475,8 @@ export async function pageEditAction({
       title,
       altTitle,
       tags,
-      layout
+      layout,
+      formUpdates
     )
 
     return { form, res }
@@ -479,15 +491,24 @@ export async function pageEditAction({
   }
 }
 
-const pageEditSchema = object({
-  ...baseSchema,
-  title: string(),
-  altTitle: string(),
-  wikitext: string(),
-  tags: string(),
-  comments: string(),
-  layout: optional(nullable(vEnum(Layout)))
-})
+const pageEditSchema = pipe(
+  object({
+    ...baseSchema,
+    title: string(),
+    altTitle: string(),
+    wikitext: optional(string()),
+    formUpdates: optional(
+      record(string(), union([string(), number(), boolean(), null_()]))
+    ),
+    tags: string(),
+    comments: string(),
+    layout: optional(nullable(vEnum(Layout)))
+  }),
+  check(
+    (value) => (value.wikitext === undefined) !== (value.formUpdates === undefined),
+    "Submit either wikitext or form updates, not both"
+  )
+)
 
 /* ----- Page File ----- */
 export async function pageFileListAction({ request }: RequestEvent) {

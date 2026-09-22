@@ -37,6 +37,8 @@ export async function pageDelete(
   })
 }
 
+import { editContent, type FormValues } from "$lib/form-editor"
+
 /* ----- Page Edit ----- */
 export interface CreatePageRevisionOutput {
   revision_id: number
@@ -55,7 +57,8 @@ export async function pageEdit(
   title: Optional<string>,
   altTitle: Optional<string>,
   tags: string[],
-  layout: Optional<Nullable<Layout>>
+  layout: Optional<Nullable<Layout>>,
+  formUpdates?: FormValues
 ): Promise<CreatePageRevisionOutput> {
   return client.request(pageId ? "page_edit" : "page_create", {
     site_id: siteId,
@@ -65,7 +68,7 @@ export async function pageEdit(
     ip_address: userIpAddr,
     last_revision_id: lastRevisionId,
     revision_comments: revisionComments,
-    wikitext,
+    ...editContent(wikitext ?? undefined, formUpdates),
     title,
     alt_title: altTitle,
     tags,
