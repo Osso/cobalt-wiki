@@ -21,7 +21,7 @@
 
 Enable `services.cobaltWiki.pocGateway.enable`, supply `siteId` from the actual provisioned database, and set `htpasswdFile` to a file readable by the `cobalt-wiki` account. The runtime's `mainDomain` and `filesDomain` must both be `sakuin.org`: Deepwell prefixes the latter with the site slug, producing the approved hostname. The gateway overrides Framerail's `ORIGIN` to that full hostname. No generated Deepwell Caddy routing is used.
 
-The gateway runs inside the existing capped wiki slice. Its standalone nginx instance does not enable the host nginx module or introduce public listeners. Main provisions the `cobalt` login hash and Cloudflare Tunnel ingress separately; external traffic must reach this gateway only through HTTPS.
+The gateway runs inside the existing capped wiki slice. Its standalone nginx instance does not enable the host nginx module or introduce public listeners. Main provisions the `cobalt` login hash separately; the existing Sakuin Cloudflare Tunnel maps public HTTPS traffic for `cobalt-company.sakuin.org` to this loopback gateway.
 
 ## Tests asserting this spec
 
@@ -31,10 +31,11 @@ Targeted Nix evaluation covers configuration generation. Main additionally verif
 
 - [x] Production bootstrap assigned site ID `6000000` on 2026-09-22. The protected loopback gateway is deployed for that ID.
 - [x] Deployed gateway returned `401` for 29 unauthenticated or wrong-password route/method checks, including pages, assets, file/download paths, robots, and `.well-known`.
-- [ ] Authenticated WWS routes currently fail because WWS sends the valid positional-array `site_domain` RPC request but Deepwell rejects it. The compatibility fix awaits main deployment of `ff7dcf3` and repeat acceptance.
+- [ ] Authenticated WWS file routing remains unaccepted. The deployed positional `site_domain` RPC fix allows missing-file routes to return `404`, but authenticated `robots.txt` still returns `502`.
 - [ ] Invalid forged session-cookie handling returns a server error; it is not an authentication bypass, but authenticated session behavior is not accepted.
 - [x] Runtime htpasswd ownership/readability was corrected for `cobalt-wiki`.
-- [ ] Add public tunnel ingress and DNS only after deployed authenticated routing acceptance. No public ingress, DNS, or source import is complete.
+- [x] Public HTTPS ingress is configured through the existing Sakuin Cloudflare Tunnel as a proxied CNAME to the loopback gateway. Browser-like requests receive the gateway's `401 Basic` challenge. Python's default client is blocked upstream with Cloudflare `1010`.
+- [ ] Full source import and authenticated routing acceptance remain incomplete; public ingress does not establish source ACL parity.
 - [ ] Source ACLs and WWS per-page authorization remain unfinished. The POC gate grants its holders access to the whole POC; it is not source-permission parity.
 
 ## Out of scope
