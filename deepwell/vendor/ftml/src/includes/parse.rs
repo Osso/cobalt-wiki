@@ -93,10 +93,12 @@ fn process_pairs(mut pairs: Pairs<Rule>) -> Result<IncludeRef, IncludeParseError
                 .expect("Argument pairs terminated early")
                 .as_str();
 
+            // Like Wikidot, whitespace before the next separator is not part of the value.
             let value = argument_pairs
                 .next()
                 .expect("Argument pairs terminated early")
-                .as_str();
+                .as_str()
+                .trim_end_matches([' ', '\n', '\t']);
 
             (key, value)
         };
