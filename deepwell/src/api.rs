@@ -26,6 +26,9 @@
 //! This module should only contain definitions for the web server and its routes, and
 //! not any of the implementations themselves. Those should be in the `methods` module.
 
+#[cfg(test)]
+mod tests;
+
 use crate::config::{Config, Secrets};
 use crate::endpoints::all::*;
 use crate::error::prelude::*;
