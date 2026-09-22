@@ -13,6 +13,7 @@ The root flake packages Wikijump for the native NixOS Cobalt deployment. Package
 
 ## How it works
 
+- [Native package operation](../wiki/systems/cobalt-native-packages.md): build commands, installed output layout, and current proof boundary.
 - [Flake package outputs](../../flake.nix): `packages.x86_64-linux.deepwell`, `wws`, and `framerail`.
 - [Package definitions](../../install/nixos/packages.nix): Rust packages use `rustPlatform.buildRustPackage`; Framerail uses Node 22, pnpm's Nix hooks, and fetcher version 4.
 - Deepwell installs `bin/deepwell` and `share/deepwell/{config.example.toml,locales,seeder,migrations}`. WWS installs `bin/wws`.
