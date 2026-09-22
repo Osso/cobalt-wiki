@@ -227,6 +227,25 @@ async fn attributed_page_and_template_privacy() {
             GetPageViewOutput::Permissions { .. }
         ));
     }
+    assert!(matches!(
+        view(ctx, site_id, Some(&creator_token), "application:other").await,
+        GetPageViewOutput::Permissions { .. }
+    ));
+    for (token, slug, expected_source) in [
+        (creator_token.as_str(), "application:own", "name: Secret\n"),
+        (other_token.as_str(), "application:other", "name: Other\n"),
+    ] {
+        match view(ctx, site_id, Some(token), slug).await {
+            GetPageViewOutput::Found { wikitext, .. } => {
+                assert_eq!(wikitext, expected_source)
+            }
+            _ => panic!("denial for another page must not deny the creator's own page"),
+        }
+        assert!(matches!(
+            view(ctx, site_id, None, slug).await,
+            GetPageViewOutput::Permissions { .. }
+        ));
+    }
     for token in [creator_token.as_str(), other_token.as_str()] {
         assert!(matches!(
             view(ctx, site_id, Some(token), "player:profile").await,

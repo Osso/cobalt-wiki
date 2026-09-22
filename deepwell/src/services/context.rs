@@ -24,7 +24,7 @@ use crate::error::prelude::*;
 use crate::locales::Localizations;
 use crate::models::session::Model as SessionModel;
 use crate::services::blob::MimeAnalyzer;
-use crate::services::permission::PermissionService;
+use crate::services::permission::{CheckPermissionContext, PermissionService};
 use crate::types::{Permission, Reference};
 use redis::aio::MultiplexedConnection as RedisMultiplexedConnection;
 use rsmq_async::Rsmq;
@@ -199,7 +199,14 @@ impl<'txn> ServiceContext<'txn> {
 
         let perms = self.user_permissions().await.or_raise(make_error)?;
         PermissionService::permission_in_set_helper(
-            self, user_id, perms, site_id, permission,
+            self,
+            &CheckPermissionContext {
+                user_id,
+                site_id,
+                page_reference: self.request_ctx.page_reference.clone(),
+            },
+            perms,
+            permission,
         )
         .await
         .or_raise(make_error)

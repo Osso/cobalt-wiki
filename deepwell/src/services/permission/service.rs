@@ -425,9 +425,8 @@ impl PermissionService {
         for (i, permission) in permissions.into_iter().enumerate() {
             results[i] = Self::permission_in_set_helper(
                 ctx,
-                user_id,
+                perm_ctx,
                 &user_permissions,
-                site_id,
                 permission,
             )
             .await
@@ -440,15 +439,16 @@ impl PermissionService {
     /// Helper function to check if a permission is present in (the user's) permission set.
     pub(crate) async fn permission_in_set_helper(
         ctx: &ServiceContext<'_>,
-        user_id: Option<i64>,
+        perm_ctx: &CheckPermissionContext<'_>,
         user_permissions: &HashSet<Permission<'static>>,
-        site_id: i64,
         Permission {
             resource_type: resource,
             resource_category,
             action,
         }: Permission<'_>,
     ) -> Result<bool> {
+        let user_id = perm_ctx.user_id;
+        let site_id = perm_ctx.site_id;
         let make_error =
             || Error::new("failed to check permission", ErrorType::Permission);
 
@@ -457,8 +457,9 @@ impl PermissionService {
             user_id, site_id, resource, resource_category, action,
         );
 
-        // Check if this permission is cacheable
-        let cacheable = PermissionCache::is_cacheable(resource, action);
+        // Category cache keys omit the page attribution used by page-context checks.
+        let cacheable = perm_ctx.page_reference.is_none()
+            && PermissionCache::is_cacheable(resource, action);
 
         // Resolve category reference to ID for permission checking
         let resource_category_id = match &resource_category {
