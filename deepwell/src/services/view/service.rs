@@ -758,15 +758,21 @@ impl ViewService {
         page: &PageModel,
         user_id: Option<i64>,
         wikitext: &str,
-    ) -> Result<Option<wikidot_forms::FormView>> {
+    ) -> Result<Option<serde_json::Value>> {
         let Some(slug) = template_slug(&page.slug) else {
             return Ok(None);
         };
         let source =
             Self::load_visible_template_source(ctx, page.site_id, user_id, &slug).await?;
-        extract_page_form(source.as_deref(), wikitext).or_raise(|| {
+        let form = extract_page_form(source.as_deref(), wikitext).or_raise(|| {
             Error::new(
                 "failed to extract page form",
+                ErrorType::GetView(ViewType::Page),
+            )
+        })?;
+        form.map(serde_json::to_value).transpose().or_raise(|| {
+            Error::new(
+                "failed to serialize page form",
                 ErrorType::GetView(ViewType::Page),
             )
         })
