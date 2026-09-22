@@ -30,8 +30,8 @@
 
 ## Known gaps (current cycle)
 
-- [ ] Real endpoint acceptance remains pending; mocked datastore proof is not database/network integration proof. The first production apply stopped after ordinary `page_create` normalized a canonical multi-colon name. The importer-owned incorrect page was soft-deleted; no active source pages remain imported.
-- [ ] Deploy and prove atomic `page_import`, which preserves the supplied source slug and first revision in one operation. Ordinary `page_create` normalization remains unchanged.
+- [ ] Full endpoint acceptance remains pending. Production has 164 active source pages and no attachments (verified: 2026-09-22). Atomic exact-name import and tag edits reached this point; ordinary `page_create` normalization remains unchanged.
+- [ ] Complete native acceptance of unmatched `))`: the exact next archive member reproduces an FTML bibliography-parser assertion. The corrected token dispatch passes a native DB/rendering regression; full import remains blocked until deployment/readback. Logging suppression and blind create retries were reverted because neither resolves this parser fault.
 - [ ] Provisioning must supply an existing positive-ID target site and a dedicated technical import principal with an authenticated session authorized to edit/import that site. The principal may be the seeded administrator (ID −1) or a positive user ID; the session identity must match the immutable plan. Runtime must allow the source archive's largest pages/attachments.
 - [ ] Deepwell and presigned S3 endpoints must be loopback IPv4/IPv6 literals (run on target or forward both ports). Session file and plan must be `0600` in an owner-only directory.
 - [ ] Host owner must protect every POC route before import. No source ACL parity is claimed.
