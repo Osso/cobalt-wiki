@@ -2,7 +2,10 @@
 
 export const DEFAULT_TIMEOUT = 1500
 
-export function wjfetch(url, options = {}) {
+export function wjfetch(
+  url: RequestInfo | URL,
+  options: RequestInit & { timeout?: number } = {}
+) {
   let timeout = DEFAULT_TIMEOUT
   if (options.timeout) {
     timeout = options.timeout

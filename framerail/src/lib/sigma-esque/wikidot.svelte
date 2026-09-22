@@ -4,7 +4,7 @@
 
 <div id="skrollr-body">
   <!-- svelte-ignore a11y_consider_explicit_label -->
-  <a name="page-top"></a>
+  <a id="page-top"></a>
   <div id="container-wrap-wrap">
     <div id="container-wrap">
       <div id="container">

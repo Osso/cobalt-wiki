@@ -139,11 +139,11 @@ export class PreferenceHandler {
    */
   wrap<T extends JSONObject>(name: string, fallback: T): T {
     const wrapped = this.get(name, fallback)
-    const handler: ProxyHandler<T> = {
+    const handler: ProxyHandler<JSONObject | JSONArray> = {
       // handle nested objects by proxying them with the same handler
       get: (target, prop) => {
         const val = Reflect.get(target, prop)
-        return typeof val === "object" ? new Proxy(val, handler) : val
+        return val !== null && typeof val === "object" ? new Proxy(val, handler) : val
       },
       // fire setter function whenever the object has a property set (even recursively)
       set: (target, prop, val) => {

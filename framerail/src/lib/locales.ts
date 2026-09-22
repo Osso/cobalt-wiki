@@ -1,7 +1,7 @@
 import { parse } from "accept-language-parser"
 
-export function parseAcceptLangHeader(req) {
-  const language = req.headers.get("Accept-Language")
+export function parseAcceptLangHeader(req: Request) {
+  const language = req.headers.get("Accept-Language") ?? undefined
   const locales = parse(language)
     .sort((a, b) => b.quality - a.quality)
     .map((lang) => {
