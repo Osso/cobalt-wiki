@@ -9,7 +9,8 @@ This page records current proof boundaries for the Cobalt replica. It is not a d
 | [Native backup inventory](cobalt-backup-inventory.md) | Synthetic behavior and a protected real-archive manifest | Canonical page identity or target import |
 | [Form schema library](../../specs/cobalt-data-form-schema.md) | Pure synthetic unit behavior for template splitting, schema/value preservation, and narrow `@@` normalization | Deepwell, renderer, editor, database, query, or UI integration |
 | [Page metadata parser](../../specs/cobalt-page-metadata.md) | 25 synthetic tests and one protected authenticated `character:atley` response | Bulk acquisition, other live response shapes, and import |
-| [Native packages](cobalt-native-packages.md) | Deepwell, WWS, and Framerail realize at `f737c0c`; isolated Go 1.27.1 realizes | Silo realization, client compatibility/security, runtime, service, and deployment |
+| [Listing export](../../specs/cobalt-listing-export.md) | Protected authenticated run: 277/277 listing pages and 6,092 literal fullnames | Native-archive reconciliation, metadata/ACL acquisition, import, and deployment |
+| [Native packages](cobalt-native-packages.md) | Deepwell, WWS, Framerail, and Silo realize; enabled runtime module evaluates with Silo `DEVELOPMENT.GOGET` on Go 1.27.1 | Client compatibility/security, running services, integration, and deployment |
 
 ## Source-data limits
 
@@ -19,8 +20,8 @@ The legacy NPC template's apparent invalid `orc: Orc:` YAML remains unrepaired. 
 
 ## Authenticated metadata boundary
 
-The Wikidot API is disabled with its original settings. The user chose to continue without an API key. Current metadata tooling therefore must not prompt for a key, enable the API, or claim API-derived fields. The parser accepted one protected authenticated `character:atley` response at `bec4ba1`; this proves that response only. Canonical listing acquisition, bulk metadata collection, ACL export, and archive-record mapping remain unproven.
+The Wikidot API is disabled with its original settings. The user chose to continue without an API key. Current metadata tooling therefore must not prompt for a key, enable the API, or claim API-derived fields. The parser accepted one protected authenticated `character:atley` response at `bec4ba1`; this proves that response only. Listing export subsequently completed a protected authenticated 277-page run with 6,092 literal canonical fullnames. Native-archive reconciliation is pending, so this does not establish a matching archive record set. Bulk metadata collection and ACL export remain unproven.
 
 ## Native-build boundary
 
-Commit `f737c0c` replaces the stable-Rust-incompatible assertion macros. Deepwell, WWS, and Framerail then realized successfully; proof is `/tmp/claude/cobalt-native-package-build-fixed.log`. Commit `aeb81fe` adds pinned Silo and an isolated Go 1.27.1 toolchain. Go realizes, but the prior Silo compile stopped for disk exhaustion; its current realization, executable installation, client compatibility/security, runtime evaluation, service, database, object storage, hostname, Cloudflare route, and deployed wiki remain unproven.
+Commit `f737c0c` replaces the stable-Rust-incompatible assertion macros. Deepwell, WWS, and Framerail then realized successfully; proof is `/tmp/claude/cobalt-native-package-build-fixed.log`. Commit `aeb81fe` adds pinned Silo and an isolated Go 1.27.1 toolchain. Agent44 independently realized Silo at `/nix/store/am512fba05178mdfzlzsngd3anz7w1xb-silo-2026-09-16`; enabled runtime-module evaluation passes and reports Silo `DEVELOPMENT.GOGET` on Go 1.27.1. Client compatibility/security, service startup, database/object storage behavior, hostname, Cloudflare route, and deployed wiki remain unproven.

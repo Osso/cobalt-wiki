@@ -29,12 +29,12 @@ The packages are pinned to the Sakuin host's nixpkgs revision. Do not use the up
 - Deepwell: `bin/deepwell` and `share/deepwell/` containing `config.example.toml`, locales, seeder data, and migrations.
 - WWS: `bin/wws`.
 - Framerail: `bin/framerail` and `share/framerail/` containing the adapter-node build, runtime dependencies, and `package.json`.
-- Silo: expected `bin/silo`; its realization remains unproven.
+- Silo: `bin/silo`, independently realized at `/nix/store/am512fba05178mdfzlzsngd3anz7w1xb-silo-2026-09-16`.
 
 The Framerail launcher passes `HOST` and `PORT` from its runtime environment to the production adapter-node server. A future service definition must also provide its Deepwell backend settings; do not treat a package realization as a configured server.
 
 ## Current proof boundary
 
-At `f737c0c`, Deepwell, WWS, and Framerail realize successfully; exact outputs and command evidence are in `/tmp/claude/cobalt-native-package-build-fixed.log`. `aeb81fe` additionally pins Silo with an isolated Go 1.27.1 toolchain. Go realizes, but Silo's prior compile stopped for disk exhaustion; do not treat it as built. Neither result proves a binary starts or that Deepwell, WWS, Framerail, PostgreSQL, Valkey, Silo, the unchanged MinIO client, and routing work together.
+At `f737c0c`, Deepwell, WWS, and Framerail realize successfully; exact outputs and command evidence are in `/tmp/claude/cobalt-native-package-build-fixed.log`. `aeb81fe` additionally pins Silo with an isolated Go 1.27.1 toolchain. Agent44 independently realized Silo at `/nix/store/am512fba05178mdfzlzsngd3anz7w1xb-silo-2026-09-16`.
 
-Before a service/deployment change can rely on these outputs, prove Silo realization and installed executable, inspect all installed paths, assess the unchanged client against Silo, then run configured runtime and integration checks. Deployment remains separate work in the Sakuin NixOS configuration.
+Package realization does not prove a binary starts or that Deepwell, WWS, Framerail, PostgreSQL, Valkey, Silo, the unchanged MinIO client, and routing work together. Runtime module evaluation passes and reports Silo `DEVELOPMENT.GOGET` on Go 1.27.1, but no services have run and no deployment occurred. Client compatibility/security and configured runtime/integration checks remain required before a service/deployment change.

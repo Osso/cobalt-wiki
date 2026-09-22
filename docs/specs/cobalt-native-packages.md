@@ -13,7 +13,7 @@ The root flake packages Wikijump for the native NixOS Cobalt deployment. Package
 
 ## How it works
 
-- [Replica proof boundaries](../wiki/systems/cobalt-replica-status.md): `f737c0c` fixed the stable-Rust assertion incompatibility and all three application packages realize; Silo/runtime/deployment remain unproven.
+- [Replica proof boundaries](../wiki/systems/cobalt-replica-status.md): application packages and Silo realize; enabled runtime-module evaluation passes. Running services and deployment remain unproven.
 - [Native package operation](../wiki/systems/cobalt-native-packages.md): build commands, installed output layout, and current proof boundary.
 - [Flake package outputs](../../flake.nix): `packages.x86_64-linux.deepwell`, `wws`, and `framerail`; `silo` is supplied to the runtime module through its package set.
 - [Package definitions](../../install/nixos/packages.nix): Rust packages use `rustPlatform.buildRustPackage`; Framerail uses Node 22, pnpm's Nix hooks, and fetcher version 4.
@@ -29,7 +29,7 @@ Silo requires Go 1.27.1. The host nixpkgs pin provides Go 1.26.3, so packaging u
 
 The module preserves loopback endpoints, storage directories, and runtime credentials. The existing MinIO client remains unchanged; client/server compatibility and security acceptance remain runtime-owner gates, not established by these builds.
 
-Targeted development evidence: Go 1.27.1 builds successfully; source and vendor hashes resolve. Silo compilation reaches dependencies but fails with `no space left on device`. Its executable installation, runtime evaluation, and integration remain unproven. Go's inherited fixup emits `patchelf` diagnostics for static/object files; these were not suppressed. Logs: `/tmp/claude/cobalt-go127-build-rebased.log`, `/tmp/claude/cobalt-silo-vendor.log`, `/tmp/claude/cobalt-silo-build.log`. Final realization and deployment belong to the integration owner.
+Agent44 independently realized Silo at `/nix/store/am512fba05178mdfzlzsngd3anz7w1xb-silo-2026-09-16`. Enabled runtime-module evaluation passes and reports Silo `DEVELOPMENT.GOGET` on Go 1.27.1. These proofs do not establish client compatibility/security, a running service, configured storage, or deployment. Go's inherited fixup emits `patchelf` diagnostics for static/object files; these were not suppressed. Earlier development logs remain `/tmp/claude/cobalt-go127-build-rebased.log`, `/tmp/claude/cobalt-silo-vendor.log`, and `/tmp/claude/cobalt-silo-build.log`.
 
 ## Implementation inventory
 
@@ -39,12 +39,12 @@ Targeted development evidence: Go 1.27.1 builds successfully; source and vendor 
 
 ## Tests asserting this spec
 
-At `f737c0c`, one native realization built Deepwell, WWS, and Framerail successfully; outputs are recorded in `/tmp/claude/cobalt-native-package-build-fixed.log`. This proves those package derivations at that revision, not service startup, configured storage, runtime integration, or deployment. Silo remains separately unproven until its current realization succeeds.
+At `f737c0c`, one native realization built Deepwell, WWS, and Framerail successfully; outputs are recorded in `/tmp/claude/cobalt-native-package-build-fixed.log`. Agent44 independently realized Silo at `/nix/store/am512fba05178mdfzlzsngd3anz7w1xb-silo-2026-09-16`. This proves package derivations, not service startup, configured storage, runtime integration, client acceptance, or deployment.
 
 ## Known gaps (current cycle)
 
 - [ ] Inspect the realized application outputs and verify the production Framerail launcher and runtime host/port behavior.
-- [ ] Realize the pinned Silo derivation, verify its installed `silo` executable, and assess the unchanged client against it.
+- [ ] Assess the unchanged client against Silo for compatibility and security.
 - [ ] Verify the configured service stack and deployment.
 
 ## Out of scope

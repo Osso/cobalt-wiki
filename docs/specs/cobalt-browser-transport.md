@@ -30,8 +30,8 @@ It does not acquire credentials or start bulk acquisition.
 
 ## Known gaps (current cycle)
 
-- [ ] Real registered-executable/browser acceptance remains main-owned. Synthetic tests do not prove live CLI serialization, tab selection, authentication, or source availability.
-- [ ] Live acquisition and reconciliation remain main-owned.
+- [x] Main accepted authenticated `/pagelist/p/277` through the registered browser transport: HTTP 200, 73 names, highest page 277. The protected listing run completed 277/277 pages with 6,092 unique fullnames.
+- [ ] Reconciliation against the native archive remains pending; live acceptance does not prove target import, ACL export, or deployment.
 
 ## Out of scope
 

@@ -30,9 +30,9 @@ No checked-in runtime tests yet. Targeted module evaluation can establish genera
 
 ## Known gaps (current cycle)
 
-- [ ] `aeb81fe` replaces rejected insecure `pkgs.minio` with pinned `pgsty/silo` release `RELEASE.2026-09-16T00-00-00Z` (`2a4d51406b7ed87af5fe6fe0f801f3290f96eb3c`), which contains fixes for CVE-2026-40344 and CVE-2026-41145. Silo realization, enabled-module evaluation, and runtime behavior remain unproven; do not permit the rejected MinIO package as a fallback.
+- [x] `aeb81fe` replaces rejected insecure `pkgs.minio` with pinned `pgsty/silo` release `RELEASE.2026-09-16T00-00-00Z` (`2a4d51406b7ed87af5fe6fe0f801f3290f96eb3c`), which contains fixes for CVE-2026-40344 and CVE-2026-41145. Agent44 independently realized Silo at `/nix/store/am512fba05178mdfzlzsngd3anz7w1xb-silo-2026-09-16`; enabled-module evaluation passes and reports `DEVELOPMENT.GOGET` on Go 1.27.1. Do not permit the rejected MinIO package as a fallback.
 - [ ] Main must import the module and supply domains, the private EnvironmentFile, and reviewed production provisioning data.
-- [ ] Main must realize packages and verify PostgreSQL initialization, SQL migrations, storage buckets, application startup, restart persistence, and actual socket bindings.
+- [ ] No runtime services have run. Verify PostgreSQL initialization, SQL migrations, storage buckets, application startup, restart persistence, and actual socket bindings.
 - [ ] Main must verify all services remain in the capped slice under load and that existing Sakuin services remain healthy.
 - [ ] Email-provider configuration and credentials must be supplied deliberately; this module does not select a mock provider.
 - [ ] Proxy routing must preserve the public HTTPS origin and supply trusted Wikijump site headers; no reverse proxy is provided here.
