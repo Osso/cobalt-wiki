@@ -18,9 +18,87 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use super::{DebugIncluder, PageRef, include, parse_includes};
+use super::{
+    DebugIncluder, FetchedPage, IncludeRef, Includer, PageRef, include, parse_includes,
+};
 use crate::layout::Layout;
 use crate::settings::{WikitextMode, WikitextSettings};
+use std::borrow::Cow;
+use std::convert::Infallible;
+
+struct CardIncluder;
+
+impl<'t> Includer<'t> for CardIncluder {
+    type Error = Infallible;
+
+    fn include_pages(
+        &mut self,
+        includes: &[IncludeRef<'t>],
+    ) -> Result<Vec<FetchedPage<'t>>, Infallible> {
+        Ok(includes
+            .iter()
+            .map(|include| FetchedPage {
+                page_ref: include.page_ref().clone(),
+                content: Some(Cow::Borrowed("{$leading}|{$empty}|{$trailing}")),
+            })
+            .collect())
+    }
+
+    fn no_such_include(&mut self, _: &PageRef) -> Result<Cow<'t, str>, Infallible> {
+        unreachable!("test card always exists")
+    }
+}
+
+#[test]
+fn empty_middle_argument_substitutes_empty_without_losing_adjacent_values() {
+    let input = "[[include card | leading=Left| empty= | trailing=Right]]";
+    let directives = parse_includes(input);
+    assert_eq!(directives.len(), 1);
+    assert_eq!(
+        directives[0].1.variables().get("empty").map(AsRef::as_ref),
+        Some("")
+    );
+
+    let settings = WikitextSettings::from_mode(WikitextMode::Page, Layout::Wikidot);
+    let (output, pages) = include(input, &settings, CardIncluder, || panic!()).unwrap();
+    assert_eq!(output, "Left||Right");
+    assert_eq!(pages, vec![PageRef::page_only("card")]);
+}
+
+#[test]
+fn empty_final_argument_substitutes_empty_and_keeps_first_value() {
+    let input = "[[include card | leading=Left| trailing=Right| empty=]]";
+    let directives = parse_includes(input);
+    assert_eq!(directives.len(), 1);
+    assert_eq!(
+        directives[0].1.variables().get("empty").map(AsRef::as_ref),
+        Some("")
+    );
+
+    let settings = WikitextSettings::from_mode(WikitextMode::Page, Layout::Wikidot);
+    let (output, pages) = include(input, &settings, CardIncluder, || panic!()).unwrap();
+    assert_eq!(output, "Left||Right");
+    assert_eq!(pages, vec![PageRef::page_only("card")]);
+
+    let nav_input = "[[include card | user2=]]";
+    let nav_directives = parse_includes(nav_input);
+    assert_eq!(nav_directives.len(), 1);
+    assert_eq!(
+        nav_directives[0]
+            .1
+            .variables()
+            .get("user2")
+            .map(AsRef::as_ref),
+        Some("")
+    );
+
+    let first_empty =
+        "[[include card | leading=Left| empty= | empty=Fallback| trailing=Right]]";
+    let (output, pages) =
+        include(first_empty, &settings, CardIncluder, || panic!()).unwrap();
+    assert_eq!(output, "Left||Right");
+    assert_eq!(pages, vec![PageRef::page_only("card")]);
+}
 
 #[test]
 fn scans_directive_ranges_references_and_arguments() {
