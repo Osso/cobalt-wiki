@@ -12,6 +12,14 @@
 - [x] Parse and serialize ordered stored field mappings without dropping unknown fields or changing decoded scalar types/content, including Unicode and multiline wiki markup.
 - [x] Reject malformed YAML, duplicate mapping keys, unsupported types/shapes, and non-scalar stored values explicitly.
 
+## Standalone form view payload
+
+`extract_form_view(template, page_yaml)` returns `Result<Option<FormView>, FormError>`. No form block returns `None` without parsing page source; malformed delimiters, schema, or values fail explicitly. Populated page records are entire YAML scalar mappings, not delimited regions within unrelated wikitext.
+
+The Serde payload contains `schema` and `values`. Schema fields/options remain ordered arrays; unknown properties and values retain decoded YAML types. Stored field keys must be nonempty strings. JSON null, boolean, number, and string values are not stringified. No new dependencies are required.
+
+This payload remains standalone: no page-view endpoint, rendering, queries, or frontend is wired. `tests/form_view.rs` asserts the serialized JSON contract and decoded value round-trip, legacy `@@`, ordinary templates, and explicit errors.
+
 ## How it works
 
 - [Replica proof boundaries](../wiki/systems/cobalt-replica-status.md): pure-library proof only; backend/editor/rendering integration remains open.
