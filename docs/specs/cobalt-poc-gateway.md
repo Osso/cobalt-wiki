@@ -29,8 +29,10 @@ Targeted Nix evaluation covers configuration generation only. Live HTTP authenti
 
 ## Known gaps (current cycle)
 
+- [x] Production bootstrap assigned site ID `6000000` on 2026-09-22. Host commit `bf2be38` enables the protected loopback gateway for that ID; its deployment is pending.
 - [ ] Verify all-route denial and authenticated routing with the deployed proxy before importing or exposing private content.
-- [ ] Verify runtime htpasswd ownership/readability and the actual assigned site ID.
+- [ ] Verify runtime htpasswd ownership/readability.
+- [ ] Add public tunnel ingress and DNS only after deployed gateway acceptance. No public ingress, DNS, or source import is complete.
 - [ ] Source ACLs and WWS per-page authorization remain unfinished. The POC gate grants its holders access to the whole POC; it is not source-permission parity.
 
 ## Out of scope

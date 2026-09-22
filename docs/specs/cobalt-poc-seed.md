@@ -39,8 +39,8 @@ The caller supplies a randomly generated administrator secret separately from th
 
 ## Known gaps (current cycle)
 
-- [ ] Execute the generated directory through the Rust seeder against an isolated database; JSON contract tests do not prove database provisioning.
-- [ ] Independently verify generated admin login, assigned role, site ID, and absence of demo content after bootstrap.
+- [x] Production bootstrap completed on 2026-09-22 using corrected seed generator `660fe2c`; Deepwell assigned site ID `6000000`.
+- [ ] Independently verify generated admin login, assigned role, and absence of demo content after bootstrap.
 
 ## Out of scope
 

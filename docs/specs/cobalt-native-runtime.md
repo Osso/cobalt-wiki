@@ -11,7 +11,7 @@
 - [ ] Load credentials from a required runtime EnvironmentFile outside the Nix store; storage and backend use the same S3 credentials without secret command-line arguments.
 - [ ] Create separate `cobalt-wiki-files` and `cobalt-wiki-text-blocks` buckets without public bucket policies.
 - [ ] Disable seeding during ordinary startup and refuse backend startup before explicit production provisioning.
-- [ ] Offer a manual-only bootstrap unit when a private reviewed seed directory is explicitly supplied; apply packaged migrations, seed, and mark success only after both commands succeed.
+- [x] Offer a manual-only bootstrap unit when a private reviewed seed directory is explicitly supplied; apply packaged migrations, seed, and mark success only after both commands succeed.
 - [ ] Use a fixed HTTPS Framerail origin and production adapter-node server, without disabling CSRF checks.
 
 ## How it works
@@ -31,11 +31,11 @@ No checked-in runtime tests yet. Targeted module evaluation establishes generate
 ## Known gaps (current cycle)
 
 - [x] `aeb81fe` replaces rejected insecure `pkgs.minio` with pinned `pgsty/silo` release `RELEASE.2026-09-16T00-00-00Z` (`2a4d51406b7ed87af5fe6fe0f801f3290f96eb3c`), which contains fixes for CVE-2026-40344 and CVE-2026-41145. Agent44 independently realized Silo at `/nix/store/am512fba05178mdfzlzsngd3anz7w1xb-silo-2026-09-16`; enabled-module evaluation passes and reports `DEVELOPMENT.GOGET` on Go 1.27.1. Do not permit the rejected MinIO package as a fallback.
-- [ ] Main must import the module and supply domains, the private EnvironmentFile, and reviewed production provisioning data.
-- [ ] No `services.cobaltWiki` runtime services have run. An isolated local native test stack completed migrations, buckets, and the stock development seeder; still verify module-managed PostgreSQL initialization, storage, application startup, restart persistence, and actual socket bindings.
-- [ ] Main must verify all services remain in the capped slice under load and that existing Sakuin services remain healthy.
+- [x] Sakuin's initial native switch completed on 2026-09-22 as closure `bna501zq169hkxrkazv3b4j5qcfby1fn`; the existing Sakuin readiness check passed.
+- [x] Production bootstrap completed on 2026-09-22 after seed correction `660fe2c`; Deepwell assigned Cobalt Company site ID `6000000`.
+- [ ] Verify module-managed service restart persistence, actual socket bindings, capped-slice behavior under load, and continued Sakuin health after subsequent Cobalt activation.
 - [ ] Email-provider configuration and credentials must be supplied deliberately; this module does not select a mock provider.
-- [ ] Verify the optional [POC gateway](cobalt-poc-gateway.md), which supplies trusted site headers, same-origin routing, and all-route authentication; deployment acceptance remains open.
+- [ ] Verify the optional [POC gateway](cobalt-poc-gateway.md), which supplies trusted site headers, same-origin routing, and all-route authentication. Host commit `bf2be38` enables it using site ID `6000000`; deployment and live acceptance remain open.
 
 ### Integration contract
 
