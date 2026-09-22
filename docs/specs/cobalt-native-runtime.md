@@ -13,6 +13,7 @@
 - [ ] Disable seeding during ordinary startup and refuse backend startup before explicit production provisioning.
 - [x] Offer a manual-only bootstrap unit when a private reviewed seed directory is explicitly supplied; apply packaged migrations, seed, and mark success only after both commands succeed.
 - [ ] Use a fixed HTTPS Framerail origin and production adapter-node server, without disabling CSRF checks.
+- [ ] Keep dependent WWS/Framerail startup ordered after a successful Deepwell JSON-RPC ping, with bounded retries for transient startup failures.
 
 ## How it works
 
@@ -23,10 +24,11 @@
 
 - `install/nixos/module.nix` — `services.cobaltWiki` options, runtime TOML, initialization helpers, private service units, and resource slice.
 - `install/nixos/packages.nix` — supplies Deepwell, WWS, Framerail, and the pinned Silo storage package.
+- `install/nixos/wait_deepwell.py` — bounded HTTP readiness check used by Deepwell's `ExecStartPost` before ordered dependents start.
 
 ## Tests asserting this spec
 
-No checked-in runtime tests yet. Targeted module evaluation establishes generated configuration, not running-service or migration correctness. A separate isolated local PostgreSQL 17, Valkey, and Silo environment completed migrations and the stock development seeder, then supported three Deepwell form-edit DB tests and four view-helper tests; its protected logs are under `/home/osso/.local/share/cobalt-wiki/integration/`. That proves only those local application paths, not this NixOS module's services, production provisioning, private ACLs, or deployment.
+`tests/cobalt_migration/test_readiness.py` exercises refused connections before listener activation, transient HTTP failures, Retry-After timing, invalid RPC responses and bounded exhaustion. Production switch verification remains necessary to prove systemd ordering. Targeted module evaluation establishes generated configuration, not running-service or migration correctness. A separate isolated local PostgreSQL 17, Valkey, and Silo environment completed migrations and the stock development seeder, then supported three Deepwell form-edit DB tests and four view-helper tests; its protected logs are under `/home/osso/.local/share/cobalt-wiki/integration/`. That proves only those local application paths, not this NixOS module's services, production provisioning, private ACLs, or deployment.
 
 ## Known gaps (current cycle)
 

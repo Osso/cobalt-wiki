@@ -263,6 +263,7 @@ in
           EnvironmentFile = cfg.environmentFile;
           ExecStartPre = "${python} ${requireProvisioning}";
           ExecStart = "${packages.deepwell}/bin/deepwell ${runtimeConfig}";
+          ExecStartPost = "${python} ${./wait_deepwell.py}";
         };
       };
       cobalt-wiki-framerail = {
