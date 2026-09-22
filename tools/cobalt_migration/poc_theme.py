@@ -23,7 +23,12 @@ def render_theme(theme_source, font_source):
     font = extract_css(font_source)
     if theme.count(FONT_IMPORT) != 1:
         raise ValueError("source theme must import the acquired font exactly once")
-    return theme.replace(FONT_IMPORT, font).replace(SOURCE_FILES, "/-/file/") + "\n"
+    # Wikidot inherits the browser font; Framerail's global UI font must not replace it.
+    return (
+        "body { font-family: initial; }\n"
+        + theme.replace(FONT_IMPORT, font).replace(SOURCE_FILES, "/-/file/")
+        + "\n"
+    )
 
 
 def main():

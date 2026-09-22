@@ -14,6 +14,7 @@ body { background: black; }
 @font-face { font-family: Cobalt; src: url(data:font/woff;base64,YWJj); }
 [[/code]]"""
         result = render_theme(theme, font)
+        self.assertTrue(result.startswith("body { font-family: initial; }\n"))
         self.assertIn("url(data:font/woff;base64,YWJj)", result)
         self.assertIn("url(/-/file/images/logo.png)", result)
         self.assertIn("body { background: black; }", result)
