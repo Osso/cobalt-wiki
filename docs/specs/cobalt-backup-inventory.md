@@ -6,7 +6,7 @@
 python -m tools.cobalt_migration ARCHIVE.tar.gz --output PROTECTED_DIRECTORY/manifest.json
 ```
 
-The caller provisions the protected output directory. Manifests contain potentially private archive names and must remain outside git.
+The caller must pre-provision an owner-only output directory; the CLI neither creates nor validates that directory's mode. It writes the manifest itself with mode `0600`. Manifests contain potentially private archive names and must remain outside git. See the [operator guide](../wiki/systems/cobalt-backup-inventory.md) for the required location and command.
 
 ## What it must do
 
@@ -15,7 +15,7 @@ The caller provisions the protected output directory. Manifests contain potentia
 - [x] Classify regular files under `source/` as `page_source` and under `files/` as `attachment`; report counts and uncompressed byte totals by role. Ignore safe directory entries in those totals.
 - [x] Validate all page-source bytes as strict UTF-8, including chunk boundaries and incomplete final sequences. Hash original bytes without normalization; never include source contents or field values in the manifest or decoding errors.
 - [x] Reject malformed/truncated gzip or TAR data, corrupt gzip checksums, invalid later headers, missing TAR terminators, unexpected trailing data, unsupported regular-file roots, duplicate file paths, unsafe paths, links, and special files.
-- [x] Publish complete JSON through atomic replacement with mode `0600`; retain prior output on failure and remove temporary output files.
+- [x] Publish complete JSON through atomic replacement with mode `0600`; retain prior output on failure and remove temporary output files. The pre-existing parent directory's protection remains the caller's responsibility.
 
 The JSON object has exactly these top-level keys:
 
@@ -51,4 +51,4 @@ python -B -m unittest discover -s tests/cobalt_migration -p test_archive.py -v
 
 ## Out of scope
 
-Archive extraction, slug mapping, YAML parsing, metadata acquisition, importing, source-site changes, and deployment belong to subsequent migration work. No production data or private fixture is stored in this repository.
+Archive extraction, slug/title/tag/author mapping, YAML parsing, metadata acquisition, importing, source-site changes, DNS, and deployment belong to subsequent migration work. The selected destination `cobalt-company.sakuin.org` has no deployed replica from this tool. No production data or private fixture is stored in this repository.
