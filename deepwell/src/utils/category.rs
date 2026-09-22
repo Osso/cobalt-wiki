@@ -20,13 +20,10 @@
 
 /// Splits a normalized slug into the category and page portions.
 ///
-/// This finds the last `:` in the full slug and returns everything
-/// up to that as the category slug.
-///
-/// Normalized slugs do not have an explicit `_default`, so they
-/// should lack a `:` entirely.
+/// The first `:` separates category from page name. Later colons belong to the name.
+/// Uncategorized names omit the `_default:` prefix.
 pub fn split_category(slug: &str) -> (Option<&str>, &str) {
-    match slug.rfind(':') {
+    match slug.find(':') {
         None => (None, slug),
         Some(idx) => {
             let (category, page) = slug.split_at(idx);
@@ -60,13 +57,6 @@ pub fn get_category_name(slug: &str) -> &str {
 
 /// Trims off the `_default:` category if present.
 pub fn trim_default(slug: &str) -> &str {
-    // We cannot simply use str::strip_prefix() here,
-    // since if the category *starts* with "_default"
-    // but is not solely "_default" (for instance,
-    // the category string "_default:blah", as in
-    // "_default:blah:page-name") then this will
-    // mangle the category name.
-
     match split_category_name(slug) {
         ("_default", page_slug) => page_slug,
         (_, _) => slug,
@@ -90,8 +80,8 @@ fn test_split_category() {
     check!("component:wide-modal", Some("component"), "wide-modal");
     check!(
         "archived:component:wide-modal",
-        Some("archived:component"),
-        "wide-modal",
+        Some("archived"),
+        "component:wide-modal",
     );
     check!("_default:start", Some("_default"), "start");
     check!("_default:_template", Some("_default"), "_template");
@@ -114,8 +104,8 @@ fn test_split_category_name() {
     check!("component:wide-modal", "component", "wide-modal");
     check!(
         "archived:component:wide-modal",
-        "archived:component",
-        "wide-modal",
+        "archived",
+        "component:wide-modal",
     );
     check!("_default:start", "_default", "start");
     check!("_default:_template", "_default", "_template");
@@ -136,7 +126,7 @@ fn test_get_category() {
     check!("apple", None);
     check!("foo-bar", None);
     check!("component:wide-modal", Some("component"));
-    check!("archived:component:wide-modal", Some("archived:component"));
+    check!("archived:component:wide-modal", Some("archived"));
     check!("_default:start", Some("_default"));
     check!("_default:_template", Some("_default"));
 }
@@ -156,7 +146,7 @@ fn test_get_category_name() {
     check!("apple", "_default");
     check!("foo-bar", "_default");
     check!("component:wide-modal", "component");
-    check!("archived:component:wide-modal", "archived:component");
+    check!("archived:component:wide-modal", "archived");
     check!("_default:start", "_default");
     check!("_default:_template", "_default");
 }
@@ -184,5 +174,5 @@ fn test_trim_default() {
     check!("_default:foo-bar", "foo-bar");
     check!("_default:_template", "_template");
     check!("archived:_default:start", "archived:_default:start");
-    check!("_default:archived:start", "_default:archived:start");
+    check!("_default:archived:start", "archived:start");
 }

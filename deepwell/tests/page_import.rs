@@ -101,7 +101,7 @@ async fn import_preserves_multicolon_identity_and_creates_initial_revision() {
     assert_eq!(stored.page_id, imported.page_id);
     assert_eq!(stored.site_id, site_id);
     assert_eq!(stored.slug, SLUG);
-    assert_eq!(stored.page_category_slug, "migration:chapter");
+    assert_eq!(stored.page_category_slug, "migration");
     assert_eq!(stored.revision_id, imported.revision_id);
     assert_eq!(stored.revision_number, 0);
     assert_eq!(stored.revision_type, PageRevisionType::Create);

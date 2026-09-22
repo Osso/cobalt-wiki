@@ -51,6 +51,24 @@ impl PageRef {
         }
     }
 
+    fn normalize_page(page: &str) -> String {
+        let segments: Vec<_> = page
+            .split(':')
+            .map(|part| {
+                let mut part = part.to_owned();
+                normalize(&mut part);
+                part
+            })
+            .filter(|part| !part.is_empty())
+            .collect();
+        let mut page = segments.join(":");
+        const DEFAULT_PREFIX: &str = "_default:";
+        if page.starts_with(DEFAULT_PREFIX) {
+            page.replace_range(..DEFAULT_PREFIX.len(), "");
+        }
+        page
+    }
+
     /// Creates a [`PageRef`] with an optional site.
     pub fn new<S1, S2>(site: Option<S1>, page: S2) -> Self
     where
@@ -72,10 +90,9 @@ impl PageRef {
     {
         let (page, extra) = Self::split_page(page.as_ref());
         let mut site = site.into();
-        let mut page = str!(page);
+        let page = Self::normalize_page(page);
         let extra = extra.map(String::from);
         normalize(&mut site);
-        normalize(&mut page);
 
         PageRef {
             site: Some(site),
@@ -91,9 +108,8 @@ impl PageRef {
         S: AsRef<str>,
     {
         let (page, extra) = Self::split_page(page.as_ref());
-        let mut page = str!(page);
+        let page = Self::normalize_page(page);
         let extra = extra.map(String::from);
-        normalize(&mut page);
         PageRef {
             site: None,
             page,
