@@ -4,7 +4,7 @@ Restore styling from acquired `admin:css` and `admin:font`; do not approximate t
 
 - Generate one owner-only CSS file without changing archived page sources.
 - Embed the acquired font CSS and redirect source attachment URLs to same-origin imported files.
-- Serve `/-/cobalt-theme.css` behind the same authentication gate as pages and attachments.
+- Serve `/-/cobalt-theme.css` behind the same authentication gate as pages and attachments; emit `X-Robots-Tag: noindex, nofollow, noarchive` on all POC responses.
 - Select the source theme only for `cobalt-company`; preserve other sites' existing theme.
 - Verify generated CSS, authentication, resource loading and browser appearance. Import can continue independently.
 

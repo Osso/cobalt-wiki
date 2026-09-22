@@ -22,6 +22,7 @@ let
         listen 127.0.0.1:3088 default_server;
         server_name ${hostname};
         auth_basic "Cobalt Company POC";
+        add_header X-Robots-Tag "noindex, nofollow, noarchive" always;
         auth_basic_user_file ${cfg.htpasswdFile};
         client_max_body_size 100m;
         proxy_set_header Host ${hostname};
