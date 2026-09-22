@@ -252,7 +252,7 @@ def _import_page(rpc, plan, entry, data):
     page = _get_page(rpc, plan, entry)
     if page is None:
         rpc(
-            "page_create",
+            "page_import",
             {
                 "site_id": plan["site_id"],
                 "user_id": plan["user_id"],

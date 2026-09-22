@@ -27,7 +27,7 @@ class Store:
     def rpc(self, method, params):
         if method == "page_get":
             return self.pages.get(params["page"])
-        if method == "page_create":
+        if method in {"page_create", "page_import"}:
             page = dict(
                 params,
                 page_id=self.next_id,
@@ -35,8 +35,12 @@ class Store:
                 tags=[],
                 revision_user_id=params["user_id"],
             )
+            if method == "page_create":
+                # Ordinary creation normalizes earlier category separators.
+                category, separator, name = page["slug"].rpartition(":")
+                page["slug"] = category.replace(":", "-") + separator + name
             self.next_id += 1
-            self.pages[params["slug"]] = page
+            self.pages[page["slug"]] = page
             self.creates += 1
             if self.fail_after_page:
                 self.fail_after_page = False
@@ -146,7 +150,7 @@ class ImportTests(unittest.TestCase):
                 method, params = request["method"], request["params"]
                 if method == "session_get" and params == ["test-session"]:
                     response["result"] = session
-                elif method in {"page_get", "page_create", "page_edit"}:
+                elif method in {"page_get", "page_import", "page_edit"}:
                     response["result"] = target.rpc(method, params)
                 else:
                     response["error"] = {"code": -32601, "message": "Method not found"}
@@ -233,7 +237,7 @@ class ImportTests(unittest.TestCase):
         writes = [
             params
             for method, params in requests
-            if method in {"page_create", "page_edit", "file_create"}
+            if method in {"page_import", "page_edit", "file_create"}
         ]
         self.assertEqual(len(writes), 4)
         self.assertTrue(all(params["user_id"] == -1 for params in writes))
@@ -259,15 +263,37 @@ class ImportTests(unittest.TestCase):
                     )
                 self.assertFalse(self.path.exists())
 
-    def test_restart_after_commit_before_response_reconciles(self):
+    def test_multi_colon_identity_survives_restart_after_commit(self):
+        fullname = "archived:character:ada"
+        self.entries[0] = ("source/archived_character_ada.txt", self.entries[0][1])
+        self.entries[2] = (
+            "files/archived_character_ada/portrait.png",
+            self.entries[2][1],
+        )
+        self.listing["fullnames"] = ["home:start", fullname]
+        self.metadata["records"][0]["fullname"] = fullname
+        self.make_archive()
         self.plan()
         target = Store()
         target.fail_after_page = True
         with self.assertRaises(ConnectionError):
             poc.apply_plan(self.archive, self.path, target.rpc, target.put)
+        self.assertEqual(set(target.pages), {fullname})
+        page_id = target.pages[fullname]["page_id"]
         self.assertEqual(target.creates, 1)
         result = poc.apply_plan(self.archive, self.path, target.rpc, target.put)
-        self.assertEqual(result["pages"], 2)
+        self.assertEqual(result, {"pages": 2, "attachments": 1})
+        self.assertEqual(set(target.pages), {fullname, "home:start"})
+        self.assertEqual(target.pages[fullname]["page_id"], page_id)
+        self.assertEqual(target.pages[fullname]["slug"], fullname)
+        self.assertEqual(
+            target.pages[fullname]["wikitext"].encode(), self.entries[0][1]
+        )
+        self.assertEqual(target.pages[fullname]["tags"], ["hero"])
+        self.assertEqual(
+            bytes.fromhex(target.files[(page_id, "portrait.png")]["data"]),
+            self.entries[2][1],
+        )
         self.assertEqual(target.creates, 3)
 
     def test_restart_after_file_commit_keeps_single_attachment(self):
@@ -376,7 +402,7 @@ class TransportTests(unittest.TestCase):
                 self.assertEqual(sleep.call_args.args, (3.0,))
         client.opener = Opener()
         with self.assertRaises(poc.PocImportError):
-            client.rpc("page_create", {"slug": "home:start"})
+            client.rpc("page_import", {"slug": "home:start"})
         self.assertEqual(client.opener.calls, 1)
 
     def test_transport_refuses_non_loopback_and_redirect_endpoints(self):
