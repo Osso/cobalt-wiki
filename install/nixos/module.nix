@@ -145,6 +145,8 @@ let
   ];
 in
 {
+  imports = [ ./poc-gateway.nix ];
+
   options.services.cobaltWiki = {
     enable = lib.mkEnableOption "isolated native Cobalt Wikijump runtime";
     packages = lib.mkOption {

@@ -35,7 +35,7 @@ No checked-in runtime tests yet. Targeted module evaluation establishes generate
 - [ ] No `services.cobaltWiki` runtime services have run. An isolated local native test stack completed migrations, buckets, and the stock development seeder; still verify module-managed PostgreSQL initialization, storage, application startup, restart persistence, and actual socket bindings.
 - [ ] Main must verify all services remain in the capped slice under load and that existing Sakuin services remain healthy.
 - [ ] Email-provider configuration and credentials must be supplied deliberately; this module does not select a mock provider.
-- [ ] Proxy routing must preserve the public HTTPS origin and supply trusted Wikijump site headers; no reverse proxy is provided here.
+- [ ] Verify the optional [POC gateway](cobalt-poc-gateway.md), which supplies trusted site headers, same-origin routing, and all-route authentication; deployment acceptance remains open.
 
 ### Integration contract
 
