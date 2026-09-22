@@ -7,6 +7,7 @@ import tempfile
 from threading import Thread
 import unittest
 from urllib.error import HTTPError
+from urllib.request import Request, urlopen
 from unittest.mock import patch
 
 from tools.cobalt_migration import poc_import as poc
@@ -128,9 +129,17 @@ class ImportTests(unittest.TestCase):
             self.archive, self.listing, self.metadata, self.path, site_id=10, user_id=20
         )
 
-    def test_cli_resolves_session_before_importing(self):
+    def test_cli_requires_session_and_page_context_before_writes(self):
         self.entries = self.entries[:2]
         self.make_archive()
+        self.metadata["records"].append(
+            {
+                "fullname": "home:start",
+                "status": "accepted",
+                "title": "Home",
+                "tags": ["landing"],
+            }
+        )
         self.plan()
         session_file = self.root / "session"
         session_file.write_text("test-session\n")
@@ -150,6 +159,14 @@ class ImportTests(unittest.TestCase):
                 method, params = request["method"], request["params"]
                 if method == "session_get" and params == ["test-session"]:
                     response["result"] = session
+                elif method == "page_edit" and (
+                    type(params["page"]) is not int
+                    or self.headers.get("X-Deepwell-Page") != str(params["page"])
+                ):
+                    response["error"] = {
+                        "code": -32000,
+                        "message": "Page context does not match tag edit",
+                    }
                 elif method in {"page_get", "page_import", "page_edit"}:
                     response["result"] = target.rpc(method, params)
                 else:
@@ -183,6 +200,54 @@ class ImportTests(unittest.TestCase):
                 )
                 self.assertEqual(target.pages["home:start"]["wikitext"], "Welcome\r\n")
                 self.assertEqual(target.pages["character:ada"]["tags"], ["hero"])
+                self.assertEqual(target.pages["home:start"]["tags"], ["landing"])
+                self.assertEqual(target.creates, 2)
+                self.assertEqual(
+                    [page["revision_id"] for page in target.pages.values()], [2, 2]
+                )
+                ada = target.pages["character:ada"]
+                home = target.pages["home:start"]
+                self.assertNotEqual(ada["page_id"], home["page_id"])
+                before = json.loads(json.dumps(target.pages))
+                for context in (None, str(home["page_id"])):
+                    headers = {
+                        "Content-Type": "application/json",
+                        "X-Deepwell-Session-Token": "test-session",
+                        "X-Deepwell-Site-Id": "10",
+                    }
+                    if context is not None:
+                        headers["X-Deepwell-Page"] = context
+                    request = Request(
+                        f"http://127.0.0.1:{server.server_port}/jsonrpc",
+                        data=json.dumps(
+                            {
+                                "jsonrpc": "2.0",
+                                "id": 2,
+                                "method": "page_edit",
+                                "params": {
+                                    "site_id": 10,
+                                    "user_id": 20,
+                                    "page": ada["page_id"],
+                                    "last_revision_id": ada["revision_id"],
+                                    "tags": ["villain"],
+                                    "revision_comments": "must not be written",
+                                    "ip_address": "127.0.0.1",
+                                },
+                            }
+                        ).encode(),
+                        headers=headers,
+                    )
+                    with self.subTest(page_context=context):
+                        with urlopen(request, timeout=5) as response:
+                            rejected = json.load(response)
+                        self.assertEqual(
+                            rejected["error"]["message"],
+                            "Page context does not match tag edit",
+                        )
+                        self.assertNotIn("result", rejected)
+                        self.assertEqual(target.pages, before)
+                        self.assertEqual(target.creates, 2)
+                        self.assertEqual(target.files, {})
                 for session in ({"user_id": 21}, None):
                     target = Store()
                     with (
