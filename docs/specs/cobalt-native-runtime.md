@@ -22,7 +22,7 @@
 ## Implementation inventory
 
 - `install/nixos/module.nix` — `services.cobaltWiki` options, runtime TOML, initialization helpers, private service units, and resource slice.
-- `install/nixos/packages.nix` — supplies the three Wikijump application packages; not modified by this slice.
+- `install/nixos/packages.nix` — supplies Deepwell, WWS, Framerail, and the pinned Silo storage package.
 
 ## Tests asserting this spec
 
@@ -30,7 +30,7 @@ No checked-in runtime tests yet. Targeted module evaluation can establish genera
 
 ## Known gaps (current cycle)
 
-- [ ] Enabled-module evaluation is blocked by pinned `pkgs.minio` being marked insecure and abandoned. Nix reports unauthenticated object-write vulnerabilities including CVE-2026-40344 and CVE-2026-41145. Do not permit the insecure package; main must explicitly select/package a maintained compatible storage provider before deployment.
+- [ ] `aeb81fe` replaces rejected insecure `pkgs.minio` with pinned `pgsty/silo` release `RELEASE.2026-09-16T00-00-00Z` (`2a4d51406b7ed87af5fe6fe0f801f3290f96eb3c`), which contains fixes for CVE-2026-40344 and CVE-2026-41145. Silo realization, enabled-module evaluation, and runtime behavior remain unproven; do not permit the rejected MinIO package as a fallback.
 - [ ] Main must import the module and supply domains, the private EnvironmentFile, and reviewed production provisioning data.
 - [ ] Main must realize packages and verify PostgreSQL initialization, SQL migrations, storage buckets, application startup, restart persistence, and actual socket bindings.
 - [ ] Main must verify all services remain in the capped slice under load and that existing Sakuin services remain healthy.
@@ -41,7 +41,7 @@ No checked-in runtime tests yet. Targeted module evaluation can establish genera
 
 Required options are `enable`, `environmentFile`, `mainDomain`, and `filesDomain`. `packages` defaults to the sibling package definitions and can be supplied by the host's pinned package set. `bootstrapSeedDirectory` defaults to null.
 
-The EnvironmentFile supplies `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, and the chosen email provider's variables. It must not override module-owned bind addresses, database URL, or bucket configuration. MinIO root credentials are derived from those S3 credentials in the service process, not serialized into the Nix store.
+The EnvironmentFile supplies `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, and the chosen email provider's variables. It must not override module-owned bind addresses, database URL, or bucket configuration. Silo's MinIO-compatible root credentials are derived from those S3 credentials in the service process, not serialized into the Nix store. The unchanged MinIO client has not yet been accepted for compatibility/security with Silo.
 
 With a non-null private seed directory, main may explicitly start `cobalt-wiki-bootstrap.service`; it is never enabled at boot or pulled in by another unit. The unit runs SQLx migrations and Deepwell's supported `DEEPWELL_RUNTIME_ACTION=run-seeder` operation. It refuses to run when `/var/lib/cobalt-wiki/provisioned` already exists. Ordinary Deepwell always has `run-seeder=false`. Alternatively, main may provision externally and create that marker after successful provisioning. Seed files must be readable by the `cobalt-wiki` Unix account and must not contain upstream demo accounts, passwords, or sites.
 

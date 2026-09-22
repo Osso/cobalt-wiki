@@ -16,7 +16,7 @@
 
 ## How it works
 
-- [Replica proof boundaries](../wiki/systems/cobalt-replica-status.md): synthetic parsing proof is separate from authenticated response acceptance and bulk acquisition.
+- [Replica proof boundaries](../wiki/systems/cobalt-replica-status.md): 25 synthetic tests and one protected authenticated response prove parser behavior separately from bulk acquisition.
 - [Parser and public exceptions](../../tools/cobalt_migration/page_metadata.py)
 - [Behavioral fixtures](../../tests/cobalt_migration/test_page_metadata.py)
 - [Separate raw-archive inventory contract](cobalt-backup-inventory.md)
@@ -40,7 +40,7 @@ python -B -m unittest discover -s tests/cobalt_migration -p test_page_metadata.p
 
 ## Known gaps (current cycle)
 
-- [ ] Caller integration and authenticated real-response acceptance are not part of this slice; only the supplied observed HTML shape has synthetic proof.
+- [ ] Caller integration and bulk authenticated acquisition are not part of this slice. A protected `character:atley` response passed exact parser acceptance at `bec4ba1`; no other live response shape is established.
 - [ ] Other Wikidot localization, denial wording, or identity-assignment syntax needs source evidence and tests before support can be claimed.
 
 ## Out of scope

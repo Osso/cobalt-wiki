@@ -5,17 +5,17 @@ The root flake packages Wikijump for the native NixOS Cobalt deployment. Package
 ## What it must do
 
 - [ ] Pin nixpkgs to the host revision `9b696460ac78b5ccfc17c854d8c976f20456e943`.
-- [ ] Build Deepwell and WWS from their checked-in Cargo lockfiles.
+- [x] Build Deepwell and WWS from their checked-in Cargo lockfiles.
 - [ ] Install Deepwell configuration examples, locales, seeder data, and migrations under `share/deepwell`.
-- [ ] Build Framerail using its frozen pnpm lockfile and a fixed-output dependency hash.
-- [ ] Include shared assets during the production SvelteKit build.
-- [ ] Run Framerail through adapter-node, retaining runtime `HOST`/`PORT` configuration and production CSRF checks.
+- [x] Build Framerail using its frozen pnpm lockfile and a fixed-output dependency hash.
+- [x] Include shared assets during the production SvelteKit build.
+- [x] Package Framerail through adapter-node, retaining runtime `HOST`/`PORT` configuration and production CSRF checks.
 
 ## How it works
 
-- [Replica proof boundaries](../wiki/systems/cobalt-replica-status.md): the first full build exposed stable-Rust assertion incompatibility; `f737c0c` fixes that root cause, but the complete retry remains pending.
+- [Replica proof boundaries](../wiki/systems/cobalt-replica-status.md): `f737c0c` fixed the stable-Rust assertion incompatibility and all three application packages realize; Silo/runtime/deployment remain unproven.
 - [Native package operation](../wiki/systems/cobalt-native-packages.md): build commands, installed output layout, and current proof boundary.
-- [Flake package outputs](../../flake.nix): `packages.x86_64-linux.deepwell`, `wws`, and `framerail`.
+- [Flake package outputs](../../flake.nix): `packages.x86_64-linux.deepwell`, `wws`, and `framerail`; `silo` is supplied to the runtime module through its package set.
 - [Package definitions](../../install/nixos/packages.nix): Rust packages use `rustPlatform.buildRustPackage`; Framerail uses Node 22, pnpm's Nix hooks, and fetcher version 4.
 - Deepwell installs `bin/deepwell` and `share/deepwell/{config.example.toml,locales,seeder,migrations}`. WWS installs `bin/wws`.
 - Framerail installs `bin/framerail` and `share/framerail/{build,node_modules,package.json}`. The launcher executes the production server with Nix's Node 22; deployment supplies `HOST`, `PORT`, and backend settings.
@@ -39,12 +39,12 @@ Targeted development evidence: Go 1.27.1 builds successfully; source and vendor 
 
 ## Tests asserting this spec
 
-The fixed pnpm dependency fetch passed. The first full package realization stopped at Deepwell's unstable assertion macros; `f737c0c` replaces them with stable assertions, but all-package realization, runtime integration, and deployment remain unproven.
+At `f737c0c`, one native realization built Deepwell, WWS, and Framerail successfully; outputs are recorded in `/tmp/claude/cobalt-native-package-build-fixed.log`. This proves those package derivations at that revision, not service startup, configured storage, runtime integration, or deployment. Silo remains separately unproven until its current realization succeeds.
 
 ## Known gaps (current cycle)
 
-- [ ] Retry realization of all three packages after `f737c0c`, then inspect installed outputs.
-- [ ] Verify the production Framerail launcher and runtime host/port behavior.
+- [ ] Inspect the realized application outputs and verify the production Framerail launcher and runtime host/port behavior.
+- [ ] Realize the pinned Silo derivation, verify its installed `silo` executable, and assess the unchanged client against it.
 - [ ] Verify the configured service stack and deployment.
 
 ## Out of scope
