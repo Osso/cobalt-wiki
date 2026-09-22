@@ -4,7 +4,7 @@ import { parseAcceptLangHeader } from "$lib/locales"
 
 import { preloadView } from "$lib/server/deepwell/views"
 import { loadSiteInfo } from "$lib/server/load/site-info"
-import { sanitizeUserData } from "$lib/server/load/user"
+import { sanitizeUserData } from "$lib/user-data"
 
 import type { Cookies } from "@sveltejs/kit"
 
@@ -39,10 +39,13 @@ export async function loadPreload(request: Request, cookies: Cookies) {
 
   if (!locales.includes(defaults.fallbackLocale)) locales.push(defaults.fallbackLocale)
 
-  if (response.user_session?.user) {
-    response.user_session.user = sanitizeUserData(response.user_session?.user, false)
-  }
+  const userSession = response.user_session
+    ? {
+        ...response.user_session,
+        user: sanitizeUserData(response.user_session.user, false)
+      }
+    : null
 
-  // Handover data to subsequent requests for rendering
-  return { ...response, locales }
+  // Handover only sanitized user data to subsequent requests for rendering.
+  return { ...response, user_session: userSession, locales }
 }
