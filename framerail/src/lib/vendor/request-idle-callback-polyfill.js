@@ -1,15 +1,37 @@
 // A request idle callback polyfill by Alexander Farkas.
 // https://github.com/aFarkas/requestIdleCallback
 
+/**
+ * @typedef {{
+ *   request: (task: IdleRequestCallback) => number
+ *   cancel: (id: number) => void
+ * }} IdleShim
+ *
+ * @typedef {typeof globalThis & {
+ *   idleCallbackShim?: IdleShim
+ *   IdleCallbackDeadline?: { prototype: object }
+ * }} IdleGlobal
+ */
 ;(function (factory) {
-  globalThis.idleCallbackShim = factory()
+  const host = /** @type {IdleGlobal} */ (globalThis)
+  host.idleCallbackShim = factory()
 })(() => {
   "use strict"
-  let scheduleStart, throttleDelay, lazytimer, lazyraf
-  let root = globalThis.window ? globalThis.window : globalThis
+  /** @type {number} */
+  let scheduleStart
+  /** @type {number} */
+  let throttleDelay
+  /** @type {ReturnType<typeof setTimeout> | null | undefined} */
+  let lazytimer
+  /** @type {number | null | undefined} */
+  let lazyraf
+  let root = /** @type {IdleGlobal} */ (
+    globalThis.window ? globalThis.window : globalThis
+  )
   let requestAnimationFrame =
     (root.cancelRequestAnimationFrame && root.requestAnimationFrame) || setTimeout
   let cancelRequestAnimationFrame = root.cancelRequestAnimationFrame || clearTimeout
+  /** @type {(IdleRequestCallback | null)[]} */
   let tasks = []
   let runAttempts = 0
   let isRunning = false
@@ -34,8 +56,12 @@
     minThrottle = 0
   })
 
+  /** @param {() => void} fn */
   function debounce(fn) {
-    let id, timestamp
+    /** @type {ReturnType<typeof setTimeout> | null | undefined} */
+    let id
+    /** @type {number} */
+    let timestamp
     let wait = 99
     let check = function () {
       let last = performance.now() - timestamp
@@ -142,6 +168,7 @@
     }
   }
 
+  /** @param {IdleRequestCallback} task */
   function requestIdleCallbackShim(task) {
     index++
     tasks.push(task)
@@ -149,6 +176,7 @@
     return index
   }
 
+  /** @param {number} id */
   function cancelIdleCallbackShim(id) {
     let index = id - 1 - tasklength
     if (tasks[index]) {
@@ -190,34 +218,40 @@
     try {
       root.requestIdleCallback(() => {}, { timeout: 0 })
     } catch (e) {
-      ;(function (rIC) {
-        let timeRemainingProto, timeRemaining
-        root.requestIdleCallback = function (fn, timeout) {
-          if (timeout && typeof timeout.timeout === "number") {
-            return rIC(fn, timeout.timeout)
-          }
-          return rIC(fn)
-        }
-        if (
-          root.IdleCallbackDeadline &&
-          (timeRemainingProto = IdleCallbackDeadline.prototype)
+      ;(
+        /** @param {(callback: IdleRequestCallback, timeout?: number) => number} rIC */ function (
+          rIC
         ) {
-          timeRemaining = Object.getOwnPropertyDescriptor(
-            timeRemainingProto,
-            "timeRemaining"
-          )
-          if (!timeRemaining || !timeRemaining.configurable || !timeRemaining.get) {
-            return
+          root.requestIdleCallback = function (fn, timeout) {
+            if (timeout && typeof timeout.timeout === "number") {
+              return rIC(fn, timeout.timeout)
+            }
+            return rIC(fn)
           }
-          Object.defineProperty(timeRemainingProto, "timeRemaining", {
-            value: function () {
-              return timeRemaining.get.call(this)
-            },
-            enumerable: true,
-            configurable: true
-          })
+          if (root.IdleCallbackDeadline) {
+            const timeRemainingProto = root.IdleCallbackDeadline.prototype
+            const timeRemaining = Object.getOwnPropertyDescriptor(
+              timeRemainingProto,
+              "timeRemaining"
+            )
+            if (!timeRemaining || !timeRemaining.configurable || !timeRemaining.get) {
+              return
+            }
+            const getTimeRemaining = timeRemaining.get
+            Object.defineProperty(timeRemainingProto, "timeRemaining", {
+              value: function () {
+                return getTimeRemaining.call(this)
+              },
+              enumerable: true,
+              configurable: true
+            })
+          }
         }
-      })(root.requestIdleCallback)
+      )(
+        /** @type {(callback: IdleRequestCallback, timeout?: number) => number} */ (
+          root.requestIdleCallback
+        )
+      )
     }
   }
 
