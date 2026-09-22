@@ -67,7 +67,7 @@ test("queued callbacks run after throttle and cancellation preserves later reque
   assert.deepEqual([first, cancelled, third], [1, 2, 3])
   clock.shim.cancel(cancelled)
   clock.advance(124)
-  assert.deepEqual(calls, [])
+  assert.equal(calls.length, 0)
   clock.advance(1)
   assert.deepEqual(calls, [1, 3])
   const fourth = clock.shim.request(() => calls.push(4))
