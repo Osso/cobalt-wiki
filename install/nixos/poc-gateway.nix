@@ -37,6 +37,10 @@ let
         location ~ ^/(?:robots[.]txt/?$|[.]well-known/?$|-/(?:files|file|download|avatar|code|html|health-check|basic-error)(?:/|$)|local--(?:files|code|html)/|[^/]+/(?:code|html|file|download)/) {
           proxy_pass http://127.0.0.1:3466;
         }
+        location = /-/cobalt-theme.css {
+          alias /var/lib/cobalt-wiki/poc-theme.css;
+          default_type text/css;
+        }
         location / {
           proxy_pass http://127.0.0.1:3393;
         }
