@@ -26,7 +26,8 @@ Creating an attachment on an existing page changes that page's files, not the pa
 
 ## Known gaps (current cycle)
 
-- [ ] Confirm deployment of isolated candidate `f18dcfed691983a12021d6c1da372203ce145138` (based on `474b308be897f40d96767c585e96c45fa3c55095`); host pin `72bd4a4` is building.
+- [x] Deploy the isolated hotfix `f18dcfed691983a12021d6c1da372203ce145138` (parent `474b308be897f40d96767c585e96c45fa3c55095`). Host commit `72bd4a4` pins it; remote generation `b8lyk2lnn46pkgw1w2l9nqyy9bcy5qy8-nixos-system-sakuin-digital-ocean-26.05.20260606.9b69646` is active. Deployment scope was exactly three files, with one runtime line changing `process_page_displace` to `process_page_edit`; `ops/deploy.sh` ended `Ready. Deploy complete.` User-owned rendering work was untouched.
+- [ ] Verify template/include invalidation for attachment owners with those dependencies.
 - [ ] Attribute every historical queue producer. This fix prevents the verified attachment path but does not explain every historical job.
 
 ## Out of scope
