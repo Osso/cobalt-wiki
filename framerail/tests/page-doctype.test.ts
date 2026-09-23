@@ -2,6 +2,8 @@ import assert from "node:assert/strict"
 import { after, test } from "node:test"
 import { createServer } from "vite"
 
+import type { ResolveOptions } from "@sveltejs/kit"
+
 const vite = await createServer({ server: { middlewareMode: true }, logLevel: "error" })
 after(() => vite.close())
 const { handle } = await vite.ssrLoadModule("/src/hooks.server.ts")
@@ -63,7 +65,7 @@ async function pageResponse(
   try {
     const response = await handle({
       event,
-      resolve: async (handledEvent, options) => {
+      resolve: async (handledEvent: typeof event, options?: ResolveOptions) => {
         const route = path === "/" ? root : slug
         try {
           await route.load({ ...handledEvent, parent })
@@ -116,10 +118,11 @@ test("root Wikidot page emits XHTML; native page and special responses retain HT
   })
   const response = await handle({
     event: { request, cookies: { get: () => undefined }, locals: {}, params: {} },
-    resolve: async (_event, options) =>
-      new Response(options?.transformPageChunk?.({ html: html5, done: true }) ?? html5, {
-        headers: { "content-type": "text/html" }
-      })
+    resolve: async (_event: unknown, options?: ResolveOptions) =>
+      new Response(
+        (await options?.transformPageChunk?.({ html: html5, done: true })) ?? html5,
+        { headers: { "content-type": "text/html" } }
+      )
   })
   assert.equal(await response.text(), html5)
 })
