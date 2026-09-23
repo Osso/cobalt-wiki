@@ -697,44 +697,33 @@ impl ViewService {
             )
         };
 
-        // Get user data from session token (if present)
-        // Sessions can only be for real users, so we assert
-        let user_session = match session_token {
-            Some("") | None => None,
-            Some(token) => {
-                let session =
-                    SessionService::get(ctx, token).await.or_raise(make_error)?;
+        let user_session = Self::get_session(ctx, session_token)
+            .await
+            .or_raise(make_error)?;
+        if let Some(UserSession { user, .. }) = &user_session {
+            // Prefer what the user has set over what the browser is requesting
+            {
+                // Get the list of user locales
+                //
+                // Our goal is to insert this list of user locales at the front.
+                // For instance, if the browser is requesting [X, Y], but the user
+                // prefers [A, B], we want to end up with [A, B, X, Y].
+                //
+                // But the most efficient method to use here is append().
+                // So we append all the requested locales to the end of the user
+                // locales we just got, then swap the contents.
+                //
+                // The end goal is that 'locales' ends up with the new locales at
+                // the start before the previous items, and 'user_locales' ends up
+                // drained since it was inserted into the preserved 'locales' vector.
 
-                let user = UserService::get_real(ctx, Reference::Id(session.user_id))
-                    .await
-                    .or_raise(make_error)?;
-
-                // Prefer what the user has set over what the browser is requesting
-                {
-                    // Get the list of user locales
-                    //
-                    // Our goal is to insert this list of user locales at the front.
-                    // For instance, if the browser is requesting [X, Y], but the user
-                    // prefers [A, B], we want to end up with [A, B, X, Y].
-                    //
-                    // But the most efficient method to use here is append().
-                    // So we append all the requested locales to the end of the user
-                    // locales we just got, then swap the contents.
-                    //
-                    // The end goal is that 'locales' ends up with the new locales at
-                    // the start before the previous items, and 'user_locales' ends up
-                    // drained since it was inserted into the preserved 'locales' vector.
-
-                    let mut user_locales =
-                        parse_locales(&user.locales).or_raise(make_error)?;
-                    user_locales.append(locales);
-                    mem::swap(locales, &mut user_locales);
-                    debug_assert!(user_locales.is_empty());
-                }
-
-                Some(UserSession { session, user })
+                let mut user_locales =
+                    parse_locales(&user.locales).or_raise(make_error)?;
+                user_locales.append(locales);
+                mem::swap(locales, &mut user_locales);
+                debug_assert!(user_locales.is_empty());
             }
-        };
+        }
 
         // Ensure at least one locale was requested
         if locales.is_empty() {
@@ -770,23 +759,22 @@ impl ViewService {
     ) -> Result<Option<UserSession>> {
         let make_error = || Error::new("failed to get user session", ErrorType::Session);
 
-        // Get user data from session token (if present)
+        // Get user data from session token (if present). An unknown or expired
+        // token views as anonymous, as a visitor whose Wikidot session ended.
         // Sessions can only be for real users, so we assert
-        let user_session = match session_token {
+        let session = match session_token {
             Some("") | None => None,
-            Some(token) => {
-                let session =
-                    SessionService::get(ctx, token).await.or_raise(make_error)?;
-
-                let user = UserService::get_real(ctx, Reference::Id(session.user_id))
-                    .await
-                    .or_raise(make_error)?;
-
-                Some(UserSession { session, user })
-            }
+            Some(token) => SessionService::get_optional(ctx, token)
+                .await
+                .or_raise(make_error)?,
         };
-
-        Ok(user_session)
+        let Some(session) = session else {
+            return Ok(None);
+        };
+        let user = UserService::get_real(ctx, Reference::Id(session.user_id))
+            .await
+            .or_raise(make_error)?;
+        Ok(Some(UserSession { session, user }))
     }
 
     async fn load_page_form(
