@@ -22,9 +22,9 @@ export function shortcutControl(event: KeyboardEventKey): KeyboardControl {
 type Replacement = readonly [RegExp, string]
 
 const listRules: Replacement[] = [
-  [/((?:\r?\n|^)\s*[\*#:]\s.*?\r?\n)\s*[\*#:]\s\r?\n$/, "$1\n"],
-  [/((?:\r?\n|^)([\*#])\s.*?\r?\n)$/, "$1$2 "],
-  [/(\r?\n *[\*#]\s.+\r?\n( *)([\*#])\s.*?\r?\n)$/, "$1$2$3 "]
+  [/((?:\r?\n|^)\s*[*#:]\s.*?\r?\n)\s*[*#:]\s\r?\n$/, "$1\n"],
+  [/((?:\r?\n|^)([*#])\s.*?\r?\n)$/, "$1$2 "],
+  [/(\r?\n *[*#]\s.+\r?\n( *)([*#])\s.*?\r?\n)$/, "$1$2$3 "]
 ]
 
 const remainingRules: Replacement[] = [
