@@ -71,7 +71,7 @@ let
         mkdir -p "$out/share/deepwell"
         cp -r migrations seeder "$out/share/deepwell/"
         cp config.example.toml "$out/share/deepwell/"
-        cp -r ${root + /locales} "$out/share/deepwell/locales"
+        cp -r --no-preserve=mode ${root + /locales} "$out/share/deepwell/locales"
       '';
       meta = {
         description = "Wikijump backend with runtime data assets";
