@@ -24,6 +24,15 @@ use crate::tree::{Container, ContainerType, HtmlTag};
 pub fn render_container(ctx: &mut HtmlContext, container: &Container) {
     debug!("Rendering container '{}'", container.ctype().name());
 
+    // Wikidot does not create a paragraph when its first token is an image.
+    if ctx.layout() == Layout::Wikidot
+        && container.ctype() == ContainerType::Paragraph
+        && matches!(container.elements().first(), Some(Element::Image { .. }))
+    {
+        render_elements(ctx, container.elements());
+        return;
+    }
+
     match container.ctype() {
         // We wrap with <rp> around the <rt> contents
         ContainerType::RubyText => {
@@ -89,5 +98,45 @@ fn choose_id(ctx: &mut HtmlContext, tag_spec: &HtmlTag) -> Option<String> {
         Some(ctx.random().generate_html_id())
     } else {
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::data::PageInfo;
+    use crate::layout::Layout;
+    use crate::render::{Render, html::HtmlRender};
+    use crate::settings::{WikitextMode, WikitextSettings};
+
+    fn render(source: &str) -> String {
+        let page_info = PageInfo::dummy();
+        let settings = WikitextSettings::from_mode(WikitextMode::Page, Layout::Wikidot);
+        let mut text = source.to_owned();
+        crate::preprocess(&mut text);
+        let tokens = crate::tokenize(&text);
+        let (tree, errors) = crate::parse(&tokens, &page_info, &settings).into();
+        assert!(errors.is_empty(), "{errors:?}");
+        HtmlRender.render(&tree, &page_info, &settings).body
+    }
+
+    #[test]
+    fn wikidot_leading_image_is_not_wrapped_but_inline_image_and_prose_are() {
+        let leading = render("[[div]]\n[[image fixture.png]]\nCaption\n[[/div]]");
+        assert!(
+            leading.starts_with("<div><img ") && leading.contains("<br>Caption</div>"),
+            "{leading}"
+        );
+
+        let inline = render("[[div]]\nText [[image fixture.png]] Caption\n[[/div]]");
+        assert!(
+            inline.starts_with("<div><p>Text <img ")
+                && inline.ends_with(" Caption</p></div>"),
+            "{inline}"
+        );
+
+        assert_eq!(
+            render("[[div]]\nProse\n[[/div]]"),
+            "<div><p>Prose</p></div>"
+        );
     }
 }
