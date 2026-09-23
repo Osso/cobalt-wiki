@@ -1,6 +1,6 @@
 # Cobalt history import
 
-Cobalt history import must backfill authorized source revision history without presenting the latest-source migration as complete history. The current migration has 6,092 pages and 1,471 files. The user approved importing historical text from Wikidot's display representation even where tabs may become spaces; raw responses and that limit must remain recorded. The bounded homepage pilot acquired 240 listed revisions and all 240 source-module representations; it did not establish byte-exact historical bodies or whole-site history counts. See the [current POC import contract](cobalt-poc-import.md), the [native revision import endpoint](../../deepwell/src/endpoints/import.rs), the [native import service](../../deepwell/src/services/import/service.rs), and the [stock WikiComma importer entry point](../../deepwell/importer/__main__.py).
+Cobalt history import must store authorized source revision history without presenting the latest-source migration as complete history. The current migration has 6,092 pages and 1,471 files. The user approved importing historical text from Wikidot's display representation even where tabs may become spaces; raw responses and that limit must remain recorded. The bounded homepage pilot acquired 240 listed revisions and all 240 source-module representations; it did not establish byte-exact historical bodies or whole-site history counts. See the [current POC import contract](cobalt-poc-import.md), the [native revision import endpoint](../../deepwell/src/endpoints/import.rs), the [native import service](../../deepwell/src/services/import/service.rs), and the [stock WikiComma importer entry point](../../deepwell/importer/__main__.py).
 
 ## What it must do
 
@@ -12,24 +12,25 @@ Cobalt history import must backfill authorized source revision history without p
 - [ ] Keep source creator and ACL dependencies explicitly unknown until authorized source evidence establishes them.
 - [ ] Avoid an API-key dependency for acquisition or import.
 
-### Backfill integrity
+### Imported history integrity
 
-- [ ] Preserve the current imported page and latest source while a reviewed backfill runs.
+- [x] Preserve the current imported page and latest source while imported history is stored separately.
 - [ ] Preserve source revision order, source identifiers, numbers, timestamps, author identities, comments, and revision-specific metadata when acquired.
 - [ ] Never fabricate revision records, bodies, author identities, or metadata.
 - [ ] Distinguish the technical migration record already present on POC pages from source history; do not represent it as a source revision.
-- [ ] Reconcile every imported record and explicitly report retained gaps after backfill.
+- [ ] Reconcile every imported record and explicitly report retained gaps after import.
 
 ### Proof and operational safety
 
 - [x] Acquire all 240 revision-list records (numbers 0–239) and all 240 historical source-module responses for one page through the authenticated read-only source UI.
 - [x] Decode all 240 captured source-module representations with explicit display-decoded provenance; the current revision decodes to the archived source hash.
 - [x] Confirm that the module returns HTML-wrapped source representations rather than an independently verified byte-identical archive representation.
-- [ ] Complete a reversible local multi-revision backfill pilot before any production history write.
-- [ ] Prove imported current-body equality by the existing archived source hash.
+- [x] Store three source records idempotently in local imported-history storage without changing the current revision, compiled output, or native revision count.
+- [ ] Import the acquired 240-revision homepage pilot into local imported-history storage before any production history write.
+- [ ] Prove the imported pilot's current body equals the existing archived source hash.
 - [ ] Keep historical display-decoding provenance and raw responses through import. Do not promise byte-exact recovery for old bodies.
 - [ ] Prevent historical bulk work from causing an outdate or rerender flood; validate queue impact before production work.
-- [ ] Require review before selecting an implementation, identifier-rekeying policy, deletion policy, or replacement/backfill policy.
+- [ ] Require review before any operation that changes native editable revisions, page identity, or source deletion policy.
 
 ## How it works
 
@@ -58,7 +59,6 @@ Imported source history uses `imported_page_revision`, separate from native edit
 - `deepwell/importer/__main__.py`: importer command entrypoint; it does not crawl source history.
 - `deepwell/src/endpoints/import.rs`: exposes `import_wikidot_page_revision`.
 - `deepwell/src/services/import/service.rs`: native Wikidot revision import behavior; the endpoint expects a sequential history beginning at revision 0.
-- `tools/cobalt_migration/poc_import.py`: current latest-source importer; it does not acquire or import historical revision records.
 - `tools/cobalt_migration/page_history.py`: parses revision-list metadata and gaps.
 - `tools/cobalt_migration/history_source.py`: decodes the source display with explicit non-byte-exact provenance.
 - `tools/cobalt_migration/poc_import.py`: remains latest-source only; no history target write exists yet.
@@ -77,8 +77,8 @@ Imported source history uses `imported_page_revision`, separate from native edit
 - [x] Verify homepage revision-list pagination and IDs: 12 pages of 20 rows cover revisions 0–239 exactly once; all 240 rows have numeric author/date fields, five source author profiles were captured, seven metadata-change diff responses were captured, and all 240 bodies were captured. This establishes only that page's listed history.
 - [ ] Acquire every required page's authorized revisions and establish complete counts/pagination. Current latest-revision positions total 45,367 across 6,090 accepted pages plus two unresolved pages; this is a position estimate, not an actual revision inventory.
 - [ ] Resolve source-backed old title, slug, tag, and author-profile timestamp transitions.
-- [ ] Review native backfill foreign-key and non-content-event constraints before replacing the technical revision 0; straight append conflicts with the native sequential requirement.
-- [ ] Build and prove a reversible local multi-revision backfill pilot, including current-body hash equality and bounded queue impact.
+- [ ] Import the acquired 240-revision homepage pilot through separate storage, prove current-body hash equality, and measure zero queue impact.
+- [ ] Review any future native editable-revision replacement separately; it is not required for imported source history.
 - [ ] Establish source-backed creator and ACL dependencies before claiming permission parity.
 
 ## Out of scope
@@ -87,4 +87,4 @@ Imported source history uses `imported_page_revision`, separate from native edit
 - API-key dependency.
 - Engine change.
 - Rendering work owned by the user.
-- Choosing an implementation, identifier-rekeying policy, deletion policy, or replacement/backfill policy before review.
+- Rewriting native editable revision history, identifier rekeying, or source deletion.
