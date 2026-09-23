@@ -26,8 +26,8 @@ FTML must render same-site attachment references through the deployed site's pro
 
 - [x] Native routing test and all 121 FTML AST fixtures pass; fmt/check pass. Deployed and refreshed 28 affected pages, preserving source hashes and revision identity. Browser loads both homepage images backed by imported attachments, with matching hashes through public authenticated HTTPS.
 - [ ] Two homepage images still depend on unresolved template variables; routing must not pretend their requested assets exist.
-- [ ] Local full-preview browser image proof is pending; its observed attachment/gateway root causes and remediation are the [replica-status SSOT](../wiki/systems/cobalt-replica-status.md#local-full-preview-media-routing).
+- [x] Local full-preview image correction browser proof passed: authenticated `home:_public` (`2/2` visible images, `2/2` CSS backgrounds, `4/4` verified assets) and `home:start` (`19/19`, `3/3`, `22/22`) have no failures; unauthenticated access remains `401` and no-index remains present. The [replica-status SSOT](../wiki/systems/cobalt-replica-status.md#local-full-preview-media-routing) records causes and evidence scope.
 
 ## Out of scope
 
-External asset acquisition, cross-site routing redesign, template expansion, and source ACL parity remain separate work. Shared POC authentication stays mandatory.
+External asset acquisition, cross-site routing redesign, template expansion, full visual parity (including top navigation tabs and sidebar matching the original), and source ACL parity remain separate work. Shared POC authentication stays mandatory.
