@@ -169,6 +169,27 @@ in
       type = lib.types.str;
       description = "Wikijump file-domain configuration supplied by routing integration.";
     };
+    wikidotSync = {
+      enable = lib.mkEnableOption "periodic sync of pages changed on the source Wikidot site";
+      origin = lib.mkOption {
+        type = lib.types.str;
+        example = "https://cobalt-company.wikidot.com";
+        description = "Source Wikidot site origin.";
+      };
+      siteId = lib.mkOption {
+        type = lib.types.int;
+        description = "Replica site ID receiving the changes.";
+      };
+      passwordFile = lib.mkOption {
+        type = lib.types.str;
+        description = "Runtime file (outside the store) with the cobalt-import account password, readable by the service account.";
+      };
+      interval = lib.mkOption {
+        type = lib.types.str;
+        default = "*:0/15";
+        description = "systemd OnCalendar schedule.";
+      };
+    };
     bootstrapSeedDirectory = lib.mkOption {
       type = lib.types.nullOr lib.types.str;
       default = null;
@@ -193,6 +214,15 @@ in
         message = "Cobalt bootstrap seeds must be reviewed private runtime files, not bundled Nix-store seeds.";
       }
       {
+        assertion =
+          !cfg.wikidotSync.enable
+          || (
+            lib.hasPrefix "/" cfg.wikidotSync.passwordFile
+            && !(lib.hasPrefix "/nix/store/" cfg.wikidotSync.passwordFile)
+          );
+        message = "Cobalt wikidotSync.passwordFile must be an absolute runtime path outside the Nix store.";
+      }
+      {
         assertion = cfg.mainDomain != "" && cfg.filesDomain != "";
         message = "Cobalt main and files domains must be supplied by routing integration.";
       }
@@ -202,6 +232,13 @@ in
       isSystemUser = true;
       group = account;
     };
+    systemd.timers.cobalt-wiki-wikidot-sync = lib.mkIf cfg.wikidotSync.enable {
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnCalendar = cfg.wikidotSync.interval;
+        Persistent = true;
+      };
+    };
     systemd.slices.cobalt-wiki = {
       description = "Cobalt wiki resource budget";
       sliceConfig = {
@@ -210,6 +247,26 @@ in
       };
     };
     systemd.services = {
+      cobalt-wiki-wikidot-sync = lib.mkIf cfg.wikidotSync.enable {
+        description = "Sync pages changed on Wikidot into the Cobalt replica";
+        requires = [ "cobalt-wiki-deepwell.service" ];
+        after = [ "cobalt-wiki-deepwell.service" "network-online.target" ];
+        wants = [ "network-online.target" ];
+        environment.PYTHONPATH = "${packages.wikidot-tools}/lib/cobalt";
+        serviceConfig = common // {
+          Type = "oneshot";
+          RuntimeDirectory = "cobalt-wiki-wikidot-sync";
+          ExecStart = lib.escapeShellArgs [
+            python
+            "${./wikidot_sync.py}"
+            cfg.wikidotSync.origin
+            (toString cfg.wikidotSync.siteId)
+            cfg.wikidotSync.passwordFile
+            "${postgres}/bin/psql --host=${socket} --username=${account} --dbname=cobalt_wiki"
+            "http://127.0.0.1:2747/jsonrpc"
+          ];
+        };
+      };
       cobalt-wiki-postgresql = {
         description = "Cobalt private PostgreSQL 17";
         wantedBy = [ "multi-user.target" ];

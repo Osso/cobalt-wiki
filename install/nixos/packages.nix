@@ -162,6 +162,11 @@ let
       mainProgram = "framerail";
     };
   };
+  # Standard-library Python tools for syncing from Wikidot (tools/cobalt_migration).
+  wikidot-tools = pkgs.runCommand "cobalt-wikidot-tools-${version}" { } ''
+    mkdir -p $out/lib/cobalt/tools
+    cp -r ${root + /tools/cobalt_migration} $out/lib/cobalt/tools/cobalt_migration
+  '';
 in
 {
   inherit
@@ -169,5 +174,6 @@ in
     wws
     framerail
     silo
+    wikidot-tools
     ;
 }
