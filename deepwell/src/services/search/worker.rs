@@ -1,4 +1,4 @@
-//! Bounded worker invocation. Caller schedules repeated calls after commits and at startup.
+//! Search outbox worker.
 use super::{SearchDocument, SearchService, outbox, plain_body};
 use crate::error::prelude::*;
 use crate::models::{page, page_revision, search_index_pending, text};
@@ -6,9 +6,30 @@ use sea_orm::{
     ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait, QueryOrder, QuerySelect,
     Statement, TransactionTrait,
 };
+use std::future::Future;
+use tokio::time::{Duration, sleep};
 
 const BATCH_SIZE: u64 = 50;
 const LOCK_KEY: i64 = 0x7365_6172_6368_7067;
+const IDLE_DELAY: Duration = Duration::from_secs(1);
+
+/// Ensure the index once, then keep draining committed outbox work until cancelled or failed.
+pub async fn run(db: &DatabaseConnection, search: &SearchService) -> Result<()> {
+    search.ensure_index().await?;
+    run_batches(|| process_one_batch(db, search)).await
+}
+
+async fn run_batches<F, Fut>(mut process_batch: F) -> Result<()>
+where
+    F: FnMut() -> Fut,
+    Fut: Future<Output = Result<usize>>,
+{
+    loop {
+        if process_batch().await? == 0 {
+            sleep(IDLE_DELAY).await;
+        }
+    }
+}
 
 /// Sync one bounded batch from committed DB state; returns number of rows examined.
 /// The transaction-level lock serializes external writes across all worker processes.
@@ -68,6 +89,73 @@ pub async fn process_one_batch(
         )
     })?;
     Ok(pending.len())
+}
+
+#[cfg(test)]
+mod scheduling_tests {
+    use super::*;
+    use tokio::sync::mpsc;
+    use tokio::time::{Duration, Instant, timeout};
+
+    #[tokio::test]
+    async fn drains_nonempty_batches_before_waiting_on_empty_batch() {
+        let (calls_tx, mut calls_rx) = mpsc::unbounded_channel();
+        let worker = tokio::spawn(async move {
+            let mut results = [50, 1, 0, 0].into_iter();
+            run_batches(|| {
+                calls_tx.send(Instant::now()).unwrap();
+                let count = results.next().unwrap_or(0);
+                async move { Ok(count) }
+            })
+            .await
+        });
+
+        let first = timeout(Duration::from_secs(2), calls_rx.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        let second = timeout(Duration::from_millis(500), calls_rx.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        let third = timeout(Duration::from_millis(500), calls_rx.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(second.duration_since(first) < Duration::from_millis(500));
+        assert!(third.duration_since(second) < Duration::from_millis(500));
+        assert!(
+            timeout(Duration::from_millis(700), calls_rx.recv())
+                .await
+                .is_err()
+        );
+        assert!(
+            timeout(Duration::from_millis(700), calls_rx.recv())
+                .await
+                .unwrap()
+                .is_some()
+        );
+        worker.abort();
+        worker.await.unwrap_err();
+    }
+
+    #[tokio::test]
+    async fn exits_on_batch_error_instead_of_retrying() {
+        let mut calls = 0;
+        let result = timeout(
+            Duration::from_secs(2),
+            run_batches(|| {
+                calls += 1;
+                async {
+                    Err(Error::new("permanent batch failure", ErrorType::Page).into())
+                }
+            }),
+        )
+        .await
+        .unwrap();
+        assert!(result.is_err());
+        assert_eq!(calls, 1);
+    }
 }
 
 async fn read_current_document(
