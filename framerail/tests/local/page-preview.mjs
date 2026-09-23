@@ -144,6 +144,34 @@ async function clickPreview(page, slug) {
 
 /**
  * @param {import("@playwright/test").Page} page
+ * @param {string} marker
+ */
+async function fillFormattedSource(page, marker) {
+  const input = page.locator('#editor [name="wikitext"]')
+  const unformatted = `+ ${marker}\n${marker}`
+  await input.fill(unformatted)
+  await input.evaluate((element, length) => {
+    element.focus()
+    element.setSelectionRange(element.value.length - length, element.value.length)
+  }, marker.length)
+  await page
+    .getByRole("toolbar", { name: "Wikitext formatting" })
+    .getByRole("button", { name: "bold", exact: true })
+    .click()
+  const formatted = `+ ${marker}\n**${marker}**`
+  await expect(input).toHaveValue(formatted)
+  assert.deepEqual(
+    await input.evaluate((element) => ({
+      focused: document.activeElement === element,
+      start: element.selectionStart,
+      end: element.selectionEnd
+    })),
+    { focused: true, start: formatted.length, end: formatted.length }
+  )
+}
+
+/**
+ * @param {import("@playwright/test").Page} page
  * @param {import("@playwright/test").APIRequestContext} request
  * @param {Fixture} fixture
  * @param {string} token
@@ -156,7 +184,7 @@ async function previewExisting(page, request, fixture, token) {
   const title = `Preview ${fixture.rawMarker}`
   const source = `+ ${fixture.rawMarker}\n**${fixture.rawMarker}**`
   await page.locator('#editor [name="title"]').fill(title)
-  await page.locator('#editor [name="wikitext"]').fill(source)
+  await fillFormattedSource(page, fixture.rawMarker)
   const { region, submitted } = await clickPreview(page, fixture.existingSlug)
   assert.equal(submitted.title, title, "preview must use typed title")
   assert.equal(submitted.wikitext, source, "preview must use typed source")
@@ -180,7 +208,7 @@ async function previewMissing(page, request, fixture, token) {
   const title = `Missing ${fixture.rawMarker}`
   const source = `+ ${fixture.rawMarker}\n**${fixture.rawMarker}**`
   await page.locator('#editor [name="title"]').fill(title)
-  await page.locator('#editor [name="wikitext"]').fill(source)
+  await fillFormattedSource(page, fixture.rawMarker)
   const { region, submitted } = await clickPreview(page, fixture.missingSlug)
   assert.equal(submitted.title, title)
   assert.equal(submitted.wikitext, source)
