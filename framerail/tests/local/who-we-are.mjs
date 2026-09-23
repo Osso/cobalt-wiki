@@ -10,11 +10,14 @@ const digest = (value) => createHash("sha256").update(value).digest("hex")
 /**
  * @typedef {{ x: number; y: number; width: number; height: number }} Rect
  *
+ *
  * @typedef {{
  *   viewport: { width: number; height: number }
  *   page_title: string
  *   content_text_sha256: string
  *   content_rect: Rect
+ *   first_imagebox_rect: Rect
+ *   first_caption_rect: Rect
  *   images: { path: string; rect: Rect; sha256: string }[]
  * }} Baseline
  */
@@ -82,6 +85,12 @@ test("who-we-are matches source article, image bytes, and layout", async () => {
       assert.ok(box)
       compareRect(box, image.rect, image.path)
     }
+    const imageBox = content.locator(":scope > div").first()
+    const imageBoxRect = await imageBox.boundingBox()
+    const captionRect = await imageBox.locator("span").first().boundingBox()
+    assert.ok(imageBoxRect && captionRect)
+    compareRect(captionRect, baseline.first_caption_rect, "first caption")
+    compareRect(imageBoxRect, baseline.first_imagebox_rect, "first image box")
     const box = await content.boundingBox()
     assert.ok(box)
     compareRect(box, baseline.content_rect, "article")
