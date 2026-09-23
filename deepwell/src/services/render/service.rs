@@ -189,6 +189,8 @@ impl RenderService {
                     .await?;
             wikitext =
                 super::list_pages::expand_list_pages(ctx, expanded, page_info).await?;
+            wikitext =
+                super::wikidot_comments::strip_comments(std::mem::take(&mut wikitext));
             ftml::preprocess(&mut wikitext);
             Ok::<_, ExnError>((ftml::tokenize(&wikitext), included_pages))
         })

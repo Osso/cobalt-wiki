@@ -39,6 +39,7 @@ mod page_tokens;
 mod service;
 mod show_to;
 mod structs;
+mod wikidot_comments;
 
 pub use self::service::RenderService;
 pub use self::structs::*;
