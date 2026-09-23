@@ -50,6 +50,14 @@ Verified 2026-09-23 at canonical revision `1310687`. The protected source baseli
 
 Browser proof `/tmp/claude/cobalt-navigation-browser-green.log` passed `1/1`: seven top-level tabs in one row, top-bar height `24px` at `y=106`, visible hover dropdown, and no sidebar. Independent verification remains pending. Automatic invalidation for navigation-setting changes is not implemented: only the two current local homepages were rerendered, so other cached pages can retain old navigation until refreshed.
 
+## Local who-we-are paragraph proof
+
+Verified 2026-09-23 at `c0d79e1`, following paragraph/comment rendering commit `2ffcebe`. The imported `who-we-are` source remains unchanged: 4,758 bytes, SHA-256 `81faa6b5a13d43bd59177409909c4c650df86550cd60601f7db36d54da260bbe`; its current revision also remains unchanged. Only that page was rerendered with local Deepwell `2749`.
+
+The actual source document uses XHTML 1.0 Transitional. An otherwise identical standalone HTML probe measured a 5 px caption gap in XHTML Transitional and 13 px in HTML5. `c0d79e1` therefore selects the legacy doctype only for successful Wikidot content-root and slug documents; native, error, and special responses remain HTML5. Its focused response suite passed `4/4`.
+
+At current code, `/tmp/claude/cobalt-who-we-are-browser-green.log` is green: `who-we-are` returns `200`; visible-text SHA matches source; all three images match source MIME/SHA and exact positions; at 1440×1000 the first caption is y=670, ImageBox height is 289 px, and article height is 1,605 px; the sidebar is absent; no JavaScript errors occurred. This is a bounded local browser result, not full-site visual parity/readiness. Independent final verification remains pending. The durable rendering contract is [paragraph formatting](../../specs/cobalt-paragraph-formatting.md); proposed Meilisearch/search remains a separate decision with no implementation.
+
 ## Acquisition and proof artifacts
 
 The source API remains disabled with its original settings. No API key is required or requested. Canonical names were independently enumerated; colon-to-underscore forward mapping matches archive keys without gaps or collisions. Never invert underscore substitution to infer names.
