@@ -21,6 +21,7 @@ const digest = (value) => createHash("sha256").update(JSON.stringify(value)).dig
  *   nextLabel?: string
  * }} Field
  *
+ *
  * @typedef {{
  *   sacrificial: true
  *   siteSlug: "cobalt-company"
@@ -88,7 +89,7 @@ function assertValues(actual, expected, stage) {
 
 /**
  * @param {import("@playwright/test").Page} page @param {Fixture} fixture
- *   @param {"initial" | "next"} version
+ * @param {"initial" | "next"} version
  */
 async function assertControls(page, fixture, version) {
   const editor = page.locator("#editor")
@@ -185,8 +186,8 @@ test("authenticated data-form edit persists typed values without dropping untouc
       .fill((await readFile(adminPasswordFile, "utf8")).trim())
     await page.locator("#login button[type=submit]").click()
     await expect(page.locator("#login")).toHaveCount(0)
-    const sessionToken = (await context.cookies(preview)).find(
-      (cookie) => cookie.name === "wikijump_token"
+    const sessionToken = (await context.cookies()).find(
+      (cookie) => cookie.name === "wikijump_token" && cookie.domain === "127.0.0.1"
     )?.value
     assert.ok(sessionToken, "login must create a real browser session")
 
