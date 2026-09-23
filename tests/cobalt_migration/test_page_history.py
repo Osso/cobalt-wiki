@@ -105,7 +105,15 @@ class PageHistoryTest(unittest.TestCase):
             history([revision(6, 600), revision(0, 100)], page=2, previous_page=1),
         ]
         result = parse_history_pages(pages)
-        self.assertEqual([record["number"] for record in result], [9, 7, 6, 0])
+        self.assertEqual(
+            [record["number"] for record in result["revisions"]], [9, 7, 6, 0]
+        )
+        self.assertEqual(result["unobserved_ranges"], [(8, 8), (5, 1)])
+
+    def test_unobserved_initial_revision_is_reported_as_gap_not_fabricated(self):
+        result = parse_history_pages([history([revision(2, 900), revision(1, 800)])])
+        self.assertEqual([row["number"] for row in result["revisions"]], [2, 1])
+        self.assertEqual(result["unobserved_ranges"], [(0, 0)])
 
     def test_duplicate_revision_numbers_and_global_ids_fail_across_pages(self):
         for rows in (

@@ -203,4 +203,11 @@ def parse_history_pages(html_pages):
     if previous is None or previous["next_page"] is not None:
         raise PageHistoryError("history pagination incomplete")
     _validate_revisions(revisions)
-    return revisions
+    unobserved = [
+        (older["number"] - 1, newer["number"] + 1)
+        for older, newer in zip(revisions, revisions[1:])
+        if older["number"] - newer["number"] > 1
+    ]
+    if revisions[-1]["number"] > 0:
+        unobserved.append((revisions[-1]["number"] - 1, 0))
+    return {"revisions": revisions, "unobserved_ranges": unobserved}
