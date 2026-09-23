@@ -53,6 +53,7 @@ pub mod all {
     pub use super::category::*;
     pub use super::domain::*;
     pub use super::editor_lookup::*;
+    pub use super::editor_pages::*;
     pub use super::email::*;
     pub use super::file::*;
     pub use super::file_revision::*;
@@ -90,6 +91,7 @@ pub mod blob;
 pub mod category;
 pub mod domain;
 pub mod editor_lookup;
+pub mod editor_pages;
 pub mod email;
 pub mod file;
 pub mod file_revision;
