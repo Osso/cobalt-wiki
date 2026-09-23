@@ -163,7 +163,7 @@ async fn upsert_and_remove_use_idempotent_meili_tasks() {
     service.remove_page(4).await.unwrap();
     let wire = requests.lock().unwrap();
     assert!(
-        wire[0].starts_with("PUT /indexes/pages/documents?primaryKey=page_id HTTP/1.1")
+        wire[0].starts_with("POST /indexes/pages/documents?primaryKey=page_id HTTP/1.1")
     );
     assert!(wire[0].contains("\"body\":\"visible body\""));
     assert!(wire[2].starts_with("DELETE /indexes/pages/documents/4 HTTP/1.1"));
@@ -185,6 +185,6 @@ async fn existing_index_configuration_is_repeatable() {
 
 #[test]
 fn html_plain_text_omits_nonvisible_markup() {
-    let html = "<p>Hello &amp; goodbye</p><script>secret()</script><style>.secret{}</style><div hidden>hidden</div><p>Visible <b>text</b></p>";
+    let html = "<p>Hello &amp; goodbye</p><script>secret()</script><style>.secret{}</style><div hidden>hidden</div><span class=\"wj-hidden\">conditional secret</span><p>Visible <b>text</b></p>";
     assert_eq!(plain_body(html), "Hello & goodbye Visible text");
 }

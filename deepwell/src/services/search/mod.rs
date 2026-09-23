@@ -211,7 +211,7 @@ impl SearchService {
     pub async fn upsert(&self, document: SearchDocument) -> Result<()> {
         let task: TaskCreated = self
             .request(
-                Method::PUT,
+                Method::POST,
                 &format!("/indexes/{INDEX}/documents?primaryKey=page_id"),
                 Some(serde_json::json!([document])),
             )
@@ -488,6 +488,11 @@ fn plain_body(html: &str) -> String {
                     let name = element.name();
                     if ["script", "style", "template", "noscript", "svg"].contains(&name)
                         || element.attr("hidden").is_some()
+                        || element.attr("class").is_some_and(|classes| {
+                            classes.split_whitespace().any(|class| {
+                                matches!(class, "wj-hidden" | "wj-invisible")
+                            })
+                        })
                         || element.attr("aria-hidden") == Some("true")
                         || element.attr("style").is_some_and(|style| {
                             style.replace(' ', "").contains("display:none")
