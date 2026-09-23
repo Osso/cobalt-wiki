@@ -333,6 +333,7 @@ async fn archived_cobalt_pages_render_without_template_syntax() {
     .unwrap();
 
     let pages = [
+        "start",
         "home:start",
         "character:atley",
         "writing:2005-04-02-a-brief-emphatic-response",
