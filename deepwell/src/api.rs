@@ -142,7 +142,7 @@ pub async fn build_server_state(
 
     // Set up reqwest client for the MailCheck API
     let mailcheck_api_client = {
-        use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
+        use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
         use reqwest::redirect::Policy as RedirectPolicy;
 
         let mut builder = ReqwestClient::builder();
