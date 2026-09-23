@@ -11,12 +11,24 @@ Framerail edits the optional backend `Found.form` payload using ordered source-d
 - [x] Use form controls whenever a form exists; retain the raw editor only for nonform/template pages.
 - [x] Preserve existing title, alternate title, tags, comments, revision and authentication handling through the edit action.
 - [x] Preview raw or structured draft content through the SvelteKit action without publishing, creating a revision, or changing stored page/source/form data. The trusted request identity and access check precede submitted form validation; anonymous and spoofed requests are denied.
+- [x] Save one site/page-target draft shared by users for either current-page edit or creation. This target/ownership model is a documented source-based inference, not verified current-server behavior.
+- [x] Store draft `title` and raw `source` exactly, plus the complete typed form-value map, including unknown values. Restore original raw source bytes when unchanged; after source changes, merge valid JSON/YAML form data.
+- [x] On a saved draft, offer Edit Original or Edit Draft before normal save; original publishing discards the draft. Cancel offers leave or delete.
+- [x] Authorize draft access against an existing origin page; creation-only permission must not expose a draft whose private source page was moved or deleted. Preserve inaccessible orphan rows without automatic relocation.
 
 ## How it works
 
 - [Form schema contract](cobalt-data-form-schema.md)
 - The raw wikitext formatting toolbar uses 22×22 icons and the three-row control order measured from the authenticated Wikidot editor (`/tmp/claude/wikidot-editor-reference/toolbar-dom.json`, `toolbar-styles.json`, September 23, 2026). Its local `framerail/static/cobalt-editor/icons1.png` is the source sprite from `https://d3g0gp89917ko0.cloudfront.net/v--05014b438f4f/common--theme/base/images/editor/icons1.png` (SHA-256 `d4b09792783e799e3dfd3acc0590f59783a9875909b5baf88f43f5d384d6acd3`); heading levels 2–6 and directional clear-float controls are nested. The mounted raw editors use the implemented 36 source-backed transformations; source wizards are omitted.
-- Preview requests are form-encoded as required by SvelteKit actions. Static source script and handler-definition review identifies source save through `synchronize`, a restore offer of **Edit Original**/**Edit Draft**, and cancel choices to leave or delete a draft; no source save/action was executed for this inventory.
+- Preview requests are form-encoded as required by SvelteKit actions.
+
+### Save Draft contract and provenance
+
+The user selected `sameasWikidot`; the contract therefore follows captured hosted-editor behavior where evidence exists and source-based inference where it does not. The public `gabrys/wikidot` snapshot 0.90 (July 2009; HEAD September 2009) has no page-draft storage or actions. Captured hosted JavaScript shows title/source saving through `synchronize`, **Edit Original**/**Edit Draft** restoration, Cancel **Leave**/**Delete**, and publishing the original discarding the draft. It does not establish current server ownership, visibility, or lifecycle behavior.
+
+The implemented contract infers one shared draft per site/page target, used by current-page **Edit** or **Create**. It is not a per-actor draft contract. A read-only check returned `ok=true`, `draftExists=true`, and `publishedPagePresent=false`; no save/cancel/delete request or user-draft mutation was captured. Browser proof remains pending.
+
+Draft rows retain exact inline source/title and complete typed form values, including unknown values. Restoration returns unchanged raw bytes; changed source uses a valid JSON/YAML merge. The security boundary is the origin page: creation-only access cannot recover a draft from a private page after move/deletion. Such orphan rows remain inaccessible and are not automatically relocated.
 
 ## Implementation inventory
 
@@ -38,7 +50,7 @@ Framerail edits the optional backend `Found.form` payload using ordered source-d
 
 ## Known gaps (current cycle)
 
-- [ ] Save Draft server ownership/access semantics are unknown. Source review alone shows `synchronize`, restore offers for **Edit Original**/**Edit Draft**, and cancel leave/delete choices.
+- [ ] Browser interaction proof for Save Draft, restore choice, and cancel leave/delete is pending. The hosted-source evidence and stated inferred ownership contract do not prove current-server parity.
 - [ ] Six source wizards (table, code, URL, page, image, equation), quick reference/snippets, and watcher-checkbox semantics are unimplemented.
 - [ ] Toolbar transformation behavior is source-backed and the bold path has browser proof, but full visual/editor parity is not established.
 - [ ] Backend unknown-value preservation is relied upon, not reimplemented by frontend tests.
