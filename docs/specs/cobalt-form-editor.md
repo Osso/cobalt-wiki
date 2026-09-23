@@ -16,6 +16,9 @@ Framerail edits the optional backend `Found.form` payload using ordered source-d
 - [x] Store draft `title` and `wikitext` exactly. Derive complete typed form values, including unknown keys, from stored source on read. Preserve unchanged restored source bytes; merge complete values when fields are edited.
 - [x] On a saved draft, offer Edit Original or Edit Draft before normal save; original publishing discards the draft. Cancel offers leave or delete.
 - [x] Authorize draft access against an existing origin page; creation-only permission must not expose a draft whose private source page was moved or deleted. Preserve inaccessible orphan rows without automatic relocation.
+- [x] Provide table, code, URL, page-link, image, and equation-reference wizards for raw editors. Code wraps the captured range; the other five insert at its start without consuming selected text. Equation references insert `Eq.([[eref label]])` or bare `[[eref label]]`, not a wrapper around selected text.
+- [x] Use the trusted current page for image attachment lookup, requiring both View and Edit; return active files whose latest revision is an image. A missing target returns no attachment lookup result rather than creating it.
+- [x] Use permission-filtered current-content search for page suggestions after two characters and a 0.5-second delay. This is a local lookup contract, not verified source autocomplete parity.
 
 ## How it works
 
@@ -25,13 +28,14 @@ Framerail edits the optional backend `Found.form` payload using ordered source-d
 
 ### Source wizard evidence and contract
 
-The hosted editor implementation is `/tmp/claude/wikidot-editor-reference/WIKIDOT.editor.pretty.js`; dialog fields come from the older public reference `/home/osso/Repos/wikidot/web/files--common/editor/dialogs.html`. The latter supplies field/default evidence, not current hosted-browser parity. No implementation, browser proof, or live lookup parity is claimed here.
+The hosted editor implementation is `/tmp/claude/wikidot-editor-reference/WIKIDOT.editor.pretty.js`; dialog fields come from the older public reference `/home/osso/Repos/wikidot/web/files--common/editor/dialogs.html`. The latter supplies field/default evidence, not current hosted-browser parity. Local implementation and proof are listed below; they do not establish live lookup or visual parity.
 
 - Code wraps the captured selection range, or inserts a selected placeholder at an empty caret. The other five wizards—table, URL, page link, image, and equation reference—insert at the captured selection start without consuming selected text. `erefWizard` inserts a reference to a labelled equation, optionally surrounded by `Eq.(…)`; it does not wrap selected text or create an equation.
 - Table defaults to 3 rows and 3 columns, with an optional first-row header. The older dialog permits only two input characters (`maxlength="2"`); integer validation and a 1–99 range are local implementation inference, not source behavior.
+- Local implementation supports the source-derived table/code/URL/page-link/image/equation forms. Image accepts URI, attached-file, and Flickr syntax; its position choices map to no position, left, right, center, float-left, and float-right. It intentionally omits the older template's unused extra-CSS field and does not expose size options, which were not captured. Flickr input is normalized locally but no Flickr photo-info check occurs.
 - Code offers empty type plus `Cpp`, `CSS`, `PHP`, `HTML`, `diff`, `Java`, misspelled source value `JavaScipt`, `Perl`, `Python`, `Ruby`, `SQL`, and `XML`.
-- URL defaults to `http://`, has optional anchor text, and defaults the new-window checkbox off. Page link takes page name plus optional anchor; source autocomplete starts at two characters after a 0.5-second delay, but current lookup transport/results are unverified.
-- Image offers external URL, attached file, and Flickr sources; position is none, left, right, center, float-left, or float-right. The older template's extra-CSS input is ignored by the hosted insertion handler, so no decorative CSS field is added. Attached-file enumeration requires authorization; Flickr photo-info checking remains unimplemented.
+- URL defaults to `http://`, has optional anchor text, and defaults the new-window checkbox off. Page link takes page name plus optional anchor; the local request begins at two characters after a 0.5-second delay and reuses permission-filtered current-content search. It is not exact source title-autocomplete parity.
+- Attachment lookup authorizes the trusted site/page/user for both View and Edit, includes only active files whose latest revision is an image, and excludes attachments for a missing target. Browser proof covers an existing page with an empty attachment list and a missing page where the attached-file choice is absent; a nonempty attachment browser case remains unproven.
 - Equation reference scans the editor's current source for labelled math blocks, displays their source as escaped text, and offers `Eq.(number)` or bare-number output. No network lookup is needed.
 
 ### Save Draft contract and provenance
@@ -50,7 +54,10 @@ Independent bounded audit (agent 363) confirmed the browser assertions and one r
 
 - `framerail/src/lib/form-editor.ts`: scalar transport types, draft/diff model and exclusive content payload.
 - `framerail/src/lib/component/DataFormFields.svelte`: source-defined controls and labels.
-- `framerail/src/routes/[slug]/[...extra]/EditorPane.svelte`: selects form or raw editor, mounts the toolbar for raw create/edit, and submits changed fields.
+- `framerail/src/routes/[slug]/[...extra]/EditorPane.svelte`: selects form or raw editor, mounts the toolbar and wizard dialogs for raw create/edit, restores source selection after insert/cancel, and submits changed fields.
+- `framerail/src/lib/wikitext-wizards.ts`: pure wizard validation, source generation, selection insertion, equation extraction, and Flickr normalization.
+- `framerail/src/lib/component/WikitextWizard.svelte`: six modal wizard forms, delayed page suggestions, attachment selection, URI preview, and escaped equation-source preview.
+- `framerail/src/lib/server/load/editor-lookup.ts`, `deepwell/src/endpoints/editor_lookup.rs`: trusted page-suggestion transport and current-page image attachment lookup.
 - `framerail/src/lib/component/EditorPreview.svelte`, `framerail/src/lib/server/load/page-preview.ts`, `deepwell/src/endpoints/page_preview.rs`: form-encoded preview action and authorized no-write rendering.
 - `framerail/src/lib/server/deepwell/views.ts`: optional backend form response type.
 - `framerail/src/lib/server/load/page.ts`: forwards form data and validates exclusive edit inputs.
@@ -62,6 +69,11 @@ Independent bounded audit (agent 363) confirmed the browser assertions and one r
 - `deepwell/tests/page_form_create.rs`: native create/preview/draft through the category form, anonymous denial, invalid select rejection.
 - `framerail/tests/form-editor.test.ts`: concrete draft changes, scalar codes, readonly/unknown exclusions and wire payloads.
 - `framerail/tests/form-fields.test.mjs`: bounded Svelte server-rendered radio/dropdown controls, typed selection, unknown/unselected values and static text; not browser interaction proof.
+- `framerail/tests/wikitext-wizards.test.ts`: pure insertion/validation coverage for all six wizard forms, including the code-versus-other-wizard selection distinction and equation output modes.
+- `framerail/tests/wikitext-wizard-component.test.mjs`: server-rendered wizard defaults/controls and escaped equation source. Helpers/component proof passed 14/14 at `e574e42`; `06abc0a` subsequently selects the first equation on mount, covered by browser evidence below.
+- `framerail/tests/editor-lookup.test.ts`: five action contracts at `0a78014`: trusted request context, short-query rejection, mapped results, and safe failures.
+- `deepwell/tests/editor_lookup.rs`: native authorized current-page image lookup, image/latest-revision filtering, and anonymous/missing/forged-target rejection; 4/4 at `50c4fd7` (`/tmp/claude/cargo-editor-lookup-50c4fd7.out`).
+- `framerail/tests/local/editor-wizards.mjs`: authenticated local browser acceptance 1/1 (`/tmp/claude/cobalt-wizards-browser-sixth.log`): all six insert and preview, real page suggestions, empty existing attachment lookup, missing-target attachment exclusion, cancel focus/selection restoration, and unchanged existing revision/source with missing target still absent.
 - `deepwell/tests/page_draft.rs`: native draft authorization, save/restore/delete and typed-value coverage; 13 passed at `835eaf7`. `9d20256` adds the confirmed delete response assertion.
 - `/tmp/claude/cobalt-page-draft-browser-fifth.log`: authenticated local browser lifecycle 1/1, including unpublished-target save/reopen/restore/publish/delete, structured typed-value preservation, and anonymous denial.
 - `/tmp/claude/cobalt-preview-911748e-native.log`: native 6/6 proof of authorized missing/existing raw previews, structured preview merge and stale/invalid rejection, trusted request identity/access before submitted validation, and no revisions from invalid/conflicting preview input.
@@ -71,10 +83,10 @@ Independent bounded audit (agent 363) confirmed the browser assertions and one r
 ## Known gaps (current cycle)
 
 - [ ] Hosted-server ownership, visibility, and lifecycle parity remain unproven. The shared target/ownership model is authorized source-based inference; the captured source check has no Save/Cancel/Delete action.
-- [ ] Implement and test the six source wizards as a complete replica obligation: table, code, URL, page link, image, and equation reference. Preserve the documented insertion distinction: code wraps the current range; the other five insert at selection start without replacing selected text.
-- [ ] Complete wizard-specific contracts: table 3×3/header and inferred 1–99 integer validation; source code-type values including `JavaScipt`; URL/page anchors and URL new-window option; image source/position options; and equation-reference output mode.
-- [ ] Establish browser parity and lookup proof before claiming it: page autocomplete timing/results, attached-file enumeration, Flickr checking, equation-label discovery, and equation preview are still unverified. Quick reference/snippets and watcher-checkbox semantics also remain unimplemented.
-- [ ] Toolbar transformation behavior is source-backed and the bold path has browser proof, but full visual/editor parity is not established.
+- [ ] Establish source visual/editor parity: watchers, quick-reference/snippets, source helper behavior, and ACL/history/import integration remain open.
+- [ ] Establish source autocomplete parity. The current lookup is permission-filtered current-content search, not a verified title-autocomplete replica.
+- [ ] Browser-prove a nonempty attached-file list and selected attachment; Flickr photo-info checking remains unimplemented. Size options were not captured and are not implemented.
+- [ ] Toolbar transformation behavior is source-backed and the bold path has browser proof, but full visual/editor parity is not established. Independent final gates (383) remain pending; this is not a full-readiness claim.
 - The retained `/tmp/claude/cobalt-forms-browser-fourth.log` covers text/wiki/radio/select edits and typed/unknown-value preservation. Restored-draft merge tests and the draft browser scenario add complete-value preservation coverage; they do not establish every field type's full source parity.
 
 ## Out of scope
