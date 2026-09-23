@@ -31,18 +31,27 @@ impl CreatePageRequest {
             )
             .into());
         }
-        let form = load_create_form(ctx, self.create.site_id, &self.create.slug)
-            .await?
-            .ok_or_else(|| {
-                Error::new(
-                    "form_updates requires a visible category form template",
-                    ErrorType::BadRequest,
-                )
-            })?;
-        self.create.wikitext = new_record(&form.schema, updates)
-            .or_raise(|| Error::new("invalid form values", ErrorType::BadRequest))?;
+        self.create.wikitext =
+            load_new_record(ctx, self.create.site_id, &self.create.slug, updates).await?;
         Ok(self.create)
     }
+}
+
+/// The source of a new page at `slug` saved from its category form.
+pub(crate) async fn load_new_record(
+    ctx: &ServiceContext<'_>,
+    site_id: i64,
+    slug: &str,
+    updates: &Mapping,
+) -> Result<String> {
+    let form = load_create_form(ctx, site_id, slug).await?.ok_or_else(|| {
+        Error::new(
+            "form_updates requires a visible category form template",
+            ErrorType::BadRequest,
+        )
+    })?;
+    new_record(&form.schema, updates)
+        .or_raise(|| Error::new("invalid form values", ErrorType::BadRequest))
 }
 
 /// The category form a new page at `slug` is created from, as the requesting

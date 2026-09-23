@@ -1,5 +1,6 @@
 //! Read-only rendering of an editor's submitted page body.
 
+use super::page::form_create::load_new_record;
 use super::page::form_edit::load_updated_source;
 use super::prelude::*;
 use crate::models::page::Model as PageModel;
@@ -53,9 +54,9 @@ impl PreviewRequest {
             )
             .into());
         }
-        if self.form_updates.is_set() && (!exists || self.last_revision_id.is_none()) {
+        if self.form_updates.is_set() && exists && self.last_revision_id.is_none() {
             return Err(Error::new(
-                "form_updates requires an existing page and last_revision_id",
+                "form_updates on an existing page requires last_revision_id",
                 ErrorType::BadRequest,
             )
             .into());
@@ -86,7 +87,8 @@ pub async fn page_preview(
     let site = SiteService::get(ctx, Reference::Id(site_id)).await?;
     let metadata =
         read_preview_metadata(ctx, site_id, &reference, page.as_ref(), &input).await?;
-    let source = read_preview_source(ctx, site_id, reference, &input).await?;
+    let source =
+        read_preview_source(ctx, site_id, reference, &metadata.slug, &input).await?;
     let html =
         render_preview(ctx, source, &site.slug, &site.locale, metadata, &input).await?;
     Ok(PagePreviewOutput { html })
@@ -182,20 +184,18 @@ async fn read_preview_source(
     ctx: &ServiceContext<'_>,
     site_id: i64,
     reference: Reference<'_>,
+    slug: &str,
     input: &PreviewRequest,
 ) -> Result<String> {
     match (&input.wikitext, &input.form_updates) {
         (Maybe::Set(source), Maybe::Unset) => Ok(source.clone()),
-        (Maybe::Unset, Maybe::Set(updates)) => {
-            load_updated_source(
-                ctx,
-                site_id,
-                reference,
-                input.last_revision_id.expect("validated"),
-                updates,
-            )
-            .await
-        }
+        (Maybe::Unset, Maybe::Set(updates)) => match input.last_revision_id {
+            Some(revision_id) => {
+                load_updated_source(ctx, site_id, reference, revision_id, updates).await
+            }
+            // A missing page previews the record its category form would save.
+            None => load_new_record(ctx, site_id, slug, updates).await,
+        },
         _ => unreachable!("validated source mode"),
     }
 }

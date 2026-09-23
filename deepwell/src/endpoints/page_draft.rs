@@ -1,5 +1,6 @@
 //! Shared unpublished source per site and canonical page slug.
 
+use super::page::form_create::load_new_record;
 use super::page::form_edit::load_updated_source;
 use super::prelude::*;
 use crate::models::page::Model as PageModel;
@@ -235,6 +236,9 @@ async fn resolve_source(
             Ok(source)
         }
         (Some(source), None, None) if last_revision_id.is_none() => Ok(source),
+        (None, Some(updates), None) if last_revision_id.is_none() => {
+            load_new_record(ctx, target.site_id, &target.slug, &updates).await
+        }
         (None, Some(updates), Some(page)) => {
             let revision_id = check_base(page, last_revision_id)?;
             load_updated_source(ctx, target.site_id,

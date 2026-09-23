@@ -98,6 +98,30 @@ async fn form_category_pages_are_created_from_the_category_form() {
             .extend(extra.as_object().unwrap().clone());
         payload
     };
+    // Preview and draft of the unsaved page use the same record.
+    let preview = run_endpoint!(
+        runner,
+        page_preview,
+        json!({"title": "Isabeau Clark", "form_updates": {"name": "Isabeau Preview"}})
+    );
+    assert!(preview.html.contains("Isabeau Preview"), "{}", preview.html);
+    run_endpoint!(
+        runner,
+        page_draft_save,
+        json!({"title": "Isabeau Clark", "form_updates": {"name": "Isabeau Draft", "sex": "male"}})
+    );
+    let draft = run_endpoint!(runner, page_draft_get)
+        .draft
+        .expect("saved draft");
+    assert_eq!(
+        draft.wikitext,
+        "name: 'Isabeau Draft'\naka: '@@'\nsex: male"
+    );
+    assert_eq!(
+        draft.form_values.unwrap().get("sex"),
+        Some(&wikidot_forms::Value::String("male".into())),
+    );
+
     let rejected = run_endpoint_err!(
         runner,
         page_create,
