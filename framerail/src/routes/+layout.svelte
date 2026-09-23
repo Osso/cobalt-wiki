@@ -36,18 +36,21 @@
     setLayout()
   })
 
-  function onSubmit(event: SubmitEvent) {
-    submitNewPage(
-      event,
-      (path) => window.location.assign(path),
-      (message) => {
-        errorPopupState.current = { state: true, message, data: null }
-      }
-    )
-  }
+  // Capture phase: SvelteKit's router takes same-origin GET form submits
+  // (NewPage's action is "dummy.html") unless an earlier listener prevents them.
+  $effect(() => {
+    const onSubmit = (event: SubmitEvent) =>
+      submitNewPage(
+        event,
+        (path) => window.location.assign(path),
+        (message) => {
+          errorPopupState.current = { state: true, message, data: null }
+        }
+      )
+    window.addEventListener("submit", onSubmit, true)
+    return () => window.removeEventListener("submit", onSubmit, true)
+  })
 </script>
-
-<svelte:document onsubmit={onSubmit} />
 
 <div class="svg-defs hidden">
   {@html ui}
