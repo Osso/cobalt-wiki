@@ -111,15 +111,13 @@ test("image check helper opens and closes a real isolated browser popup", async 
     await context.tracing.start({ screenshots: true, snapshots: true })
     /** @type {string[]} */
     const denied = []
-    await context.route("**/*", async (route) => {
-      const request = route.request()
-      const url = new URL(request.url())
-      if (request.method() === "GET" && url.origin === origin) {
-        await route.continue()
-        return
+    // This isolated server rejects writes and serves only fixed local fixtures.
+    // Context-wide interception stalls initial about:blank image loads in Chromium;
+    // observe requests instead so this test exercises the real popup lifecycle.
+    context.on("request", (request) => {
+      if (request.method() !== "GET" || new URL(request.url()).origin !== origin) {
+        denied.push(`${request.method()} ${request.url()}`)
       }
-      denied.push(`${request.method()} ${request.url()}`)
-      await route.abort("blockedbyclient")
     })
     const page = await context.newPage()
     await page.goto(origin)

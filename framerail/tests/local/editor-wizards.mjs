@@ -67,28 +67,34 @@ async function readPage(request, fixture, slug, token) {
  * @param {string[]} denied
  */
 async function denyWritesAndExternalRequests(context, denied) {
-  await context.route("**/*", async (route) => {
-    const request = route.request()
-    const url = new URL(request.url())
-    const local = url.origin === origin
-    const action = url.search.startsWith("?/") ? url.search.slice(2) : null
-    const allowedPost =
-      request.method() === "POST" &&
-      (url.pathname === "/-/login" ||
-        (url.pathname.endsWith("/edit") &&
-          action !== null &&
-          ["preview", "editorPages", "editorAttachments", "draftGet"].includes(action)))
-    if (local && (["GET", "HEAD"].includes(request.method()) || allowedPost)) {
-      await route.continue()
-      return
+  // Do not intercept the fixed static image fixtures: Chromium stalls images
+  // created in initial about:blank popups under context-wide interception.
+  // These static routes have no write actions; application routes remain guarded.
+  await context.route(
+    (url) => url.origin !== origin || !url.pathname.startsWith("/cobalt-editor/"),
+    async (route) => {
+      const request = route.request()
+      const url = new URL(request.url())
+      const local = url.origin === origin
+      const action = url.search.startsWith("?/") ? url.search.slice(2) : null
+      const allowedPost =
+        request.method() === "POST" &&
+        (url.pathname === "/-/login" ||
+          (url.pathname.endsWith("/edit") &&
+            action !== null &&
+            ["preview", "editorPages", "editorAttachments", "draftGet"].includes(action)))
+      if (local && (["GET", "HEAD"].includes(request.method()) || allowedPost)) {
+        await route.continue()
+        return
+      }
+      // Imported theme styles attempt read-only CDN fetches; block them without
+      // confusing a prevented stylesheet fetch with a forbidden write.
+      if (request.method() !== "GET" || request.resourceType() !== "stylesheet") {
+        denied.push(`${request.method()} ${url.origin}${url.pathname}`)
+      }
+      await route.abort("blockedbyclient")
     }
-    // Imported theme styles attempt read-only CDN fetches; block them without
-    // confusing a prevented stylesheet fetch with a forbidden write.
-    if (request.method() !== "GET" || request.resourceType() !== "stylesheet") {
-      denied.push(`${request.method()} ${url.origin}${url.pathname}`)
-    }
-    await route.abort("blockedbyclient")
-  })
+  )
 }
 
 /**
