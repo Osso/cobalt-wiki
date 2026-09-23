@@ -6,7 +6,7 @@ use deepwell::constants::ADMIN_USER_ID;
 use deepwell::error::ErrorType;
 use deepwell::services::RequestContext;
 use deepwell::types::Reference;
-use sea_orm::{ConnectionTrait, DbBackend, Statement};
+use sea_orm::{ConnectionTrait, DbBackend, Statement, TransactionTrait};
 use serde_json::json;
 
 const SLUG: &str = "draft:example";
@@ -214,6 +214,151 @@ async fn publication_cleanup_helper_removes_only_matching_site_and_slug() {
 }
 
 #[tokio::test]
+async fn create_publishes_and_discards_target_draft() {
+    let (mut runner, site_id) = setup().await;
+    run_endpoint!(
+        runner,
+        page_draft_save,
+        json!({"title": "Unpublished", "wikitext": "Draft body"})
+    );
+    create(&mut runner, site_id, SLUG, "Published body").await;
+    assert!(run_endpoint!(runner, page_draft_get).draft.is_none());
+    let published = run_endpoint!(
+        runner,
+        page_get,
+        json!({
+            "site_id": site_id, "page": SLUG, "details": {"wikitext": true}
+        })
+    )
+    .unwrap();
+    assert_eq!(published.wikitext.as_deref(), Some("Published body"));
+}
+
+#[tokio::test]
+async fn successful_edit_and_noop_save_original_both_discard_draft() {
+    let (mut runner, site_id) = setup().await;
+    let revision_id = create(&mut runner, site_id, SLUG, "Original body").await;
+    run_endpoint!(
+        runner,
+        page_draft_save,
+        json!({
+            "title": "Unpublished", "wikitext": "Draft body", "last_revision_id": revision_id
+        })
+    );
+    let edit = run_endpoint!(
+        runner,
+        page_edit,
+        json!({
+            "site_id": site_id, "page": SLUG, "last_revision_id": revision_id,
+            "revision_comments": "Publish", "user_id": ADMIN_USER_ID,
+            "wikitext": "New published body", "ip_address": common::IP_ADDRESS
+        })
+    )
+    .unwrap();
+    assert!(run_endpoint!(runner, page_draft_get).draft.is_none());
+    run_endpoint!(
+        runner,
+        page_draft_save,
+        json!({
+            "title": "Another draft", "wikitext": "Another body",
+            "last_revision_id": edit.revision_id
+        })
+    );
+    let no_revision = run_endpoint!(
+        runner,
+        page_edit,
+        json!({
+            "site_id": site_id, "page": SLUG, "last_revision_id": edit.revision_id,
+            "revision_comments": "Save original", "user_id": ADMIN_USER_ID,
+            "wikitext": "New published body", "ip_address": common::IP_ADDRESS
+        })
+    );
+    assert!(no_revision.is_none());
+    assert!(run_endpoint!(runner, page_draft_get).draft.is_none());
+}
+
+#[tokio::test]
+async fn rejected_stale_edit_keeps_draft() {
+    let (mut runner, site_id) = setup().await;
+    let revision_id = create(&mut runner, site_id, SLUG, "Original").await;
+    run_endpoint!(
+        runner,
+        page_draft_save,
+        json!({
+            "title": "Unpublished", "wikitext": "Draft body", "last_revision_id": revision_id
+        })
+    );
+    let error = run_endpoint_err!(
+        runner,
+        page_edit,
+        json!({
+            "site_id": site_id, "page": SLUG, "last_revision_id": revision_id - 1,
+            "revision_comments": "Stale", "user_id": ADMIN_USER_ID,
+            "wikitext": "Other", "ip_address": common::IP_ADDRESS
+        })
+    );
+    assert_contains_error!(error, ErrorType::NotLatestRevisionId);
+    assert_eq!(
+        run_endpoint!(runner, page_draft_get)
+            .draft
+            .unwrap()
+            .wikitext,
+        "Draft body"
+    );
+}
+
+#[tokio::test]
+async fn rolling_back_nested_publication_restores_draft_and_published_page() {
+    let (mut runner, site_id) = setup().await;
+    let revision_id = create(&mut runner, site_id, SLUG, "Original").await;
+    run_endpoint!(
+        runner,
+        page_draft_save,
+        json!({
+            "title": "Unpublished", "wikitext": "Draft body", "last_revision_id": revision_id
+        })
+    );
+    let nested = runner.context().transaction().begin().await.unwrap();
+    let ctx = deepwell::services::ServiceContext::new(runner.state(), &nested)
+        .with_request(runner.context().request().clone());
+    deepwell::endpoints::all::page_edit(
+        &ctx,
+        common::make_params(json!({
+            "site_id": site_id, "page": SLUG, "last_revision_id": revision_id,
+            "revision_comments": "Publish", "user_id": ADMIN_USER_ID,
+            "wikitext": "Published change", "ip_address": common::IP_ADDRESS
+        })),
+    )
+    .await
+    .unwrap();
+    assert!(
+        deepwell::endpoints::all::page_draft_get(&ctx, common::empty_params())
+            .await
+            .unwrap()
+            .draft
+            .is_none()
+    );
+    nested.rollback().await.unwrap();
+    assert_eq!(
+        run_endpoint!(runner, page_draft_get)
+            .draft
+            .unwrap()
+            .wikitext,
+        "Draft body"
+    );
+    let page = run_endpoint!(
+        runner,
+        page_get,
+        json!({
+            "site_id": site_id, "page": SLUG, "details": {"wikitext": true}
+        })
+    )
+    .unwrap();
+    assert_eq!(page.revision_id, revision_id);
+    assert_eq!(page.wikitext.as_deref(), Some("Original"));
+}
+
+#[tokio::test]
 async fn structured_updates_preserve_unknown_typed_fields_and_return_source() {
     let (mut runner, site_id) = setup().await;
     create(
@@ -247,12 +392,11 @@ async fn structured_updates_preserve_unknown_typed_fields_and_return_source() {
         serde_json::to_value(values).unwrap(),
         json!({"name": "After", "count": 7, "unknown": true})
     );
+    let restored = run_endpoint!(runner, page_draft_get).draft.unwrap();
+    assert_eq!(restored.wikitext, saved.wikitext);
     assert_eq!(
-        run_endpoint!(runner, page_draft_get)
-            .draft
-            .unwrap()
-            .wikitext,
-        saved.wikitext
+        serde_json::to_value(restored.form_values.unwrap()).unwrap(),
+        json!({"name": "After", "count": 7, "unknown": true})
     );
     assert_eq!(counts(&runner).await, before);
 }
