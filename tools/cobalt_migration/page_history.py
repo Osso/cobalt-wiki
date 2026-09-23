@@ -1,6 +1,7 @@
 """Parse Wikidot revision-list HTML without executing scripts or fetching pages."""
 
 import re
+from itertools import pairwise
 
 from .page_listing import _ListingHTML, _Node, _walk
 
@@ -207,7 +208,7 @@ def parse_history_pages(html_pages):
     _validate_revisions(revisions)
     unobserved = [
         (older["number"] - 1, newer["number"] + 1)
-        for older, newer in zip(revisions, revisions[1:])
+        for older, newer in pairwise(revisions)
         if older["number"] - newer["number"] > 1
     ]
     if revisions[-1]["number"] > 0:
