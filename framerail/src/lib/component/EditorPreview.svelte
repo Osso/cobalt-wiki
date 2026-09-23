@@ -13,6 +13,11 @@
   let pending = $state(false)
   let errorMessage = $state("")
 
+  function showPreviewError() {
+    errorMessage = "Unable to preview page"
+    errorPopupState.current = { state: true, message: errorMessage, data: null }
+  }
+
   async function preview() {
     if (pending) return
     pending = true
@@ -28,12 +33,10 @@
       if (result.type === "success" && typeof result.data?.html === "string") {
         html = result.data.html
       } else {
-        errorMessage = "Unable to preview page"
-        errorPopupState.current = { state: true, message: errorMessage }
+        showPreviewError()
       }
     } catch {
-      errorMessage = "Unable to preview page"
-      errorPopupState.current = { state: true, message: errorMessage }
+      showPreviewError()
     } finally {
       pending = false
     }
