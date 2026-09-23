@@ -150,32 +150,32 @@
 
 <button
   id="edit-save-draft-button"
-  type="button"
   disabled={!loaded || pending || choice === "restore"}
   onclick={saveDraft}
+  type="button"
 >
   {pending ? "Working…" : "Save Draft"}
 </button>
 {#if message}<p role="status">{message}</p>{/if}
 {#if errorMessage}<p role="alert">{errorMessage}</p>{/if}
 {#if choice === "restore" && draft}
-  <dialog aria-label="Saved draft" bind:this={prompt} oncancel={() => (choice = null)}>
+  <dialog bind:this={prompt} aria-label="Saved draft" oncancel={() => (choice = null)}>
     <p>A saved draft exists. Choose which version to edit.</p>
-    <button type="button" disabled={pending} onclick={() => (choice = null)}>
+    <button disabled={pending} onclick={() => (choice = null)} type="button">
       Edit Original
     </button>
-    <button type="button" disabled={pending} onclick={restoreDraft}>Edit Draft</button>
+    <button disabled={pending} onclick={restoreDraft} type="button">Edit Draft</button>
   </dialog>
 {:else if choice === "cancel"}
   <dialog
-    aria-label="Keep saved draft"
     bind:this={prompt}
+    aria-label="Keep saved draft"
     oncancel={() => (choice = null)}
   >
     <p>Delete saved draft or leave it for later?</p>
-    <button type="button" disabled={pending} onclick={deleteDraft}>Delete Draft</button>
-    <button type="button" disabled={pending} onclick={leaveDraft}>Leave Draft</button>
-    <button type="button" disabled={pending} onclick={() => (choice = null)}>
+    <button disabled={pending} onclick={deleteDraft} type="button">Delete Draft</button>
+    <button disabled={pending} onclick={leaveDraft} type="button">Leave Draft</button>
+    <button disabled={pending} onclick={() => (choice = null)} type="button">
       Continue Editing
     </button>
   </dialog>

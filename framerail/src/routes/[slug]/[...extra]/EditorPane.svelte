@@ -220,8 +220,8 @@
 <EditorDraft
   bind:this={draftControls}
   getPayload={draftPayload}
-  onRestore={restoreDraft}
   loadOnMount
+  onRestore={restoreDraft}
 />
 
 <style lang="scss">

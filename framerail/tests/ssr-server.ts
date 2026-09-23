@@ -14,7 +14,7 @@ export async function createSsrServer() {
     })
     return {
       vite,
-      async close() {
+      close: async () => {
         try {
           await vite.close()
         } finally {

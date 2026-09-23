@@ -248,6 +248,7 @@ async function assertAnonymousDenied(context, request, fixture) {
     )
   }
   for (const action of ["draftGet", "draftSave", "draftDelete"]) {
+    /** @type {Record<string, string>} */
     const form =
       action === "draftSave"
         ? { payload: JSON.stringify({ title: source, wikitext: source }) }
@@ -364,10 +365,11 @@ async function exerciseExistingRawDraft(page, request, fixture, token, original)
 async function exerciseFormDraft(page, request, fixture, token, original, initialValues) {
   const name = `Draft ${fixture.formMarker}`
   const notes = `Published ${fixture.formMarker}`
-  assert.ok(original.form, "form schema required")
+  const form = original.form
+  assert.ok(form, "form schema required")
   /** @param {string} key */
   const fieldLabel = (key) => {
-    const field = original.form.schema.fields.find((candidate) => candidate.name === key)
+    const field = form.schema.fields.find((candidate) => candidate.name === key)
     assert.ok(field, `${key} field required`)
     return String(field.properties.label || field.name)
   }

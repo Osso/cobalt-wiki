@@ -242,8 +242,8 @@
         title: $editForm.title ?? "",
         wikitext: $editForm.wikitext ?? ""
       })}
-      onRestore={restoreDraft}
       loadOnMount
+      onRestore={restoreDraft}
     />
   {:else}
     <div id="page-content">
