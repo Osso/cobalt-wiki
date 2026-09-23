@@ -156,10 +156,12 @@
     <DataFormFields form={sourceForm} bind:draft />
   {:else}
     <WikitextToolbar
+      attachmentLookup={data.page
+        ? () => lookupEditorAttachments(params.slug)
+        : undefined}
+      pageLookup={lookupEditorPages}
       textarea={sourceTextarea}
       bind:value={$form.wikitext}
-      pageLookup={lookupEditorPages}
-      attachmentLookup={() => lookupEditorAttachments(data.page.slug)}
     />
     <textarea
       bind:this={sourceTextarea}

@@ -324,12 +324,12 @@
 
 {#if wizard}
   <WikitextWizard
-    kind={wizard.kind}
-    source={wizard.source}
-    {pageLookup}
     {attachmentLookup}
-    onInsert={(options) => closeWizard(options)}
+    kind={wizard.kind}
     onCancel={() => closeWizard()}
+    onInsert={(options) => closeWizard(options)}
+    {pageLookup}
+    source={wizard.source}
   />
 {/if}
 

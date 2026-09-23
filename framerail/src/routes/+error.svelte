@@ -195,9 +195,9 @@
         <DataFormFields form={createForm} bind:draft={formDraft} />
       {:else}
         <WikitextToolbar
+          pageLookup={lookupEditorPages}
           textarea={sourceTextarea}
           bind:value={$editForm.wikitext}
-          pageLookup={lookupEditorPages}
         />
         <textarea
           bind:this={sourceTextarea}
