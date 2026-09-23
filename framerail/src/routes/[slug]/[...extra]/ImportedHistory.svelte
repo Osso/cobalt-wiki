@@ -17,7 +17,6 @@
   async function requestHistory<T>(action: string, parameters: Record<string, number>) {
     const response = await fetch(`?/${action}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(parameters)
     })
     const result = deserialize<{ res: T }, { message?: string }>(await response.text())
