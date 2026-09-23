@@ -122,9 +122,12 @@ let
     subprocess.run(["${pkgs.minio-client}/bin/mc", "--config-dir", "/run/cobalt-wiki-buckets", "mb", "--ignore-existing", "cobalt/cobalt-wiki-files", "cobalt/cobalt-wiki-text-blocks"], check=True)
   '';
   requireProvisioning = pkgs.writeText "cobalt-require-provisioning.py" ''
+    import subprocess
     from pathlib import Path
     if not Path("${marker}").is_file():
         raise RuntimeError("Cobalt database is not provisioned. Apply migrations and reviewed production seeds, then create ${marker}; stock demo seeds must not be used.")
+    # Deploys ship new migrations with the package; sqlx applies only pending ones.
+    subprocess.run(["${pkgs.sqlx-cli}/bin/sqlx", "migrate", "run", "--source", "${packages.deepwell}/share/deepwell/migrations"], check=True)
   '';
   bootstrap = pkgs.writeText "cobalt-bootstrap.py" ''
     import os
