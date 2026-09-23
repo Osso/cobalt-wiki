@@ -4,8 +4,9 @@ use super::includes::can_view_shared;
 use super::page_tokens::{FormRecord, PageTokens, substitute_tokens};
 use super::prelude::*;
 use crate::models::page::Entity as Page;
+use crate::models::text::{self, Entity as Text};
+use crate::services::SiteService;
 use crate::services::view::form::template_slug;
-use crate::services::{SiteService, TextService};
 use crate::types::Reference;
 use sea_orm::{DatabaseBackend, FromQueryResult, Statement, Value};
 use std::collections::HashMap;
@@ -393,12 +394,25 @@ async fn select_pages(
     });
     sort_pages(&mut pages, selection.order, selection.descending);
     // Compiled HTML is shared, so only anonymously readable pages may be listed.
+    // Anonymous roles never depend on the page (page-author roles require a member),
+    // so one check per category decides every page in it.
+    let mut category_visible = HashMap::new();
     let mut visible = Vec::new();
     for page in pages {
         if visible.len() == selection.limit {
             break;
         }
-        if can_view_shared(ctx, site_id, page.page_id, page.page_category_id).await? {
+        let can_view = match category_visible.get(&page.page_category_id) {
+            Some(&can_view) => can_view,
+            None => {
+                let can_view =
+                    can_view_shared(ctx, site_id, page.page_id, page.page_category_id)
+                        .await?;
+                category_visible.insert(page.page_category_id, can_view);
+                can_view
+            }
+        };
+        if can_view {
             visible.push(page);
         }
     }
@@ -417,11 +431,7 @@ fn build_selection_query(site_id: i64, selection: &Selection) -> Statement {
                 p.created_at, p.updated_at, r.title, r.wikitext_hash
          FROM page p
          JOIN page_category c ON c.category_id = p.page_category_id
-         JOIN LATERAL (
-             SELECT title, tags, wikitext_hash FROM page_revision
-             WHERE site_id = p.site_id AND page_id = p.page_id
-             ORDER BY revision_number DESC LIMIT 1
-         ) r ON true
+         JOIN page_revision r ON r.revision_id = p.latest_revision_id
          WHERE p.site_id = $1 AND p.deleted_at IS NULL
            AND ($2 OR c.slug = ANY($3::text[]))
            AND NOT (c.slug = ANY($4::text[]))
@@ -475,12 +485,12 @@ async fn render_items(
 ) -> Result<Vec<String>> {
     let body = body.trim_matches(|c| c == '\n' || c == '\r');
     let uses_forms = body.contains("%%form_data{") || body.contains("%%form_raw{");
+    let records = match uses_forms {
+        true => load_form_records(ctx, site_id, pages, forms).await?,
+        false => pages.iter().map(|_| None).collect(),
+    };
     let mut items = Vec::with_capacity(pages.len());
-    for page in pages {
-        let form = match uses_forms {
-            true => load_form_record(ctx, site_id, page, forms).await?,
-            false => None,
-        };
+    for (page, form) in pages.iter().zip(&records) {
         let tokens = PageTokens {
             fullname: &page.slug,
             title: &page.title,
@@ -493,24 +503,46 @@ async fn render_items(
     Ok(items)
 }
 
-/// A listed page's form values; pages whose source is not a valid record get none.
-async fn load_form_record<'f>(
+/// Listed pages' form values, fetched in one query; pages whose source is not a
+/// valid record, or whose category has no form, get none.
+async fn load_form_records<'f>(
     ctx: &ServiceContext<'_>,
     site_id: i64,
-    page: &ListedPage,
+    pages: &[ListedPage],
     forms: &'f mut FormCache,
-) -> Result<Option<FormRecord<'f>>> {
-    if !forms.0.contains_key(&page.category) {
-        let schema = load_category_schema(ctx, site_id, &page.slug).await?;
-        forms.0.insert(page.category.clone(), schema);
+) -> Result<Vec<Option<FormRecord<'f>>>> {
+    for page in pages {
+        if !forms.0.contains_key(&page.category) {
+            let schema = load_category_schema(ctx, site_id, &page.slug).await?;
+            forms.0.insert(page.category.clone(), schema);
+        }
     }
-    let Some(Some(schema)) = forms.0.get(&page.category) else {
-        return Ok(None);
-    };
-    let source = TextService::get(ctx, &page.wikitext_hash).await?;
-    Ok(parse_values(&source)
-        .ok()
-        .map(|values| FormRecord { schema, values }))
+    let forms = &*forms;
+    let schema_of =
+        |page: &ListedPage| forms.0.get(&page.category).and_then(Option::as_ref);
+    let hashes: Vec<_> = pages
+        .iter()
+        .filter(|page| schema_of(page).is_some())
+        .map(|page| page.wikitext_hash.clone())
+        .collect();
+    let sources: HashMap<_, _> = Text::find()
+        .filter(text::Column::Hash.is_in(hashes))
+        .all(ctx.transaction())
+        .await
+        .or_raise(|| {
+            Error::new("failed to fetch listed page sources", ErrorType::Render)
+        })?
+        .into_iter()
+        .map(|text| (text.hash, text.contents))
+        .collect();
+    Ok(pages
+        .iter()
+        .map(|page| {
+            let schema = schema_of(page)?;
+            let values = parse_values(sources.get(&page.wikitext_hash)?).ok()?;
+            Some(FormRecord { schema, values })
+        })
+        .collect())
 }
 
 async fn load_category_schema(
