@@ -2,10 +2,16 @@
 mod common;
 
 use common::TestRunner;
-use deepwell::constants::ADMIN_USER_ID;
+use deepwell::constants::{ADMIN_USER_ID, SAMPLE_USER_ID, SYSTEM_USER_ID};
 use deepwell::error::ErrorType;
+use deepwell::license::License;
 use deepwell::services::RequestContext;
-use deepwell::types::Reference;
+use deepwell::services::permission::PermissionService;
+use deepwell::services::role::{
+    GrantUserRoleInput, InternalCreateRoleInput, RoleService, UpdateRolePermissionsInput,
+};
+use deepwell::services::site::{CreateSite, SiteService};
+use deepwell::types::{Action, Permission, Reference, Resource};
 use sea_orm::{ConnectionTrait, DbBackend, Statement, TransactionTrait};
 use serde_json::json;
 
@@ -181,6 +187,138 @@ async fn anonymous_cannot_read_replace_or_delete_shared_draft_even_with_spoofed_
 }
 
 #[tokio::test]
+async fn two_authorized_editors_share_draft_but_an_unprivileged_actor_is_denied() {
+    let (mut runner, site_id) = setup().await;
+    let revision_id = create(&mut runner, site_id, SLUG, "Published").await;
+    let role = RoleService::create(
+        runner.context(),
+        InternalCreateRoleInput {
+            site_id,
+            name: "Draft editor".into(),
+            description: None,
+            is_virtual: false,
+            parent_role_id: None,
+            creating_user_id: SYSTEM_USER_ID,
+            ip_address: common::IP_ADDRESS,
+        },
+    )
+    .await
+    .unwrap();
+    PermissionService::update_permissions_for_role(
+        runner.context(),
+        UpdateRolePermissionsInput {
+            site_id,
+            role_reference: Reference::Id(role.role_id),
+            new_permissions: [Action::View, Action::Edit]
+                .into_iter()
+                .map(|action| Permission {
+                    resource_type: Resource::Page,
+                    resource_category: None,
+                    action,
+                })
+                .collect(),
+            cascade_removals: false,
+            updating_user_id: SYSTEM_USER_ID,
+            ip_address: common::IP_ADDRESS,
+        },
+    )
+    .await
+    .unwrap();
+    RoleService::grant_role_to_user(
+        runner.context(),
+        GrantUserRoleInput {
+            site_id,
+            user_id: SAMPLE_USER_ID,
+            role_id: role.role_id,
+            assigning_user_id: SYSTEM_USER_ID,
+            expires_at: None,
+            ip_address: common::IP_ADDRESS,
+        },
+    )
+    .await
+    .unwrap();
+    run_endpoint!(
+        runner,
+        page_draft_save,
+        json!({
+            "title": "Admin draft", "wikitext": "From admin", "last_revision_id": revision_id
+        })
+    );
+    target(&mut runner, site_id, SLUG, Some(SAMPLE_USER_ID));
+    assert_eq!(
+        run_endpoint!(runner, page_draft_get)
+            .draft
+            .unwrap()
+            .wikitext,
+        "From admin"
+    );
+    run_endpoint!(
+        runner,
+        page_draft_save,
+        json!({
+            "title": "Shared draft", "wikitext": "From editor", "last_revision_id": revision_id
+        })
+    );
+    target(&mut runner, site_id, SLUG, Some(ADMIN_USER_ID));
+    assert_eq!(
+        run_endpoint!(runner, page_draft_get)
+            .draft
+            .unwrap()
+            .wikitext,
+        "From editor"
+    );
+}
+
+#[tokio::test]
+async fn identical_slugs_in_different_sites_have_independent_drafts() {
+    let (mut runner, site_id) = setup().await;
+    run_endpoint!(
+        runner,
+        page_draft_save,
+        json!({"title": "One", "wikitext": "Site one"})
+    );
+    let other = SiteService::create(
+        runner.context(),
+        CreateSite {
+            slug: "draft-isolation".into(),
+            name: "Draft isolation".into(),
+            tagline: String::new(),
+            description: "Site-isolated draft fixture".into(),
+            default_page: None,
+            layout: None,
+            license: License::CcBySa40,
+            locale: "en".into(),
+            ip_address: common::IP_ADDRESS,
+        },
+    )
+    .await
+    .unwrap();
+    target(&mut runner, other.site_id, SLUG, Some(ADMIN_USER_ID));
+    assert!(run_endpoint!(runner, page_draft_get).draft.is_none());
+    run_endpoint!(
+        runner,
+        page_draft_save,
+        json!({"title": "Two", "wikitext": "Site two"})
+    );
+    target(&mut runner, site_id, SLUG, Some(ADMIN_USER_ID));
+    assert_eq!(
+        run_endpoint!(runner, page_draft_get)
+            .draft
+            .unwrap()
+            .wikitext,
+        "Site one"
+    );
+    target(&mut runner, other.site_id, SLUG, Some(ADMIN_USER_ID));
+    assert_eq!(
+        run_endpoint!(runner, page_draft_get)
+            .draft
+            .unwrap()
+            .wikitext,
+        "Site two"
+    );
+}
+
+#[tokio::test]
 async fn publication_cleanup_helper_removes_only_matching_site_and_slug() {
     let (mut runner, site_id) = setup().await;
     run_endpoint!(
@@ -232,6 +370,34 @@ async fn create_publishes_and_discards_target_draft() {
     )
     .unwrap();
     assert_eq!(published.wikitext.as_deref(), Some("Published body"));
+}
+
+#[tokio::test]
+async fn import_does_not_discard_existing_missing_page_draft() {
+    let (runner, site_id) = setup().await;
+    run_endpoint!(
+        runner,
+        page_draft_save,
+        json!({
+            "title": "Unpublished", "wikitext": "Draft body"
+        })
+    );
+    run_endpoint!(
+        runner,
+        page_import,
+        json!({
+            "site_id": site_id, "slug": SLUG, "title": "Imported",
+            "wikitext": "Imported body", "revision_comments": "Import",
+            "user_id": ADMIN_USER_ID, "ip_address": common::IP_ADDRESS
+        })
+    );
+    assert_eq!(
+        run_endpoint!(runner, page_draft_get)
+            .draft
+            .unwrap()
+            .wikitext,
+        "Draft body"
+    );
 }
 
 #[tokio::test]
