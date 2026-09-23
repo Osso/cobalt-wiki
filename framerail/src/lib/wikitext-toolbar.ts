@@ -10,6 +10,7 @@ type Formatting = {
 }
 
 const formatting: Record<string, Formatting> = {
+  tab: { before: "", placeholder: "\t" },
   bold: { before: "**", after: "**", placeholder: "bold text" },
   italic: { before: "//", after: "//", placeholder: "italic text" },
   underline: { before: "__", after: "__", placeholder: "underline text" },

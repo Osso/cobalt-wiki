@@ -1,6 +1,7 @@
 <script lang="ts">
   import { tick } from "svelte"
-  import { applyWikitextToolbar } from "$lib/wikitext-toolbar"
+  import { applyWikitextToolbar, type ToolbarResult } from "$lib/wikitext-toolbar"
+  import { applyEnterAssist, shortcutControl } from "$lib/wikitext-keyboard"
   import { applyWizard, type WizardKind, type WizardOptions } from "$lib/wikitext-wizards"
   import WikitextWizard from "$lib/component/WikitextWizard.svelte"
 
@@ -31,6 +32,39 @@
     pageLinkWizard: "pageLink",
     imageWizard: "image",
     erefWizard: "eref"
+  }
+
+  $effect(() => {
+    const target = textarea
+    if (!target) return
+    const keyDown = (event: KeyboardEvent) => {
+      const control = shortcutControl(event)
+      if (!control) return
+      event.preventDefault()
+      if (control === "tab") event.stopPropagation()
+      void insert(control)
+    }
+    const keyUp = (event: KeyboardEvent) => {
+      if (event.key !== "Enter" || event.isComposing) return
+      const result = applyEnterAssist(target.value, target.selectionStart)
+      if (result.value !== target.value) void applyResult(result, target.scrollTop)
+    }
+    target.addEventListener("keydown", keyDown)
+    target.addEventListener("keyup", keyUp)
+    return () => {
+      target.removeEventListener("keydown", keyDown)
+      target.removeEventListener("keyup", keyUp)
+    }
+  })
+
+  async function applyResult(result: ToolbarResult, scrollTop: number) {
+    const target = textarea
+    if (!target) return
+    value = result.value
+    await tick()
+    target.focus()
+    target.setSelectionRange(result.start, result.end)
+    target.scrollTop = scrollTop
   }
 
   function openWizard(kind: WizardKind) {
@@ -236,11 +270,7 @@
       textarea.selectionEnd,
       control
     )
-    value = result.value
-    await tick()
-    textarea.focus()
-    textarea.setSelectionRange(result.start, result.end)
-    textarea.scrollTop = scrollTop
+    await applyResult(result, scrollTop)
   }
 </script>
 
