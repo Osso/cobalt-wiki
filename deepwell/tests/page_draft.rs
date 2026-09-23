@@ -104,7 +104,11 @@ async fn missing_page_draft_round_trip_replaces_and_deletes_without_publishing()
     assert_eq!(replaced.title, "Replaced");
     assert_eq!(replaced.wikitext, "new\n");
     assert_eq!(counts(&runner).await, before);
-    run_endpoint!(runner, page_draft_delete);
+    let deleted = run_endpoint!(runner, page_draft_delete);
+    assert_eq!(
+        serde_json::to_value(deleted).unwrap(),
+        json!({"deleted": true})
+    );
     assert!(run_endpoint!(runner, page_draft_get).draft.is_none());
     assert_eq!(counts(&runner).await, before);
 }

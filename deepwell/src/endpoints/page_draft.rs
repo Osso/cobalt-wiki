@@ -255,11 +255,17 @@ fn check_base(page: &PageModel, provided: Option<i64>) -> Result<i64> {
     Ok(revision_id)
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct PageDraftDeleteOutput {
+    pub deleted: bool,
+}
+
 pub async fn page_draft_delete(
     ctx: &ServiceContext<'_>,
     _params: Params<'static>,
-) -> Result<()> {
+) -> Result<PageDraftDeleteOutput> {
     let target = authorize_target(ctx).await?;
     PageDraftService::delete_for_target(ctx.transaction(), target.site_id, &target.slug)
-        .await
+        .await?;
+    Ok(PageDraftDeleteOutput { deleted: true })
 }
