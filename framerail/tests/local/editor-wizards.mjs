@@ -571,11 +571,13 @@ test("attached image wizard selects and previews an authorized existing image wi
       )
       const before = await readPage(context.request, fixture, "images", token)
       assert.equal(before.type, "found")
+      await context.tracing.start({ screenshots: true, snapshots: true })
       try {
         await checkExternalImageWindows(page)
         await insertAttachedImage(page)
         await insertFlickrSource(page)
       } finally {
+        await context.tracing.stop({ path: "/tmp/claude/cobalt-image-check-trace.zip" })
         const after = await readPage(context.request, fixture, "images", token)
         assert.equal(after.type, "found")
         assert.deepEqual(after.data.page_revision, before.data.page_revision)
