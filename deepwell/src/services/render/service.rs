@@ -183,6 +183,7 @@ impl RenderService {
                     super::live_template::apply_live_template(ctx, source, page_info)
                         .await?;
             }
+            let source = super::show_to::strip_show_to_regions(source);
             let (expanded, included_pages) =
                 super::includes::expand_includes(ctx, source, &page_info.site, settings)
                     .await?;
