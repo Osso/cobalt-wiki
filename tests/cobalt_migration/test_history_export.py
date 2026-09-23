@@ -271,6 +271,11 @@ class HistoryExportTest(unittest.TestCase):
         self.assertNotIn("wikitext", state["bodies"]["102"])
         self.assertEqual(state["bodies"]["100"]["wikitext"], "zero")
 
+        # Resuming keeps the gap without refetching anything.
+        before = len(self.requests)
+        self.assertEqual(self.export(private)["bodies"], state["bodies"])
+        self.assertEqual(len(self.requests), before)
+
     def test_html_denial_in_body_stops_without_advancing(self):
         def denied(request):
             if request.get("revision_id") == 102:

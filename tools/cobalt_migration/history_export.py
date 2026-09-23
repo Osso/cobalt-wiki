@@ -152,7 +152,11 @@ def _load(directory, origin, page_id):
                 html = _read_response(
                     directory, f"revision-{revision_id}", entry["hashes"]
                 )
-                if entry["status"] == 200:
+                if "module_status" in entry:
+                    # An explicit refusal: no body was returned.
+                    if "wikitext" in entry or html:
+                        raise HistoryExportError("invalid archived source refusal")
+                elif entry["status"] == 200:
                     decoded = decode_history_source(html)
                     if any(entry.get(key) != value for key, value in decoded.items()):
                         raise HistoryExportError(
