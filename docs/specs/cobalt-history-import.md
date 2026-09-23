@@ -56,7 +56,7 @@ Imported source history uses `imported_page_revision`, separate from native edit
 - [x] Import and replay history for a navigation-page fixture without enqueueing rerenders.
 - [x] Independently verify the integrated history backend and local pilot at `9c4ff20`: six history tests and one prune test passed; the existing isolated queue test remains valid at one passing test. Format and cargo check passed.
 - [x] Run the acquired 240-revision pilot through this storage path: seven cursor pages read 240 matching bodies and metadata; idempotent replay inserted zero records. No production history was imported.
-- [ ] Verify the local imported-history UI. `5e803dd` adds a separate 50-row paginated section with source metadata, provenance, and no rollback action; its first browser run failed because the section was not yet wired to server actions (`/tmp/claude/cobalt-history-ui-red.log`). The action wiring and a GREEN browser run remain required.
+- [x] Verify the local imported-history UI. `bd9d88f` uses supported Svelte actions to load a separate 50-row paginated section, source metadata/provenance, and no rollback action. Local browser proof at `c7859d0` read all 240 records over five pages, loaded revision 0 source with a matching protected hash, retained the display-decoding marker, and reloaded the current page (`/tmp/claude/cobalt-history-ui-green.log`).
 
 `import_wikidot_history` accepts a guarded current revision ID and source records. `page_imported_history` lists at most 100 records, descending by source revision number; `before_revision` is exclusive. `page_imported_revision` retrieves a source body. These loopback backend APIs are not yet deployed.
 
@@ -72,7 +72,7 @@ Imported source history uses `imported_page_revision`, separate from native edit
 - `tools/cobalt_migration/history_export.py`: owner-only, resumable archive for one page's list and source-body module responses; lists complete before body capture.
 - `tools/cobalt_migration/history_acquire.py`: validates the protected latest-source plan and runs the page exporter sequentially, retaining explicit metadata-unresolved records.
 - `tools/cobalt_migration/poc_import.py`: remains latest-source only; no history target write exists yet.
-- `framerail/src/routes/[slug]/[...extra]/ImportedHistory.svelte`: presents imported records separately from editable revisions, with source access and display-decoding provenance but no rollback control. It is not locally verified yet.
+- `framerail/src/routes/[slug]/[...extra]/ImportedHistory.svelte`: presents imported records separately from editable revisions, with source access and display-decoding provenance but no rollback control. Its local 240-record browser flow is proven; final lint/type/readability verification remains separate.
 
 - `deepwell/src/services/import/history.rs` and `history_structs.rs`: guarded import and permission-checked reads.
 - `deepwell/migrations/20260923000000_imported_page_revision.sql`: separate source-history storage.
