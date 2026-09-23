@@ -700,7 +700,6 @@ fn layout_items(selection: &Selection, items: &[String]) -> String {
         return String::new();
     }
     let mut lines = Vec::with_capacity(items.len() + 2);
-    lines.extend(selection.prepend_line.clone());
     if selection.separate {
         lines.extend(
             items.iter().map(|item| {
@@ -708,9 +707,11 @@ fn layout_items(selection: &Selection, items: &[String]) -> String {
             }),
         );
     } else {
+        // Wikidot shows prepend/append lines only around joined items.
+        lines.extend(selection.prepend_line.clone());
         lines.extend(items.iter().cloned());
+        lines.extend(selection.append_line.clone());
     }
-    lines.extend(selection.append_line.clone());
     let content = lines.join("\n");
     // A trailing line continuation must not join the closing div.
     let content = content.trim_end().trim_end_matches('\\').trim_end();
@@ -836,7 +837,8 @@ mod tests {
             layout_items(&joined, &items),
             "\n[[div class=\"list-pages-box\"]]\n||~ Head ||\n|| a ||\n|| b ||\n[[/div]]\n"
         );
-        let separate = selection("");
+        // Wikidot shows prepend/append lines only for joined items (Cobalt writings).
+        let separate = selection(" prependLine=\"~ Page\" appendLine=\"End\"");
         assert_eq!(
             layout_items(&separate, &items[..1]),
             "\n[[div class=\"list-pages-box\"]]\n[[div class=\"list-pages-item\"]]\n|| a ||\n[[/div]]\n[[/div]]\n"
