@@ -18,6 +18,8 @@ use std::time::Duration;
 const INDEX: &str = "pages";
 const BATCH: usize = 50;
 const MAX_CANDIDATES: usize = 1000;
+const TASK_POLL_INTERVAL: Duration = Duration::from_millis(250);
+const TASK_TIMEOUT: Duration = Duration::from_secs(120);
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct SearchRequest {
@@ -373,7 +375,8 @@ impl SearchService {
     }
 
     async fn wait_task(&self, uid: u64) -> Result<()> {
-        for _ in 0..40 {
+        let deadline = tokio::time::Instant::now() + TASK_TIMEOUT;
+        while tokio::time::Instant::now() < deadline {
             let task: TaskStatus = self
                 .request::<_, TaskStatus>(
                     Method::GET,
@@ -390,7 +393,7 @@ impl SearchService {
                     )
                     .into());
                 }
-                _ => tokio::time::sleep(Duration::from_millis(250)).await,
+                _ => tokio::time::sleep(TASK_POLL_INTERVAL).await,
             }
         }
         Err(Error::new(

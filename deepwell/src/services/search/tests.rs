@@ -170,6 +170,27 @@ async fn upsert_and_remove_use_idempotent_meili_tasks() {
 }
 
 #[tokio::test]
+async fn slow_index_task_completes_without_resubmitting() {
+    let mut responses = vec![r#"{"taskUid":42}"#.into()];
+    responses.extend((0..80).map(|_| r#"{"status":"processing"}"#.into()));
+    responses.push(r#"{"status":"succeeded"}"#.into());
+    let (service, requests) = fixture(responses).await;
+    service
+        .remove_page(42)
+        .await
+        .expect("wait for slow index task");
+    let requests = requests.lock().unwrap();
+    assert_eq!(
+        requests
+            .iter()
+            .filter(|request| request.starts_with("DELETE "))
+            .count(),
+        1,
+        "a pending task must not resubmit the mutation"
+    );
+}
+
+#[tokio::test]
 async fn existing_index_configuration_is_repeatable() {
     let (service, requests) = fixture(vec![
         r#"{"uid":"pages","primaryKey":"page_id"}"#.into(),
