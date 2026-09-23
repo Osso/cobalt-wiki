@@ -35,9 +35,8 @@ pub struct TestRunnerRequestContext {
 }
 
 impl TestRunnerRequestContext {
-    pub async fn new() -> Self {
+    pub async fn new(config: Config) -> Self {
         let secrets = Secrets::load();
-        let config = Config::integration_testing();
 
         let state = build_server_state(config, secrets)
             .await
@@ -103,7 +102,22 @@ self_cell!(
 
 impl TestRunner {
     pub async fn setup() -> Self {
-        let request_ctx = TestRunnerRequestContext::new().await;
+        Self::setup_with_config(Config::integration_testing()).await
+    }
+
+    /// For tests that read queued jobs: the runner's job workers check the
+    /// queue once at startup, then sleep through the test instead of taking
+    /// (and, outside the test transaction, failing) the jobs it queues.
+    #[allow(unused)]
+    pub async fn setup_with_idle_job_workers() -> Self {
+        let mut config = Config::integration_testing();
+        config.job_min_poll_delay = std::time::Duration::from_secs(3600);
+        config.job_max_poll_delay = std::time::Duration::from_secs(3600);
+        Self::setup_with_config(config).await
+    }
+
+    async fn setup_with_config(config: Config) -> Self {
+        let request_ctx = TestRunnerRequestContext::new(config).await;
         Self::new(request_ctx, TestRunnerRequestContext::build_service_context)
     }
 

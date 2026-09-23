@@ -40,7 +40,7 @@ use crate::services::permission::{CheckPermissionContext, PermissionService};
 use crate::services::relation::{
     GetPageAttributions, GetSiteBan, PageAttribution, RelationService,
 };
-use crate::services::render::{COMPILED_GENERATOR, RenderOutput};
+use crate::services::render::{BodyArguments, COMPILED_GENERATOR, RenderOutput};
 use crate::services::settings::{NavigationPageHtml, SettingsService};
 use crate::services::user::User;
 use crate::services::view::ViewType;
@@ -302,13 +302,17 @@ impl ViewService {
                         compiled_side_bar_html,
                     ) = raise_multiple!(wikitext_result, compiled_body_result, compiled_top_bar_result, compiled_side_bar_result; make_error);
 
-                    // Stored HTML shows ListPages page 1; later pages render on demand.
-                    if let Some(list_page) = options.list_page.filter(|&page| page > 1) {
-                        compiled_body_html = PageRevisionService::render_list_page(
+                    // Stored HTML uses the default URL arguments; others render on demand.
+                    let body = BodyArguments {
+                        list_page: options.list_page.unwrap_or(1),
+                        tag: options.tag.clone(),
+                    };
+                    if body != BodyArguments::default() {
+                        compiled_body_html = PageRevisionService::render_body_view(
                             ctx,
                             page.site_id,
                             page.page_id,
-                            list_page,
+                            &body,
                         )
                         .await
                         .or_raise(make_error)?;

@@ -38,7 +38,6 @@ use crate::data::PageInfo;
 use crate::render::{Handle, Render};
 use crate::settings::WikitextSettings;
 use crate::tree::{Element, SyntaxTree};
-use std::collections::BTreeMap;
 
 #[derive(Debug)]
 pub struct HtmlRender;
@@ -52,17 +51,17 @@ impl Render for HtmlRender {
         page_info: &PageInfo,
         settings: &WikitextSettings,
     ) -> HtmlOutput {
-        self.render_with_page_titles(tree, page_info, settings, BTreeMap::new())
+        self.render_with_handle(tree, page_info, settings, Handle::default())
     }
 }
 
 impl HtmlRender {
-    pub fn render_with_page_titles(
+    pub fn render_with_handle(
         &self,
         tree: &SyntaxTree,
         page_info: &PageInfo,
         settings: &WikitextSettings,
-        page_titles: BTreeMap<(String, String), String>,
+        handle: Handle,
     ) -> HtmlOutput {
         info!(
             "Rendering HTML (site {}, page {}, category {})",
@@ -74,7 +73,6 @@ impl HtmlRender {
             },
         );
 
-        let handle = Handle { page_titles };
         let mut ctx = HtmlContext::new(
             page_info,
             &handle,

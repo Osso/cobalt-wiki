@@ -23,14 +23,16 @@ use std::collections::HashMap;
 use std::sync::LazyLock;
 use unicase::UniCase;
 
-pub const MODULE_RULES: [ModuleRule; 7] = [
+pub const MODULE_RULES: [ModuleRule; 9] = [
     MODULE_BACKLINKS,
     MODULE_CATEGORIES,
     MODULE_CSS,
     MODULE_JOIN,
     MODULE_NEW_PAGE,
     MODULE_PAGE_TREE,
+    MODULE_PAGES_BY_TAG,
     MODULE_RATE,
+    MODULE_TAG_CLOUD,
 ];
 
 pub type ModuleRuleMap = HashMap<UniCase<&'static str>, &'static ModuleRule>;

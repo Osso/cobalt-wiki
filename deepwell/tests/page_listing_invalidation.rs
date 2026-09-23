@@ -85,7 +85,7 @@ async fn page_changes_rerender_listings_that_could_show_them() {
         )
         .await
         .expect("use a fresh dedicated Redis database");
-    let mut runner = TestRunner::setup().await;
+    let mut runner = TestRunner::setup_with_idle_job_workers().await;
     let site_id = run_endpoint!(runner, site_get, json!({"site": "test"}))
         .unwrap()
         .site
@@ -99,6 +99,15 @@ async fn page_changes_rerender_listings_that_could_show_them() {
     )
     .await;
 
+    let tag_cloud = create_page(
+        &mut runner,
+        site_id,
+        "tag-cloud",
+        "[[module TagCloud]]",
+        &[],
+    )
+    .await;
+
     create_page(
         &mut runner,
         site_id,
@@ -107,7 +116,10 @@ async fn page_changes_rerender_listings_that_could_show_them() {
         &["_completed"],
     )
     .await;
-    assert!(!queued_rerenders(&mut connection).await.contains(&roster));
+    let queued = queued_rerenders(&mut connection).await;
+    assert!(!queued.contains(&roster), "{queued:?}");
+    // The tag cloud counts every page's tags.
+    assert!(queued.contains(&tag_cloud), "{queued:?}");
 
     let alpha = create_page(
         &mut runner,

@@ -41,6 +41,23 @@ pub static COMPILED_GENERATOR: LazyLock<String> =
         None => FTML_VERSION.to_string(),
     });
 
+/// URL arguments that change a page body: the ListPages page (`/p/N`) and
+/// the PagesByTag tag (`/tag/NAME`). The stored render uses the defaults.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BodyArguments {
+    pub list_page: usize,
+    pub tag: Option<String>,
+}
+
+impl Default for BodyArguments {
+    fn default() -> Self {
+        BodyArguments {
+            list_page: 1,
+            tag: None,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct RenderService;
 
@@ -168,19 +185,18 @@ impl RenderService {
         })
     }
 
-    /// Render a page's body at ListPages page `list_page` (the `/p/N` view)
-    /// without storing anything; the stored render is page 1.
+    /// Render a page's body for URL arguments other than the stored defaults
+    /// without storing anything.
     pub async fn render_page_view(
         ctx: &ServiceContext<'_>,
         wikitext: String,
         page_info: &PageInfo<'_>,
         layout: Layout,
-        list_page: usize,
+        body: &BodyArguments,
     ) -> Result<String> {
         let settings = WikitextSettings::from_mode(WikitextMode::Page, layout);
         let rendered =
-            Self::render_html(ctx, wikitext, page_info, &settings, Some(list_page))
-                .await?;
+            Self::render_html(ctx, wikitext, page_info, &settings, Some(body)).await?;
         Ok(rendered.html_output.body)
     }
 
@@ -194,14 +210,21 @@ impl RenderService {
     ) -> Result<RenderInnerOutput> {
         let make_error =
             || Error::new("failed to perform render operation", ErrorType::Render);
+        let stored_body = BodyArguments::default();
         let RenderedHtml {
             html_output,
             errors,
             listings,
             html_blocks,
             code_blocks,
-        } = Self::render_html(ctx, wikitext, page_info, settings, page_id.map(|_| 1))
-            .await?;
+        } = Self::render_html(
+            ctx,
+            wikitext,
+            page_info,
+            settings,
+            page_id.map(|_| &stored_body),
+        )
+        .await?;
         // Insert compiled HTML into text table
         let compiled_hash = TextService::create(ctx, html_output.body.clone())
             .await
@@ -267,15 +290,15 @@ impl RenderService {
         })
     }
 
-    /// Preprocess, parse and render without storing anything. `list_page` is
-    /// `Some(n)` for a published page body (live template, ListPages page `n`)
-    /// and `None` for fragments such as navigation pages and previews.
+    /// Preprocess, parse and render without storing anything. `body` is
+    /// `Some` for a published page body (live template, URL arguments) and
+    /// `None` for fragments such as navigation pages and previews.
     async fn render_html(
         ctx: &ServiceContext<'_>,
         mut wikitext: String,
         page_info: &PageInfo<'_>,
         settings: &WikitextSettings,
-        list_page: Option<usize>,
+        body: Option<&BodyArguments>,
     ) -> Result<RenderedHtml> {
         let config = ctx.config();
 
@@ -289,7 +312,7 @@ impl RenderService {
         let (tokens, included_pages, listings) =
             timeout(config.preprocess_timeout, async {
                 let mut source = std::mem::take(&mut wikitext);
-                if list_page.is_some() {
+                if body.is_some() {
                     source =
                         super::live_template::apply_live_template(ctx, source, page_info)
                             .await?;
@@ -306,7 +329,7 @@ impl RenderService {
                     ctx,
                     expanded,
                     page_info,
-                    list_page.unwrap_or(1),
+                    body.map_or(1, |body| body.list_page),
                 )
                 .await?;
                 wikitext = listed;
@@ -324,26 +347,32 @@ impl RenderService {
                 )
             })??;
 
-        let (tree, mut html_output, errors) = timeout(config.render_timeout, async {
-            let result = ftml::parse(&tokens, page_info, settings);
-            let (tree, errors) = result.into();
-            super::link_titles::fetch_page_titles(ctx, &tree, &page_info.site)
-                .await
-                .map(|titles| {
-                    let html_output = HtmlRender
-                        .render_with_page_titles(&tree, page_info, settings, titles);
-                    (tree, html_output, errors)
-                })
-        })
-        .await
-        .or_raise(|| {
-            Error::new(
-                "failed to parse and render due to timeout",
-                ErrorType::RenderTimeout,
-            )
-        })??;
+        let (tree, mut html_output, errors, lists_every_page) =
+            timeout(config.render_timeout, async {
+                let result = ftml::parse(&tokens, page_info, settings);
+                let (tree, errors) = result.into();
+                let tag = body.and_then(|body| body.tag.as_deref());
+                super::render_data::fetch_render_data(ctx, &tree, &page_info.site, tag)
+                    .await
+                    .map(|(handle, lists_every_page)| {
+                        let html_output = HtmlRender
+                            .render_with_handle(&tree, page_info, settings, handle);
+                        (tree, html_output, errors, lists_every_page)
+                    })
+            })
+            .await
+            .or_raise(|| {
+                Error::new(
+                    "failed to parse and render due to timeout",
+                    ErrorType::RenderTimeout,
+                )
+            })??;
 
         html_output.backlinks.included_pages.extend(included_pages);
+        let mut listings = listings;
+        if lists_every_page {
+            listings.push(ListingFilter::every_page());
+        }
         Ok(RenderedHtml {
             html_output,
             errors,

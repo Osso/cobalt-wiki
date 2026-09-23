@@ -34,9 +34,9 @@ pub mod text;
 #[cfg(feature = "html")]
 pub mod html;
 
-mod handle;
+pub mod handle;
 
-use self::handle::Handle;
+pub use self::handle::Handle;
 use crate::data::PageInfo;
 use crate::settings::WikitextSettings;
 use crate::tree::SyntaxTree;

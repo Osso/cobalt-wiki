@@ -8,6 +8,7 @@ use deepwell::constants::ADMIN_USER_ID;
 use deepwell::models::{page_revision, role_permission};
 use deepwell::services::page::CreatePage;
 use deepwell::services::page_revision::RerenderType;
+use deepwell::services::render::BodyArguments;
 use deepwell::services::{PageRevisionService, PageService, TextService};
 use deepwell::types::{Action, PageId, Reference, RerenderDepth, Resource};
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
@@ -283,10 +284,17 @@ async fn list_pages_paginate_like_wikidot() {
         PageService::get(runner.context(), site_id, Reference::Slug("roster".into()))
             .await
             .unwrap();
-    let second =
-        PageRevisionService::render_list_page(runner.context(), site_id, page.page_id, 2)
-            .await
-            .unwrap();
+    let second = PageRevisionService::render_body_view(
+        runner.context(),
+        site_id,
+        page.page_id,
+        &BodyArguments {
+            list_page: 2,
+            tag: None,
+        },
+    )
+    .await
+    .unwrap();
     assert!(second.contains("Gamma"), "{second}");
     assert!(
         !second.contains("Alpha [1]") && !second.contains(">Beta<"),

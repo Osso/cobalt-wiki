@@ -112,13 +112,32 @@ fn arb_module() -> impl Strategy<Value = Element<'static>> {
             format,
         });
 
+    let tag_cloud = (
+        (arb_optional_str(), arb_optional_str(), arb_optional_str()),
+        (arb_optional_str(), arb_optional_str(), arb_optional_str()),
+    )
+        .prop_map(
+            |((limit, target, min_font_size), (max_font_size, min_color, max_color))| {
+                Module::TagCloud {
+                    limit,
+                    target,
+                    min_font_size,
+                    max_font_size,
+                    min_color,
+                    max_color,
+                }
+            },
+        );
+
     prop_oneof![
         Just(Module::Rate),
+        Just(Module::PagesByTag),
         arb_optional_str().prop_map(|page| Module::Backlinks { page }),
         any::<bool>().prop_map(|include_hidden| Module::Categories { include_hidden }),
         join,
         new_page,
         page_tree,
+        tag_cloud,
     ]
     .prop_map(Element::Module)
 }

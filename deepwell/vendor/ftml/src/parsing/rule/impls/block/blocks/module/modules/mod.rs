@@ -34,7 +34,9 @@ mod css;
 mod join;
 mod new_page;
 mod page_tree;
+mod pages_by_tag;
 mod rate;
+mod tag_cloud;
 
 pub use self::backlinks::MODULE_BACKLINKS;
 pub use self::categories::MODULE_CATEGORIES;
@@ -42,4 +44,6 @@ pub use self::css::MODULE_CSS;
 pub use self::join::MODULE_JOIN;
 pub use self::new_page::MODULE_NEW_PAGE;
 pub use self::page_tree::MODULE_PAGE_TREE;
+pub use self::pages_by_tag::MODULE_PAGES_BY_TAG;
 pub use self::rate::MODULE_RATE;
+pub use self::tag_cloud::MODULE_TAG_CLOUD;

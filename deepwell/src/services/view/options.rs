@@ -38,6 +38,7 @@ const PAGE_ARGUMENTS_SCHEMA: ArgumentSchema = ArgumentSchema {
         "offset",
         "data",
         "p",
+        "tag",
     ],
     solo_keys: &[
         "edit",
@@ -70,6 +71,7 @@ pub struct PageOptions {
     pub offset: Option<i32>,
     /// ListPages page number (Wikidot `/p/N`).
     pub list_page: Option<usize>,
+    pub tag: Option<String>,
     pub data: String,
 }
 
@@ -124,6 +126,7 @@ impl PageOptions {
         set_str_opt!(parent);
         set_str_opt!(parent, parentPage);
         set_str_opt!(tags);
+        set_str_opt!(tag);
         set_bool!(no_redirect, noredirect);
         set_bool!(no_render, norender);
         set_bool!(debug);

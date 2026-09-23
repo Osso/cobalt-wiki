@@ -23,7 +23,7 @@ use crate::models::page_revision::{
     self, Entity as PageRevision, Model as PageRevisionModel,
 };
 use crate::models::text::{self, Entity as Text, Model as TextModel};
-use crate::services::render::RenderPageOutput;
+use crate::services::render::{BodyArguments, RenderPageOutput};
 use crate::services::score::ScoreValue;
 use crate::services::{
     LinkService, OutdateService, PageService, ParentService, RenderService, ScoreService,
@@ -1001,18 +1001,18 @@ impl PageRevisionService {
         Ok(())
     }
 
-    /// Renders the latest revision's body at ListPages page `list_page` (the
-    /// Wikidot `/p/N` view) without storing it; the stored render is page 1.
-    pub async fn render_list_page(
+    /// Renders the latest revision's body for URL arguments (`/p/N`,
+    /// `/tag/NAME`) without storing it; the stored render uses the defaults.
+    pub async fn render_body_view(
         ctx: &ServiceContext<'_>,
         site_id: i64,
         page_id: i64,
-        list_page: usize,
+        body: &BodyArguments,
     ) -> Result<String> {
         let make_error = || {
             Error::new(
                 format!(
-                    "failed to render list page {list_page} of page ID {page_id} on site ID {site_id}"
+                    "failed to render page ID {page_id} on site ID {site_id} for {body:?}"
                 ),
                 ErrorType::PageRevision,
             )
@@ -1038,7 +1038,7 @@ impl PageRevisionService {
             tags: revision.tags.iter().map(|s| cow!(s)).collect(),
             language: cow!(&site.locale),
         };
-        RenderService::render_page_view(ctx, wikitext, &page_info, layout, list_page)
+        RenderService::render_page_view(ctx, wikitext, &page_info, layout, body)
             .await
             .or_raise(make_error)
     }

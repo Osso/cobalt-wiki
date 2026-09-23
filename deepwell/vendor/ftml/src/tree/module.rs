@@ -65,8 +65,22 @@ pub enum Module<'t> {
         depth: Option<NonZeroU32>,
     },
 
+    /// Lists the pages carrying the tag named in the URL (`/tag/NAME`).
+    PagesByTag,
+
     /// A rating module, which can be used to vote on the page.
     Rate,
+
+    /// The site's visible tags, sized by use, linking to a PagesByTag page.
+    #[serde(rename_all = "kebab-case")]
+    TagCloud {
+        limit: Option<Cow<'t, str>>,
+        target: Option<Cow<'t, str>>,
+        min_font_size: Option<Cow<'t, str>>,
+        max_font_size: Option<Cow<'t, str>>,
+        min_color: Option<Cow<'t, str>>,
+        max_color: Option<Cow<'t, str>>,
+    },
 }
 
 impl Module<'_> {
@@ -110,7 +124,23 @@ impl Module<'_> {
                 show_root: *show_root,
                 depth: *depth,
             },
+            Module::PagesByTag => Module::PagesByTag,
             Module::Rate => Module::Rate,
+            Module::TagCloud {
+                limit,
+                target,
+                min_font_size,
+                max_font_size,
+                min_color,
+                max_color,
+            } => Module::TagCloud {
+                limit: option_string_to_owned(limit),
+                target: option_string_to_owned(target),
+                min_font_size: option_string_to_owned(min_font_size),
+                max_font_size: option_string_to_owned(max_font_size),
+                min_color: option_string_to_owned(min_color),
+                max_color: option_string_to_owned(max_color),
+            },
         }
     }
 }

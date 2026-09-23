@@ -5,6 +5,7 @@ use super::prelude::*;
 use crate::models::page::Model as PageModel;
 use crate::services::page::check_last_revision;
 use crate::services::permission::CheckPermissionContext;
+use crate::services::render::BodyArguments;
 use crate::services::score::{ScoreService, ScoreValue};
 use crate::types::{Action, Maybe, Reference};
 use crate::utils::split_category;
@@ -221,5 +222,12 @@ async fn render_preview(
         tags: tags.iter().map(|tag| Cow::Borrowed(tag.as_str())).collect(),
         language: Cow::Borrowed(locale),
     };
-    RenderService::render_page_view(ctx, source, &page_info, metadata.layout, 1).await
+    RenderService::render_page_view(
+        ctx,
+        source,
+        &page_info,
+        metadata.layout,
+        &BodyArguments::default(),
+    )
+    .await
 }

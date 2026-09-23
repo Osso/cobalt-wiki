@@ -631,6 +631,20 @@ pub struct ListingFilter {
 }
 
 impl ListingFilter {
+    /// Selects every page, for modules that summarise the whole site (TagCloud).
+    pub fn every_page() -> Self {
+        ListingFilter {
+            all_categories: true,
+            categories: Vec::new(),
+            excluded_categories: Vec::new(),
+            any_tags: Vec::new(),
+            all_tags: Vec::new(),
+            excluded_tags: Vec::new(),
+            untagged: false,
+            page_type: PageType::All,
+        }
+    }
+
     pub fn matches(&self, page: &ListingSubject) -> bool {
         let has = |tag: &String| page.tags.contains(tag);
         let hidden = page.name.starts_with('_');
