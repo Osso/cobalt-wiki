@@ -1,4 +1,5 @@
-//! Wikidot `[[module ListPages]]` expansion into ordinary wikitext before FTML parsing.
+//! Wikidot `[[module ListPages]]` and `[[module CountPages]]` expansion into ordinary
+//! wikitext before FTML parsing.
 
 use super::includes::can_view_shared;
 use super::page_tokens::{FormRecord, PageTokens, substitute_tokens};
@@ -20,16 +21,24 @@ type ParseResult<T> = std::result::Result<T, String>;
 const DEFAULT_PER_PAGE: usize = 20;
 const MAX_PER_PAGE: usize = 250;
 
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub(super) enum ModuleKind {
+    ListPages,
+    CountPages,
+}
+
 /// One module occurrence: its whole source range, header text, and item template.
 #[derive(Debug, PartialEq)]
 pub(super) struct ListPagesBlock<'t> {
+    pub kind: ModuleKind,
     pub range: Range<usize>,
     pub header: &'t str,
     pub body: &'t str,
     pub body_range: Range<usize>,
 }
 
-/// Find every terminated ListPages module. Unterminated modules remain ordinary text.
+/// Find every terminated ListPages/CountPages module. Unterminated modules remain
+/// ordinary text.
 pub(super) fn list_pages_blocks(source: &str) -> Vec<ListPagesBlock<'_>> {
     let mut blocks = Vec::new();
     let lower = source.to_ascii_lowercase();
@@ -51,19 +60,28 @@ fn next_block<'t>(
         let start = search + lower[search..].find("[[module")?;
         let name_start = start + "[[module".len();
         let name = lower[name_start..].trim_start();
-        let header_start = source.len() - name.len() + "listpages".len();
-        let is_list_pages = lower[name_start..].starts_with(char::is_whitespace)
-            && name.starts_with("listpages")
-            && name["listpages".len()..]
-                .starts_with(|c: char| c.is_whitespace() || c == ']');
-        if !is_list_pages {
+        let kind = [
+            ("listpages", ModuleKind::ListPages),
+            ("countpages", ModuleKind::CountPages),
+        ]
+        .into_iter()
+        .find(|(module, _)| {
+            name.starts_with(module)
+                && name[module.len()..]
+                    .starts_with(|c: char| c.is_whitespace() || c == ']')
+        });
+        let Some((module, kind)) =
+            kind.filter(|_| lower[name_start..].starts_with(char::is_whitespace))
+        else {
             search = name_start;
             continue;
-        }
+        };
+        let header_start = source.len() - name.len() + module.len();
         let header_end = header_start + find_header_end(&source[header_start..])?;
         let body_start = header_end + 2;
         let body_end = body_start + lower[body_start..].find("[[/module]]")?;
         return Some(ListPagesBlock {
+            kind,
             range: start..body_end + "[[/module]]".len(),
             header: &source[header_start..header_end],
             body: &source[body_start..body_end],
@@ -356,15 +374,20 @@ pub(super) async fn expand_list_pages(
         output.push_str(&source[copied..block.range.start]);
         let selection = parse_attributes(block.header)
             .and_then(|attributes| parse_selection(&attributes, current_category));
-        match selection {
-            Ok(selection) => {
+        match (block.kind, selection) {
+            (ModuleKind::ListPages, Ok(selection)) => {
                 let pages = select_pages(ctx, site.site_id, &selection).await?;
                 let items =
                     render_items(ctx, block.body, &pages, &mut forms, site.site_id)
                         .await?;
                 output.push_str(&layout_items(&selection, &items));
             }
-            Err(message) => output.push_str(&error_block(&message)),
+            (ModuleKind::CountPages, Ok(mut selection)) => {
+                selection.limit = usize::MAX;
+                let total = select_pages(ctx, site.site_id, &selection).await?.len();
+                output.push_str(&layout_total(block.body, total));
+            }
+            (kind, Err(message)) => output.push_str(&error_block(kind, &message)),
         }
         copied = block.range.end;
     }
@@ -372,8 +395,8 @@ pub(super) async fn expand_list_pages(
     Ok(output)
 }
 
-fn error_block(message: &str) -> String {
-    format!("[[div class=\"error-block\"]]\nListPages module error: {message}.\n[[/div]]")
+fn error_block(kind: ModuleKind, message: &str) -> String {
+    format!("[[div class=\"error-block\"]]\n{kind:?} module error: {message}.\n[[/div]]")
 }
 
 async fn select_pages(
@@ -622,6 +645,13 @@ fn layout_items(selection: &Selection, items: &[String]) -> String {
     format!("\n[[div class=\"list-pages-box\"]]\n{content}\n[[/div]]\n")
 }
 
+/// Wikidot fills `%%total%%` in the module body and boxes it like a listing.
+fn layout_total(body: &str, total: usize) -> String {
+    let body = body.trim_matches(|c| c == '\n' || c == '\r');
+    let content = body.replace("%%total%%", &total.to_string());
+    format!("\n[[div class=\"list-pages-box\"]]\n{content}\n[[/div]]\n")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -648,7 +678,11 @@ mod tests {
     #[test]
     fn ignores_other_modules_and_unterminated_list_pages() {
         assert!(list_pages_blocks("[[module ListPagesX]]x[[/module]]").is_empty());
-        assert!(list_pages_blocks("[[module CountPages]] [[/module]]").is_empty());
+        assert!(list_pages_blocks("[[module Join]] [[/module]]").is_empty());
+        assert_eq!(
+            list_pages_blocks("[[module CountPages]]%%total%%[[/module]]")[0].kind,
+            ModuleKind::CountPages
+        );
         assert!(
             list_pages_blocks("[[module ListPages category=\"a\"]] never closed")
                 .is_empty()
@@ -758,8 +792,8 @@ mod tests {
                 }
             }
         }
-        println!("parsed {modules} ListPages modules");
-        assert_eq!(modules, 71);
+        println!("parsed {modules} ListPages/CountPages modules");
+        assert_eq!(modules, 81);
         assert!(failures.is_empty(), "{failures:#?}");
     }
 }

@@ -12,6 +12,7 @@ Expand archived `[[module ListPages]]` blocks into ordinary wikitext before FTML
 - [x] Fill item tokens: `name`, `fullname`, `title`, `linked_title`/`title_linked` (link with the target's escaped title), `link`, `created_at`/`updated_at` (date block), `form_data{field}`/`form_raw{field}` from the listed page's category form.
 - [x] Lay out `separate="yes"` (default) items as `list-pages-item` divs and `separate="no"` items as one block joined by newlines, with `prependLine`/`appendLine`, inside a `list-pages-box` div; a final line continuation does not join the closing div. No items produce nothing.
 - [x] Replace a module with unsupported arguments (for example `rssTitle`) with a visible error block naming the problem.
+- [x] `[[module CountPages ...]]` takes the same selection arguments, counts every matching visible page (no `limit`/`perPage` cap) and renders its body with `%%total%%` filled inside a `list-pages-box` div, as Wikidot does on `stats`.
 - [ ] Pagination controls beyond the first page.
 - [ ] Rerender listing pages when matching pages are created, retagged or deleted.
 
@@ -21,8 +22,8 @@ Imported pages carry import-time `created_at`/`updated_at`; original Wikidot cre
 
 ## Tests asserting this spec
 
-- `deepwell/tests/page_list_pages.rs`: category/tag/pagetype filtering, title order, limit, prepended table, form labels, links, anonymous-denial filtering, explicit unsupported-argument error; ignored whole-archive render check.
-- `deepwell/src/services/render/list_pages.rs`: header scanning, argument grammar, selection defaults, layouts; ignored `every_archived_header_is_supported` parses all 71 archived headers.
+- `deepwell/tests/page_list_pages.rs`: category/tag/pagetype filtering, title order, limit, prepended table, form labels, links, anonymous-denial filtering, explicit unsupported-argument error, CountPages totals beyond one page; ignored whole-archive render check.
+- `deepwell/src/services/render/list_pages.rs`: header scanning, argument grammar, selection defaults, layouts; ignored `every_archived_header_is_supported` parses all 81 archived ListPages/CountPages headers.
 
 ## Out of scope
 

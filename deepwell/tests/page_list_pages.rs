@@ -201,6 +201,29 @@ async fn list_pages_selects_orders_limits_and_fills_listed_page_tokens() {
 }
 
 #[tokio::test]
+async fn count_pages_fills_the_total_of_every_matching_page() {
+    let runner = TestRunner::setup().await;
+    let site_id = site_id(&runner).await;
+    import_characters(&runner, site_id).await;
+    for number in 0..21 {
+        let slug = format!("arc:number-{number}");
+        import_page(&runner, site_id, &slug, "Arc").await;
+        set_title_and_tags(&runner, site_id, &slug, "Arc", &["_completed"]).await;
+    }
+    let stats = "[[module CountPages category=\"character\" tags=\"_completed\"]]\n%%total%% Character Profiles\n[[/module]]\n\n[[module CountPages category=\"character\" tags=\"_completed -inactive\"]]\n* %%total%% Active\n[[/module]]\n\n[[module CountPages category=\"arc\" tags=\"\"]]\n%%total%% Arcs\n[[/module]]";
+    import_page(&runner, site_id, "stats", stats).await;
+    let html = compiled_body(&runner, site_id, "stats").await;
+    assert!(html.contains("<p>3 Character Profiles</p>"), "{html}");
+    assert!(html.contains("<li>2 Active</li>"), "{html}");
+    assert!(html.contains("<p>21 Arcs</p>"), "{html}");
+    assert_eq!(
+        html.matches("class=\"list-pages-box\"").count(),
+        3,
+        "{html}"
+    );
+}
+
+#[tokio::test]
 async fn list_pages_never_lists_pages_denied_to_anonymous_readers() {
     let runner = TestRunner::setup().await;
     let site_id = site_id(&runner).await;
