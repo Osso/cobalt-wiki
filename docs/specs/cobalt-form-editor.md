@@ -14,6 +14,7 @@ Framerail edits the optional backend `Found.form` payload using ordered source-d
 ## How it works
 
 - [Form schema contract](cobalt-data-form-schema.md)
+- The raw wikitext formatting toolbar uses 22×22 icons and the three-row control order measured from the authenticated Wikidot editor (`/tmp/claude/wikidot-editor-reference/toolbar-dom.json`, `toolbar-styles.json`, September 23, 2026). Its local `framerail/static/cobalt-editor/icons1.png` is the source sprite from `https://d3g0gp89917ko0.cloudfront.net/v--05014b438f4f/common--theme/base/images/editor/icons1.png` (SHA-256 `d4b09792783e799e3dfd3acc0590f59783a9875909b5baf88f43f5d384d6acd3`); heading levels 2–6 and directional clear-float controls are nested. Only implemented transformations appear; source wizards are omitted.
 
 ## Implementation inventory
 
