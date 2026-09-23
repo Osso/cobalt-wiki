@@ -24,8 +24,13 @@ mod prelude {
     pub use super::structs::*;
 }
 
+mod history;
+mod history_structs;
 mod service;
 mod structs;
+
+pub use self::history::ImportedHistoryService;
+pub use self::history_structs::*;
 
 pub use self::service::ImportService;
 pub use self::structs::*;

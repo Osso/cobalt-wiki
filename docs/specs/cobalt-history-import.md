@@ -40,6 +40,17 @@ Cobalt history import must backfill authorized source revision history without p
 - [Native revision import endpoint](../../deepwell/src/endpoints/import.rs)
 - [Native revision import service](../../deepwell/src/services/import/service.rs)
 
+## Local backend history storage
+
+Imported source history uses `imported_page_revision`, separate from native editable revisions. Unknown historical title/slug/tags remain null; source attachment events retain their original flags. Import does not change the current revision or render pages. Read endpoints enforce current page visibility; imported entries are not native rollback targets.
+
+- [x] Import three source records idempotently without changing current source, compiled output, or native revision count.
+- [x] Read history across two cursor pages and retrieve an old body with its source author ID and representation marker.
+- [ ] Verify conflict rollback, stale-current-revision rejection, visibility denial, and zero queue impact.
+- [ ] Run the acquired 240-revision pilot through this storage path and expose it in the history UI with the rendering owner.
+
+`import_wikidot_history` accepts a guarded current revision ID and source records. `page_imported_history` lists at most 100 records, descending by source revision number; `before_revision` is exclusive. `page_imported_revision` retrieves a source body. These loopback backend APIs are not yet deployed.
+
 ## Implementation inventory
 
 - `deepwell/importer/site.py`: reads revision metadata and per-page `.7z` bodies keyed by revision number.
@@ -52,7 +63,12 @@ Cobalt history import must backfill authorized source revision history without p
 - `tools/cobalt_migration/history_source.py`: decodes the source display with explicit non-byte-exact provenance.
 - `tools/cobalt_migration/poc_import.py`: remains latest-source only; no history target write exists yet.
 
+- `deepwell/src/services/import/history.rs` and `history_structs.rs`: guarded import and permission-checked reads.
+- `deepwell/migrations/20260923000000_imported_page_revision.sql`: separate source-history storage.
+
 ## Tests asserting this spec
+
+- `deepwell/tests/imported_history.rs`: native import/idempotence/current-page preservation and real two-page history reads.
 
 `tests/cobalt_migration/test_page_history.py` has nine independently verified parser tests. `tests/cobalt_migration/test_history_source.py` has five decoder tests; all 240 protected pilot responses decode, and revision 239 matches the existing archived homepage hash. Protected artifacts under `/home/osso/.local/share/cobalt-wiki/source/history-pilot/` retain raw responses, metadata, decoded bodies, and calibration; they establish acquisition and decoding only, not target import behavior.
 

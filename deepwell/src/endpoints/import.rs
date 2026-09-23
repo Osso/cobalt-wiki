@@ -20,9 +20,34 @@
 
 use super::prelude::*;
 use crate::services::import::{
-    ImportPage, ImportPageOutput, ImportPageRevision, ImportPageRevisionOutput,
-    ImportService, ImportSite, ImportSiteOutput, ImportUser, ImportUserOutput,
+    ImportHistoryOutput, ImportPage, ImportPageOutput, ImportPageRevision,
+    ImportPageRevisionOutput, ImportService, ImportSite, ImportSiteOutput, ImportUser,
+    ImportUserOutput, ImportedHistoryService, ImportedRevisionSource,
+    ImportedRevisionSummary, ReadImportedHistory, ReadImportedRevision,
 };
+
+pub async fn import_wikidot_history(
+    ctx: &ServiceContext<'_>,
+    params: Params<'static>,
+) -> Result<ImportHistoryOutput> {
+    ImportedHistoryService::import(ctx, parse!(params, DatabaseImport)).await
+}
+
+pub async fn page_imported_history(
+    ctx: &ServiceContext<'_>,
+    params: Params<'static>,
+) -> Result<Vec<ImportedRevisionSummary>> {
+    let input: ReadImportedHistory = parse!(params, DatabaseImport);
+    ImportedHistoryService::list(ctx, input).await
+}
+
+pub async fn page_imported_revision(
+    ctx: &ServiceContext<'_>,
+    params: Params<'static>,
+) -> Result<Option<ImportedRevisionSource>> {
+    let input: ReadImportedRevision = parse!(params, DatabaseImport);
+    ImportedHistoryService::source(ctx, input).await
+}
 
 pub async fn import_wikidot_user(
     ctx: &ServiceContext<'_>,
