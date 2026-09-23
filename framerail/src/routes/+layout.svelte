@@ -12,6 +12,7 @@
   import { Layout } from "$lib/types"
   import { resolve } from "$app/paths"
   import { submitNewPage } from "$lib/new-page"
+  import { clickSiteChanges } from "$lib/site-changes"
 
   let { children } = $props()
 
@@ -47,8 +48,14 @@
           errorPopupState.current = { state: true, message, data: null }
         }
       )
+    const onClick = (event: MouseEvent) =>
+      clickSiteChanges(event, (path) => window.location.assign(path))
     window.addEventListener("submit", onSubmit, true)
-    return () => window.removeEventListener("submit", onSubmit, true)
+    window.addEventListener("click", onClick, true)
+    return () => {
+      window.removeEventListener("submit", onSubmit, true)
+      window.removeEventListener("click", onClick, true)
+    }
   })
 </script>
 
