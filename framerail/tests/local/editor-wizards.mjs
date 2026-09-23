@@ -63,47 +63,45 @@ async function readPage(request, fixture, slug, token) {
 }
 
 /**
- * @param {import("@playwright/test").BrowserContext} context
+ * @param {import("@playwright/test").Page} page
  * @param {string[]} denied
  */
-async function denyWritesAndExternalRequests(context, denied) {
-  // Do not intercept the fixed static image fixtures: Chromium stalls images
-  // created in initial about:blank popups under context-wide interception.
-  // These static routes have no write actions; application routes remain guarded.
-  await context.route(
-    (url) => url.origin !== origin || !url.pathname.startsWith("/cobalt-editor/"),
-    async (route) => {
-      const request = route.request()
-      const url = new URL(request.url())
-      const local = url.origin === origin
-      const action = url.search.startsWith("?/") ? url.search.slice(2) : null
-      const allowedPost =
-        request.method() === "POST" &&
-        (url.pathname === "/-/login" ||
-          (url.pathname.endsWith("/edit") &&
-            action !== null &&
-            ["preview", "editorPages", "editorAttachments", "draftGet"].includes(action)))
-      if (local && (["GET", "HEAD"].includes(request.method()) || allowedPost)) {
-        await route.continue()
-        return
-      }
-      // Imported theme styles attempt read-only CDN fetches; block them without
-      // confusing a prevented stylesheet fetch with a forbidden write.
-      if (request.method() !== "GET" || request.resourceType() !== "stylesheet") {
-        denied.push(`${request.method()} ${url.origin}${url.pathname}`)
-      }
-      await route.abort("blockedbyclient")
+async function denyWritesAndExternalRequests(page, denied) {
+  // Guard the application page, not its image-only popup: context-wide request
+  // interception stalls initial about:blank image loads in Chromium.
+  await page.route("**/*", async (route) => {
+    const request = route.request()
+    const url = new URL(request.url())
+    const local = url.origin === origin
+    const action = url.search.startsWith("?/") ? url.search.slice(2) : null
+    const allowedPost =
+      request.method() === "POST" &&
+      (url.pathname === "/-/login" ||
+        (url.pathname.endsWith("/edit") &&
+          action !== null &&
+          ["preview", "editorPages", "editorAttachments", "draftGet"].includes(action)))
+    if (local && (["GET", "HEAD"].includes(request.method()) || allowedPost)) {
+      await route.continue()
+      return
     }
-  )
+    // Imported theme styles attempt read-only CDN fetches; block them without
+    // confusing a prevented stylesheet fetch with a forbidden write.
+    if (request.method() !== "GET" || request.resourceType() !== "stylesheet") {
+      denied.push(`${request.method()} ${url.origin}${url.pathname}`)
+    }
+    await route.abort("blockedbyclient")
+  })
 }
 
 /**
  * @param {import("@playwright/test").BrowserContext} context
  * @param {Fixture} fixture
  * @param {string} password
+ * @param {string[]} denied
  */
-async function login(context, fixture, password) {
+async function login(context, fixture, password, denied) {
   const page = await context.newPage()
+  await denyWritesAndExternalRequests(page, denied)
   await page.goto(`${origin}/-/login`, { waitUntil: "networkidle" })
   await page.locator('#login [name="nameOrEmail"]').fill(fixture.username)
   await page.locator('#login [name="password"]').fill(password)
@@ -411,8 +409,7 @@ test("six editor wizards insert and preview without saving local pages", async (
     /** @type {string[]} */
     const denied = []
     try {
-      await denyWritesAndExternalRequests(context, denied)
-      const { page, token } = await login(context, fixture, accountPassword)
+      const { page, token } = await login(context, fixture, accountPassword, denied)
       const before = await readPage(context.request, fixture, fixture.existingSlug, token)
       const missingBefore = await readPage(
         context.request,
@@ -569,11 +566,11 @@ test("attached image wizard selects and previews an authorized existing image wi
     try {
       /** @type {string[]} */
       const denied = []
-      await denyWritesAndExternalRequests(context, denied)
       const { page, token } = await login(
         context,
         fixture,
-        (await readFile(accountPath, "utf8")).trim()
+        (await readFile(accountPath, "utf8")).trim(),
+        denied
       )
       const before = await readPage(context.request, fixture, "images", token)
       assert.equal(before.type, "found")
