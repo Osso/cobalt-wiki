@@ -17,8 +17,9 @@ Cobalt provides a server-side Meilisearch-backed `search:site` result page for c
 
 ## Implementation inventory
 
-- `deepwell/src/services/search/mod.rs` — Meilisearch client, visible-text extraction, candidate revalidation, and paging.
+- `deepwell/src/services/search/mod.rs` — Meilisearch client, visible-text extraction, candidate revalidation, freshness rejection, and paging.
 - `deepwell/src/services/search/tests.rs` — fake-HTTP behavioral tests.
+- `deepwell/src/services/page_revision/service.rs` — transactional search-outbox enqueue hooks for create, edit, delete, restore, and rerender at `c3ac4a1`; imports use these same page-revision services.
 - `deepwell/src/endpoints/search.rs`, `deepwell/src/api.rs`, `deepwell/src/endpoints/mod.rs` — `page_search` RPC registration.
 - `framerail/src/lib/component/SearchBox.svelte`, `framerail/src/routes/+layout.svelte` — source-theme header form, mounted in the Wikidot header at `d07869d`.
 - `framerail/src/lib/server/deepwell/search.ts` — trusted-context RPC client.
@@ -29,14 +30,15 @@ Cobalt provides a server-side Meilisearch-backed `search:site` result page for c
 ## Tests asserting this spec
 
 - `deepwell/src/services/search/tests.rs`: four fake-HTTP tests passed at `ff0844b` / `712a009`, covering permission-before-paging/no restricted totals, authenticated upsert/delete tasks, repeatable index configuration, and hidden compiled-HTML exclusion.
+- `1816423` adds a helper-level freshness test: a Meilisearch hit whose stored body differs from the current compiled body is rejected before visible-result pagination. It is not real-database or real-index proof.
 - `framerail/tests/search.test.ts`: five tests passed at `d63fd97`, covering header-form selectors/submission, trusted request headers and bounded RPC parameters, two pages of navigation, invalid offsets/empty query handling, and distinct empty/unavailable messages. `d07869d` mounts that form in the source header; this is source wiring, not browser acceptance.
 - `76ba7bf` registers the backend RPCs consumed by the route; registration is not live-service proof.
 
 ## Known gaps (current cycle)
 
-- [ ] End-to-end index lifecycle remains pending: `31b1a9f` commits transactional-outbox and worker code, but mutation lifecycle hooks do not enqueue work and backfill is absent. Current committed code does not prove page changes reach Meilisearch.
-- [ ] Local browser acceptance for the header form and result route is pending.
-- [ ] Local Meilisearch proof covers no real indexed page, database integration, restart behavior, or production deployment.
+- [ ] `c3ac4a1` transactionally enqueues lifecycle work from create, edit, delete, restore, and rerender paths; imports use the same services. End-to-end lifecycle remains unproven because worker scheduling/startup and backfill are absent. Current committed code does not prove page changes reach Meilisearch.
+- [ ] Create-browser acceptance is still running; no header form or result-route browser pass is claimed.
+- [ ] Local Meilisearch proof covers no real indexed page, database integration, restart behavior, or production deployment. `1816423` proves stale-body rejection only through a helper test.
 
 ## Out of scope
 
