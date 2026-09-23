@@ -6,6 +6,7 @@ import { render } from "svelte/server"
 
 const component = new URL("../src/lib/component/WikitextWizard.svelte", import.meta.url)
 
+/** @param {import("../src/lib/wikitext-wizards").WizardKind} kind */
 async function renderWizard(kind, source = "", extra = {}) {
   const compiled = compile(await readFile(component, "utf8"), {
     generate: "server",

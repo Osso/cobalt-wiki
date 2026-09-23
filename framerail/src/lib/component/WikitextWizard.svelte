@@ -70,8 +70,9 @@
         const matches = await pageLookup(query)
         if (current) pageMatches = matches
       } catch {
-        if (current)
+        if (current) {
           pageError = "Unable to look up pages. You can still enter a page name."
+        }
       } finally {
         if (current) pagePending = false
       }
@@ -119,48 +120,52 @@
     }
   }
 
+  function imageValue(): string {
+    switch (imageSource) {
+      case "file":
+        return file
+      case "flickr":
+        return flickr
+      case "uri":
+        return imageUri
+    }
+  }
+
+  function wizardOptions(): WizardOptions {
+    switch (kind) {
+      case "table": {
+        const validRows = Number.isInteger(rows) && rows >= 1 && rows <= 99
+        const validColumns = Number.isInteger(columns) && columns >= 1 && columns <= 99
+        if (!validRows || !validColumns) {
+          throw new Error("Rows and columns must be whole numbers from 1 to 99.")
+        }
+        return { kind, rows, columns, headers }
+      }
+      case "code":
+        return { kind, type: codeType }
+      case "uri":
+        return { kind, uri, anchor, newWindow }
+      case "pageLink":
+        return { kind, page, anchor }
+      case "image": {
+        const value = imageValue().trim()
+        if (!value) throw new Error("Choose or enter an image source.")
+        if (imageSource === "flickr") normalizeFlickrSource(value)
+        return { kind, source: imageSource, value, position }
+      }
+      case "eref":
+        if (!selectedEquation) throw new Error("No labelled equations found.")
+        return { kind, label: selectedEquation.label, withEq }
+    }
+  }
+
   async function insert(event: SubmitEvent) {
     event.preventDefault()
     if (inserting) return
     error = ""
     inserting = true
     try {
-      switch (kind) {
-        case "table":
-          if (
-            !Number.isInteger(rows) ||
-            rows < 1 ||
-            rows > 99 ||
-            !Number.isInteger(columns) ||
-            columns < 1 ||
-            columns > 99
-          ) {
-            throw new Error("Rows and columns must be whole numbers from 1 to 99.")
-          }
-          await onInsert({ kind, rows, columns, headers })
-          return
-        case "code":
-          await onInsert({ kind, type: codeType })
-          return
-        case "uri":
-          await onInsert({ kind, uri, anchor, newWindow })
-          return
-        case "pageLink":
-          await onInsert({ kind, page, anchor })
-          return
-        case "image": {
-          const value =
-            imageSource === "file" ? file : imageSource === "flickr" ? flickr : imageUri
-          if (!value.trim()) throw new Error("Choose or enter an image source.")
-          if (imageSource === "flickr") normalizeFlickrSource(value.trim())
-          await onInsert({ kind, source: imageSource, value: value.trim(), position })
-          return
-        }
-        case "eref":
-          if (!selectedEquation) throw new Error("No labelled equations found.")
-          await onInsert({ kind, label: selectedEquation.label, withEq })
-          return
-      }
+      await onInsert(wizardOptions())
     } catch (cause) {
       error = cause instanceof Error ? cause.message : "Unable to insert code."
     } finally {
@@ -189,19 +194,19 @@
       <p>This wizard will create an empty table with the specified properties:</p>
       <label
         >Number of rows: <input
-          type="number"
           min="1"
           max="99"
           required
+          type="number"
           bind:value={rows}
         /></label
       >
       <label
         >Number of columns: <input
-          type="number"
           min="1"
           max="99"
           required
+          type="number"
           bind:value={columns}
         /></label
       >
@@ -224,7 +229,7 @@
       </label>
     {:else if kind === "uri"}
       <p>This wizard will create a URL link:</p>
-      <label>URL: <input type="text" required bind:value={uri} /></label>
+      <label>URL: <input required type="text" bind:value={uri} /></label>
       <label>Anchor text: <input type="text" bind:value={anchor} /></label>
       <label
         ><input type="checkbox" bind:checked={newWindow} /> Open in a new window</label
@@ -236,9 +241,9 @@
       </p>
       <label
         >Page name: <input
-          type="text"
           required
           autocomplete="off"
+          type="text"
           bind:value={page}
         /></label
       >
@@ -249,11 +254,11 @@
           {#each pageMatches as match (match.slug)}
             <li>
               <button
-                type="button"
                 onclick={() => {
                   page = match.slug
                   pageMatches = []
-                }}>{match.slug} ({match.title})</button
+                }}
+                type="button">{match.slug} ({match.title})</button
               >
             </li>
           {/each}
@@ -276,12 +281,12 @@
       </fieldset>
       {#if imageSource === "uri"}
         <label>Image URL: <input type="text" bind:value={imageUri} /></label>
-        <button type="button" onclick={checkImage}>Check image</button>
+        <button onclick={checkImage} type="button">Check image</button>
         {#if previewUri}<img
-            src={previewUri}
             alt="Preview of URL"
             onload={() => (previewStatus = "Image loaded.")}
             onerror={() => (previewStatus = "Image unavailable.")}
+            src={previewUri}
           />{/if}
         {#if previewStatus}<p role="status">{previewStatus}</p>{/if}
       {:else if imageSource === "file"}
@@ -298,8 +303,8 @@
               ></label
             >
             {#if file}<img
-                src={files.find((attachment) => attachment.name === file)?.url}
                 alt="Selected attachment"
+                src={files.find((attachment) => attachment.name === file)?.url}
               />{/if}
           {:else}<p>No attached files available.</p>{/if}
         {/if}
@@ -329,10 +334,10 @@
         <fieldset>
           <legend>Select output:</legend>
           <label
-            ><input type="radio" bind:group={withEq} value={true} /> Eq.(number)</label
+            ><input type="radio" value={true} bind:group={withEq} /> Eq.(number)</label
           >
           <label
-            ><input type="radio" bind:group={withEq} value={false} /> just number</label
+            ><input type="radio" value={false} bind:group={withEq} /> just number</label
           >
         </fieldset>
         <h3>Equation source preview:</h3>
@@ -341,8 +346,8 @@
     {/if}
     {#if error}<p role="alert">{error}</p>{/if}
     <div class="actions">
-      <button type="button" onclick={onCancel}>Cancel</button>
-      <button type="submit" disabled={inserting || (kind === "eref" && !equations.length)}
+      <button onclick={onCancel} type="button">Cancel</button>
+      <button disabled={inserting || (kind === "eref" && !equations.length)} type="submit"
         >Insert code</button
       >
     </div>
@@ -353,11 +358,11 @@
   dialog {
     max-width: min(36rem, calc(100vw - 2rem));
     max-height: calc(100vh - 2rem);
-    overflow: auto;
     padding: 1.25rem;
-    border: 1px solid #888;
-    background: #fff;
+    overflow: auto;
     color: #222;
+    background: #fff;
+    border: 1px solid #888;
   }
   form {
     display: grid;
@@ -395,8 +400,8 @@
   }
   .actions {
     display: flex;
-    justify-content: flex-end;
     gap: 0.5rem;
+    justify-content: flex-end;
   }
   img {
     display: block;
@@ -405,8 +410,8 @@
     object-fit: contain;
   }
   pre {
-    white-space: pre-wrap;
     overflow-wrap: anywhere;
+    white-space: pre-wrap;
   }
   [role="alert"] {
     color: #a11;

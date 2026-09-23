@@ -41,7 +41,9 @@ function requireText(value: string, name: string, forbidden: RegExp): void {
 
 function requireDimension(value: number, name: string): void {
   // Inference: the source dialog limits each numeric input to two characters, but does not validate it.
-  if (!Number.isInteger(value) || value < 1 || value > 99) {
+  const validInteger = Number.isInteger(value)
+  const validRange = value >= 1 && value <= 99
+  if (!validInteger || !validRange) {
     throw new RangeError(`${name} must be an integer in 1..99`)
   }
 }
@@ -86,14 +88,14 @@ function codeText(type: string): string {
 function imageText(options: Extract<WizardOptions, { kind: "image" }>): string {
   const source =
     options.source === "flickr" ? normalizeFlickrSource(options.value) : options.value
-  requireText(source, "image source", /[\r\n\[\]]/)
+  requireText(source, "image source", /[\r\n[\]]/)
   if (options.source === "uri") requireText(source, "image URI", /\s/)
   const position = { "": "", l: "<", r: ">", c: "=", fl: "f<", fr: "f>" }[
     options.position
   ]
   if (position === undefined) throw new Error("Invalid image position")
   const size = options.size || ""
-  if (size && /["\r\n\[\]]/.test(size)) throw new Error("Invalid image size")
+  if (size && /["\r\n[\]]/.test(size)) throw new Error("Invalid image size")
   return `[[${position}image ${source}${size ? ` size="${size}"` : ""}]]`
 }
 
@@ -107,11 +109,11 @@ function insertAtStart(
   let after = value.slice(start)
   if (block) {
     // insertText trims the caret range before applying these two source utilities.
-    before = before.replace(/\r?\n$/, "") + "\n"
-    if (after) after = "\n\n" + after.replace(/^\r?\n(\s*\r?\n)?/, "")
+    before = `${before.replace(/\r?\n$/, "")}\n`
+    if (after) after = `\n\n${after.replace(/^\r?\n(\s*\r?\n)?/, "")}`
   }
-  const prefix = before + text
-  return { value: prefix + after, start: prefix.length, end: prefix.length }
+  const prefix = `${before}${text}`
+  return { value: `${prefix}${after}`, start: prefix.length, end: prefix.length }
 }
 
 function wrapCode(value: string, start: number, end: number, type: string): WizardResult {
@@ -121,14 +123,14 @@ function wrapCode(value: string, start: number, end: number, type: string): Wiza
   const from = start + leading
   const to = Math.max(from, end - trailing)
   const prefix = value.slice(0, from)
-  const before = prefix ? prefix.replace(/(\r?\n\s*)?\r?\n$/, "") + "\n\n" : ""
+  const before = prefix ? `${prefix.replace(/(\r?\n\s*)?\r?\n$/, "")}\n\n` : ""
   const suffix = value.slice(to)
-  const after = suffix ? "\n\n" + suffix.replace(/^\r?\n(\s*\r?\n)?/, "") : ""
+  const after = suffix ? `\n\n${suffix.replace(/^\r?\n(\s*\r?\n)?/, "")}` : ""
   const opening = codeText(type)
   const content = value.slice(from, to)
   const placeholder = "insert the code here"
   const body = content || placeholder
-  const result = before + opening + body + "\n[[/code]]"
+  const result = `${before}${opening}${body}\n[[/code]]`
   if (content) {
     return { value: result + after, start: result.length, end: result.length }
   }
@@ -140,45 +142,43 @@ function wrapCode(value: string, start: number, end: number, type: string): Wiza
   }
 }
 
+function requireSelection(value: string, start: number, end: number): void {
+  const validIntegers = Number.isInteger(start) && Number.isInteger(end)
+  const validRange = start >= 0 && end >= start && end <= value.length
+  if (!validIntegers || !validRange) throw new RangeError("Invalid wizard selection")
+}
+
+function uriText(options: Extract<WizardOptions, { kind: "uri" }>): string {
+  requireText(options.uri, "URI", /\s|[[\]]/)
+  if (/[\r\n[\]]/.test(options.anchor)) throw new Error("Invalid URI anchor")
+  const marker = options.newWindow ? "*" : ""
+  return options.anchor
+    ? `[${marker}${options.uri} ${options.anchor}]`
+    : `${marker}${options.uri}`
+}
+
+function pageLinkText(options: Extract<WizardOptions, { kind: "pageLink" }>): string {
+  requireText(options.page, "page name", /[\r\n[\]]/)
+  if (/[\r\n[\]]/.test(options.anchor)) throw new Error("Invalid page anchor")
+  return `[[[${options.page}${options.anchor ? ` |${options.anchor}` : ""}]]]`
+}
+
 export function applyWizard(
   value: string,
   start: number,
   end: number,
   options: WizardOptions
 ): WizardResult {
-  if (
-    !Number.isInteger(start) ||
-    !Number.isInteger(end) ||
-    start < 0 ||
-    end < start ||
-    end > value.length
-  ) {
-    throw new RangeError("Invalid wizard selection")
-  }
+  requireSelection(value, start, end)
   switch (options.kind) {
     case "table":
       return insertAtStart(value, start, tableText(options), true)
     case "code":
       return wrapCode(value, start, end, options.type)
-    case "uri": {
-      requireText(options.uri, "URI", /\s|[\[\]]/)
-      if (/[\r\n\[\]]/.test(options.anchor)) throw new Error("Invalid URI anchor")
-      const marker = options.newWindow ? "*" : ""
-      const text = options.anchor
-        ? `[${marker}${options.uri} ${options.anchor}]`
-        : `${marker}${options.uri}`
-      return insertAtStart(value, start, text, false)
-    }
-    case "pageLink": {
-      requireText(options.page, "page name", /[\r\n\[\]]/)
-      if (/[\r\n\[\]]/.test(options.anchor)) throw new Error("Invalid page anchor")
-      return insertAtStart(
-        value,
-        start,
-        `[[[${options.page}${options.anchor ? ` |${options.anchor}` : ""}]]]`,
-        false
-      )
-    }
+    case "uri":
+      return insertAtStart(value, start, uriText(options), false)
+    case "pageLink":
+      return insertAtStart(value, start, pageLinkText(options), false)
     case "image":
       return insertAtStart(value, start, imageText(options), false)
     case "eref": {
