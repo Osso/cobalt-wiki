@@ -390,6 +390,7 @@ test("six editor wizards insert and preview without saving local pages", async (
     const context = await browser.newContext({
       httpCredentials: { username: "cobalt", password: basicPassword, origin }
     })
+    /** @type {string[]} */
     const denied = []
     try {
       await denyWritesAndExternalRequests(context, denied)
@@ -408,6 +409,7 @@ test("six editor wizards insert and preview without saving local pages", async (
         "missing fixture page must remain absent"
       )
       assert.ok(!before.data.form, "wizard fixture must use raw wikitext")
+      await context.tracing.start({ screenshots: true, snapshots: true })
       try {
         await testTable(page, fixture.existingSlug)
         await testCode(page, fixture.existingSlug)
@@ -417,6 +419,9 @@ test("six editor wizards insert and preview without saving local pages", async (
         await testEquation(page, fixture.existingSlug)
         await testImage(page, fixture.missingSlug, false)
       } finally {
+        await context.tracing.stop({
+          path: "/tmp/claude/cobalt-wizard-browser-trace.zip"
+        })
         const after = await readPage(
           context.request,
           fixture,
