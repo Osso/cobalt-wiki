@@ -12,6 +12,7 @@ import { chromium, expect } from "@playwright/test"
 // COBALT_LOCAL_ADMIN_PASSWORD_FILE  password of the local "cobalt-import" account
 const preview = process.env.COBALT_FORM_PREVIEW
 const backend = process.env.COBALT_FORM_BACKEND
+/** @param {string} name */
 const env = (name) => {
   const value = process.env[name]
   assert.ok(value, `${name} required`)
@@ -20,7 +21,7 @@ const env = (name) => {
 
 /** @param {string} slug */
 async function readSource(slug) {
-  const response = await fetch(backend, {
+  const response = await fetch(env("COBALT_FORM_BACKEND"), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
