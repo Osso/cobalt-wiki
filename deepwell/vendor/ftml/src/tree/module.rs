@@ -71,6 +71,9 @@ pub enum Module<'t> {
     /// A rating module, which can be used to vote on the page.
     Rate,
 
+    /// The site's recent revisions, newest first.
+    SiteChanges,
+
     /// The site's visible tags, sized by use, linking to a PagesByTag page.
     #[serde(rename_all = "kebab-case")]
     TagCloud {
@@ -126,6 +129,7 @@ impl Module<'_> {
             },
             Module::PagesByTag => Module::PagesByTag,
             Module::Rate => Module::Rate,
+            Module::SiteChanges => Module::SiteChanges,
             Module::TagCloud {
                 limit,
                 target,

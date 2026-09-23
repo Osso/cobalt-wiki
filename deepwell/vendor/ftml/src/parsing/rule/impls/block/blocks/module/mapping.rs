@@ -23,7 +23,7 @@ use std::collections::HashMap;
 use std::sync::LazyLock;
 use unicase::UniCase;
 
-pub const MODULE_RULES: [ModuleRule; 9] = [
+pub const MODULE_RULES: [ModuleRule; 10] = [
     MODULE_BACKLINKS,
     MODULE_CATEGORIES,
     MODULE_CSS,
@@ -32,6 +32,7 @@ pub const MODULE_RULES: [ModuleRule; 9] = [
     MODULE_PAGE_TREE,
     MODULE_PAGES_BY_TAG,
     MODULE_RATE,
+    MODULE_SITE_CHANGES,
     MODULE_TAG_CLOUD,
 ];
 

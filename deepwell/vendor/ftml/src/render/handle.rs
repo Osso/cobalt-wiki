@@ -38,6 +38,35 @@ pub struct Handle {
 
     /// The tag named in the URL and its pages as `(slug, title)` (PagesByTag).
     pub tagged_pages: Option<(String, Vec<(String, String)>)>,
+
+    /// One page of the site's revision list (SiteChanges).
+    pub site_changes: Option<SiteChanges>,
+}
+
+/// A page of Wikidot's site-wide revision list.
+#[derive(Debug, Default)]
+pub struct SiteChanges {
+    /// The page showing the module, for pager links (`/<page>/p/N`).
+    pub page_fullname: String,
+    pub list_page: usize,
+    pub page_count: usize,
+    /// Category names for the filter form.
+    pub categories: Vec<String>,
+    pub changes: Vec<SiteChange>,
+}
+
+#[derive(Debug, Default)]
+pub struct SiteChange {
+    pub slug: String,
+    pub title: String,
+    /// Wikidot's flag letters, e.g. `"NS"`.
+    pub flags: String,
+    pub changed_at: i64,
+    /// 0 for a new page, shown as "(new)".
+    pub revision: i32,
+    pub user_slug: Option<String>,
+    pub user_name: Option<String>,
+    pub comments: String,
 }
 
 impl Handle {
@@ -106,6 +135,11 @@ impl Handle {
             Module::PagesByTag => {
                 if let Some((tag, pages)) = &self.tagged_pages {
                     render_pages_by_tag(buffer, tag, pages);
+                }
+            }
+            Module::SiteChanges => {
+                if let Some(site_changes) = &self.site_changes {
+                    render_site_changes(buffer, site_changes);
                 }
             }
             // Wikidot's PageRateWidgetModule; votes are not wired to its buttons.
@@ -468,6 +502,169 @@ fn render_pages_by_tag(buffer: &mut String, tag: &str, pages: &[(String, String)
     buffer.push_str("</div>");
 }
 
+/// Wikidot's SiteChangesModule markup. The filter form is shown but inert;
+/// pager links go to `/<page>/p/N`.
+fn render_site_changes(buffer: &mut String, view: &SiteChanges) {
+    buffer.push_str(
+        "<div class=\"site-changes-box\"><form onsubmit=\"return false;\" action=\"dummy.html\" method=\"get\">\
+         <table class=\"form\"><tr><td>Revision types:</td><td>\
+         <input class=\"checkbox\" type=\"checkbox\" id=\"rev-type-all\" checked=\"checked\"/>&nbsp;ALL<br/>\
+         <input class=\"checkbox\" type=\"checkbox\" id=\"rev-type-new\"/>&nbsp;new pages<br/>\
+         <input class=\"checkbox\" type=\"checkbox\" id=\"rev-type-source\"/>&nbsp;source changes<br/>\
+         <input class=\"checkbox\" type=\"checkbox\" id=\"rev-type-title\"/>&nbsp;title changes<br/>\
+         <input class=\"checkbox\" type=\"checkbox\" id=\"rev-type-move\"/>&nbsp;page name changes<br/>\
+         <input class=\"checkbox\" type=\"checkbox\" id=\"rev-type-tags\"/>&nbsp;tags changes<br/>\
+         <input class=\"checkbox\" type=\"checkbox\" id=\"rev-type-meta\"/>&nbsp;metadata changes<br/>\
+         <input class=\"checkbox\" type=\"checkbox\" id=\"rev-type-files\"/>&nbsp;files changes</td></tr>\
+         <tr><td>From categories:</td><td><select id=\"rev-category\"><option value=\"\" selected=\"selected\">Whole site</option>",
+    );
+    for category in &view.categories {
+        buffer.push_str("<option value=\"");
+        escape(buffer, category);
+        buffer.push_str("\">");
+        escape(buffer, category);
+        buffer.push_str("</option>");
+    }
+    buffer.push_str(
+        "</select></td></tr><tr><td>Revisions per page:</td><td><select id=\"rev-perpage\">\
+         <option value=\"10\">10</option><option value=\"20\" selected=\"selected\">20</option>\
+         <option value=\"50\">50</option><option value=\"100\">100</option><option value=\"200\">200</option>\
+         </select></td></tr></table><div class=\"buttons\">\
+         <input type=\"button\" class=\"btn btn-default btn-sm\" value=\"Update list\"/></div></form>\
+         <div class=\"changes-list\" id=\"site-changes-list\">",
+    );
+    render_site_changes_pager(buffer, view);
+    for change in &view.changes {
+        render_site_change(buffer, change);
+    }
+    render_site_changes_pager(buffer, view);
+    buffer.push_str("</div></div>");
+}
+
+/// Pages 1–2 and the current page ±2, with dots for gaps; Wikidot never
+/// links the last pages.
+fn render_site_changes_pager(buffer: &mut String, view: &SiteChanges) {
+    let (current, count) = (view.list_page, view.page_count);
+    if count <= 1 {
+        return;
+    }
+    let link = |buffer: &mut String, page: usize, label: &str| {
+        buffer.push_str("<span class=\"target\"><a href=\"/");
+        escape(buffer, &view.page_fullname);
+        str_write!(buffer, "/p/{page}\">{label}</a></span>");
+    };
+    str_write!(
+        buffer,
+        "<div class=\"pager\"><span class=\"pager-no\">page {current}</span>"
+    );
+    if current > 1 {
+        link(buffer, current - 1, "&laquo; previous");
+    }
+    let last_shown = (current + 2).min(count);
+    let mut previous = 0;
+    for page in (1..=last_shown).filter(|&page| page <= 2 || page + 2 >= current) {
+        if page > previous + 1 {
+            buffer.push_str("<span class=\"dots\">...</span>");
+        }
+        if page == current {
+            str_write!(buffer, "<span class=\"current\">{page}</span>");
+        } else {
+            link(buffer, page, &page.to_string());
+        }
+        previous = page;
+    }
+    if last_shown < count {
+        buffer.push_str("<span class=\"dots\">...</span>");
+    }
+    if current < count {
+        link(buffer, current + 1, "next &raquo;");
+    }
+    buffer.push_str("</div>");
+}
+
+fn render_site_change(buffer: &mut String, change: &SiteChange) {
+    buffer.push_str(
+        "<div class=\"changes-list-item\"><table><tr><td class=\"title\"><a href=\"/",
+    );
+    escape(buffer, &change.slug);
+    buffer.push_str("\">");
+    if let Some((category, _)) = change.slug.split_once(':') {
+        escape(buffer, category);
+        buffer.push_str(": ");
+    }
+    escape(
+        buffer,
+        if change.title.is_empty() {
+            &change.slug
+        } else {
+            &change.title
+        },
+    );
+    buffer.push_str("</a></td><td class=\"flags\">");
+    for flag in change.flags.chars() {
+        let title = match flag {
+            'N' => "new page created",
+            'S' => "content source text changed",
+            'T' => "title changed",
+            'R' => "page renamed/moved",
+            'A' => "tags changed",
+            'M' => "metadata changed",
+            'F' => "file/attachment action",
+            _ => continue,
+        };
+        str_write!(
+            buffer,
+            "<span class=\"spantip\" title=\"{title}\">{flag}</span>"
+        );
+    }
+    str_write!(
+        buffer,
+        "</td><td class=\"mod-date\"><span class=\"odate time_{} format_%25e%20%25b%20%25Y%20-%20%25H%3A%25M%3A%25S%7Cagohover\">{}</span></td>",
+        change.changed_at,
+        wikidot_date(change.changed_at),
+    );
+    match change.revision {
+        0 => buffer.push_str("<td class=\"revision-no\">(new)</td>"),
+        revision => {
+            str_write!(buffer, "<td class=\"revision-no\">(rev. {revision})</td>")
+        }
+    }
+    buffer.push_str("<td class=\"mod-by\">");
+    if let (Some(slug), Some(name)) = (&change.user_slug, &change.user_name) {
+        buffer.push_str(
+            "<span class=\"printuser\"><a href=\"https://www.wikidot.com/user:info/",
+        );
+        escape(buffer, slug);
+        buffer.push_str("\">");
+        escape(buffer, name);
+        buffer.push_str("</a></span>");
+    }
+    buffer.push_str("</td></tr></table>");
+    if !change.comments.is_empty() {
+        buffer.push_str("<div class=\"comments\">");
+        escape(buffer, &change.comments);
+        buffer.push_str("</div>");
+    }
+    buffer.push_str("</div>");
+}
+
+/// The server-side date text Wikidot shows before its script localizes it:
+/// `%e %b %Y %H:%M` in UTC, e.g. "23 Sep 2026 16:27".
+fn wikidot_date(timestamp: i64) -> String {
+    use time::OffsetDateTime;
+    use time::macros::format_description;
+    OffsetDateTime::from_unix_timestamp(timestamp)
+        .ok()
+        .and_then(|date| {
+            date.format(format_description!(
+                "[day padding:space] [month repr:short] [year] [hour]:[minute]"
+            ))
+            .ok()
+        })
+        .map(|date| date.trim_start().to_owned())
+        .unwrap_or_default()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -593,5 +790,84 @@ mod tests {
         );
         assert!(render(ScoreValue::Float(0.0)).contains(">0</span>"));
         assert!(render(ScoreValue::Integer(-3)).contains(">-3</span>"));
+    }
+
+    fn site_changes(list_page: usize, page_count: usize) -> Handle {
+        Handle {
+            site_changes: Some(SiteChanges {
+                page_fullname: "system:recent-changes".into(),
+                list_page,
+                page_count,
+                categories: vec!["writing".into()],
+                changes: vec![SiteChange {
+                    slug: "writing:2025-09-04-thousand-needles:ice-cream-empire".into(),
+                    title: "(2025-09-04) Thousand Needles: Ice Cream Empire".into(),
+                    flags: "A".into(),
+                    changed_at: 1790180877,
+                    revision: 3,
+                    user_slug: Some("allicat".into()),
+                    user_name: Some("Allicat".into()),
+                    comments: "Added tags: kalimdor-newbies.".into(),
+                }],
+            }),
+            ..Handle::default()
+        }
+    }
+
+    fn render_site_changes_module(handle: &Handle) -> String {
+        let mut buffer = String::new();
+        handle.render_module(&mut buffer, &Module::SiteChanges, ScoreValue::Integer(0));
+        buffer
+    }
+
+    #[test]
+    fn site_changes_items_match_wikidot() {
+        let html = render_site_changes_module(&site_changes(1, 1));
+        assert!(html.contains(
+            "<div class=\"changes-list-item\"><table><tr><td class=\"title\">\
+             <a href=\"/writing:2025-09-04-thousand-needles:ice-cream-empire\">writing: (2025-09-04) Thousand Needles: Ice Cream Empire</a></td>\
+             <td class=\"flags\"><span class=\"spantip\" title=\"tags changed\">A</span></td>\
+             <td class=\"mod-date\"><span class=\"odate time_1790180877 format_%25e%20%25b%20%25Y%20-%20%25H%3A%25M%3A%25S%7Cagohover\">23 Sep 2026 16:27</span></td>\
+             <td class=\"revision-no\">(rev. 3)</td>\
+             <td class=\"mod-by\"><span class=\"printuser\"><a href=\"https://www.wikidot.com/user:info/allicat\">Allicat</a></span></td></tr></table>\
+             <div class=\"comments\">Added tags: kalimdor-newbies.</div></div>"
+        ), "{html}");
+        assert!(!html.contains("class=\"pager\""), "one page needs no pager");
+        assert!(html.contains("<option value=\"writing\">writing</option>"));
+    }
+
+    #[test]
+    fn site_changes_pager_matches_wikidot() {
+        let labels = |current, count| {
+            let html = render_site_changes_module(&site_changes(current, count));
+            let pager = &html[html.find("<div class=\"pager\">").unwrap()..];
+            let pager = &pager[..pager.find("</div>").unwrap()];
+            let mut labels = Vec::new();
+            for part in pager.split("<span class=\"").skip(1) {
+                let (class, rest) = part.split_once("\">").unwrap();
+                let content = rest.trim_end_matches("</span>");
+                labels.push(match class {
+                    "target" => {
+                        let href = content.split('"').nth(1).unwrap();
+                        let label =
+                            content.split('>').nth(1).unwrap().trim_end_matches("</a");
+                        format!("{label}={}", href.rsplit('/').next().unwrap())
+                    }
+                    "current" => format!("({content})"),
+                    _ => content.to_owned(),
+                });
+            }
+            labels.join(" ")
+        };
+        // Wikidot: page 1 and page 5 of the live list.
+        assert_eq!(labels(1, 300), "page 1 (1) 2=2 3=3 ... next &raquo;=2");
+        assert_eq!(
+            labels(5, 300),
+            "page 5 &laquo; previous=4 1=1 2=2 3=3 4=4 (5) 6=6 7=7 ... next &raquo;=6"
+        );
+        assert_eq!(
+            labels(300, 300),
+            "page 300 &laquo; previous=299 1=1 2=2 ... 298=298 299=299 (300)"
+        );
     }
 }

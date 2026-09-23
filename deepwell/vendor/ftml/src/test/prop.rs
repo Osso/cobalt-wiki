@@ -132,6 +132,7 @@ fn arb_module() -> impl Strategy<Value = Element<'static>> {
     prop_oneof![
         Just(Module::Rate),
         Just(Module::PagesByTag),
+        Just(Module::SiteChanges),
         arb_optional_str().prop_map(|page| Module::Backlinks { page }),
         any::<bool>().prop_map(|include_hidden| Module::Categories { include_hidden }),
         join,

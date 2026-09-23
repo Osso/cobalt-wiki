@@ -351,8 +351,7 @@ impl RenderService {
             timeout(config.render_timeout, async {
                 let result = ftml::parse(&tokens, page_info, settings);
                 let (tree, errors) = result.into();
-                let tag = body.and_then(|body| body.tag.as_deref());
-                super::render_data::fetch_render_data(ctx, &tree, &page_info.site, tag)
+                super::render_data::fetch_render_data(ctx, &tree, page_info, body)
                     .await
                     .map(|(handle, lists_every_page)| {
                         let html_output = HtmlRender

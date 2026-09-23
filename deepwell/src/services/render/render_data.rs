@@ -1,6 +1,9 @@
+use super::BodyArguments;
 use super::prelude::*;
 use crate::models::page::Entity as Page;
+use ftml::data::PageInfo;
 use ftml::render::Handle;
+use ftml::render::handle::{SiteChange, SiteChanges};
 use ftml::tree::{
     DefinitionListItem, Element, LinkLabel, LinkLocation, ListItem, Module, SyntaxTree,
     Tab, Table,
@@ -22,6 +25,27 @@ struct TagWeight {
 }
 
 #[derive(Debug, FromQueryResult)]
+struct SiteChangeRow {
+    page_slug: String,
+    page_title: String,
+    flags: String,
+    changed_at: i64,
+    revision_number: i32,
+    user_slug: Option<String>,
+    user_name: Option<String>,
+    comments: String,
+    total: i64,
+}
+
+#[derive(Debug, FromQueryResult)]
+struct CategorySlug {
+    slug: String,
+}
+
+/// Revisions per SiteChanges page (Wikidot's default).
+const SITE_CHANGES_PER_PAGE: usize = 20;
+
+#[derive(Debug, FromQueryResult)]
 struct TaggedPage {
     slug: String,
     title: String,
@@ -33,17 +57,21 @@ struct Wanted {
     pages: BTreeSet<(String, String)>,
     tag_cloud: bool,
     pages_by_tag: bool,
+    site_changes: bool,
 }
 
 /// Fetch the data FTML renders from: titles of linked pages, plus site tags
-/// for TagCloud and the pages carrying the URL's `tag` for PagesByTag. The
-/// flag is set when the output depends on every page's tags (TagCloud).
+/// for TagCloud, the pages carrying the URL's `tag` for PagesByTag and a page
+/// of Wikidot's revision list for SiteChanges. The flag is set when the
+/// output depends on every page's tags (TagCloud).
 pub(super) async fn fetch_render_data(
     ctx: &ServiceContext<'_>,
     tree: &SyntaxTree<'_>,
-    site: &str,
-    tag: Option<&str>,
+    page_info: &PageInfo<'_>,
+    body: Option<&BodyArguments>,
 ) -> Result<(Handle, bool)> {
+    let site = &page_info.site;
+    let tag = body.and_then(|body| body.tag.as_deref());
     let wanted = collect_wanted(tree, site);
     let page_titles = fetch_page_titles(ctx, wanted.pages).await?;
     let tag_weights = match wanted.tag_cloud {
@@ -56,10 +84,22 @@ pub(super) async fn fetch_render_data(
         }
         _ => None,
     };
+    let site_changes = match wanted.site_changes {
+        true => {
+            let fullname = match &page_info.category {
+                Some(category) => format!("{category}:{}", page_info.page),
+                None => page_info.page.to_string(),
+            };
+            let list_page = body.map_or(1, |body| body.list_page);
+            Some(fetch_site_changes(ctx, site, fullname, list_page).await?)
+        }
+        false => None,
+    };
     let handle = Handle {
         page_titles,
         tag_weights,
         tagged_pages,
+        site_changes,
     };
     Ok((handle, wanted.tag_cloud))
 }
@@ -140,6 +180,73 @@ async fn fetch_tagged_pages(
     Ok(rows.into_iter().map(|row| (row.slug, row.title)).collect())
 }
 
+/// One page of Wikidot's revision list, newest first, with the category names
+/// its filter form lists.
+async fn fetch_site_changes(
+    ctx: &ServiceContext<'_>,
+    site: &str,
+    page_fullname: String,
+    list_page: usize,
+) -> Result<SiteChanges> {
+    let make_error = || Error::new("failed to fetch site changes", ErrorType::Render);
+    let offset = (list_page.max(1) - 1) * SITE_CHANGES_PER_PAGE;
+    let rows = Page::find()
+        .from_raw_sql(Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            "SELECT c.page_slug, c.page_title, c.flags,
+                    EXTRACT(EPOCH FROM c.changed_at)::bigint AS changed_at,
+                    c.revision_number, c.user_slug, c.user_name, c.comments,
+                    COUNT(*) OVER () AS total
+             FROM wikidot_site_change c
+             JOIN site s ON s.site_id = c.site_id AND s.slug = $1
+             ORDER BY c.changed_at DESC, c.revision_number DESC, c.page_slug
+             LIMIT $2 OFFSET $3",
+            [
+                Value::from(site),
+                Value::from(SITE_CHANGES_PER_PAGE as i64),
+                Value::from(offset as i64),
+            ],
+        ))
+        .into_model::<SiteChangeRow>()
+        .all(ctx.transaction())
+        .await
+        .or_raise(make_error)?;
+    let categories = Page::find()
+        .from_raw_sql(Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            "SELECT c.slug FROM page_category c
+             JOIN site s ON s.site_id = c.site_id AND s.slug = $1
+             ORDER BY c.slug COLLATE \"C\"",
+            [Value::from(site)],
+        ))
+        .into_model::<CategorySlug>()
+        .all(ctx.transaction())
+        .await
+        .or_raise(make_error)?;
+    let total = rows
+        .first()
+        .map_or(0, |row| row.total.unsigned_abs() as usize);
+    Ok(SiteChanges {
+        page_fullname,
+        list_page,
+        page_count: total.div_ceil(SITE_CHANGES_PER_PAGE),
+        categories: categories.into_iter().map(|row| row.slug).collect(),
+        changes: rows
+            .into_iter()
+            .map(|row| SiteChange {
+                slug: row.page_slug,
+                title: row.page_title,
+                flags: row.flags,
+                changed_at: row.changed_at,
+                revision: row.revision_number,
+                user_slug: row.user_slug,
+                user_name: row.user_name,
+                comments: row.comments,
+            })
+            .collect(),
+    })
+}
+
 /// Live pages of site `$1` joined to their current revision `r`.
 const LIVE_PAGES: &str = "site s
     JOIN page p ON p.site_id = s.site_id AND p.deleted_at IS NULL
@@ -200,6 +307,7 @@ fn collect_element(element: &Element<'_>, site: &str, references: &mut Wanted) {
         }
         Element::Module(Module::TagCloud { .. }) => references.tag_cloud = true,
         Element::Module(Module::PagesByTag) => references.pages_by_tag = true,
+        Element::Module(Module::SiteChanges) => references.site_changes = true,
         Element::Container(container) => {
             collect_elements(container.elements(), site, references)
         }
