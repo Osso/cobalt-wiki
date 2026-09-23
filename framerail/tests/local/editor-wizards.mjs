@@ -297,6 +297,12 @@ async function testPageLink(page, slug) {
   await dialog.getByLabel("Page name:").fill("local")
   const matches = dialog.getByRole("list", { name: "Matching pages" }).getByRole("button")
   await expect.poll(() => matches.count()).toBeGreaterThanOrEqual(2)
+  const suggestions = (await matches.allTextContents()).map((text) => text.split(" (")[0])
+  assert.ok(
+    suggestions.every((slug) => slug.startsWith("local")),
+    "slug-prefix suggestions only"
+  )
+  assert.deepEqual(suggestions, [...suggestions].sort(), "slug-sorted suggestions")
   const matchText = await matches.first().textContent()
   assert.ok(matchText, "lookup result must contain a page name")
   const destination = matchText.split(" (")[0]
