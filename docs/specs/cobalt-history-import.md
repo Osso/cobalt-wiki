@@ -1,6 +1,6 @@
 # Cobalt history import
 
-Cobalt history import must backfill authorized source revision history without presenting the latest-source migration as complete history. The current migration has 6,092 pages and 1,471 files, but the historical revision count and records have not been acquired. See the [current POC import contract](cobalt-poc-import.md), the [native revision import endpoint](../../deepwell/src/endpoints/import.rs), the [native import service](../../deepwell/src/services/import/service.rs), and the [stock WikiComma importer reference](/home/osso/Repos/wikijump/deepwell/importer/README.md).
+Cobalt history import must backfill authorized source revision history without presenting the latest-source migration as complete history. The current migration has 6,092 pages and 1,471 files, but the historical revision count and records have not been acquired. See the [current POC import contract](cobalt-poc-import.md), the [native revision import endpoint](../../deepwell/src/endpoints/import.rs), the [native import service](../../deepwell/src/services/import/service.rs), and the [stock WikiComma importer entry point](../../deepwell/importer/__main__.py).
 
 ## What it must do
 
@@ -31,15 +31,16 @@ Cobalt history import must backfill authorized source revision history without p
 
 - [POC import](cobalt-poc-import.md)
 - [Queue incident and recovery](../wiki/systems/cobalt-queue-recovery.md)
-- [Stock WikiComma importer implementation](/home/osso/Repos/wikijump/deepwell/importer/importer.py)
-- [Stock WikiComma archive reader](/home/osso/Repos/wikijump/deepwell/importer/__main__.py)
+- [Stock WikiComma importer implementation](../../deepwell/importer/importer.py)
+- [Stock WikiComma archive reader](../../deepwell/importer/site.py)
 - [Native revision import endpoint](../../deepwell/src/endpoints/import.rs)
 - [Native revision import service](../../deepwell/src/services/import/service.rs)
 
 ## Implementation inventory
 
-- `/home/osso/Repos/wikijump/deepwell/importer/importer.py`: stock WikiComma reference importer consumes `metadata["revisions"]` and per-page `.7z` revision bodies keyed by revision number, writing its own SQLite/S3 target.
-- `/home/osso/Repos/wikijump/deepwell/importer/__main__.py`: stock importer command entrypoint; it does not crawl source history.
+- `deepwell/importer/site.py`: reads revision metadata and per-page `.7z` bodies keyed by revision number.
+- `deepwell/importer/importer.py`: writes the stock SQLite/S3 target.
+- `deepwell/importer/__main__.py`: importer command entrypoint; it does not crawl source history.
 - `deepwell/src/endpoints/import.rs`: exposes `import_wikidot_page_revision`.
 - `deepwell/src/services/import/service.rs`: native Wikidot revision import behavior; the endpoint expects a sequential history beginning at revision 0.
 - `tools/cobalt_migration/poc_import.py`: current latest-source importer; it does not acquire or import historical revision records.
