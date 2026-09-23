@@ -14,7 +14,6 @@ from urllib.parse import parse_qsl
 from tools.cobalt_migration.history_export import HistoryResponse
 from tools.cobalt_migration.history_transport import make_history_fetch
 
-
 ORIGIN = "https://example.test"
 TARGET = "A" * 32
 VM_PAGE = r"""
