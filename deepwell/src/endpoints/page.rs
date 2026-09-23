@@ -41,7 +41,7 @@ use crate::types::{
 use futures::future::try_join_all;
 use serde::Serialize;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct PageCreatePermissionOutput {
     pub can_create: bool,
 }
