@@ -903,18 +903,20 @@ impl PageRevisionService {
             .or_raise(make_error)?;
 
         let model = match rerender_type {
-            RerenderType::Full => {
-                // Outdate all descendent pages and update body and nav pages
+            RerenderType::Full | RerenderType::Standalone => {
+                // Outdate all descendent pages (full only) and update body and nav pages
 
-                OutdateService::process_page_edit(
-                    ctx,
-                    site_id,
-                    page_id,
-                    &revision.slug,
-                    depth,
-                )
-                .await
-                .or_raise(make_error)?;
+                if rerender_type == RerenderType::Full {
+                    OutdateService::process_page_edit(
+                        ctx,
+                        site_id,
+                        page_id,
+                        &revision.slug,
+                        depth,
+                    )
+                    .await
+                    .or_raise(make_error)?;
+                }
 
                 page_revision::ActiveModel {
                     revision_id: Set(revision.revision_id),

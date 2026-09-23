@@ -1,8 +1,8 @@
 //! Wikidot live form templates: a category's `_template` wraps each YAML page record.
 
 use super::includes::fetch_shared_source_by_slug;
-use super::list_pages::list_pages_blocks;
-use super::page_tokens::{FormRecord, PageTokens, substitute_tokens};
+use super::list_pages::substitute_outside_module_bodies;
+use super::page_tokens::{FormRecord, PageTokens};
 use super::prelude::*;
 use crate::services::SiteService;
 use crate::services::view::form::template_slug;
@@ -57,7 +57,10 @@ pub(super) async fn apply_live_template(
         updated_at: None,
         form: Some(&form),
     };
-    Ok(fill_template(live_section(&parts.body), &tokens))
+    Ok(substitute_outside_module_bodies(
+        live_section(&parts.body),
+        &tokens,
+    ))
 }
 
 /// The template text shown on pages is everything before the first `====` line.
@@ -70,23 +73,6 @@ fn live_section(body: &str) -> &str {
         offset += line.len();
     }
     body
-}
-
-/// Substitute this page's tokens everywhere except ListPages item templates,
-/// whose tokens describe each listed page instead.
-fn fill_template(template: &str, tokens: &PageTokens) -> String {
-    let mut output = String::with_capacity(template.len());
-    let mut copied = 0;
-    for block in list_pages_blocks(template) {
-        output.push_str(&substitute_tokens(
-            &template[copied..block.body_range.start],
-            tokens,
-        ));
-        output.push_str(block.body);
-        copied = block.body_range.end;
-    }
-    output.push_str(&substitute_tokens(&template[copied..], tokens));
-    output
 }
 
 #[cfg(test)]
@@ -116,7 +102,7 @@ mod tests {
     fn list_pages_item_tokens_describe_listed_pages() {
         let template = "+ %%title%%\n[[module ListPages tags=\"+%%name%%\"]]\n* %%linked_title%%\n[[/module]]\n%%fullname%%";
         assert_eq!(
-            fill_template(template, &tokens()),
+            substitute_outside_module_bodies(template, &tokens()),
             "+ Sir Dane Atley\n[[module ListPages tags=\"+atley\"]]\n* %%linked_title%%\n[[/module]]\ncharacter:atley",
         );
     }

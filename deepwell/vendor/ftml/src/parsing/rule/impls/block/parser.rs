@@ -388,6 +388,17 @@ where
 
         let (subname, in_head) =
             self.get_block_name_internal(ParseErrorKind::ModuleMissingName)?;
+        let arguments = self.get_head_lenient_map(block_rule, in_head)?;
+        Ok((subname, arguments))
+    }
+
+    /// Like `get_head_map()`, but as Wikidot reads block heads: text that is not a
+    /// `key="value"` pair is skipped instead of rejecting the whole block.
+    pub fn get_head_lenient_map(
+        &mut self,
+        block_rule: &BlockRule,
+        in_head: bool,
+    ) -> Result<Arguments<'t>, ParseError> {
         let mut arguments = Arguments::new();
         if in_head {
             let head = collect_text(
@@ -408,7 +419,7 @@ where
 
         // Collection always ends the head, like get_head_value().
         self.get_head_block(block_rule, false)?;
-        Ok((subname, arguments))
+        Ok(arguments)
     }
 
     pub fn get_head_value<F, T>(

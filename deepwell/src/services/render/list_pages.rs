@@ -1,7 +1,28 @@
-//! Wikidot `[[module ListPages]]` expansion into ordinary wikitext before FTML parsing.
+//! Wikidot `[[module ListPages]]` and `[[module CountPages]]` expansion into ordinary
+//! wikitext before FTML parsing.
 
 use super::includes::can_view_shared;
 use super::page_tokens::{FormRecord, PageTokens, substitute_tokens};
+
+/// Substitute tokens everywhere except nested module item templates, whose
+/// tokens describe the pages those modules list.
+pub(super) fn substitute_outside_module_bodies(
+    text: &str,
+    tokens: &PageTokens,
+) -> String {
+    let mut output = String::with_capacity(text.len());
+    let mut copied = 0;
+    for block in list_pages_blocks(text) {
+        output.push_str(&substitute_tokens(
+            &text[copied..block.body_range.start],
+            tokens,
+        ));
+        output.push_str(block.body);
+        copied = block.body_range.end;
+    }
+    output.push_str(&substitute_tokens(&text[copied..], tokens));
+    output
+}
 use super::prelude::*;
 use crate::models::page::Entity as Page;
 use crate::models::text::{self, Entity as Text};
@@ -19,17 +40,27 @@ type ParseResult<T> = std::result::Result<T, String>;
 
 const DEFAULT_PER_PAGE: usize = 20;
 const MAX_PER_PAGE: usize = 250;
+/// Nested listing levels expanded; deeper modules stay as text.
+const MAX_NESTING: usize = 4;
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub(super) enum ModuleKind {
+    ListPages,
+    CountPages,
+}
 
 /// One module occurrence: its whole source range, header text, and item template.
 #[derive(Debug, PartialEq)]
 pub(super) struct ListPagesBlock<'t> {
+    pub kind: ModuleKind,
     pub range: Range<usize>,
     pub header: &'t str,
     pub body: &'t str,
     pub body_range: Range<usize>,
 }
 
-/// Find every terminated ListPages module. Unterminated modules remain ordinary text.
+/// Find every terminated ListPages/CountPages module. Unterminated modules remain
+/// ordinary text.
 pub(super) fn list_pages_blocks(source: &str) -> Vec<ListPagesBlock<'_>> {
     let mut blocks = Vec::new();
     let lower = source.to_ascii_lowercase();
@@ -50,25 +81,64 @@ fn next_block<'t>(
     loop {
         let start = search + lower[search..].find("[[module")?;
         let name_start = start + "[[module".len();
-        let name = lower[name_start..].trim_start();
-        let header_start = source.len() - name.len() + "listpages".len();
-        let is_list_pages = lower[name_start..].starts_with(char::is_whitespace)
-            && name.starts_with("listpages")
-            && name["listpages".len()..]
-                .starts_with(|c: char| c.is_whitespace() || c == ']');
-        if !is_list_pages {
+        let Some((module, kind)) = module_at(lower, name_start) else {
             search = name_start;
             continue;
-        }
+        };
+        let name = lower[name_start..].trim_start();
+        let header_start = source.len() - name.len() + module.len();
         let header_end = header_start + find_header_end(&source[header_start..])?;
         let body_start = header_end + 2;
-        let body_end = body_start + lower[body_start..].find("[[/module]]")?;
+        let body_end = find_matching_close(lower, body_start)?;
         return Some(ListPagesBlock {
+            kind,
             range: start..body_end + "[[/module]]".len(),
             header: &source[header_start..header_end],
             body: &source[body_start..body_end],
             body_range: body_start..body_end,
         });
+    }
+}
+
+/// The ListPages/CountPages module named after a `[[module` opening, if any.
+fn module_at(lower: &str, name_start: usize) -> Option<(&'static str, ModuleKind)> {
+    if !lower[name_start..].starts_with(char::is_whitespace) {
+        return None;
+    }
+    let name = lower[name_start..].trim_start();
+    [
+        ("listpages", ModuleKind::ListPages),
+        ("countpages", ModuleKind::CountPages),
+    ]
+    .into_iter()
+    .find(|(module, _)| {
+        name.starts_with(module)
+            && name[module.len()..].starts_with(|c: char| c.is_whitespace() || c == ']')
+    })
+}
+
+/// The `[[/module]]` closing a body starting at `body_start`, skipping the
+/// bodies of nested ListPages/CountPages modules.
+fn find_matching_close(lower: &str, body_start: usize) -> Option<usize> {
+    let mut depth = 0;
+    let mut offset = body_start;
+    loop {
+        let close = offset + lower[offset..].find("[[/module]]")?;
+        let open = lower[offset..close]
+            .match_indices("[[module")
+            .map(|(index, _)| offset + index)
+            .find(|&open| module_at(lower, open + "[[module".len()).is_some());
+        match open {
+            Some(open) => {
+                depth += 1;
+                offset = open + "[[module".len();
+            }
+            None if depth == 0 => return Some(close),
+            None => {
+                depth -= 1;
+                offset = close + "[[/module]]".len();
+            }
+        }
     }
 }
 
@@ -318,7 +388,7 @@ fn parse_separate(value: Option<&String>) -> ParseResult<bool> {
     }
 }
 
-#[derive(Debug, FromQueryResult)]
+#[derive(Debug, Clone, FromQueryResult)]
 struct ListedPage {
     page_id: i64,
     page_category_id: i64,
@@ -327,6 +397,7 @@ struct ListedPage {
     created_at: OffsetDateTime,
     updated_at: Option<OffsetDateTime>,
     title: String,
+    tags: Vec<String>,
     wikitext_hash: Vec<u8>,
 }
 
@@ -339,15 +410,37 @@ impl ListedPage {
 /// Replace every ListPages module in rendered wikitext with its generated items.
 pub(super) async fn expand_list_pages(
     ctx: &ServiceContext<'_>,
-    source: String,
+    mut source: String,
     page_info: &PageInfo<'_>,
 ) -> Result<String> {
-    let blocks = list_pages_blocks(&source);
-    if blocks.is_empty() {
+    if list_pages_blocks(&source).is_empty() {
         return Ok(source);
     }
     let site =
         SiteService::get(ctx, Reference::Slug(page_info.site.as_ref().into())).await?;
+    let mut listing = SiteListing::load(ctx, site.site_id).await?;
+    // Items of an outer module may contain inner modules (nested listings).
+    for _ in 0..MAX_NESTING {
+        match expand_list_pages_once(ctx, &source, page_info, &mut listing).await? {
+            Some(expanded) => source = expanded,
+            None => break,
+        }
+    }
+    Ok(source)
+}
+
+/// Expand the outermost modules; `None` when there are none.
+async fn expand_list_pages_once(
+    ctx: &ServiceContext<'_>,
+    source: &str,
+    page_info: &PageInfo<'_>,
+    listing: &mut SiteListing,
+) -> Result<Option<String>> {
+    let blocks = list_pages_blocks(source);
+    if blocks.is_empty() {
+        return Ok(None);
+    }
+    let site_id = listing.site_id;
     let current_category = page_info.category.as_deref().unwrap_or("_default");
     let mut forms = FormCache::default();
     let mut output = String::with_capacity(source.len());
@@ -356,129 +449,131 @@ pub(super) async fn expand_list_pages(
         output.push_str(&source[copied..block.range.start]);
         let selection = parse_attributes(block.header)
             .and_then(|attributes| parse_selection(&attributes, current_category));
-        match selection {
-            Ok(selection) => {
-                let pages = select_pages(ctx, site.site_id, &selection).await?;
+        match (block.kind, selection) {
+            (ModuleKind::ListPages, Ok(selection)) => {
+                let pages = listing.select(ctx, &selection).await?;
                 let items =
-                    render_items(ctx, block.body, &pages, &mut forms, site.site_id)
-                        .await?;
+                    render_items(ctx, block.body, &pages, &mut forms, site_id).await?;
                 output.push_str(&layout_items(&selection, &items));
             }
-            Err(message) => output.push_str(&error_block(&message)),
+            (ModuleKind::CountPages, Ok(mut selection)) => {
+                selection.limit = usize::MAX;
+                let total = listing.select(ctx, &selection).await?.len();
+                output.push_str(&layout_total(block.body, total));
+            }
+            (kind, Err(message)) => output.push_str(&error_block(kind, &message)),
         }
         copied = block.range.end;
     }
     output.push_str(&source[copied..]);
-    Ok(output)
+    Ok(Some(output))
 }
 
-fn error_block(message: &str) -> String {
-    format!("[[div class=\"error-block\"]]\nListPages module error: {message}.\n[[/div]]")
+fn error_block(kind: ModuleKind, message: &str) -> String {
+    format!("[[div class=\"error-block\"]]\n{kind:?} module error: {message}.\n[[/div]]")
 }
 
-async fn select_pages(
-    ctx: &ServiceContext<'_>,
+/// Every page of the site, loaded once per render: nested listings run one
+/// selection per outer item, which as separate queries exceeded the render budget.
+struct SiteListing {
     site_id: i64,
-    selection: &Selection,
-) -> Result<Vec<ListedPage>> {
-    let mut pages = Page::find()
-        .from_raw_sql(build_selection_query(site_id, selection))
-        .into_model::<ListedPage>()
-        .all(ctx.transaction())
-        .await
-        .or_raise(|| Error::new("failed to select ListPages pages", ErrorType::Render))?;
-    pages.retain(|page| match selection.page_type {
-        PageType::Normal => !page.name().starts_with('_'),
-        PageType::Hidden => page.name().starts_with('_'),
-        PageType::All => true,
-    });
-    sort_pages(&mut pages, selection.order, selection.descending);
-    // Compiled HTML is shared, so only anonymously readable pages may be listed.
-    // Anonymous roles never depend on the page (page-author roles require a member),
-    // so one check per category decides every page in it.
-    let mut category_visible = HashMap::new();
-    let mut visible = Vec::new();
-    for page in pages {
-        if visible.len() == selection.limit {
-            break;
-        }
-        let can_view = match category_visible.get(&page.page_category_id) {
-            Some(&can_view) => can_view,
-            None => {
-                let can_view =
-                    can_view_shared(ctx, site_id, page.page_id, page.page_category_id)
-                        .await?;
-                category_visible.insert(page.page_category_id, can_view);
-                can_view
-            }
-        };
-        if can_view {
-            visible.push(page);
-        }
-    }
-    Ok(visible)
+    pages: Vec<ListedPage>,
+    category_visible: HashMap<i64, bool>,
 }
 
-/// Only the filters a module uses appear in the query. Parameters never switch a
-/// filter off, because a cached prepared statement may run with a generic plan
-/// that cannot simplify such switches (measured: 53 ms instead of 0.6 ms).
-fn build_selection_query(site_id: i64, selection: &Selection) -> Statement {
-    let mut query = SelectionQuery::new(site_id);
-    if !selection.all_categories {
-        query.filter("c.slug = ANY({}::text[])", &selection.categories);
-    }
-    query.filter("c.slug <> ALL({}::text[])", &selection.excluded_categories);
-    query.filter("r.tags && {}::text[]", &selection.any_tags);
-    query.filter("r.tags @> {}::text[]", &selection.all_tags);
-    query.filter("NOT (r.tags && {}::text[])", &selection.excluded_tags);
-    if selection.untagged {
-        query.sql.push_str(" AND cardinality(r.tags) = 0");
-    }
-    if let Some(days) = selection.created_within_days {
-        query.bind(
-            "p.created_at >= {}",
-            Value::from(OffsetDateTime::now_utc() - Duration::days(days)),
+impl SiteListing {
+    async fn load(ctx: &ServiceContext<'_>, site_id: i64) -> Result<Self> {
+        let statement = Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            "SELECT p.page_id, p.page_category_id, p.slug, c.slug AS category,
+                    p.created_at, p.updated_at, r.title, r.tags, r.wikitext_hash
+             FROM page p
+             JOIN page_category c ON c.category_id = p.page_category_id
+             JOIN page_revision r ON r.revision_id = p.latest_revision_id
+             WHERE p.site_id = $1 AND p.deleted_at IS NULL",
+            [Value::from(site_id)],
         );
+        let pages = Page::find()
+            .from_raw_sql(statement)
+            .into_model::<ListedPage>()
+            .all(ctx.transaction())
+            .await
+            .or_raise(|| {
+                Error::new("failed to load ListPages pages", ErrorType::Render)
+            })?;
+        Ok(SiteListing {
+            site_id,
+            pages,
+            category_visible: HashMap::new(),
+        })
     }
-    Statement::from_sql_and_values(DatabaseBackend::Postgres, query.sql, query.values)
-}
 
-struct SelectionQuery {
-    sql: String,
-    values: Vec<Value>,
-}
-
-impl SelectionQuery {
-    fn new(site_id: i64) -> Self {
-        SelectionQuery {
-            sql: "SELECT p.page_id, p.page_category_id, p.slug, c.slug AS category,
-                         p.created_at, p.updated_at, r.title, r.wikitext_hash
-                  FROM page p
-                  JOIN page_category c ON c.category_id = p.page_category_id
-                  JOIN page_revision r ON r.revision_id = p.latest_revision_id
-                  WHERE p.site_id = $1 AND p.deleted_at IS NULL"
-                .into(),
-            values: vec![Value::from(site_id)],
+    async fn select(
+        &mut self,
+        ctx: &ServiceContext<'_>,
+        selection: &Selection,
+    ) -> Result<Vec<ListedPage>> {
+        let created_after = selection
+            .created_within_days
+            .map(|days| OffsetDateTime::now_utc() - Duration::days(days));
+        let mut pages: Vec<&ListedPage> = self
+            .pages
+            .iter()
+            .filter(|page| selection.matches(page, created_after))
+            .collect();
+        sort_pages(&mut pages, selection.order, selection.descending);
+        // Compiled HTML is shared, so only anonymously readable pages may be listed.
+        // Anonymous roles never depend on the page (page-author roles require a member),
+        // so one check per category decides every page in it.
+        let mut visible = Vec::new();
+        for page in pages {
+            if visible.len() == selection.limit {
+                break;
+            }
+            let can_view = match self.category_visible.get(&page.page_category_id) {
+                Some(&can_view) => can_view,
+                None => {
+                    let can_view = can_view_shared(
+                        ctx,
+                        self.site_id,
+                        page.page_id,
+                        page.page_category_id,
+                    )
+                    .await?;
+                    self.category_visible
+                        .insert(page.page_category_id, can_view);
+                    can_view
+                }
+            };
+            if can_view {
+                visible.push(page.clone());
+            }
         }
-    }
-
-    /// Add a list filter unless the list is empty (an empty list filters nothing).
-    fn filter(&mut self, condition: &str, list: &[String]) {
-        if !list.is_empty() {
-            self.bind(condition, Value::from(list.to_vec()));
-        }
-    }
-
-    /// Append `AND condition`, replacing `{}` with the next parameter.
-    fn bind(&mut self, condition: &str, value: Value) {
-        self.values.push(value);
-        let parameter = format!("${}", self.values.len());
-        self.sql.push_str(" AND ");
-        self.sql.push_str(&condition.replace("{}", &parameter));
+        Ok(visible)
     }
 }
 
-fn sort_pages(pages: &mut [ListedPage], order: OrderField, descending: bool) {
+impl Selection {
+    fn matches(&self, page: &ListedPage, created_after: Option<OffsetDateTime>) -> bool {
+        let has = |tag: &String| page.tags.contains(tag);
+        let hidden = page.name().starts_with('_');
+        let page_type = match self.page_type {
+            PageType::Normal => !hidden,
+            PageType::Hidden => hidden,
+            PageType::All => true,
+        };
+        page_type
+            && (self.all_categories || self.categories.contains(&page.category))
+            && !self.excluded_categories.contains(&page.category)
+            && (self.any_tags.is_empty() || self.any_tags.iter().any(has))
+            && self.all_tags.iter().all(has)
+            && !self.excluded_tags.iter().any(has)
+            && (!self.untagged || page.tags.is_empty())
+            && created_after.is_none_or(|after| page.created_at >= after)
+    }
+}
+
+fn sort_pages(pages: &mut [&ListedPage], order: OrderField, descending: bool) {
     pages.sort_by(|a, b| {
         let ordering = match order {
             OrderField::Name => a.name().to_lowercase().cmp(&b.name().to_lowercase()),
@@ -522,7 +617,7 @@ async fn render_items(
             updated_at: page.updated_at.map(OffsetDateTime::unix_timestamp),
             form: form.as_ref(),
         };
-        items.push(substitute_tokens(body, &tokens));
+        items.push(substitute_outside_module_bodies(body, &tokens));
     }
     Ok(items)
 }
@@ -605,7 +700,6 @@ fn layout_items(selection: &Selection, items: &[String]) -> String {
         return String::new();
     }
     let mut lines = Vec::with_capacity(items.len() + 2);
-    lines.extend(selection.prepend_line.clone());
     if selection.separate {
         lines.extend(
             items.iter().map(|item| {
@@ -613,12 +707,21 @@ fn layout_items(selection: &Selection, items: &[String]) -> String {
             }),
         );
     } else {
+        // Wikidot shows prepend/append lines only around joined items.
+        lines.extend(selection.prepend_line.clone());
         lines.extend(items.iter().cloned());
+        lines.extend(selection.append_line.clone());
     }
-    lines.extend(selection.append_line.clone());
     let content = lines.join("\n");
     // A trailing line continuation must not join the closing div.
     let content = content.trim_end().trim_end_matches('\\').trim_end();
+    format!("\n[[div class=\"list-pages-box\"]]\n{content}\n[[/div]]\n")
+}
+
+/// Wikidot fills `%%total%%` in the module body and boxes it like a listing.
+fn layout_total(body: &str, total: usize) -> String {
+    let body = body.trim_matches(|c| c == '\n' || c == '\r');
+    let content = body.replace("%%total%%", &total.to_string());
     format!("\n[[div class=\"list-pages-box\"]]\n{content}\n[[/div]]\n")
 }
 
@@ -648,7 +751,11 @@ mod tests {
     #[test]
     fn ignores_other_modules_and_unterminated_list_pages() {
         assert!(list_pages_blocks("[[module ListPagesX]]x[[/module]]").is_empty());
-        assert!(list_pages_blocks("[[module CountPages]] [[/module]]").is_empty());
+        assert!(list_pages_blocks("[[module Join]] [[/module]]").is_empty());
+        assert_eq!(
+            list_pages_blocks("[[module CountPages]]%%total%%[[/module]]")[0].kind,
+            ModuleKind::CountPages
+        );
         assert!(
             list_pages_blocks("[[module ListPages category=\"a\"]] never closed")
                 .is_empty()
@@ -730,7 +837,8 @@ mod tests {
             layout_items(&joined, &items),
             "\n[[div class=\"list-pages-box\"]]\n||~ Head ||\n|| a ||\n|| b ||\n[[/div]]\n"
         );
-        let separate = selection("");
+        // Wikidot shows prepend/append lines only for joined items (Cobalt writings).
+        let separate = selection(" prependLine=\"~ Page\" appendLine=\"End\"");
         assert_eq!(
             layout_items(&separate, &items[..1]),
             "\n[[div class=\"list-pages-box\"]]\n[[div class=\"list-pages-item\"]]\n|| a ||\n[[/div]]\n[[/div]]\n"
@@ -758,8 +866,8 @@ mod tests {
                 }
             }
         }
-        println!("parsed {modules} ListPages modules");
-        assert_eq!(modules, 71);
+        println!("parsed {modules} ListPages/CountPages modules");
+        assert_eq!(modules, 81);
         assert!(failures.is_empty(), "{failures:#?}");
     }
 }

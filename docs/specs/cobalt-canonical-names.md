@@ -7,7 +7,7 @@ The replica must preserve existing Wikidot names rather than flattening their co
 - [ ] Preserve multi-colon references and link to the exact target, including when a distinct dash-normalized page exists.
 - [ ] Assign imported multi-colon pages to the first-colon category.
 - [ ] Preserve ordinary single-colon/default references, explicit labels, fragments and subpaths.
-- [ ] Reconcile affected existing category assignments without changing source bytes or revision identity.
+- [x] Reconcile affected existing category assignments without changing source bytes or revision identity. Production, 2026-09-23: 456 imported multi-colon pages moved from 438 per-prefix categories to `writing` (the only affected first segment); the emptied categories, which had no permission rows, were deleted. Only `page.page_category_id` changed. Rollback data: tables `reconcile_20260923_page_category` (page, old category) and `reconcile_20260923_categories` (deleted rows). Afterwards the replica `stats` CountPages totals match Wikidot except one RP log absent from the archive (5,385 vs 5,386).
 
 ## How it works
 
@@ -25,7 +25,7 @@ The replica must preserve existing Wikidot names rather than flattening their co
 
 ## Known gaps (current cycle)
 
-- [ ] Native tests, full canonical-name corpus proof, deployment and existing-data reconciliation.
+- [ ] Full canonical-name corpus proof. The naming code (`f5fbf4c`) is deployed with the rendering branch and existing data is reconciled.
 - [ ] Category ACL/creator metadata remains separate; source observations must not be treated as a complete permission export.
 
 ## Out of scope

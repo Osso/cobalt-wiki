@@ -213,6 +213,7 @@ impl JobWorker {
                 let extra = match rerender_type {
                     RerenderType::Full => "normal",
                     RerenderType::NavigationOnly => "nav only",
+                    RerenderType::Standalone => "standalone",
                 };
 
                 debug!(

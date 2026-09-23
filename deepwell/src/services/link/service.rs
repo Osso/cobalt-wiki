@@ -386,39 +386,35 @@ async fn update_connections(
         )
     };
 
-    // Get existing connections
-    let mut connection_chunks = PageConnection::find()
+    // Get existing connections. All of them are loaded before any is deleted, because
+    // deleting while paging by offset would skip rows and re-insert them.
+    let existing = PageConnection::find()
         .filter(page_connection::Column::FromPageId.eq(from_page_id))
-        .order_by_asc(page_connection::Column::CreatedAt)
-        .paginate(txn, 100);
+        .all(txn)
+        .await
+        .or_raise(make_error)?;
 
     // Update and delete connections
-    while let Some(connections) = connection_chunks
-        .fetch_and_next()
-        .await
-        .or_raise(make_error)?
-    {
-        for connection in connections {
-            let to_page_id = connection.to_page_id;
-            let connection_type = connection.connection_type;
+    for connection in existing {
+        let to_page_id = connection.to_page_id;
+        let connection_type = connection.connection_type;
 
-            match counts.remove(&(to_page_id, connection_type)) {
-                // Connection exists, count is the same. Do nothing.
-                Some(count) if connection.count == count => (),
+        match counts.remove(&(to_page_id, connection_type)) {
+            // Connection exists, count is the same. Do nothing.
+            Some(count) if connection.count == count => (),
 
-                // Connection exists, update count.
-                Some(count) => {
-                    let mut model: page_connection::ActiveModel = connection.into();
-                    model.count = Set(count);
-                    model.updated_at = Set(Some(now()));
-                    model.update(txn).await.or_raise(make_error)?;
-                }
+            // Connection exists, update count.
+            Some(count) => {
+                let mut model: page_connection::ActiveModel = connection.into();
+                model.count = Set(count);
+                model.updated_at = Set(Some(now()));
+                model.update(txn).await.or_raise(make_error)?;
+            }
 
-                // Connection existed, but has no further counts. Remove it.
-                None => {
-                    let model: page_connection::ActiveModel = connection.into();
-                    model.delete(txn).await.or_raise(make_error)?;
-                }
+            // Connection existed, but has no further counts. Remove it.
+            None => {
+                let model: page_connection::ActiveModel = connection.into();
+                model.delete(txn).await.or_raise(make_error)?;
             }
         }
     }
@@ -466,41 +462,36 @@ async fn update_connections_missing(
         )
     };
 
-    // Get existing connections
-    let mut connection_chunks = PageConnectionMissing::find()
+    // Get existing connections. All of them are loaded before any is deleted, because
+    // deleting while paging by offset would skip rows and re-insert them.
+    let existing = PageConnectionMissing::find()
         .filter(page_connection_missing::Column::FromPageId.eq(from_page_id))
-        .order_by_asc(page_connection_missing::Column::CreatedAt)
-        .paginate(txn, 100);
+        .all(txn)
+        .await
+        .or_raise(make_error)?;
 
     // Update and delete connections
-    while let Some(connections) = connection_chunks
-        .fetch_and_next()
-        .await
-        .or_raise(make_error)?
-    {
-        for connection in connections {
-            let to_site_id = connection.to_site_id;
-            let to_page_slug = connection.to_page_slug.clone();
-            let connection_type = connection.connection_type;
+    for connection in existing {
+        let to_site_id = connection.to_site_id;
+        let to_page_slug = connection.to_page_slug.clone();
+        let connection_type = connection.connection_type;
 
-            match counts.remove(&(to_site_id, to_page_slug.clone(), connection_type)) {
-                // Connection exists, count is the same. Do nothing.
-                Some(count) if connection.count == count => (),
+        match counts.remove(&(to_site_id, to_page_slug.clone(), connection_type)) {
+            // Connection exists, count is the same. Do nothing.
+            Some(count) if connection.count == count => (),
 
-                // Connection exists, update count.
-                Some(count) => {
-                    let mut model: page_connection_missing::ActiveModel =
-                        connection.into();
-                    model.count = Set(count);
-                    model.updated_at = Set(Some(now()));
-                    model.update(txn).await.or_raise(make_error)?;
-                }
+            // Connection exists, update count.
+            Some(count) => {
+                let mut model: page_connection_missing::ActiveModel = connection.into();
+                model.count = Set(count);
+                model.updated_at = Set(Some(now()));
+                model.update(txn).await.or_raise(make_error)?;
+            }
 
-                // Connection existed, but has no further counts. Remove it.
-                None => {
-                    let model: page_connection_missing::ActiveModel = connection.into();
-                    model.delete(txn).await.or_raise(make_error)?;
-                }
+            // Connection existed, but has no further counts. Remove it.
+            None => {
+                let model: page_connection_missing::ActiveModel = connection.into();
+                model.delete(txn).await.or_raise(make_error)?;
             }
         }
     }
@@ -550,32 +541,32 @@ async fn update_external_links(
         )
     };
 
-    // Get existing links
-    let mut link_chunks = PageLink::find()
+    // Get existing links. All of them are loaded before any is deleted, because
+    // deleting while paging by offset would skip rows and re-insert them.
+    let existing = PageLink::find()
         .filter(page_link::Column::PageId.eq(from_page_id))
-        .order_by_asc(page_link::Column::CreatedAt)
-        .paginate(txn, 100);
+        .all(txn)
+        .await
+        .or_raise(make_error)?;
 
-    // Update and delete connections
-    while let Some(links) = link_chunks.fetch_and_next().await.or_raise(make_error)? {
-        for link in links {
-            match counts.remove(&link.url) {
-                // Link exists, count is the same. Do nothing.
-                Some(count) if link.count == count => (),
+    // Update and delete links
+    for link in existing {
+        match counts.remove(&link.url) {
+            // Link exists, count is the same. Do nothing.
+            Some(count) if link.count == count => (),
 
-                // Link exists, update count.
-                Some(count) => {
-                    let mut model: page_link::ActiveModel = link.into();
-                    model.count = Set(count);
-                    model.updated_at = Set(Some(now()));
-                    model.update(txn).await.or_raise(make_error)?;
-                }
+            // Link exists, update count.
+            Some(count) => {
+                let mut model: page_link::ActiveModel = link.into();
+                model.count = Set(count);
+                model.updated_at = Set(Some(now()));
+                model.update(txn).await.or_raise(make_error)?;
+            }
 
-                // Link existed, but has no further counts. Remove it.
-                None => {
-                    let model: page_link::ActiveModel = link.into();
-                    model.delete(txn).await.or_raise(make_error)?;
-                }
+            // Link existed, but has no further counts. Remove it.
+            None => {
+                let model: page_link::ActiveModel = link.into();
+                model.delete(txn).await.or_raise(make_error)?;
             }
         }
     }

@@ -1,4 +1,4 @@
-{ pkgs }:
+{ pkgs, craneLib }:
 let
   inherit (pkgs) lib;
   root = ../..;
@@ -50,28 +50,48 @@ let
     };
   };
 
-  deepwell = pkgs.rustPlatform.buildRustPackage {
+  deepwellArgs = {
     pname = "cobalt-deepwell";
     inherit version;
     src = root + /deepwell;
-    cargoLock.lockFile = root + /deepwell/Cargo.lock;
+    strictDeps = true;
     nativeBuildInputs = [ pkgs.pkg-config ];
     buildInputs = [ pkgs.file ];
+    # Fat LTO links single-threaded for minutes; thin LTO keeps deploys fast.
+    CARGO_PROFILE_RELEASE_LTO = "thin";
     # Database/S3 integration tests require a running configured instance.
     doCheck = false;
-    postInstall = ''
-      mkdir -p "$out/share/deepwell"
-      cp -r migrations seeder "$out/share/deepwell/"
-      cp config.example.toml "$out/share/deepwell/"
-      cp -r ${root + /locales} "$out/share/deepwell/locales"
-    '';
-    meta = {
-      description = "Wikijump backend with runtime data assets";
-      license = lib.licenses.agpl3Plus;
-      platforms = [ "x86_64-linux" ];
-      mainProgram = "deepwell";
-    };
   };
+
+  deepwell = craneLib.buildPackage (
+    deepwellArgs
+    // {
+      # Only manifests feed the dependency build, so source edits keep its cache.
+      cargoArtifacts = craneLib.buildDepsOnly (
+        deepwellArgs
+        // {
+          src = lib.fileset.toSource {
+            root = root + /deepwell;
+            fileset = lib.fileset.fileFilter (
+              file: file.name == "Cargo.toml" || file.name == "Cargo.lock"
+            ) (root + /deepwell);
+          };
+        }
+      );
+      postInstall = ''
+        mkdir -p "$out/share/deepwell"
+        cp -r migrations seeder "$out/share/deepwell/"
+        cp config.example.toml "$out/share/deepwell/"
+        cp -r --no-preserve=mode ${root + /locales} "$out/share/deepwell/locales"
+      '';
+      meta = {
+        description = "Wikijump backend with runtime data assets";
+        license = lib.licenses.agpl3Plus;
+        platforms = [ "x86_64-linux" ];
+        mainProgram = "deepwell";
+      };
+    }
+  );
 
   wws = pkgs.rustPlatform.buildRustPackage {
     pname = "cobalt-wws";

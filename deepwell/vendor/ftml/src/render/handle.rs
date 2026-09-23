@@ -19,6 +19,7 @@
  */
 
 use crate::data::{KarmaLevel, PageInfo, UserInfo};
+use crate::render::html::escape::escape;
 use crate::settings::WikitextSettings;
 use crate::tree::{FileSource, LinkLabel, LinkLocation, Module};
 use crate::url::BuildSiteUrl;
@@ -35,11 +36,21 @@ impl Handle {
     pub fn render_module(&self, buffer: &mut String, module: &Module) {
         // Modules only render to HTML
         debug!("Rendering module '{}'", module.name());
-        str_write!(buffer, "<p>TODO: module {}</p>", module.name());
+        match module {
+            // Wikidot's markup without its join dialog script, which this site lacks.
+            Module::Join { button_text, .. } => {
+                buffer.push_str("<div class=\"join-box\"><a href=\"javascript:;\">");
+                escape(buffer, button_text.as_deref().unwrap_or("Join"));
+                buffer.push_str("</a></div>");
+            }
+            _ => str_write!(buffer, "<p>TODO: module {}</p>", module.name()),
+        }
     }
 
     pub fn get_page_title(&self, site: &str, page: &str) -> Option<String> {
-        self.page_titles.get(&(site.to_owned(), page.to_owned())).cloned()
+        self.page_titles
+            .get(&(site.to_owned(), page.to_owned()))
+            .cloned()
     }
 
     pub fn get_page_exists(&self, _site: &str, _page: &str) -> bool {

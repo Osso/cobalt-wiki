@@ -768,39 +768,41 @@ impl BlobService {
 
         // Go through all the revisions with the matching S3 hash and delete / hide it
         {
-            let mut results = FileRevision::find()
+            // Load every match first: the updates below change the filtered
+            // column, so paging by offset would skip revisions.
+            let revs = FileRevision::find()
                 .filter(file_revision::Column::S3Hash.eq(s3_hash.as_slice()))
-                .paginate(txn, 20);
+                .all(txn)
+                .await
+                .or_raise(make_error)?;
 
-            while let Some(revs) = results.fetch_and_next().await.or_raise(make_error)? {
-                for rev in revs {
-                    revisions.add(rev.revision_id);
-                    files.add(rev.file_id);
-                    pages.add(rev.page_id);
-                    sites.add(rev.site_id);
+            for rev in revs {
+                revisions.add(rev.revision_id);
+                files.add(rev.file_id);
+                pages.add(rev.page_id);
+                sites.add(rev.site_id);
 
-                    if deleter_user_id.is_some() {
-                        // Amend 'hidden' to add 's3_hash'
-                        let hidden = {
-                            let column = str!("s3_hash"); // avoid double-allocating String
-                            let mut hidden = rev.hidden;
-                            if !hidden.contains(&column) {
-                                hidden.push(column);
-                                hidden.sort();
-                            }
-                            hidden
-                        };
+                if deleter_user_id.is_some() {
+                    // Amend 'hidden' to add 's3_hash'
+                    let hidden = {
+                        let column = str!("s3_hash"); // avoid double-allocating String
+                        let mut hidden = rev.hidden;
+                        if !hidden.contains(&column) {
+                            hidden.push(column);
+                            hidden.sort();
+                        }
+                        hidden
+                    };
 
-                        // Run UPDATE
-                        let model = file_revision::ActiveModel {
-                            revision_id: Set(rev.revision_id),
-                            s3_hash: Set(EMPTY_BLOB_HASH.to_vec()),
-                            hidden: Set(hidden),
-                            ..Default::default()
-                        };
+                    // Run UPDATE
+                    let model = file_revision::ActiveModel {
+                        revision_id: Set(rev.revision_id),
+                        s3_hash: Set(EMPTY_BLOB_HASH.to_vec()),
+                        hidden: Set(hidden),
+                        ..Default::default()
+                    };
 
-                        model.update(txn).await.or_raise(make_error)?;
-                    }
+                    model.update(txn).await.or_raise(make_error)?;
                 }
             }
         }
