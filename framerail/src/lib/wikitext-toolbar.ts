@@ -112,6 +112,20 @@ function changeListIndent(text: string, increase: boolean): string {
   return text.replace(/(\r?\n\s*[*#].*)(\r?\n\s*)([*#].*)$/, "$1$2 $3")
 }
 
+function findFormatting(control: string): Formatting {
+  const heading = /^heading([1-6])$/.exec(control)
+  if (heading) {
+    return {
+      before: `${"+".repeat(Number(heading[1]))} `,
+      placeholder: `heading level ${heading[1]}`,
+      block: "heading"
+    }
+  }
+  const format = formatting[control]
+  if (!format) throw new Error(`Unknown wikitext toolbar control: ${control}`)
+  return format
+}
+
 export function applyWikitextToolbar(
   value: string,
   start: number,
@@ -129,15 +143,7 @@ export function applyWikitextToolbar(
     const text = prefix + value.slice(start)
     return { value: text, start: prefix.length, end: prefix.length }
   }
-  const spec = /^heading([1-6])$/.exec(control)
-  const format = spec
-    ? {
-        before: `${"+".repeat(Number(spec[1]))} `,
-        placeholder: `heading level ${spec[1]}`,
-        block: "heading" as const
-      }
-    : formatting[control]
-  if (!format) throw new Error(`Unknown wikitext toolbar control: ${control}`)
+  const format = findFormatting(control)
 
   const selected = value.slice(start, end)
   const leading = /^\s*/.exec(selected)?.[0].length ?? 0

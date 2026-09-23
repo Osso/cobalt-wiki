@@ -144,7 +144,7 @@ test("assistance transforms only text before caret and retains suffix", () => {
     end: before.length + 2
   })
   const block = "[[math]]\n"
-  assert.deepEqual(assisted(block + "future text", block.length), {
+  assert.deepEqual(assisted(`${block}future text`, block.length), {
     value: "[[math]]\n\n[[/math]]future text",
     start: block.length,
     end: block.length
