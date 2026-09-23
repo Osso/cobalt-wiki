@@ -5,6 +5,7 @@
   import ui from "$assets/ui.svg?raw"
   import ErrorPopup from "$lib/popup/error.svelte"
   import Toasts from "$lib/component/Toasts.svelte"
+  import SearchBox from "$lib/component/SearchBox.svelte"
 
   import { page } from "$app/state"
   import { pageLayoutState, errorPopupState } from "$lib/stores.svelte"
@@ -76,6 +77,7 @@
       <h2>
         <span>{page.data.site?.tagline}</span>
       </h2>
+      <SearchBox />
     {/snippet}
 
     {#snippet topBar()}
