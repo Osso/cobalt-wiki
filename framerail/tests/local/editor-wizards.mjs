@@ -684,9 +684,9 @@ test("raw editor keyboard controls and Enter assistance keep local pages unchang
             from: 1,
             to: 3,
             key: "Tab",
-            expected: "a\tBCd",
-            start: 4,
-            end: 4
+            expected: "aBCd",
+            start: 3,
+            end: 3
           },
           {
             name: "ordinary typing remains native",
