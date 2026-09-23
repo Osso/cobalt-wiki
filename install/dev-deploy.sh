@@ -11,7 +11,8 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 HOST="${COBALT_HOST:-sakuin}"
 APP=/var/lib/cobalt-wiki/app
 WHAT="${1:-all}"
-shell() { nix develop "$ROOT#deploy" --command "$@"; }
+# Personal cargo config may carry linker flags for other linkers; build clean.
+shell() { CARGO_ENCODED_RUSTFLAGS="" nix develop "$ROOT#deploy" --command "$@"; }
 
 # Lazy rerendering keys stored pages to the build: commit plus local changes.
 build_id() {
