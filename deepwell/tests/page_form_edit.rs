@@ -142,6 +142,22 @@ async fn scalar_updates_round_trip_and_stale_edits_leave_the_newer_revision_unto
     let stored = read_page(&runner, site_id, page.page_id).await;
     assert_eq!(stored.revision_id, newer.revision_id);
     assert_eq!(stored.wikitext.as_deref(), Some(newer_source));
+    let html = run_endpoint!(
+        runner,
+        page_get,
+        json!({
+            "site_id": site_id, "page": page.page_id,
+            "details": {"compiled": true}
+        })
+    )
+    .unwrap()
+    .compiled_body_html
+    .unwrap();
+    assert!(
+        html.contains("Form page rendering error: invalid stored field record."),
+        "{html}"
+    );
+    assert!(!html.contains(newer_source), "{html}");
 }
 
 #[tokio::test]
@@ -196,6 +212,22 @@ async fn request_context_permission_precedes_form_validation_and_does_not_trust_
     let (mut runner, site_id) = setup().await;
     create_page(&mut runner, site_id, "form-edit:_template", "[[form]]").await;
     let page = create_page(&mut runner, site_id, SLUG, "not: [yaml").await;
+    let html = run_endpoint!(
+        runner,
+        page_get,
+        json!({
+            "site_id": site_id, "page": page.page_id,
+            "details": {"compiled": true}
+        })
+    )
+    .unwrap()
+    .compiled_body_html
+    .unwrap();
+    assert!(
+        html.contains("Form page rendering error: invalid template markers."),
+        "{html}"
+    );
+    assert!(!html.contains("not: [yaml"), "{html}");
     runner.set_request_context(RequestContext {
         session: None,
         user_id: None,

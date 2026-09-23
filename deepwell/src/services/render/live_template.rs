@@ -34,18 +34,21 @@ pub(super) async fn apply_live_template(
     else {
         return Ok(source);
     };
-    let parts = split_template(&template).or_raise(|| {
-        Error::new("live template has invalid form markers", ErrorType::Render)
-    })?;
+    let parts = match split_template(&template) {
+        Ok(parts) => parts,
+        Err(_) => return Ok(form_error("invalid template markers")),
+    };
     let Some(definition) = parts.definition else {
         return Ok(source);
     };
-    let schema = parse_schema(&definition).or_raise(|| {
-        Error::new("live template has an invalid form", ErrorType::Render)
-    })?;
-    let values = parse_values(&source).or_raise(|| {
-        Error::new("form page is not a valid field record", ErrorType::Render)
-    })?;
+    let schema = match parse_schema(&definition) {
+        Ok(schema) => schema,
+        Err(_) => return Ok(form_error("invalid form definition")),
+    };
+    let values = match parse_values(&source) {
+        Ok(values) => values,
+        Err(_) => return Ok(form_error("invalid stored field record")),
+    };
     let form = FormRecord {
         schema: &schema,
         values,
@@ -61,6 +64,13 @@ pub(super) async fn apply_live_template(
         live_section(&parts.body),
         &tokens,
     ))
+}
+
+/// Do not render invalid source as wikitext: it may contain private conditional content.
+fn form_error(reason: &str) -> String {
+    format!(
+        "[[div class=\"error-block\"]]\nForm page rendering error: {reason}.\n[[/div]]"
+    )
 }
 
 /// The template text shown on pages is everything before the first `====` line.
