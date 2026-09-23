@@ -50,4 +50,10 @@ Attachment invalidation local proof: `b007c0b` changes first file revision inval
 
 Production queue observations, September 22, 2026: at 21:32 UTC, depth `4,353,956`, Valkey used memory `1,490,998,800` bytes and RSS `1,529,503,744` bytes. A later atomic read found depth `4,350,786`, `totalsent=4,548,267`, `totalrecv=197,519`, and five head jobs that were unreceived depth-2 navigation rerenders. These are observations, not an identified producer or recovery proof. User authorized a Cobalt-preview-only maintenance window of at most 10 minutes after the attachment fix is independently verified: back up, inspect, and remove only proven-safe byte-identical pending rerender duplicates; preserve other jobs, page/file data, and rollback evidence. Maintenance has not started.
 
+## Imported source history
+
+Protected homepage-pilot artifacts show a local-only import into site `6000011`: 240 records inserted, with the current revision, current source, and compiled output unchanged. Readback covered 240 bodies and metadata across seven cursor pages; an idempotent replay inserted zero records. No production history was imported. Historical bodies remain display-decoded rather than byte-exact where source rendering converted whitespace; raw source responses retain provenance, unknown historical title/slug/tags remain null, and the current archived source stays byte-exact. Do not claim the imported current body hash matches the archive yet: protected comparison artifacts conflict and their chronology remains unresolved. The backend uses trusted request identity (`9c4ff20`) for history visibility rather than a JSON `user_id` override.
+
+This is partial local proof only. The final integrated history verification is not established: `/tmp/claude/cobalt-imported-history-final-scoped-tests.log` exited `1` abnormally. History UI access remains coordinated with the rendering owner; site-wide authorized acquisition, source-backed attribution/metadata transitions, production schema/API deployment, and production import remain open.
+
 Historical note: subagents were disabled for an earlier final-work phase. Do not treat that as a current workflow restriction.
