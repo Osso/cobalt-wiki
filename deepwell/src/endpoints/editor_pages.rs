@@ -38,12 +38,20 @@ pub async fn editor_pages(
     let user_id = ctx.request().user_id;
     let query = input.query.replace(' ', "-");
     let pattern = format!("{}%", escape_like(&query));
+    query_visible_suggestions(ctx, site_id, user_id, &pattern).await
+}
+
+async fn query_visible_suggestions(
+    ctx: &ServiceContext<'_>,
+    site_id: i64,
+    user_id: Option<i64>,
+    pattern: &str,
+) -> Result<Vec<EditorPage>> {
     let mut cursor: Option<(String, i64)> = None;
     let mut suggestions = Vec::new();
 
     loop {
-        let candidates =
-            query_candidates(ctx, site_id, &pattern, cursor.as_ref()).await?;
+        let candidates = query_candidates(ctx, site_id, pattern, cursor.as_ref()).await?;
         let count = candidates.len();
         for candidate in candidates {
             cursor = Some((candidate.slug.clone(), candidate.page_id));
@@ -111,20 +119,7 @@ async fn load_visible_suggestion(
     user_id: Option<i64>,
     candidate: page::Model,
 ) -> Result<Option<EditorPage>> {
-    let allowed = PermissionService::check_user_can(
-        ctx,
-        &CheckPermissionContext {
-            user_id,
-            site_id,
-            page_reference: Some(Reference::Id(candidate.page_id)),
-        },
-        Permission {
-            resource_type: Resource::Page,
-            resource_category: Some(Reference::Id(candidate.page_category_id)),
-            action: Action::View,
-        },
-    )
-    .await?;
+    let allowed = check_candidate_visibility(ctx, site_id, user_id, &candidate).await?;
     if !allowed {
         return Ok(None);
     }
@@ -143,4 +138,26 @@ async fn load_visible_suggestion(
             slug: candidate.slug,
             title: revision.title,
         }))
+}
+
+async fn check_candidate_visibility(
+    ctx: &ServiceContext<'_>,
+    site_id: i64,
+    user_id: Option<i64>,
+    candidate: &page::Model,
+) -> Result<bool> {
+    PermissionService::check_user_can(
+        ctx,
+        &CheckPermissionContext {
+            user_id,
+            site_id,
+            page_reference: Some(Reference::Id(candidate.page_id)),
+        },
+        Permission {
+            resource_type: Resource::Page,
+            resource_category: Some(Reference::Id(candidate.page_category_id)),
+            action: Action::View,
+        },
+    )
+    .await
 }
