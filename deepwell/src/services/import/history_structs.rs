@@ -53,7 +53,7 @@ pub struct ReadImportedRevision {
     pub user_id: Option<i64>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, sea_orm::FromQueryResult)]
 pub struct ImportedRevisionSummary {
     pub source_page_id: i64,
     pub source_revision_id: i64,

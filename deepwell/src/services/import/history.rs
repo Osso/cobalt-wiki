@@ -6,7 +6,7 @@ use crate::services::permission::{CheckPermissionContext, PermissionService};
 use crate::services::{PageRevisionService, PageService, TextService};
 use crate::types::{Action, Permission, Reference, Resource};
 use sea_orm::IntoActiveModel;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Debug)]
 pub struct ImportedHistoryService;
@@ -41,6 +41,14 @@ impl ImportedHistoryService {
                 "page already has a different source history identity",
             ));
         }
+        let by_id: HashMap<_, _> = existing
+            .iter()
+            .map(|row| (row.source_revision_id, row))
+            .collect();
+        let by_number: HashMap<_, _> = existing
+            .iter()
+            .map(|row| (row.source_revision_number, row))
+            .collect();
         let mut inserted = 0;
         for revision in input.revisions {
             let row = build_row(
@@ -51,11 +59,11 @@ impl ImportedHistoryService {
                 revision,
             )
             .await?;
-            if let Some(prior) = existing.iter().find(|prior| {
-                prior.source_revision_id == row.source_revision_id
-                    || prior.source_revision_number == row.source_revision_number
-            }) {
-                if prior != &row {
+            if let Some(prior) = by_id
+                .get(&row.source_revision_id)
+                .or_else(|| by_number.get(&row.source_revision_number))
+            {
+                if *prior != &row {
                     return Err(invalid(
                         "imported revision conflicts with the stored source record",
                     ));
@@ -91,9 +99,25 @@ impl ImportedHistoryService {
             query = query
                 .filter(imported_page_revision::Column::SourceRevisionNumber.lt(before));
         }
+        use imported_page_revision::Column as HistoryColumn;
         let rows = query
-            .order_by_desc(imported_page_revision::Column::SourceRevisionNumber)
+            .select_only()
+            .columns([
+                HistoryColumn::SourcePageId,
+                HistoryColumn::SourceRevisionId,
+                HistoryColumn::SourceRevisionNumber,
+                HistoryColumn::SourceAuthorId,
+                HistoryColumn::SourceCreatedAt,
+                HistoryColumn::SourceComments,
+                HistoryColumn::SourceFlags,
+                HistoryColumn::SourceTitle,
+                HistoryColumn::SourceSlug,
+                HistoryColumn::SourceTags,
+                HistoryColumn::Representation,
+            ])
+            .order_by_desc(HistoryColumn::SourceRevisionNumber)
             .limit(input.limit)
+            .into_model::<ImportedRevisionSummary>()
             .all(ctx.transaction())
             .await
             .or_raise(|| {
@@ -102,10 +126,7 @@ impl ImportedHistoryService {
                     ErrorType::DatabaseImport,
                 )
             })?;
-        Ok(rows
-            .into_iter()
-            .map(ImportedRevisionSummary::from)
-            .collect())
+        Ok(rows)
     }
 
     pub async fn source(
