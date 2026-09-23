@@ -57,6 +57,15 @@ export function changedFields(form: PageForm, draft: FormDraft): FormValues {
   )
 }
 
+export function mergeDraftSource(
+  source: string,
+  values: FormValues,
+  updates: FormValues
+): string {
+  if (Object.keys(updates).length === 0) return source
+  return JSON.stringify({ ...values, ...updates })
+}
+
 export function editContent(
   wikitext: string | undefined,
   updates: FormValues | undefined
