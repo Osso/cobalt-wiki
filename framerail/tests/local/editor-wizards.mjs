@@ -449,3 +449,95 @@ test("six editor wizards insert and preview without saving local pages", async (
     await browser.close()
   }
 })
+
+/** @param {import("@playwright/test").Page} page */
+async function insertAttachedImage(page) {
+  await openEditor(page, "who-we-are")
+  await setSelection(page, "+ Attachment wizard proof\n\ntail")
+  const dialog = await openWizard(page, "image wizard", "Image wizard")
+  await dialog.getByRole("radio", { name: "attached file" }).check()
+  const select = dialog.getByLabel("Attached file:")
+  await expect(select).toBeVisible()
+  const name = await select.locator("option").nth(1).getAttribute("value")
+  assert.ok(name, "imported page must expose at least one authorized image")
+  await select.selectOption(name)
+  await expectImageLoaded(dialog.getByAltText("Selected attachment"))
+  const source = await insert(page, dialog)
+  assert.ok(source.includes(`[[image ${name}]]tail`))
+  const region = await preview(page, "who-we-are", source)
+  await expectImageLoaded(region.locator("img").first())
+}
+
+/** @param {import("@playwright/test").Locator} image */
+async function expectImageLoaded(image) {
+  await expect
+    .poll(() =>
+      image.evaluate((element) => {
+        if (!(element instanceof HTMLImageElement)) throw new Error("image required")
+        return element.complete && element.naturalWidth > 0
+      })
+    )
+    .toBe(true)
+}
+
+/** @param {import("@playwright/test").Page} page */
+async function insertFlickrSource(page) {
+  const dialog = await openWizard(page, "image wizard", "Image wizard")
+  await dialog.getByRole("radio", { name: "Flickr.com" }).check()
+  await dialog.getByLabel("Flickr image:").fill("not-a-photo")
+  await dialog.getByRole("button", { name: "Insert code" }).click()
+  await expect(dialog.getByRole("alert")).toContainText("Invalid Flickr")
+  await dialog.getByLabel("Flickr image:").fill("123")
+  const source = await insert(page, dialog)
+  assert.ok(source.includes("[[image flickr:123]]"))
+}
+
+test("attached image wizard selects and previews an authorized existing image without saving", async () => {
+  const fixturePath = process.env.COBALT_PAGE_PREVIEW_FIXTURE
+  const basicPath = process.env.COBALT_LOCAL_PASSWORD_FILE
+  const accountPath = process.env.COBALT_LOCAL_ADMIN_PASSWORD_FILE
+  assert.ok(
+    fixturePath && basicPath && accountPath,
+    "explicit local fixture and password files required"
+  )
+  const fixture = await readFixture(fixturePath)
+  const browser = await chromium.launch({
+    executablePath: "/usr/bin/chromium",
+    headless: true
+  })
+  try {
+    const context = await browser.newContext({
+      httpCredentials: {
+        username: "cobalt",
+        password: (await readFile(basicPath, "utf8")).trim(),
+        origin
+      }
+    })
+    try {
+      /** @type {string[]} */
+      const denied = []
+      await denyWritesAndExternalRequests(context, denied)
+      const { page, token } = await login(
+        context,
+        fixture,
+        (await readFile(accountPath, "utf8")).trim()
+      )
+      const before = await readPage(context.request, fixture, "who-we-are", token)
+      assert.equal(before.type, "found")
+      try {
+        await insertAttachedImage(page)
+        await insertFlickrSource(page)
+      } finally {
+        const after = await readPage(context.request, fixture, "who-we-are", token)
+        assert.equal(after.type, "found")
+        assert.deepEqual(after.data.page_revision, before.data.page_revision)
+        assert.equal(after.data.wikitext, before.data.wikitext)
+        assert.deepEqual(denied, [])
+      }
+    } finally {
+      await context.close()
+    }
+  } finally {
+    await browser.close()
+  }
+})
