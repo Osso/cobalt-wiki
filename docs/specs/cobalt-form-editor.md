@@ -27,12 +27,12 @@ Framerail edits the optional backend `Found.form` payload using ordered source-d
 
 The hosted editor implementation is `/tmp/claude/wikidot-editor-reference/WIKIDOT.editor.pretty.js`; dialog fields come from the older public reference `/home/osso/Repos/wikidot/web/files--common/editor/dialogs.html`. The latter supplies field/default evidence, not current hosted-browser parity. No implementation, browser proof, or live lookup parity is claimed here.
 
-- Five insertion wizards—table, code, URL, page link, and image—insert generated markup at the current selection start and leave selected text intact after the insertion. `erefWizard` is different: it creates an equation reference by wrapping the current selection/range; it is not a new-equation insertion wizard.
+- Code wraps the captured selection range, or inserts a selected placeholder at an empty caret. The other five wizards—table, URL, page link, image, and equation reference—insert at the captured selection start without consuming selected text. `erefWizard` inserts a reference to a labelled equation, optionally surrounded by `Eq.(…)`; it does not wrap selected text or create an equation.
 - Table defaults to 3 rows and 3 columns, with an optional first-row header. The older dialog permits only two input characters (`maxlength="2"`); integer validation and a 1–99 range are local implementation inference, not source behavior.
 - Code offers empty type plus `Cpp`, `CSS`, `PHP`, `HTML`, `diff`, `Java`, misspelled source value `JavaScipt`, `Perl`, `Python`, `Ruby`, `SQL`, and `XML`.
 - URL defaults to `http://`, has optional anchor text, and defaults the new-window checkbox off. Page link takes page name plus optional anchor; source autocomplete starts at two characters after a 0.5-second delay, but current lookup transport/results are unverified.
-- Image offers external URL, attached file, and Flickr sources; optional position is none, left, right, center, float-left, or float-right, plus extra CSS. Attached-file listing and Flickr validation/checking require source-side modules and remain unverified.
-- Equation reference obtains selectable equation labels and a source preview, then offers `Eq.(number)` or bare-number output. Label discovery and preview transport remain unverified.
+- Image offers external URL, attached file, and Flickr sources; position is none, left, right, center, float-left, or float-right. The older template's extra-CSS input is ignored by the hosted insertion handler, so no decorative CSS field is added. Attached-file enumeration requires authorization; Flickr photo-info checking remains unimplemented.
+- Equation reference scans the editor's current source for labelled math blocks, displays their source as escaped text, and offers `Eq.(number)` or bare-number output. No network lookup is needed.
 
 ### Save Draft contract and provenance
 
@@ -71,8 +71,8 @@ Independent bounded audit (agent 363) confirmed the browser assertions and one r
 ## Known gaps (current cycle)
 
 - [ ] Hosted-server ownership, visibility, and lifecycle parity remain unproven. The shared target/ownership model is authorized source-based inference; the captured source check has no Save/Cancel/Delete action.
-- [ ] Implement and test the six source wizards as a complete replica obligation: table, code, URL, page link, image, and equation reference. Preserve the documented insertion distinction: the first five insert at selection start without replacing selected text; equation reference wraps the current range and does not insert an equation.
-- [ ] Complete wizard-specific contracts: table 3×3/header and inferred 1–99 integer validation; source code-type values including `JavaScipt`; URL/page anchors and URL new-window option; image source/position/CSS options; and equation-reference output mode.
+- [ ] Implement and test the six source wizards as a complete replica obligation: table, code, URL, page link, image, and equation reference. Preserve the documented insertion distinction: code wraps the current range; the other five insert at selection start without replacing selected text.
+- [ ] Complete wizard-specific contracts: table 3×3/header and inferred 1–99 integer validation; source code-type values including `JavaScipt`; URL/page anchors and URL new-window option; image source/position options; and equation-reference output mode.
 - [ ] Establish browser parity and lookup proof before claiming it: page autocomplete timing/results, attached-file enumeration, Flickr checking, equation-label discovery, and equation preview are still unverified. Quick reference/snippets and watcher-checkbox semantics also remain unimplemented.
 - [ ] Toolbar transformation behavior is source-backed and the bold path has browser proof, but full visual/editor parity is not established.
 - The retained `/tmp/claude/cobalt-forms-browser-fourth.log` covers text/wiki/radio/select edits and typed/unknown-value preservation. Restored-draft merge tests and the draft browser scenario add complete-value preservation coverage; they do not establish every field type's full source parity.
