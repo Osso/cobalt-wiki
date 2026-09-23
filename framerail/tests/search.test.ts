@@ -6,7 +6,11 @@ import { render } from "svelte/server"
 import ts from "typescript"
 import { createServer } from "vite"
 
-const vite = await createServer({ server: { middlewareMode: true }, logLevel: "error" })
+const vite = await createServer({
+  server: { middlewareMode: true },
+  optimizeDeps: { noDiscovery: true, include: [] },
+  logLevel: "error"
+})
 after(() => vite.close())
 const { load } = await vite.ssrLoadModule("/src/routes/search:site/+page.server.ts")
 async function loadComponent(path: string, name: string) {

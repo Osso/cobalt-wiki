@@ -2,7 +2,11 @@ import assert from "node:assert/strict"
 import { after, test } from "node:test"
 import { createServer } from "vite"
 
-const vite = await createServer({ server: { middlewareMode: true }, logLevel: "error" })
+const vite = await createServer({
+  server: { middlewareMode: true },
+  optimizeDeps: { noDiscovery: true, include: [] },
+  logLevel: "error"
+})
 after(() => vite.close())
 const { pagePreviewAction } = await vite.ssrLoadModule(
   "/src/lib/server/load/page-preview.ts"
