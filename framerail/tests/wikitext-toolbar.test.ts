@@ -55,6 +55,14 @@ test("heading joins paragraphs with blank lines and trims selection edges", () =
   })
 })
 
+test("heading adds terminal paragraph boundary at end of document", () => {
+  assert.deepEqual(applyWikitextToolbar("Title", 0, 5, "heading1"), {
+    value: "+ Title\n\n",
+    start: 7,
+    end: 7
+  })
+})
+
 const blocks: [string, string, string][] = [
   ["quote", "one\ntwo", "\n> one\n> two"],
   ["numberedList", "one\ntwo", "\n# one\n# two"],

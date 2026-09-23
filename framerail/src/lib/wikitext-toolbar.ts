@@ -98,8 +98,8 @@ function separateBefore(text: string, block: Formatting["block"]): string {
 }
 
 function separateAfter(text: string, block: Formatting["block"]): string {
-  if (!block || !text) return text
   if (block === "heading") return `\n\n${text.trimStart()}`
+  if (!block || !text) return text
   if (block === "paragraph") return `\n\n${text.replace(/^\r?\n(\s*\r?\n)?/, "")}`
   return `\n${text.replace(/^\r?\n/, "")}`
 }
