@@ -79,7 +79,8 @@ async function search(
 test("GET form uses source theme selectors and submits a named query to the search route", () => {
   const { body } = render(SearchBox)
   assert.match(body, /id="search-top-box"/)
-  assert.match(body, /<form[^>]*method="GET"[^>]*action="\/search:site"/)
+  assert.match(body, /<form[^>]*method="GET"/)
+  assert.match(body, /<form[^>]*action="\/search:site"/)
   assert.match(body, /id="search-top-box-input"[^>]*name="query"/)
   assert.match(body, /<label[^>]*for="search-top-box-input"/)
   assert.match(body, /<button[^>]*type="submit"[^>]*>Search<\/button>/)
