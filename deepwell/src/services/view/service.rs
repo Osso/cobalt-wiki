@@ -306,6 +306,7 @@ impl ViewService {
                     let body = BodyArguments {
                         list_page: options.list_page.unwrap_or(1),
                         tag: options.tag.clone(),
+                        changes: options.changes.clone(),
                     };
                     if body != BodyArguments::default() {
                         compiled_body_html = PageRevisionService::render_body_view(

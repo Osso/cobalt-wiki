@@ -94,4 +94,27 @@ async fn site_changes_list_revisions_newest_first_with_pages() {
         ["(rev. 4)", "(rev. 3)", "(rev. 2)", "(rev. 1)", "(new)"]
     );
     assert!(second.contains("title=\"new page created\">N</span>"));
+
+    // Wikidot's filters, from the URL: revision type, revisions per page, category.
+    let new_pages = view(&runner, site_id, "p/1/types/N").await;
+    assert_eq!(revisions(&new_pages), ["(new)"]);
+    assert!(
+        new_pages.contains("id=\"rev-type-new\" data-flag=\"N\" checked=\"checked\"")
+    );
+
+    let ten = view(&runner, site_id, "p/1/perpage/10").await;
+    assert_eq!(revisions(&ten).len(), 10);
+    assert!(
+        ten.contains("<a href=\"/changes:recent/p/2/perpage/10\">next &raquo;</a>"),
+        "{ten}"
+    );
+    assert!(ten.contains("<option value=\"10\" selected=\"selected\">10</option>"));
+
+    assert_eq!(
+        revisions(&view(&runner, site_id, "p/1/category/writing").await).len(),
+        20
+    );
+    assert!(
+        revisions(&view(&runner, site_id, "p/1/category/character").await).is_empty()
+    );
 }

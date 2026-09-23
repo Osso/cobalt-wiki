@@ -50,6 +50,10 @@ pub struct SiteChanges {
     pub page_fullname: String,
     pub list_page: usize,
     pub page_count: usize,
+    /// The active filter: revisions per page, category, flag letters (empty: all).
+    pub per_page: usize,
+    pub category: Option<String>,
+    pub types: String,
     /// Category names for the filter form.
     pub categories: Vec<String>,
     pub changes: Vec<SiteChange>,
@@ -505,31 +509,71 @@ fn render_pages_by_tag(buffer: &mut String, tag: &str, pages: &[(String, String)
 /// Wikidot's SiteChangesModule markup. The filter form is shown but inert;
 /// pager links go to `/<page>/p/N`.
 fn render_site_changes(buffer: &mut String, view: &SiteChanges) {
+    let checked = |selected: bool| if selected { " checked=\"checked\"" } else { "" };
     buffer.push_str(
         "<div class=\"site-changes-box\"><form onsubmit=\"return false;\" action=\"dummy.html\" method=\"get\">\
-         <table class=\"form\"><tr><td>Revision types:</td><td>\
-         <input class=\"checkbox\" type=\"checkbox\" id=\"rev-type-all\" checked=\"checked\"/>&nbsp;ALL<br/>\
-         <input class=\"checkbox\" type=\"checkbox\" id=\"rev-type-new\"/>&nbsp;new pages<br/>\
-         <input class=\"checkbox\" type=\"checkbox\" id=\"rev-type-source\"/>&nbsp;source changes<br/>\
-         <input class=\"checkbox\" type=\"checkbox\" id=\"rev-type-title\"/>&nbsp;title changes<br/>\
-         <input class=\"checkbox\" type=\"checkbox\" id=\"rev-type-move\"/>&nbsp;page name changes<br/>\
-         <input class=\"checkbox\" type=\"checkbox\" id=\"rev-type-tags\"/>&nbsp;tags changes<br/>\
-         <input class=\"checkbox\" type=\"checkbox\" id=\"rev-type-meta\"/>&nbsp;metadata changes<br/>\
-         <input class=\"checkbox\" type=\"checkbox\" id=\"rev-type-files\"/>&nbsp;files changes</td></tr>\
-         <tr><td>From categories:</td><td><select id=\"rev-category\"><option value=\"\" selected=\"selected\">Whole site</option>",
+         <table class=\"form\"><tr><td>Revision types:</td><td>",
+    );
+    str_write!(
+        buffer,
+        "<input class=\"checkbox\" type=\"checkbox\" id=\"rev-type-all\"{}/>&nbsp;ALL<br/>",
+        checked(view.types.is_empty()),
+    );
+    for (flag, id, label) in [
+        ('N', "new", "new pages"),
+        ('S', "source", "source changes"),
+        ('T', "title", "title changes"),
+        ('R', "move", "page name changes"),
+        ('A', "tags", "tags changes"),
+        ('M', "meta", "metadata changes"),
+        ('F', "files", "files changes"),
+    ] {
+        str_write!(
+            buffer,
+            "<input class=\"checkbox\" type=\"checkbox\" id=\"rev-type-{id}\" data-flag=\"{flag}\"{}/>&nbsp;{label}",
+            checked(view.types.contains(flag)),
+        );
+        buffer.push_str(if flag == 'F' { "" } else { "<br/>" });
+    }
+    buffer.push_str(
+        "</td></tr><tr><td>From categories:</td><td><select id=\"rev-category\">",
+    );
+    str_write!(
+        buffer,
+        "<option value=\"\"{}>Whole site</option>",
+        if view.category.is_none() {
+            " selected=\"selected\""
+        } else {
+            ""
+        },
     );
     for category in &view.categories {
         buffer.push_str("<option value=\"");
         escape(buffer, category);
-        buffer.push_str("\">");
+        buffer.push('"');
+        if view.category.as_deref() == Some(category.as_str()) {
+            buffer.push_str(" selected=\"selected\"");
+        }
+        buffer.push('>');
         escape(buffer, category);
         buffer.push_str("</option>");
     }
     buffer.push_str(
-        "</select></td></tr><tr><td>Revisions per page:</td><td><select id=\"rev-perpage\">\
-         <option value=\"10\">10</option><option value=\"20\" selected=\"selected\">20</option>\
-         <option value=\"50\">50</option><option value=\"100\">100</option><option value=\"200\">200</option>\
-         </select></td></tr></table><div class=\"buttons\">\
+        "</select></td></tr><tr><td>Revisions per page:</td><td><select id=\"rev-perpage\">",
+    );
+    for per_page in [10, 20, 50, 100, 200] {
+        str_write!(
+            buffer,
+            "<option value=\"{per_page}\"{}>{per_page}</option>",
+            if view.per_page == per_page {
+                " selected=\"selected\""
+            } else {
+                ""
+            },
+        );
+    }
+    buffer.push_str(
+        "</select></td></tr></table><div class=\"buttons\">\
          <input type=\"button\" class=\"btn btn-default btn-sm\" value=\"Update list\"/></div></form>\
          <div class=\"changes-list\" id=\"site-changes-list\">",
     );
@@ -551,7 +595,19 @@ fn render_site_changes_pager(buffer: &mut String, view: &SiteChanges) {
     let link = |buffer: &mut String, page: usize, label: &str| {
         buffer.push_str("<span class=\"target\"><a href=\"/");
         escape(buffer, &view.page_fullname);
-        str_write!(buffer, "/p/{page}\">{label}</a></span>");
+        str_write!(buffer, "/p/{page}");
+        if view.per_page != 20 {
+            str_write!(buffer, "/perpage/{}", view.per_page);
+        }
+        if let Some(category) = &view.category {
+            buffer.push_str("/category/");
+            escape(buffer, category);
+        }
+        if !view.types.is_empty() {
+            buffer.push_str("/types/");
+            escape(buffer, &view.types);
+        }
+        str_write!(buffer, "\">{label}</a></span>");
     };
     str_write!(
         buffer,
@@ -798,6 +854,9 @@ mod tests {
                 page_fullname: "system:recent-changes".into(),
                 list_page,
                 page_count,
+                per_page: 20,
+                category: None,
+                types: String::new(),
                 categories: vec!["writing".into()],
                 changes: vec![SiteChange {
                     slug: "writing:2025-09-04-thousand-needles:ice-cream-empire".into(),

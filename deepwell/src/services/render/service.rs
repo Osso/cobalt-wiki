@@ -47,6 +47,7 @@ pub static COMPILED_GENERATOR: LazyLock<String> =
 pub struct BodyArguments {
     pub list_page: usize,
     pub tag: Option<String>,
+    pub changes: SiteChangesFilter,
 }
 
 impl Default for BodyArguments {
@@ -54,6 +55,28 @@ impl Default for BodyArguments {
         BodyArguments {
             list_page: 1,
             tag: None,
+            changes: SiteChangesFilter::default(),
+        }
+    }
+}
+
+/// SiteChanges form choices from the URL (`/perpage/N/category/C/types/NS`).
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(default)]
+pub struct SiteChangesFilter {
+    /// 10, 20, 50, 100 or 200 revisions per page (Wikidot's choices).
+    pub per_page: usize,
+    pub category: Option<String>,
+    /// Wikidot flag letters to show (N S T R A M F); empty shows all.
+    pub types: String,
+}
+
+impl Default for SiteChangesFilter {
+    fn default() -> Self {
+        SiteChangesFilter {
+            per_page: 20,
+            category: None,
+            types: String::new(),
         }
     }
 }

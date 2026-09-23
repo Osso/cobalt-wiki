@@ -290,7 +290,7 @@ async fn list_pages_paginate_like_wikidot() {
         page.page_id,
         &BodyArguments {
             list_page: 2,
-            tag: None,
+            ..BodyArguments::default()
         },
     )
     .await

@@ -18,6 +18,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+use crate::services::render::SiteChangesFilter;
 use unicase::UniCase;
 use wikidot_path::{ArgumentSchema, ArgumentValue, PageArguments};
 
@@ -39,6 +40,9 @@ const PAGE_ARGUMENTS_SCHEMA: ArgumentSchema = ArgumentSchema {
         "data",
         "p",
         "tag",
+        "perpage",
+        "category",
+        "types",
     ],
     solo_keys: &[
         "edit",
@@ -72,6 +76,7 @@ pub struct PageOptions {
     /// ListPages page number (Wikidot `/p/N`).
     pub list_page: Option<usize>,
     pub tag: Option<String>,
+    pub changes: SiteChangesFilter,
     pub data: String,
 }
 
@@ -127,6 +132,24 @@ impl PageOptions {
         set_str_opt!(parent, parentPage);
         set_str_opt!(tags);
         set_str_opt!(tag);
+
+        if let Some((_, raw)) = arguments.remove(unicase!("perpage")) {
+            match raw.parse() {
+                Ok(per_page @ (10 | 20 | 50 | 100 | 200)) => {
+                    options.changes.per_page = per_page
+                }
+                _ => error!("Invalid value for perpage argument: {raw}"),
+            }
+        }
+        if let Some((_, raw)) = arguments.remove(unicase!("category")) {
+            options.changes.category = Some(str!(raw));
+        }
+        if let Some((_, raw)) = arguments.remove(unicase!("types")) {
+            options.changes.types = raw
+                .chars()
+                .filter(|flag| "NSTRAMF".contains(*flag))
+                .collect();
+        }
         set_bool!(no_redirect, noredirect);
         set_bool!(no_render, norender);
         set_bool!(debug);

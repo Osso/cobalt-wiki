@@ -1,5 +1,5 @@
-use super::BodyArguments;
 use super::prelude::*;
+use super::{BodyArguments, SiteChangesFilter};
 use crate::models::page::Entity as Page;
 use ftml::data::PageInfo;
 use ftml::render::Handle;
@@ -41,9 +41,6 @@ struct SiteChangeRow {
 struct CategorySlug {
     slug: String,
 }
-
-/// Revisions per SiteChanges page (Wikidot's default).
-const SITE_CHANGES_PER_PAGE: usize = 20;
 
 #[derive(Debug, FromQueryResult)]
 struct TaggedPage {
@@ -90,8 +87,12 @@ pub(super) async fn fetch_render_data(
                 Some(category) => format!("{category}:{}", page_info.page),
                 None => page_info.page.to_string(),
             };
-            let list_page = body.map_or(1, |body| body.list_page);
-            Some(fetch_site_changes(ctx, site, fullname, list_page).await?)
+            let default = BodyArguments::default();
+            let body = body.unwrap_or(&default);
+            Some(
+                fetch_site_changes(ctx, site, fullname, body.list_page, &body.changes)
+                    .await?,
+            )
         }
         false => None,
     };
@@ -187,9 +188,13 @@ async fn fetch_site_changes(
     site: &str,
     page_fullname: String,
     list_page: usize,
+    filter: &SiteChangesFilter,
 ) -> Result<SiteChanges> {
     let make_error = || Error::new("failed to fetch site changes", ErrorType::Render);
-    let offset = (list_page.max(1) - 1) * SITE_CHANGES_PER_PAGE;
+    let per_page = filter.per_page;
+    let offset = (list_page.max(1) - 1) * per_page;
+    // Wikidot's revision-type and category filters.
+    let types: Vec<String> = filter.types.chars().map(String::from).collect();
     let rows = Page::find()
         .from_raw_sql(Statement::from_sql_and_values(
             DatabaseBackend::Postgres,
@@ -199,12 +204,20 @@ async fn fetch_site_changes(
                     COUNT(*) OVER () AS total
              FROM wikidot_site_change c
              JOIN site s ON s.site_id = c.site_id AND s.slug = $1
+             WHERE (cardinality($4::text[]) = 0
+                    OR EXISTS (SELECT 1 FROM unnest($4::text[]) AS t(flag)
+                               WHERE strpos(c.flags, t.flag) > 0))
+               AND ($5::text IS NULL
+                    OR (strpos(c.page_slug, ':') > 0 AND split_part(c.page_slug, ':', 1) = $5)
+                    OR ($5 = '_default' AND strpos(c.page_slug, ':') = 0))
              ORDER BY c.changed_at DESC, c.revision_number DESC, c.page_slug
              LIMIT $2 OFFSET $3",
             [
                 Value::from(site),
-                Value::from(SITE_CHANGES_PER_PAGE as i64),
+                Value::from(per_page as i64),
                 Value::from(offset as i64),
+                Value::from(types),
+                Value::from(filter.category.clone()),
             ],
         ))
         .into_model::<SiteChangeRow>()
@@ -229,7 +242,10 @@ async fn fetch_site_changes(
     Ok(SiteChanges {
         page_fullname,
         list_page,
-        page_count: total.div_ceil(SITE_CHANGES_PER_PAGE),
+        page_count: total.div_ceil(per_page),
+        per_page,
+        category: filter.category.clone(),
+        types: filter.types.clone(),
         categories: categories.into_iter().map(|row| row.slug).collect(),
         changes: rows
             .into_iter()
