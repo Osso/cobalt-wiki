@@ -99,7 +99,10 @@ pub fn render_element(ctx: &mut HtmlContext, element: &Element) {
 
     match element {
         Element::Container(container) => render_container(ctx, container),
-        Element::Module(module) => ctx.handle().render_module(ctx.buffer(), module),
+        Element::Module(module) => {
+            let score = ctx.info().score;
+            ctx.handle().render_module(ctx.buffer(), module, score)
+        }
         Element::Text(text) => ctx.push_escaped(text),
         Element::Raw(text) => render_wikitext_raw(ctx, text),
         Element::Variable(name) => render_variable(ctx, name),

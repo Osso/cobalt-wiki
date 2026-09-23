@@ -77,7 +77,7 @@ fn settings() {
     test!("[[toc]]", "wj-toc", [true, false, false, false, false]);
     test!(
         "[[module Rate]]",
-        "TODO: module Rate",
+        "page-rate-widget-box",
         [true, true, false, false, true],
     );
     test!(

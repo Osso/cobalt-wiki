@@ -18,7 +18,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use crate::data::{KarmaLevel, PageInfo, UserInfo};
+use crate::data::{KarmaLevel, PageInfo, ScoreValue, UserInfo};
 use crate::render::html::escape::escape;
 use crate::settings::WikitextSettings;
 use crate::tree::{FileSource, LinkLabel, LinkLocation, Module};
@@ -41,7 +41,7 @@ pub struct Handle {
 }
 
 impl Handle {
-    pub fn render_module(&self, buffer: &mut String, module: &Module) {
+    pub fn render_module(&self, buffer: &mut String, module: &Module, score: ScoreValue) {
         // Modules only render to HTML
         debug!("Rendering module '{}'", module.name());
         match module {
@@ -107,6 +107,18 @@ impl Handle {
                 if let Some((tag, pages)) = &self.tagged_pages {
                     render_pages_by_tag(buffer, tag, pages);
                 }
+            }
+            // Wikidot's PageRateWidgetModule; votes are not wired to its buttons.
+            Module::Rate => {
+                buffer.push_str(
+                    "<div class=\"page-rate-widget-box\"><span class=\"rate-points\">rating:&nbsp;<span class=\"number\">",
+                );
+                let points = score.to_f64();
+                str_write!(buffer, "{}{points}", if points > 0.0 { "+" } else { "" });
+                buffer.push_str(
+                    "</span></span><span class=\"rateup btn btn-default\"><a title=\"I like it\" href=\"javascript:;\">+</a></span>\
+                     <span class=\"cancel btn btn-default\"><a title=\"Cancel my vote\" href=\"javascript:;\">x</a></span></div>",
+                );
             }
             _ => str_write!(buffer, "<p>TODO: module {}</p>", module.name()),
         }
@@ -462,7 +474,7 @@ mod tests {
 
     fn tag_cloud(handle: &Handle, module: Module) -> String {
         let mut buffer = String::new();
-        handle.render_module(&mut buffer, &module);
+        handle.render_module(&mut buffer, &module, ScoreValue::Integer(0));
         buffer
     }
 
@@ -564,5 +576,22 @@ mod tests {
              <div class=\"pages-list-item\"><div class=\"title\"><a href=\"/character:abigael\">Abigael Fenrhald</a></div></div>\
              </div>",
         );
+    }
+
+    #[test]
+    fn rate_shows_the_page_score_like_wikidot() {
+        let render = |score| {
+            let mut buffer = String::new();
+            Handle::default().render_module(&mut buffer, &Module::Rate, score);
+            buffer
+        };
+        assert_eq!(
+            render(ScoreValue::Integer(1)),
+            "<div class=\"page-rate-widget-box\"><span class=\"rate-points\">rating:&nbsp;<span class=\"number\">+1</span></span>\
+             <span class=\"rateup btn btn-default\"><a title=\"I like it\" href=\"javascript:;\">+</a></span>\
+             <span class=\"cancel btn btn-default\"><a title=\"Cancel my vote\" href=\"javascript:;\">x</a></span></div>",
+        );
+        assert!(render(ScoreValue::Float(0.0)).contains(">0</span>"));
+        assert!(render(ScoreValue::Integer(-3)).contains(">-3</span>"));
     }
 }
