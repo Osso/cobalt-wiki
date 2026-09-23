@@ -23,7 +23,7 @@ mod attributes;
 mod builder;
 mod context;
 mod element;
-mod escape;
+pub(crate) mod escape;
 mod meta;
 mod output;
 mod random;
