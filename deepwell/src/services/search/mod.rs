@@ -48,6 +48,10 @@ pub struct SearchHit {
 }
 
 impl SearchHit {
+    fn from_current_document(doc: &SearchDocument, current_html: &str) -> Option<Self> {
+        (doc.body == plain_body(current_html)).then(|| Self::from_document(doc))
+    }
+
     fn from_document(doc: &SearchDocument) -> Self {
         Self {
             page_id: doc.page_id,
@@ -288,7 +292,10 @@ impl SearchService {
             if revision.page_id != page.page_id || revision.site_id != site_id {
                 return Ok(None);
             }
-            let mut hit = SearchHit::from_document(&doc);
+            let html = TextService::get(ctx, &revision.compiled_body_html_hash).await?;
+            let Some(mut hit) = SearchHit::from_current_document(&doc, &html) else {
+                return Ok(None);
+            };
             hit.title = revision.title;
             hit.tags = revision.tags;
             hit.slug = page.slug;
@@ -521,5 +528,7 @@ fn plain_body(html: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
+#[cfg(test)]
+mod freshness_tests;
 #[cfg(test)]
 mod tests;
