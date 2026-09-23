@@ -50,8 +50,9 @@ async function readResultSlugs(page) {
   const links = page.locator("#main-content ul > li h2 a")
   return links.evaluateAll((elements) =>
     elements.map((element) => {
-      if (!(element instanceof HTMLAnchorElement))
+      if (!(element instanceof HTMLAnchorElement)) {
         throw new Error("search result must be a link")
+      }
       return new URL(element.href).pathname
     })
   )

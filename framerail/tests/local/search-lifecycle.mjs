@@ -14,6 +14,7 @@ const pollTimeoutMs = 60_000
 /**
  * @typedef {import("../../src/lib/server/deepwell/search").SearchHit} SearchHit
  *
+ *
  * @typedef {import("../../src/lib/server/deepwell/search").SearchPage} SearchPage
  *
  *

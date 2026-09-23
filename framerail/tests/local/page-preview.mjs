@@ -9,6 +9,7 @@ const backend = "http://127.0.0.1:2749/jsonrpc"
 /**
  * @typedef {import("../../src/lib/server/deepwell/views").PageView} PageView
  *
+ *
  * @typedef {Extract<PageView, { type: "found" }>["data"]} StoredPage
  *
  * @typedef {{
@@ -166,8 +167,9 @@ async function fillFormattedSource(page, marker) {
   const unformatted = `+ ${marker}\n${marker}`
   await input.fill(unformatted)
   await input.evaluate((element, length) => {
-    if (!(element instanceof HTMLTextAreaElement))
+    if (!(element instanceof HTMLTextAreaElement)) {
       throw new Error("editor source must be a textarea")
+    }
     element.focus()
     element.setSelectionRange(element.value.length - length, element.value.length)
   }, marker.length)
@@ -179,8 +181,9 @@ async function fillFormattedSource(page, marker) {
   await expect(input).toHaveValue(formatted)
   assert.deepEqual(
     await input.evaluate((element) => {
-      if (!(element instanceof HTMLTextAreaElement))
+      if (!(element instanceof HTMLTextAreaElement)) {
         throw new Error("editor source must be a textarea")
+      }
       return {
         focused: document.activeElement === element,
         start: element.selectionStart,
