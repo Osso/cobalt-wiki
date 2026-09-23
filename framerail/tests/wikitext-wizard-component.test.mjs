@@ -22,7 +22,7 @@ async function renderWizard(kind, source = "", extra = {}) {
     )
   )
   try {
-    const { default: Wizard } = await import(fixture.href + `?kind=${kind}`)
+    const { default: Wizard } = await import(`${fixture.href}?kind=${kind}`)
     return render(Wizard, {
       props: { kind, source, onInsert() {}, onCancel() {}, ...extra }
     }).body

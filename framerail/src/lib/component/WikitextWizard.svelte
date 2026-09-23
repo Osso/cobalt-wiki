@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte"
+  import { onMount, untrack } from "svelte"
   import {
     extractEquations,
     normalizeFlickrSource,
@@ -39,17 +39,16 @@
   let position = $state<"" | "l" | "r" | "c" | "fl" | "fr">("")
   let previewUri = $state("")
   let previewStatus = $state("")
-  let label = $state("")
+  const equations = $derived(extractEquations(source))
+  let label = $state(untrack(() => equations[0]?.label ?? ""))
   let withEq = $state(true)
   let error = $state("")
   let inserting = $state(false)
-  const equations = $derived(extractEquations(source))
   const selectedEquation = $derived(
     equations.find((equation) => equation.label === label)
   )
 
   onMount(() => {
-    if (kind === "eref") label = equations[0]?.label ?? ""
     dialog.showModal()
     dialog.querySelector<HTMLElement>("input, select")?.focus()
   })
@@ -195,8 +194,8 @@
       <p>This wizard will create an empty table with the specified properties:</p>
       <label
         >Number of rows: <input
-          min="1"
           max="99"
+          min="1"
           required
           type="number"
           bind:value={rows}
@@ -204,8 +203,8 @@
       >
       <label
         >Number of columns: <input
-          min="1"
           max="99"
+          min="1"
           required
           type="number"
           bind:value={columns}
@@ -242,8 +241,8 @@
       </p>
       <label
         >Page name: <input
-          required
           autocomplete="off"
+          required
           type="text"
           bind:value={page}
         /></label
@@ -285,8 +284,8 @@
         <button onclick={checkImage} type="button">Check image</button>
         {#if previewUri}<img
             alt="Preview of URL"
-            onload={() => (previewStatus = "Image loaded.")}
             onerror={() => (previewStatus = "Image unavailable.")}
+            onload={() => (previewStatus = "Image loaded.")}
             src={previewUri}
           />{/if}
         {#if previewStatus}<p role="status">{previewStatus}</p>{/if}

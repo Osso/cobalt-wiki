@@ -85,7 +85,7 @@ test("URI renders anchor and new-window marker at captured start", () => {
       newWindow: true
     }),
     {
-      value: "*ftp://example.org/a" + "x",
+      value: "*ftp://example.org/ax",
       start: 20,
       end: 20
     }

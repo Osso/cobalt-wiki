@@ -64,7 +64,8 @@ const hit = {
 }
 
 test("short or missing queries return validation failure without RPC", async () => {
-  for (const fields of [{}, { query: " x " }, { query: "  " }]) {
+  const invalidQueries: Record<string, string>[] = [{}, { query: " x " }, { query: "  " }]
+  for (const fields of invalidQueries) {
     const { result, calls } = await callAction(editorPagesAction, fields)
     assert.equal((result as { status: number }).status, 400)
     assert.deepEqual((result as { data: unknown }).data, {
