@@ -9,6 +9,7 @@
   import { superForm } from "sveltekit-superforms"
   import { untrack } from "svelte"
   import EditorPreview from "$lib/component/EditorPreview.svelte"
+  import WikitextToolbar from "$lib/component/WikitextToolbar.svelte"
 
   import type { PageData } from "./$types"
   import type { PageDeletedGet } from "$lib/server/deepwell/page"
@@ -17,6 +18,7 @@
     page.error as unknown as PageData & { can_create?: boolean }
   )
 
+  let sourceTextarea = $state<HTMLTextAreaElement>()
   let showRestoreAction = $state<boolean>(false)
   let deletedPages = $state<PageDeletedGet[]>([])
 
@@ -145,8 +147,12 @@
         type="text"
         bind:value={$editForm.altTitle}
       />
-      <textarea name="wikitext" class="editor-wikitext" bind:value={$editForm.wikitext}
-      ></textarea>
+      <WikitextToolbar textarea={sourceTextarea} bind:value={$editForm.wikitext} />
+      <textarea
+        name="wikitext"
+        class="editor-wikitext"
+        bind:this={sourceTextarea}
+        bind:value={$editForm.wikitext}></textarea>
       <input
         name="tags"
         class="editor-tags"

@@ -9,6 +9,7 @@
 
   import DataFormFields from "$lib/component/DataFormFields.svelte"
   import EditorPreview from "$lib/component/EditorPreview.svelte"
+  import WikitextToolbar from "$lib/component/WikitextToolbar.svelte"
   import { createDraft, changedFields } from "$lib/form-editor"
 
   import type { PageProps } from "./$types"
@@ -17,6 +18,7 @@
 
   const sourceForm = untrack(() => data.form)
   let draft = $state(sourceForm ? createDraft(sourceForm) : {})
+  let sourceTextarea = $state<HTMLTextAreaElement>()
 
   function cancelEdit() {
     const options: string[] = Object.entries({
@@ -100,8 +102,12 @@
   {#if sourceForm}
     <DataFormFields form={sourceForm} bind:draft />
   {:else}
-    <textarea name="wikitext" class="editor-wikitext" bind:value={$form.wikitext}
-    ></textarea>
+    <WikitextToolbar textarea={sourceTextarea} bind:value={$form.wikitext} />
+    <textarea
+      name="wikitext"
+      class="editor-wikitext"
+      bind:this={sourceTextarea}
+      bind:value={$form.wikitext}></textarea>
   {/if}
   <input
     name="tags"
