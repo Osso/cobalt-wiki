@@ -85,14 +85,21 @@ def main(argv=None):
     parser.add_argument("--plan", required=True, type=Path)
     parser.add_argument("--source-origin", required=True)
     parser.add_argument("--archive-directory", required=True, type=Path)
-    parser.add_argument("--target-id", required=True)
-    parser.add_argument("--node-binary", required=True)
+    transport = parser.add_mutually_exclusive_group(required=True)
+    transport.add_argument("--target-id", help="pinned CDP page target")
+    transport.add_argument("--anonymous", action="store_true", help="plain HTTPS")
+    parser.add_argument("--node-binary")
     args = parser.parse_args(argv)
-    from .history_transport import make_history_fetch
+    from .history_transport import AnonymousHistoryFetch, make_history_fetch
 
-    fetch = make_history_fetch(
-        args.source_origin, args.target_id, node_binary=args.node_binary
-    )
+    if args.anonymous:
+        fetch = AnonymousHistoryFetch(args.source_origin)
+    else:
+        if not args.node_binary:
+            parser.error("--target-id requires --node-binary")
+        fetch = make_history_fetch(
+            args.source_origin, args.target_id, node_binary=args.node_binary
+        )
     result = acquire_site_history(
         json.loads(args.plan.read_text()),
         args.source_origin,

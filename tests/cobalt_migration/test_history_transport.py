@@ -424,3 +424,40 @@ class HistoryTransportTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AnonymousHistoryFetchTest(unittest.TestCase):
+    def test_posts_the_module_request_and_returns_its_body(self):
+        from urllib.parse import parse_qs
+        from tools.cobalt_migration.history_transport import AnonymousHistoryFetch
+
+        seen = {}
+
+        class Response:
+            status = 200
+            headers = {}
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+            def read(self):
+                return b'{"status":"ok","body":"<table>rev</table>"}'
+
+        def opener(request, timeout):
+            seen["url"] = request.full_url
+            seen["form"] = parse_qs(request.data.decode())
+            return Response()
+
+        fetch = AnonymousHistoryFetch("https://cobalt-company.wikidot.com", opener=opener)
+        response = fetch({
+            "moduleName": "history/PageRevisionListModule", "page": 2, "perpage": 20,
+            "page_id": 1310927108, "options": {"all": True},
+        })
+        self.assertEqual(seen["url"], "https://cobalt-company.wikidot.com/ajax-module-connector.php")
+        self.assertEqual(seen["form"]["options"], ['{"all":true}'])
+        self.assertEqual(seen["form"]["page"], ["2"])
+        self.assertEqual(seen["form"]["wikidot_token7"], ["cobaltreplica"])
+        self.assertEqual((response.status, response.html), (200, "<table>rev</table>"))

@@ -1,9 +1,14 @@
-"""Read-only Wikidot history modules through one explicitly pinned CDP page target."""
+"""Read-only Wikidot history modules through one explicitly pinned CDP page
+target, or anonymously over HTTPS (Wikidot serves both history modules to
+anonymous visitors)."""
 
 import json
 import math
 import re
 import subprocess
+import urllib.error
+import urllib.parse
+import urllib.request
 from urllib.parse import urlsplit
 
 from .history_export import HistoryResponse
@@ -264,3 +269,47 @@ class HistoryFetch:
 def make_history_fetch(source_origin, target_id, **options):
     """Return a read-only module fetcher pinned to one CDP target ID."""
     return HistoryFetch(source_origin, target_id, **options)
+
+
+class AnonymousHistoryFetch:
+    """The same module requests and responses as HistoryFetch, over plain HTTPS
+    with an arbitrary wikidot_token7 cookie instead of a browser session."""
+
+    TOKEN = "cobaltreplica"
+
+    def __init__(self, source_origin, *, opener=urllib.request.urlopen, timeout_seconds=30):
+        _origin(source_origin)
+        self.source_origin = source_origin
+        self.opener = opener
+        self.timeout_seconds = timeout_seconds
+
+    def __call__(self, request):
+        _request(request)
+        form = dict(request, wikidot_token7=self.TOKEN, callbackIndex=0)
+        if "options" in form:
+            form["options"] = json.dumps(form["options"], separators=(",", ":"))
+        http_request = urllib.request.Request(
+            f"{self.source_origin}/ajax-module-connector.php",
+            data=urllib.parse.urlencode(form).encode(),
+            headers={
+                "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                "Cookie": f"wikidot_token7={self.TOKEN}",
+            },
+        )
+        try:
+            with self.opener(http_request, timeout=self.timeout_seconds) as response:
+                status, raw = response.status, response.read().decode("utf-8")
+                retry_after = response.headers.get("Retry-After")
+        except urllib.error.HTTPError as error:
+            raw = error.read().decode("utf-8", "replace")
+            return HistoryResponse(error.code, raw, "", error.headers.get("Retry-After"))
+        except TimeoutError:
+            raise TimeoutError("history request deadline exceeded") from None
+        except urllib.error.URLError:
+            raise ConnectionError("history request failed") from None
+        try:
+            parsed = json.loads(raw)
+            html = parsed["body"] if parsed.get("status") == "ok" and isinstance(parsed.get("body"), str) else ""
+        except (ValueError, AttributeError):
+            html = ""
+        return HistoryResponse(status, raw, html, retry_after)

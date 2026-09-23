@@ -48,6 +48,14 @@ def history(rows, *, page=1, next_page=None, previous_page=None):
 
 
 class PageHistoryTest(unittest.TestCase):
+    def test_history_on_one_list_page_has_no_pager(self):
+        html = history([revision(1, 10001), revision(0, 10000, flag="N")])
+        result = parse_history_list(html[html.index('<div class="page-history">'):])
+        self.assertEqual(
+            (result["page"], result["previous_page"], result["next_page"]), (1, None, None)
+        )
+        self.assertEqual([row["number"] for row in result["revisions"]], [1, 0])
+
     def test_sourced_revision_metadata_and_pager(self):
         result = parse_history_list(
             history(

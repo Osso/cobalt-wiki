@@ -112,7 +112,11 @@ def _revision(row):
 
 
 def _pager(root):
-    pager = _one([node for node in _walk(root) if _class(node, "pager")], "pager")
+    pagers = [node for node in _walk(root) if _class(node, "pager")]
+    # Wikidot omits the pager when a page's whole history fits on one list page.
+    if not pagers:
+        return {"page": 1, "previous_page": None, "next_page": None}
+    pager = _one(pagers, "pager")
     page = _positive(
         _one([node for node in _walk(pager) if _class(node, "current")], "current page")
         .text()
