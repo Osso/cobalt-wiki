@@ -66,7 +66,9 @@
       : "https://cdn.scpwiki.com/theme/en/sigma/css/sigma.min.css"}
     rel="stylesheet"
   />
-  <Wikidot>
+  <Wikidot
+    sideBarHtml={page.data?.compiled_side_bar_html ?? page.error?.compiled_side_bar_html}
+  >
     {#snippet header()}
       <h1>
         <a class="active" href={resolve("/", {})}><span>{page.data.site?.name}</span></a>
@@ -78,12 +80,6 @@
 
     {#snippet topBar()}
       {@html page.data?.compiled_top_bar_html ?? page.error?.compiled_top_bar_html ?? ""}
-    {/snippet}
-
-    {#snippet sideBar()}
-      {@html page.data?.compiled_side_bar_html ??
-        page.error?.compiled_side_bar_html ??
-        ""}
     {/snippet}
 
     {#snippet content()}

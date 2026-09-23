@@ -1,5 +1,5 @@
 <script lang="ts">
-  let { header, topBar, sideBar, content, footer, license } = $props()
+  let { header, topBar, sideBarHtml, content, footer, license } = $props()
 </script>
 
 <div id="skrollr-body">
@@ -15,9 +15,11 @@
           </div>
         </div>
         <div id="content-wrap">
-          <div id="side-bar">
-            {@render sideBar?.()}
-          </div>
+          {#if sideBarHtml}
+            <div id="side-bar">
+              {@html sideBarHtml}
+            </div>
+          {/if}
           <div id="main-content">
             <div id="action-area-top"></div>
             {@render content?.()}
