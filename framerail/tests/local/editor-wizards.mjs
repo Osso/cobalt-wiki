@@ -467,6 +467,10 @@ async function checkExternalImageWindows(page) {
   const original = "+ Image check proof\n\ntail"
   await setSelection(page, original)
   const dialog = await openWizard(page, "image wizard", "Image wizard")
+  // The gateway is already authenticated in Chromium's origin-scoped auth cache.
+  // Remove Playwright's auth interceptor: it stalls initial blank-popup images.
+  // Retire this test-only workaround when that interception regression is fixed.
+  await page.context().setHTTPCredentials(null)
   for (const [url, status] of [
     [sprite, "Image loaded."],
     [`${origin}/cobalt-editor/missing-image.png`, "Image unavailable."]
