@@ -28,7 +28,7 @@ Creating an attachment on an existing page changes that page's files, not the pa
 
 - [x] Deploy the isolated hotfix `f18dcfed691983a12021d6c1da372203ce145138` (parent `474b308be897f40d96767c585e96c45fa3c55095`). Host commit `72bd4a4` pins it; remote generation `b8lyk2lnn46pkgw1w2l9nqyy9bcy5qy8-nixos-system-sakuin-digital-ocean-26.05.20260606.9b69646` is active. Deployment scope was exactly three files, with one runtime line changing `process_page_displace` to `process_page_edit`; `ops/deploy.sh` ended `Ready. Deploy complete.` User-owned rendering work was untouched.
 - [x] Merge the deployed hotfix into Cobalt integration at `b552e1e`; its first-parent diff is empty because it records the already-deployed hotfix lineage.
-- [ ] Reconcile the host input and lock from `cobalt-queue-hotfix` only after the rendering pin owner coordinates the active `cobalt-rendering` change; retain the hotfix branch until no lock references it, then remove it under branch cleanup rules.
+- [x] Remove `cobalt-queue-hotfix` after `b552e1e` made it an ancestor of `cobalt-company` and host commit `c6404bb` moved both input and lock to active `cobalt-rendering` revision `0441517`. The rendering branch remains active and unique. This host pin change has not been deployed.
 - [ ] Verify template/include invalidation for attachment owners with those dependencies.
 - [ ] Attribute every historical queue producer. This fix prevents the verified attachment path but does not explain every historical job.
 
