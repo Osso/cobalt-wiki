@@ -4,6 +4,7 @@ use crate::error::prelude::*;
 use crate::models::page_draft::Entity as PageDraft;
 use sea_orm::{DatabaseTransaction, EntityTrait};
 
+#[derive(Debug)]
 pub struct PageDraftService;
 
 impl PageDraftService {
