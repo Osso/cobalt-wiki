@@ -24,6 +24,7 @@ async fn import_page(runner: &TestRunner, site_id: i64, slug: &str, source: &str
             title: slug.into(),
             wikitext: source.into(),
             alt_title: None,
+            tags: vec![],
             layout: Some(ftml::layout::Layout::Wikidot),
             revision_comments: "Link update fixture".into(),
             user_id: ADMIN_USER_ID,
