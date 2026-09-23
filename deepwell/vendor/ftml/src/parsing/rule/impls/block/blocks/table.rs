@@ -119,8 +119,10 @@ macro_rules! extract_table_items {
                     items.push(item);
                 }
 
-                // Ignore internal whitespace.
+                // Ignore internal whitespace, and empty raw spans, which
+                // render nothing (Wikidot keeps such tables).
                 element if element.is_whitespace() => (),
+                Element::Raw(text) if text.is_empty() => (),
 
                 // Return an error for anything else.
                 _ => return Err($parser.make_err(ParseErrorKind::$error_kind)),
@@ -279,4 +281,26 @@ fn parse_cell<'r, 't>(
     }));
 
     ok!(false; element, errors)
+}
+
+#[cfg(test)]
+mod test {
+    use crate::data::PageInfo;
+    use crate::layout::Layout;
+    use crate::settings::{WikitextMode, WikitextSettings};
+    use crate::tree::Element;
+
+    #[test]
+    fn an_empty_raw_span_between_rows_keeps_the_table_like_wikidot() {
+        // Cobalt boxes guard rows with `[!--{$value}--]@@@@`; filled values leave `@@@@`.
+        let text = "[[table]]\n[[row]]\n[[cell]]a[[/cell]]\n[[/row]]\n@@@@\n[[row]]\n[[cell]]b[[/cell]]\n[[/row]]\n[[/table]]";
+        let settings = WikitextSettings::from_mode(WikitextMode::Page, Layout::Wikidot);
+        let tokens = crate::tokenize(text);
+        let page_info = PageInfo::dummy();
+        let (tree, _) = crate::parse(&tokens, &page_info, &settings).into();
+        match &tree.elements[0] {
+            Element::Table(table) => assert_eq!(table.rows.len(), 2),
+            other => panic!("expected table, got {other:?}"),
+        }
+    }
 }
