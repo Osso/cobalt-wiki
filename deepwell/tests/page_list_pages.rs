@@ -263,6 +263,46 @@ async fn nested_list_pages_list_each_outer_page_with_its_own_inner_pages() {
 }
 
 #[tokio::test]
+async fn list_pages_paginate_like_wikidot() {
+    let runner = TestRunner::setup().await;
+    let site_id = site_id(&runner).await;
+    import_characters(&runner, site_id).await;
+    // Three listable characters (Alpha, Beta, Gamma), two per page.
+    let listing = "[[module ListPages category=\"character\" tags=\"_completed\" order=\"title\" perPage=\"2\"]]\n* %%title%%\n[[/module]]\n\n[[module ListPages category=\"character\" tags=\"_completed\" order=\"title\" perPage=\"2\" limit=\"2\"]]\n* capped %%title%%\n[[/module]]";
+    import_page(&runner, site_id, "roster", listing).await;
+
+    let first = compiled_body(&runner, site_id, "roster").await;
+    assert!(first.contains("Alpha") && first.contains("Beta"), "{first}");
+    assert!(!first.contains("Gamma"), "{first}");
+    assert!(first.contains("page 1 of 2"), "{first}");
+    assert!(first.contains("href=\"/roster/p/2\">next »</a>"), "{first}");
+    // limit caps items across pages, so the second module has one page and no pager.
+    assert_eq!(first.matches("class=\"pager\"").count(), 1, "{first}");
+
+    let page =
+        PageService::get(runner.context(), site_id, Reference::Slug("roster".into()))
+            .await
+            .unwrap();
+    let second =
+        PageRevisionService::render_list_page(runner.context(), site_id, page.page_id, 2)
+            .await
+            .unwrap();
+    assert!(second.contains("Gamma"), "{second}");
+    assert!(
+        !second.contains("Alpha [1]") && !second.contains(">Beta<"),
+        "{second}"
+    );
+    assert!(second.contains("page 2 of 2"), "{second}");
+    assert!(
+        second.contains("href=\"/roster/p/1\">« previous</a>"),
+        "{second}"
+    );
+    assert!(!second.contains("capped"), "{second}");
+    // The stored page is still page 1.
+    assert_eq!(compiled_body(&runner, site_id, "roster").await, first);
+}
+
+#[tokio::test]
 async fn list_pages_never_lists_pages_denied_to_anonymous_readers() {
     let runner = TestRunner::setup().await;
     let site_id = site_id(&runner).await;

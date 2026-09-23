@@ -953,6 +953,48 @@ impl PageRevisionService {
         Ok(())
     }
 
+    /// Renders the latest revision's body at ListPages page `list_page` (the
+    /// Wikidot `/p/N` view) without storing it; the stored render is page 1.
+    pub async fn render_list_page(
+        ctx: &ServiceContext<'_>,
+        site_id: i64,
+        page_id: i64,
+        list_page: usize,
+    ) -> Result<String> {
+        let make_error = || {
+            Error::new(
+                format!(
+                    "failed to render list page {list_page} of page ID {page_id} on site ID {site_id}"
+                ),
+                ErrorType::PageRevision,
+            )
+        };
+        let revision = Self::get_latest(ctx, site_id, page_id)
+            .await
+            .or_raise(make_error)?;
+        let (wikitext, score, layout, site) = try_join!(
+            TextService::get(ctx, &revision.wikitext_hash),
+            ScoreService::score(ctx, page_id),
+            SettingsService::get_layout(ctx, site_id, Some(page_id)),
+            SiteService::get(ctx, Reference::from(site_id)),
+        )
+        .or_raise(make_error)?;
+        let (category_slug, page_slug) = split_category(&revision.slug);
+        let page_info = PageInfo {
+            page: cow!(page_slug),
+            category: cow_opt!(category_slug),
+            site: cow!(&site.slug),
+            title: cow!(&revision.title),
+            alt_title: cow_opt!(revision.alt_title),
+            score,
+            tags: revision.tags.iter().map(|s| cow!(s)).collect(),
+            language: cow!(&site.locale),
+        };
+        RenderService::render_page_view(ctx, wikitext, &page_info, layout, list_page)
+            .await
+            .or_raise(make_error)
+    }
+
     /// Modifies an existing revision.
     ///
     /// Normally you should think of revisions as being immutable

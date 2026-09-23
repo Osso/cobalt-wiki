@@ -7,14 +7,14 @@ Expand archived `[[module ListPages]]` blocks into ordinary wikitext before FTML
 - [x] Recognize `[[module ListPages ...]]...[[/module]]` case-insensitively, including multi-line headers, stray `\` continuations and `]]` inside quoted values; unterminated modules stay text.
 - [x] Select by `category` (default current category, `*`, `.`, `+name`, `-name`), `tags`/`tag` (plain = any, `+` = required, `-` = excluded, `-` alone = untagged), `pagetype` (`normal` default excludes `_` pages, `hidden`, `*`) and `created_at="last N days"`.
 - [x] Order by `name`, `fullname`, `title`, `created_at` or `updated_at`, `asc` default when a field is given, `created_at desc` when omitted; ties by full name.
-- [x] Show `min(limit, perPage)` items, `perPage` defaulting to 20 and capped at 250.
+- [x] `perPage` defaults to 20, capped at 250.
 - [x] List only anonymously readable pages, because compiled HTML is shared.
 - [x] Fill item tokens: `name`, `fullname`, `title`, `linked_title`/`title_linked` (link with the target's escaped title), `link`, `created_at`/`updated_at` (date block), `form_data{field}`/`form_raw{field}` from the listed page's category form.
 - [x] Lay out `separate="yes"` (default) items as `list-pages-item` divs and `separate="no"` items as one block joined by newlines with `prependLine`/`appendLine` (Wikidot ignores those lines for separate items), inside a `list-pages-box` div; a final line continuation does not join the closing div. No items produce nothing.
 - [x] Replace a module with unsupported arguments (for example `rssTitle`) with a visible error block naming the problem.
 - [x] `[[module CountPages ...]]` takes the same selection arguments, counts every matching visible page (no `limit`/`perPage` cap) and renders its body with `%%total%%` filled inside a `list-pages-box` div, as Wikidot does on `stats`.
 - [x] Nested modules (an item template containing, or including, another ListPages): the outer module ends at its matching `[[/module]]`; outer tokens fill inner module headers but not inner item templates; inner modules expand after the outer items, up to four levels (Cobalt `testlist`).
-- [ ] Pagination controls beyond the first page.
+- [x] Pagination like Wikidot: `perPage` items per page (`limit` caps items across all pages); a pager (`page N of M`, pages 1–2, current ±2, last two, `...` gaps, previous/next) links to `/<page>/p/N`, which every module on the page follows. Stored HTML is page 1; `/p/N` renders on demand without storing.
 - [ ] Rerender listing pages when matching pages are created, retagged or deleted.
 
 ## Data limits

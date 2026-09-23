@@ -157,17 +157,111 @@ impl RenderService {
         })
     }
 
+    /// Render a page's body at ListPages page `list_page` (the `/p/N` view)
+    /// without storing anything; the stored render is page 1.
+    pub async fn render_page_view(
+        ctx: &ServiceContext<'_>,
+        wikitext: String,
+        page_info: &PageInfo<'_>,
+        layout: Layout,
+        list_page: usize,
+    ) -> Result<String> {
+        let settings = WikitextSettings::from_mode(WikitextMode::Page, layout);
+        let rendered =
+            Self::render_html(ctx, wikitext, page_info, &settings, Some(list_page))
+                .await?;
+        Ok(rendered.html_output.body)
+    }
+
+    /// Render and store the output: compiled HTML always, text blocks for pages.
     async fn render_inner(
         ctx: &ServiceContext<'_>,
-        mut wikitext: String,
+        wikitext: String,
         page_info: &PageInfo<'_>,
         settings: &WikitextSettings,
         page_id: Option<i64>,
     ) -> Result<RenderInnerOutput> {
-        let config = ctx.config();
-
         let make_error =
             || Error::new("failed to perform render operation", ErrorType::Render);
+        let RenderedHtml {
+            html_output,
+            errors,
+            html_blocks,
+            code_blocks,
+        } = Self::render_html(ctx, wikitext, page_info, settings, page_id.map(|_| 1))
+            .await?;
+        // Insert compiled HTML into text table
+        let compiled_hash = TextService::create(ctx, html_output.body.clone())
+            .await
+            .or_raise(make_error)?;
+
+        // Set up the hosted text blocks
+        //
+        // This only applies for published pages, in any other
+        // rendering context and we should skip this step.
+
+        if let Some(page_id) = page_id {
+            // It's possible to render a page without doing text blocks
+            // (e.g. blueprint pages), but all cases where text blocks
+            // are done are pages.
+            debug_assert_eq!(settings.mode, WikitextMode::Page);
+
+            // [[html]]
+            let html_blocks: Vec<TextBlock> = html_blocks
+                .iter()
+                .map(|html| TextBlock {
+                    text: html,
+                    text_type: None,
+                    mime: MIME_HTML,
+                    name: None,
+                })
+                .collect();
+
+            TextBlockService::add_blocks(ctx, page_id, TextBlockType::Html, &html_blocks)
+                .await
+                .or_raise(make_error)?;
+
+            // [[code]]
+            let code_blocks: Vec<TextBlock> = code_blocks
+                .iter()
+                .map(
+                    |CodeBlock {
+                         contents,
+                         language,
+                         name,
+                     }| TextBlock {
+                        text: contents,
+                        text_type: language.as_deref(),
+                        mime: mime_for_language(language),
+                        name: name.as_deref(),
+                    },
+                )
+                .collect();
+
+            TextBlockService::add_blocks(ctx, page_id, TextBlockType::Code, &code_blocks)
+                .await
+                .or_raise(make_error)?;
+        }
+
+        // Build and return
+        Ok(RenderInnerOutput {
+            html_output,
+            errors,
+            compiled_hash,
+        })
+    }
+
+    /// Preprocess, parse and render without storing anything. `list_page` is
+    /// `Some(n)` for a published page body (live template, ListPages page `n`)
+    /// and `None` for fragments such as navigation pages and previews.
+    async fn render_html(
+        ctx: &ServiceContext<'_>,
+        mut wikitext: String,
+        page_info: &PageInfo<'_>,
+        settings: &WikitextSettings,
+        list_page: Option<usize>,
+    ) -> Result<RenderedHtml> {
+        let config = ctx.config();
 
         // We isolate the actual tasks for rendering,
         // allowing us to time it out if it takes too long.
@@ -178,7 +272,7 @@ impl RenderService {
 
         let (tokens, included_pages) = timeout(config.preprocess_timeout, async {
             let mut source = std::mem::take(&mut wikitext);
-            if page_id.is_some() {
+            if list_page.is_some() {
                 source =
                     super::live_template::apply_live_template(ctx, source, page_info)
                         .await?;
@@ -187,8 +281,13 @@ impl RenderService {
             let (expanded, included_pages) =
                 super::includes::expand_includes(ctx, source, &page_info.site, settings)
                     .await?;
-            wikitext =
-                super::list_pages::expand_list_pages(ctx, expanded, page_info).await?;
+            wikitext = super::list_pages::expand_list_pages(
+                ctx,
+                expanded,
+                page_info,
+                list_page.unwrap_or(1),
+            )
+            .await?;
             wikitext =
                 super::wikidot_comments::strip_comments(std::mem::take(&mut wikitext));
             ftml::preprocess(&mut wikitext);
@@ -222,69 +321,25 @@ impl RenderService {
         })??;
 
         html_output.backlinks.included_pages.extend(included_pages);
-
-        // Insert compiled HTML into text table
-        let compiled_hash = TextService::create(ctx, html_output.body.clone())
-            .await
-            .or_raise(make_error)?;
-
-        // Set up the hosted text blocks
-        //
-        // This only applies for published pages, in any other
-        // rendering context and we should skip this step.
-
-        if let Some(page_id) = page_id {
-            // It's possible to render a page without doing text blocks
-            // (e.g. blueprint pages), but all cases where text blocks
-            // are done are pages.
-            debug_assert_eq!(settings.mode, WikitextMode::Page);
-
-            // [[html]]
-            let html_blocks: Vec<TextBlock> = tree
-                .html_blocks
-                .iter()
-                .map(|html| TextBlock {
-                    text: html,
-                    text_type: None,
-                    mime: MIME_HTML,
-                    name: None,
-                })
-                .collect();
-
-            TextBlockService::add_blocks(ctx, page_id, TextBlockType::Html, &html_blocks)
-                .await
-                .or_raise(make_error)?;
-
-            // [[code]]
-            let code_blocks: Vec<TextBlock> = tree
-                .code_blocks
-                .iter()
-                .map(
-                    |CodeBlock {
-                         contents,
-                         language,
-                         name,
-                     }| TextBlock {
-                        text: contents,
-                        text_type: language.as_deref(),
-                        mime: mime_for_language(language),
-                        name: name.as_deref(),
-                    },
-                )
-                .collect();
-
-            TextBlockService::add_blocks(ctx, page_id, TextBlockType::Code, &code_blocks)
-                .await
-                .or_raise(make_error)?;
-        }
-
-        // Build and return
-        Ok(RenderInnerOutput {
+        Ok(RenderedHtml {
             html_output,
             errors,
-            compiled_hash,
+            html_blocks: tree
+                .html_blocks
+                .iter()
+                .map(|html| html.to_string())
+                .collect(),
+            code_blocks: tree.code_blocks.iter().map(CodeBlock::to_owned).collect(),
         })
     }
+}
+
+#[derive(Debug)]
+struct RenderedHtml {
+    html_output: HtmlOutput,
+    errors: Vec<ParseError>,
+    html_blocks: Vec<String>,
+    code_blocks: Vec<CodeBlock<'static>>,
 }
 
 #[derive(Debug)]

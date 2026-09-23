@@ -277,10 +277,22 @@ impl ViewService {
 
                     let (
                         wikitext,
-                        compiled_body_html,
+                        mut compiled_body_html,
                         compiled_top_bar_html,
                         compiled_side_bar_html,
                     ) = raise_multiple!(wikitext_result, compiled_body_result, compiled_top_bar_result, compiled_side_bar_result; make_error);
+
+                    // Stored HTML shows ListPages page 1; later pages render on demand.
+                    if let Some(list_page) = options.list_page.filter(|&page| page > 1) {
+                        compiled_body_html = PageRevisionService::render_list_page(
+                            ctx,
+                            page.site_id,
+                            page.page_id,
+                            list_page,
+                        )
+                        .await
+                        .or_raise(make_error)?;
+                    }
 
                     let attributions = RelationService::get_page_attributions(
                         ctx,

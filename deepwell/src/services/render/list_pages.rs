@@ -221,7 +221,9 @@ pub(super) struct Selection {
     page_type: PageType,
     order: OrderField,
     descending: bool,
-    limit: usize,
+    per_page: usize,
+    /// Cap on items across all pages.
+    limit: Option<usize>,
     created_within_days: Option<i64>,
     separate: bool,
     prepend_line: Option<String>,
@@ -264,7 +266,10 @@ pub(super) fn parse_selection(
         page_type: parse_page_type(attributes.get("pagetype"))?,
         order: OrderField::CreatedAt,
         descending: true,
-        limit: parse_limit(attributes)?,
+        per_page: parse_number(attributes, "perpage")?
+            .unwrap_or(DEFAULT_PER_PAGE)
+            .min(MAX_PER_PAGE),
+        limit: parse_number(attributes, "limit")?,
         created_within_days: attributes
             .get("created_at")
             .map(|value| parse_last_days(value))
@@ -352,22 +357,19 @@ fn parse_order(value: &str) -> ParseResult<(OrderField, bool)> {
     Ok((field, descending))
 }
 
-fn parse_limit(attributes: &HashMap<String, String>) -> ParseResult<usize> {
-    let number = |key: &str| {
-        attributes
-            .get(key)
-            .map(|value| {
-                value
-                    .trim()
-                    .parse::<usize>()
-                    .map_err(|_| format!("invalid {key}"))
-            })
-            .transpose()
-    };
-    let per_page = number("perpage")?
-        .unwrap_or(DEFAULT_PER_PAGE)
-        .min(MAX_PER_PAGE);
-    Ok(number("limit")?.map_or(per_page, |limit| limit.min(per_page)))
+fn parse_number(
+    attributes: &HashMap<String, String>,
+    key: &str,
+) -> ParseResult<Option<usize>> {
+    attributes
+        .get(key)
+        .map(|value| {
+            value
+                .trim()
+                .parse::<usize>()
+                .map_err(|_| format!("invalid {key}"))
+        })
+        .transpose()
 }
 
 fn parse_last_days(value: &str) -> ParseResult<i64> {
@@ -412,6 +414,7 @@ pub(super) async fn expand_list_pages(
     ctx: &ServiceContext<'_>,
     mut source: String,
     page_info: &PageInfo<'_>,
+    list_page: usize,
 ) -> Result<String> {
     if list_pages_blocks(&source).is_empty() {
         return Ok(source);
@@ -421,7 +424,9 @@ pub(super) async fn expand_list_pages(
     let mut listing = SiteListing::load(ctx, site.site_id).await?;
     // Items of an outer module may contain inner modules (nested listings).
     for _ in 0..MAX_NESTING {
-        match expand_list_pages_once(ctx, &source, page_info, &mut listing).await? {
+        match expand_list_pages_once(ctx, &source, page_info, &mut listing, list_page)
+            .await?
+        {
             Some(expanded) => source = expanded,
             None => break,
         }
@@ -435,6 +440,7 @@ async fn expand_list_pages_once(
     source: &str,
     page_info: &PageInfo<'_>,
     listing: &mut SiteListing,
+    list_page: usize,
 ) -> Result<Option<String>> {
     let blocks = list_pages_blocks(source);
     if blocks.is_empty() {
@@ -442,6 +448,10 @@ async fn expand_list_pages_once(
     }
     let site_id = listing.site_id;
     let current_category = page_info.category.as_deref().unwrap_or("_default");
+    let fullname = match current_category {
+        "_default" => page_info.page.to_string(),
+        category => format!("{category}:{}", page_info.page),
+    };
     let mut forms = FormCache::default();
     let mut output = String::with_capacity(source.len());
     let mut copied = 0;
@@ -452,12 +462,18 @@ async fn expand_list_pages_once(
         match (block.kind, selection) {
             (ModuleKind::ListPages, Ok(selection)) => {
                 let pages = listing.select(ctx, &selection).await?;
+                let page_count = pages.len().div_ceil(selection.per_page);
+                let shown: Vec<_> = pages
+                    .into_iter()
+                    .skip((list_page - 1) * selection.per_page)
+                    .take(selection.per_page)
+                    .collect();
                 let items =
-                    render_items(ctx, block.body, &pages, &mut forms, site_id).await?;
-                output.push_str(&layout_items(&selection, &items));
+                    render_items(ctx, block.body, &shown, &mut forms, site_id).await?;
+                let pager = pager(&fullname, list_page, page_count);
+                output.push_str(&layout_items(&selection, &items, &pager));
             }
-            (ModuleKind::CountPages, Ok(mut selection)) => {
-                selection.limit = usize::MAX;
+            (ModuleKind::CountPages, Ok(selection)) => {
                 let total = listing.select(ctx, &selection).await?.len();
                 output.push_str(&layout_total(block.body, total));
             }
@@ -527,7 +543,7 @@ impl SiteListing {
         // so one check per category decides every page in it.
         let mut visible = Vec::new();
         for page in pages {
-            if visible.len() == selection.limit {
+            if Some(visible.len()) == selection.limit {
                 break;
             }
             let can_view = match self.category_visible.get(&page.page_category_id) {
@@ -695,7 +711,7 @@ async fn load_category_schema(
 }
 
 /// Wikidot joins unseparated items into one wikitext block; separated items are distinct blocks.
-fn layout_items(selection: &Selection, items: &[String]) -> String {
+fn layout_items(selection: &Selection, items: &[String], pager: &str) -> String {
     if items.is_empty() {
         return String::new();
     }
@@ -715,7 +731,41 @@ fn layout_items(selection: &Selection, items: &[String]) -> String {
     let content = lines.join("\n");
     // A trailing line continuation must not join the closing div.
     let content = content.trim_end().trim_end_matches('\\').trim_end();
-    format!("\n[[div class=\"list-pages-box\"]]\n{content}\n[[/div]]\n")
+    format!("\n[[div class=\"list-pages-box\"]]\n{content}\n{pager}[[/div]]\n")
+}
+
+/// Wikidot's page navigation: pages 1–2, the current page ±2 and the last two,
+/// with `...` over gaps; every module on the page follows the page's `/p/N`.
+fn pager(fullname: &str, current: usize, page_count: usize) -> String {
+    if page_count <= 1 {
+        return String::new();
+    }
+    let link = |page: usize, label: &str| {
+        format!("[[span class=\"target\"]][/{fullname}/p/{page} {label}][[/span]]")
+    };
+    let mut parts = vec![format!(
+        "[[span class=\"pager-no\"]]page {current} of {page_count}[[/span]]"
+    )];
+    if current > 1 {
+        parts.push(link(current - 1, "« previous"));
+    }
+    let shown =
+        |page: usize| page <= 2 || page + 1 >= page_count || page.abs_diff(current) <= 2;
+    let mut previous_shown = 0;
+    for page in (1..=page_count).filter(|&page| shown(page)) {
+        if page > previous_shown + 1 {
+            parts.push("[[span class=\"dots\"]]...[[/span]]".into());
+        }
+        parts.push(match page == current {
+            true => format!("[[span class=\"current\"]]{page}[[/span]]"),
+            false => link(page, &page.to_string()),
+        });
+        previous_shown = page;
+    }
+    if current < page_count {
+        parts.push(link(current + 1, "next »"));
+    }
+    format!("[[div class=\"pager\"]]\n{}\n[[/div]]\n", parts.join(""))
 }
 
 /// Wikidot fills `%%total%%` in the module body and boxes it like a listing.
@@ -785,8 +835,14 @@ mod tests {
         assert_eq!(nav.any_tags, ["guild-canon"]);
         assert_eq!(nav.excluded_tags, ["_nav-omit"]);
         assert_eq!(
-            (nav.order, nav.descending, nav.limit, nav.separate),
-            (OrderField::Title, false, 20, false)
+            (
+                nav.order,
+                nav.descending,
+                nav.per_page,
+                nav.limit,
+                nav.separate
+            ),
+            (OrderField::Title, false, 20, None, false)
         );
 
         let home = selection(
@@ -794,7 +850,7 @@ mod tests {
         );
         assert_eq!(
             (home.categories.as_slice(), home.limit),
-            (["character".to_owned()].as_slice(), 9)
+            (["character".to_owned()].as_slice(), Some(9))
         );
         assert_eq!(home.page_type, PageType::Normal);
 
@@ -803,7 +859,10 @@ mod tests {
         );
         assert_eq!(required.categories, ["writing", "arc"]);
         assert_eq!(required.all_tags, ["welcomed"]);
-        assert_eq!((required.limit, required.page_type), (250, PageType::All));
+        assert_eq!(
+            (required.per_page, required.page_type),
+            (250, PageType::All)
+        );
 
         let current = selection(" tags=\"\" created_at=\"last 10 days\"");
         assert_eq!(current.categories, ["character"]);
@@ -834,16 +893,52 @@ mod tests {
         let items = ["|| a ||".to_owned(), "|| b || \\".to_owned()];
         let joined = selection(" separate=\"no\" prependLine=\"||~ Head ||\"");
         assert_eq!(
-            layout_items(&joined, &items),
+            layout_items(&joined, &items, ""),
             "\n[[div class=\"list-pages-box\"]]\n||~ Head ||\n|| a ||\n|| b ||\n[[/div]]\n"
         );
         // Wikidot shows prepend/append lines only for joined items (Cobalt writings).
         let separate = selection(" prependLine=\"~ Page\" appendLine=\"End\"");
         assert_eq!(
-            layout_items(&separate, &items[..1]),
+            layout_items(&separate, &items[..1], ""),
             "\n[[div class=\"list-pages-box\"]]\n[[div class=\"list-pages-item\"]]\n|| a ||\n[[/div]]\n[[/div]]\n"
         );
-        assert_eq!(layout_items(&joined, &[]), "");
+        assert_eq!(layout_items(&joined, &[], ""), "");
+    }
+
+    /// Page lists of cobalt-company.wikidot.com/writings/p/N (46 pages).
+    #[test]
+    fn pager_matches_wikidot_page_navigation() {
+        let labels = |current| {
+            let wikitext = pager("writings", current, 46);
+            let mut labels = Vec::new();
+            for part in wikitext.split("[[span class=\"").skip(1) {
+                let (class, rest) = part.split_once("\"]]").unwrap();
+                let text = rest.split("[[/span]]").next().unwrap();
+                labels.push(match class {
+                    "target" => {
+                        let (href, label) =
+                            text[1..text.len() - 1].split_once(' ').unwrap();
+                        format!("{label}={href}")
+                    }
+                    "current" => format!("({text})"),
+                    _ => text.to_owned(),
+                });
+            }
+            labels.join(" ")
+        };
+        assert_eq!(
+            labels(1),
+            "page 1 of 46 (1) 2=/writings/p/2 3=/writings/p/3 ... 45=/writings/p/45 46=/writings/p/46 next »=/writings/p/2"
+        );
+        assert_eq!(
+            labels(10),
+            "page 10 of 46 « previous=/writings/p/9 1=/writings/p/1 2=/writings/p/2 ... 8=/writings/p/8 9=/writings/p/9 (10) 11=/writings/p/11 12=/writings/p/12 ... 45=/writings/p/45 46=/writings/p/46 next »=/writings/p/11"
+        );
+        assert_eq!(
+            labels(46),
+            "page 46 of 46 « previous=/writings/p/45 1=/writings/p/1 2=/writings/p/2 ... 44=/writings/p/44 45=/writings/p/45 (46)"
+        );
+        assert_eq!(pager("writings", 1, 1), "");
     }
 
     /// Every archived module header must parse: `COBALT_ARCHIVE_SOURCE=<dir of *.txt>`.

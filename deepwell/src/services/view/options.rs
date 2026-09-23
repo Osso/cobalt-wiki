@@ -37,6 +37,7 @@ const PAGE_ARGUMENTS_SCHEMA: ArgumentSchema = ArgumentSchema {
         "history",
         "offset",
         "data",
+        "p",
     ],
     solo_keys: &[
         "edit",
@@ -67,6 +68,8 @@ pub struct PageOptions {
     pub comments: bool,
     pub history: bool,
     pub offset: Option<i32>,
+    /// ListPages page number (Wikidot `/p/N`).
+    pub list_page: Option<usize>,
     pub data: String,
 }
 
@@ -133,6 +136,15 @@ impl PageOptions {
             match value {
                 ArgumentValue::Integer(offset) => options.offset = Some(offset),
                 _ => error!("Invalid value for offset argument: {orig}"),
+            }
+        }
+
+        if let Some((value, orig)) = arguments.remove(unicase!("p")) {
+            match value {
+                ArgumentValue::Integer(page) if page > 0 => {
+                    options.list_page = usize::try_from(page).ok();
+                }
+                _ => error!("Invalid value for p argument: {orig}"),
             }
         }
 
