@@ -124,7 +124,7 @@ export function applyWikitextToolbar(
       value.slice(0, start),
       control === "increaseListIndent"
     )
-    const text = prefix + value.slice(end)
+    const text = prefix + value.slice(start)
     return { value: text, start: prefix.length, end: prefix.length }
   }
   const spec = /^heading([1-6])$/.exec(control)
@@ -148,7 +148,7 @@ export function applyWikitextToolbar(
   const content = format.multiline
     ? original.replace(/\r?\n/g, `\n${format.multiline}`)
     : original
-  const inserted = format.insertOnly ? "" : content || format.placeholder || ""
+  const inserted = content || (format.insertOnly ? "" : format.placeholder || "")
   const wrapped = format.before + inserted + (format.after || "")
   const selectionStart =
     before.length +

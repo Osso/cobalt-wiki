@@ -94,6 +94,14 @@ for (const [control, output] of [
   })
 }
 
+test("standalone syntax preserves selected text after marker", () => {
+  assert.deepEqual(applyWikitextToolbar("hello", 0, 5, "hr"), {
+    value: "------hello",
+    start: 11,
+    end: 11
+  })
+})
+
 test("block control separates surrounding paragraphs without duplicate newlines", () => {
   assert.equal(
     applyWikitextToolbar("before\n\nafter", 8, 8, "hr").value,
@@ -113,6 +121,13 @@ test("list indent modifies preceding line at a collapsed cursor", () => {
   assert.equal(
     applyWikitextToolbar("\n* first\n * second", 18, 18, "decreaseListIndent").value,
     "\n* first\n* second"
+  )
+})
+
+test("indent preserves selected list text", () => {
+  assert.equal(
+    applyWikitextToolbar("\n* first\n* second", 10, 17, "increaseListIndent").value,
+    "\n* first\n * second"
   )
 })
 
