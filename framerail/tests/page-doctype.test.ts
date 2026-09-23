@@ -77,10 +77,10 @@ async function pageResponse(
         const documentChunks = [html5.slice(0, 8), html5.slice(8)]
         for (const [index, chunk] of documentChunks.entries()) {
           chunks.push(
-            await (options?.transformPageChunk?.({
+            (await options?.transformPageChunk?.({
               html: chunk,
               done: index === documentChunks.length - 1
-            }) ?? chunk)
+            })) ?? chunk
           )
         }
         return new Response(chunks.join(""), { headers: { "content-type": "text/html" } })
