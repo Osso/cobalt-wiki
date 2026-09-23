@@ -30,8 +30,12 @@ import {
   pageVoteGetAction
 } from "$lib/server/load/page"
 
-export async function load({ params, request, cookies, parent }) {
-  return loadPage(params.slug, params.extra, request, cookies, parent)
+export async function load({ params, request, cookies, parent, locals }) {
+  const page = await loadPage(params.slug, params.extra, request, cookies, parent)
+  if ("page" in page) {
+    locals.documentLayout = page.page.layout ?? (await parent()).site.layout
+  }
+  return page
 }
 
 export const actions = {

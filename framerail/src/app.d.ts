@@ -168,6 +168,7 @@ declare global {
 
     interface Locals {
       requestContext: RequestContext
+      documentLayout?: Layout | null
     }
   }
 }
