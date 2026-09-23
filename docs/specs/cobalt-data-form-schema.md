@@ -55,7 +55,14 @@ Six filtered backend library tests passed after behavioral RED. `deepwell/tests/
 
 The local browser scenario at committed `4f407d0` passed `1/1` against runtime `bc6d5e2` (`/tmp/claude/cobalt-forms-browser-fourth.log`). A real UI login edited text, wiki, radio, and select controls; save/reload retained their typed values, three untouched schema values, and an unknown `true` field. An anonymous browser saw no editor and its direct action submission returned SvelteKit's failure protocol without creating a revision. Cookie percent-decoding and the action-failure protocol are part of that harness result, not application behavior guarantees.
 
-This is a bounded form workflow proof. Formatting toolbar, Preview, and Save Draft are not implemented.
+This is a bounded form workflow proof. Formatting toolbar and Save Draft are not implemented.
+
+## Source preview
+
+- [x] Authorized create and edit forms can request a read-only preview of submitted source without persisting a page or revision.
+- [x] Preview uses the form's trusted request context; submitted site, actor, and page identity do not authorize it.
+
+`d9f5f79` added the backend preview endpoint and six real-DB preview/form cases. They passed 6/6 and prove no persistence for that bounded path. `ffb3cc4` and `85c4e09` add the frontend preview action/component and its tests; `fd02305` connects it to create and edit forms. Runtime and browser acceptance remain unproven. Draft semantics and server ownership are unknown. The source-backed formatting toolbar is in progress, not complete.
 
 ## How it works
 
@@ -76,17 +83,23 @@ Dependencies: Serde supplies the transport serialization contract; maintained `s
 - `deepwell/wikidot-forms/src/legacy.rs` — narrowly scoped `@@` lexical compatibility.
 - `deepwell/wikidot-forms/src/error.rs` — explicit delimiter/YAML/shape errors.
 - `deepwell/src/endpoints/page.rs`, `page/form_edit.rs` — authorized wire modes, latest-source loading and structured edit preparation.
+- `deepwell/src/endpoints/page_preview.rs` — read-only authorized source-preview endpoint.
 - `deepwell/src/services/view/{form,service}.rs` — shared template selection, extraction and visibility.
+- `framerail/src/lib/component/EditorPreview.svelte`, `src/lib/server/{deepwell,load}/page-preview.ts` — bounded preview UI and server-side request/load path.
+- `framerail/src/routes/[slug]/[...extra]/{+page.server.ts,EditorPane.svelte}` — create/edit form integration.
 - `deepwell/src/services/page/service.rs` — reused revision guard; existing final edit check unchanged.
 
 ## Tests asserting this spec
 
 `deepwell/wikidot-forms/tests/compatibility.rs` uses only synthetic inputs. Run `cargo test --manifest-path deepwell/wikidot-forms/Cargo.toml` with a target directory outside the checkout.
 
+`deepwell/tests/page_preview.rs` contains the six real-DB preview/form cases proven at `d9f5f79`. `framerail/tests/page-preview.test.ts` covers the bounded frontend action/component introduced at `ffb3cc4` and completed at `85c4e09`; integration is `fd02305`.
+
 ## Known gaps (current cycle)
 
 - [ ] The legacy NPC definition's apparent `orc: Orc:` syntax remains an error, not an automatic repair. The source inventory contains no saved NPC records. No real template or private record is included in fixtures.
-- [ ] Formatting toolbar, Preview, Save Draft, and source rich-editor parity are not implemented.
+- [ ] Formatting toolbar, Save Draft, and source rich-editor parity are not implemented. Preview runtime/browser acceptance remains open.
+- [ ] Draft semantics and server ownership are unknown; no storage behavior is specified.
 - [ ] Independent or broader browser coverage remains open; the single local authenticated form roundtrip does not establish site-wide workflow parity.
 - [ ] Private attachment authorization is separate and missing: current WWS attachment routes do not enforce page-view authorization. Do not expose private attachments.
 - [ ] Independent verification, readability, and broader checks belong to the integration owner.
