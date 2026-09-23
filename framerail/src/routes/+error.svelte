@@ -12,7 +12,9 @@
   import type { PageData } from "./$types"
   import type { PageDeletedGet } from "$lib/server/deepwell/page"
 
-  let errorData: PageData | null = $derived(page.error as unknown as PageData)
+  let errorData: (PageData & { can_create?: boolean }) | null = $derived(
+    page.error as unknown as PageData & { can_create?: boolean }
+  )
 
   let showRestoreAction = $state<boolean>(false)
   let deletedPages = $state<PageDeletedGet[]>([])
@@ -120,7 +122,7 @@
 {#if errorData.view === "missing"}
   UNTRANSLATED:Page not found
 
-  {#if errorData.options?.edit}
+  {#if errorData.options?.edit && errorData.can_create}
     {#if pageLayoutState.current === Layout.WIKIDOT}
       <h1 class="page-create-header">
         {errorData.internationalization?.["wiki-page-create"]}

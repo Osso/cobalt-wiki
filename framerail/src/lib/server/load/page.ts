@@ -4,6 +4,7 @@ import { authGetSession } from "$lib/server/auth/getSession"
 import {
   pageDelete,
   pageDeletedGet,
+  pageCreatePermission,
   pageEdit,
   pageEditPermission,
   pageHistory,
@@ -68,7 +69,20 @@ import { getRequestContext } from "./request-ctx"
 
 export async function createPageErrorForms(request: Request) {
   return {
-    pageEditForm: await superValidate(request, valibot(pageEditSchema)),
+    pageEditForm: await superValidate(
+      {
+        pageId: 0,
+        siteId: 0,
+        lastRevisionId: 0,
+        title: "",
+        altTitle: "",
+        wikitext: "",
+        tags: "",
+        comments: "",
+        layout: null
+      },
+      valibot(pageEditSchema)
+    ),
     pageRestoreForm: await superValidate(request, valibot(pageRestoreSchema))
   }
 }
@@ -291,8 +305,14 @@ export async function loadPage(
   }
 
   const errorForms = await createPageErrorForms(request)
+  const canCreate =
+    responseType === "missing" && route?.slug
+      ? (await pageCreatePermission({ sessionToken, siteId, page: route.slug }))
+          .can_create
+      : false
 
   const viewData = {
+    can_create: canCreate,
     ...responseData,
     form: response.type === "found" ? response.data.form : undefined,
     view: responseType,
@@ -447,7 +467,8 @@ export async function pageEditAction({
   request,
   params,
   getClientAddress,
-  cookies
+  cookies,
+  locals
 }: RequestEvent) {
   const form = await superValidate(request, valibot(pageEditSchema))
   if (!form.valid) {
@@ -462,7 +483,6 @@ export async function pageEditAction({
 
   try {
     const {
-      siteId,
       pageId,
       lastRevisionId,
       comments,
@@ -474,6 +494,7 @@ export async function pageEditAction({
       layout
     } = form.data
     const tags = tagsStr.split(" ").filter((tag) => tag.length)
+    const { siteId } = loadSiteInfo(request.headers)
     const res = await pageEdit(
       siteId,
       pageId,
@@ -487,7 +508,8 @@ export async function pageEditAction({
       altTitle,
       tags,
       layout,
-      formUpdates
+      formUpdates,
+      getRequestContext(locals)
     )
 
     return { form, res }

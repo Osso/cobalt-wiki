@@ -58,25 +58,36 @@ export async function pageEdit(
   altTitle: Optional<string>,
   tags: string[],
   layout: Optional<Nullable<Layout>>,
-  formUpdates?: FormValues
+  formUpdates?: FormValues,
+  requestContext: RequestContext = {}
 ): Promise<CreatePageRevisionOutput> {
-  return client.request(pageId ? "page_edit" : "page_create", {
-    site_id: siteId,
-    page: pageId ?? slug,
-    slug,
-    user_id: userId,
-    ip_address: userIpAddr,
-    last_revision_id: lastRevisionId,
-    revision_comments: revisionComments,
-    ...editContent(wikitext ?? undefined, formUpdates),
-    title,
-    alt_title: altTitle,
-    tags,
-    layout:
-      layout !== undefined
-        ? (Layout[layout?.toUpperCase() as keyof typeof Layout] ?? null)
-        : undefined
-  })
+  return client.request(
+    pageId ? "page_edit" : "page_create",
+    {
+      site_id: siteId,
+      page: pageId ?? slug,
+      slug,
+      user_id: userId,
+      ip_address: userIpAddr,
+      last_revision_id: lastRevisionId,
+      revision_comments: revisionComments,
+      ...editContent(wikitext ?? undefined, formUpdates),
+      title,
+      alt_title: altTitle,
+      tags,
+      layout:
+        layout !== undefined
+          ? (Layout[layout?.toUpperCase() as keyof typeof Layout] ?? null)
+          : undefined
+    },
+    requestContext
+  )
+}
+
+export async function pageCreatePermission(
+  requestContext: RequestContext
+): Promise<{ can_create: boolean }> {
+  return client.request("page_create_permission", {}, requestContext)
 }
 
 export async function pageEditPermission(
