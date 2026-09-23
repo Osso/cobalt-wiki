@@ -11,6 +11,7 @@
 - [x] Normalize only bare `@@` block-mapping keys and whole scalar values before parsing, without altering quoted strings, comments, block text, or line endings.
 - [x] Parse and serialize ordered stored field mappings without dropping unknown fields or changing decoded scalar types/content, including Unicode and multiline wiki markup.
 - [x] Reject malformed YAML, duplicate mapping keys, unsupported types/shapes, and non-scalar stored values explicitly.
+- [x] Serialize records exactly as Wikidot saves them: `sfYaml::dump($values, 999)` (`~/Repos/wikidot/php/class/Wikidot/Yaml.php`) with the Symfony YAML escaper (double quotes for control characters, NBSP, U+0085/2028/2029; single quotes for spaces/indicators; digit, numeric, timestamp and true/false/null strings quoted), and no trailing newline. All 5,969 archived form records re-serialize byte for byte (`wikidot-forms/tests/wikidot_records.rs`, ignored test run with `COBALT_ARCHIVE_SOURCE`).
 
 ## Missing-page creation
 

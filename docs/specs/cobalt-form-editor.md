@@ -9,6 +9,7 @@ Framerail edits the optional backend `Found.form` payload using ordered source-d
 - [x] Construct mutually exclusive `form_updates` and `wikitext` wire payloads, including empty update maps.
 - [x] Render ordered static/text/select/wiki fields with visible labels, source hints, defaults and supported numeric dimensions. A select with 2–4 choices uses labeled radio buttons; larger sets remain dropdowns. Radio choices retain numeric/string/boolean/null codes, including distinct numeric `1` and string `"1"` values. Missing or unrecognized stored values are not silently replaced by the first choice. Static content remains escaped readonly text.
 - [x] Use form controls whenever a form exists; retain the raw editor only for nonform/template pages.
+- [x] Create pages in a data-form category through the category form (Wikidot's NewPage → form flow). `page_create_permission` returns the category form to users who may create the page; the missing-page editor shows `DataFormFields` (defaults prefilled, title from `/title/<name>`) and save, preview and draft send `form_updates`. The stored source is Wikidot's record: every non-static field in schema order as posted text (submitted, else default, else empty).
 - [x] Preserve existing title, alternate title, tags, comments, revision and authentication handling through the edit action.
 - [x] Preview raw or structured draft content through the SvelteKit action without publishing, creating a revision, or changing stored page/source/form data. The trusted request identity and access check precede submitted form validation; anonymous and spoofed requests are denied.
 - [x] Save one site/page-target draft shared by authorized editors for either current-page edit or creation. This target/ownership model is a documented source-based inference, not verified current-server behavior.
@@ -46,6 +47,8 @@ Independent bounded audit (agent 363) confirmed the browser assertions and one r
 
 ## Tests asserting this spec
 
+- `framerail/tests/local/form-create.mjs`: browser 1/1 on an isolated local stack (2026-09-23): NewPage "Create Character Profile" → form editor with prefilled title and no raw source → save stores `player: ''`, `name: '…'`, `'@@'` defaults, `sex: female` in template order, and the live template shows the name.
+- `deepwell/tests/page_form_create.rs`: native create/preview/draft through the category form, anonymous denial, invalid select rejection.
 - `framerail/tests/form-editor.test.ts`: concrete draft changes, scalar codes, readonly/unknown exclusions and wire payloads.
 - `framerail/tests/form-fields.test.mjs`: bounded Svelte server-rendered radio/dropdown controls, typed selection, unknown/unselected values and static text; not browser interaction proof.
 - `deepwell/tests/page_draft.rs`: native draft authorization, save/restore/delete and typed-value coverage; 13 passed at `835eaf7`. `9d20256` adds the confirmed delete response assertion.
