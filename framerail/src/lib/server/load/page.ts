@@ -7,6 +7,8 @@ import {
   pageEdit,
   pageEditPermission,
   pageHistory,
+  pageImportedHistory,
+  pageImportedRevision,
   pageLayout,
   pageLockCreate,
   pageLockHistory,
@@ -833,6 +835,93 @@ export async function pageHistoryAction({ request }: RequestEvent) {
       code: error.code,
       data: error.data
     })
+  }
+}
+
+/* ----- Imported Wikidot History ----- */
+async function resolveImportedHistoryPage({
+  request,
+  params,
+  cookies
+}: RequestEvent): Promise<{ siteId: number; pageId: number } | { status: 403 | 404 }> {
+  const { siteId } = loadSiteInfo(request.headers)
+  const view = await pageView(
+    siteId,
+    [],
+    { slug: params.slug, extra: params.extra },
+    cookies.get("wikijump_token")
+  )
+  if (view.type === "permissions") return { status: 403 }
+  if (view.type === "missing") return { status: 404 }
+  return { siteId, pageId: view.data.page.page_id }
+}
+
+export async function importedHistoryAction(event: RequestEvent) {
+  let input: unknown
+  try {
+    input = await event.request.json()
+  } catch {
+    return fail(400, { message: "Invalid imported history request" })
+  }
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return fail(400, { message: "Invalid imported history request" })
+  }
+  const { beforeRevision, limit = 50 } = input as Record<string, unknown>
+  if (
+    !Number.isInteger(limit) ||
+    (limit as number) < 1 ||
+    (limit as number) > 100 ||
+    (beforeRevision !== undefined &&
+      (!Number.isInteger(beforeRevision) || (beforeRevision as number) < 0))
+  ) {
+    return fail(400, { message: "Invalid imported history cursor or limit" })
+  }
+  try {
+    const page = await resolveImportedHistoryPage(event)
+    if ("status" in page)
+      return fail(page.status, { message: "Page history unavailable" })
+    const res = await pageImportedHistory(
+      page.siteId,
+      page.pageId,
+      beforeRevision as number | undefined,
+      limit as number,
+      getRequestContext(event.locals)
+    )
+    return { res }
+  } catch (cause) {
+    const failure = requireDeepwellError(cause)
+    return fail(500, failure)
+  }
+}
+
+export async function importedRevisionAction(event: RequestEvent) {
+  let input: unknown
+  try {
+    input = await event.request.json()
+  } catch {
+    return fail(400, { message: "Invalid imported revision request" })
+  }
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return fail(400, { message: "Invalid imported revision request" })
+  }
+  const { sourceRevisionNumber } = input as Record<string, unknown>
+  if (!Number.isInteger(sourceRevisionNumber) || (sourceRevisionNumber as number) < 0) {
+    return fail(400, { message: "Invalid source revision number" })
+  }
+  try {
+    const page = await resolveImportedHistoryPage(event)
+    if ("status" in page)
+      return fail(page.status, { message: "Page history unavailable" })
+    const res = await pageImportedRevision(
+      page.siteId,
+      page.pageId,
+      sourceRevisionNumber as number,
+      getRequestContext(event.locals)
+    )
+    return { res }
+  } catch (cause) {
+    const failure = requireDeepwellError(cause)
+    return fail(500, failure)
   }
 }
 

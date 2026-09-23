@@ -125,6 +125,53 @@ export async function pageHistory(
   })
 }
 
+/* ----- Imported Wikidot History ----- */
+export interface ImportedRevisionSummary {
+  source_page_id: number
+  source_revision_id: number
+  source_revision_number: number
+  source_author_id: number | null
+  source_created_at: string
+  source_comments: string
+  source_flags: string[]
+  source_title: string | null
+  source_slug: string | null
+  source_tags: string[] | null
+  representation: string
+}
+
+export interface ImportedRevisionSource {
+  metadata: ImportedRevisionSummary
+  wikitext: string
+}
+
+export async function pageImportedHistory(
+  siteId: number,
+  pageId: number,
+  beforeRevision: number | undefined,
+  limit: number,
+  requestContext: RequestContext
+): Promise<ImportedRevisionSummary[]> {
+  return client.request(
+    "page_imported_history",
+    { site_id: siteId, page_id: pageId, before_revision: beforeRevision ?? null, limit },
+    requestContext
+  )
+}
+
+export async function pageImportedRevision(
+  siteId: number,
+  pageId: number,
+  sourceRevisionNumber: number,
+  requestContext: RequestContext
+): Promise<ImportedRevisionSource | null> {
+  return client.request(
+    "page_imported_revision",
+    { site_id: siteId, page_id: pageId, source_revision_number: sourceRevisionNumber },
+    requestContext
+  )
+}
+
 /* ----- Page Move ----- */
 interface PageMove {
   old_slug: string

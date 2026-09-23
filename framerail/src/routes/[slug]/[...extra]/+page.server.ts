@@ -1,4 +1,6 @@
 import {
+  importedHistoryAction,
+  importedRevisionAction,
   layoutAction,
   loadPage,
   pageDeleteAction,
@@ -44,6 +46,8 @@ export const actions = {
   fileRestore: pageFileRestoreAction,
   fileHistory: pageFileHistoryAction,
   history: pageHistoryAction,
+  importedHistory: importedHistoryAction,
+  importedRevision: importedRevisionAction,
   revision: pageRevisionAction,
   rollback: pageRollbackAction,
   layout: layoutAction,
