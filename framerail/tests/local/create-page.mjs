@@ -116,6 +116,8 @@ async function assertAnonymousCreateDenied(context, fixture) {
   const page = await context.newPage()
   await page.goto(`${preview}/${fixture.slug}`, { waitUntil: "networkidle" })
   await expect(page.locator("#editor")).toHaveCount(0)
+  await page.goto(`${preview}/${fixture.slug}/edit`, { waitUntil: "networkidle" })
+  await expect(page.locator("#editor")).toHaveCount(0)
   const response = await context.request.post(`${preview}/${fixture.slug}?/edit`, {
     headers: { accept: "application/json", "x-sveltekit-action": "true" },
     form: {
@@ -138,6 +140,7 @@ async function assertAnonymousCreateDenied(context, fixture) {
 /** @param {import("@playwright/test").Page} page @param {Fixture} fixture */
 async function createViaEditor(page, fixture) {
   await page.goto(`${preview}/${fixture.slug}`, { waitUntil: "networkidle" })
+  await page.locator(`a[href="/${fixture.slug}/edit"]`).click()
   const editor = page.locator("#editor")
   await expect(editor).toBeVisible()
   await editor.locator('[name="title"]').fill(fixture.title)
