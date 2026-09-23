@@ -461,3 +461,27 @@ class AnonymousHistoryFetchTest(unittest.TestCase):
         self.assertEqual(seen["form"]["page"], ["2"])
         self.assertEqual(seen["form"]["wikidot_token7"], ["cobaltreplica"])
         self.assertEqual((response.status, response.html), (200, "<table>rev</table>"))
+
+
+class AnonymousHistoryFetchEmptyTest(unittest.TestCase):
+    def test_empty_success_is_a_retryable_connection_failure(self):
+        from tools.cobalt_migration.history_transport import AnonymousHistoryFetch
+
+        class Empty:
+            status = 200
+            headers = {}
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+            def read(self):
+                return b""
+
+        fetch = AnonymousHistoryFetch(
+            "https://cobalt-company.wikidot.com", opener=lambda request, timeout: Empty()
+        )
+        with self.assertRaises(ConnectionError):
+            fetch({"moduleName": "history/PageSourceModule", "revision_id": 1516858425})

@@ -307,6 +307,9 @@ class AnonymousHistoryFetch:
             raise TimeoutError("history request deadline exceeded") from None
         except urllib.error.URLError:
             raise ConnectionError("history request failed") from None
+        if status == 200 and not raw:
+            # Wikidot occasionally answers with an empty body; retry it.
+            raise ConnectionError("empty history response")
         try:
             parsed = json.loads(raw)
             html = parsed["body"] if parsed.get("status") == "ok" and isinstance(parsed.get("body"), str) else ""
