@@ -27,7 +27,7 @@ struct PreviewRequest {
     last_revision_id: Option<i64>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct PagePreviewOutput {
     pub html: String,
 }
