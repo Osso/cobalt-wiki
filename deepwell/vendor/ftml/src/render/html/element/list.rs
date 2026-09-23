@@ -36,21 +36,67 @@ pub fn render_list(
     let mut tag = ctx.html().tag(list_tag);
 
     tag.attr(attr!(;; attributes)).inner(|ctx| {
-        for list_item in list_items {
-            match list_item {
+        let mut items = list_items.iter().peekable();
+        while let Some(item) = items.next() {
+            match item {
                 ListItem::Elements {
                     elements,
                     attributes,
                 } => {
-                    ctx.html()
-                        .li()
-                        .attr(attr!(;; attributes))
-                        .contents(elements);
+                    ctx.html().li().attr(attr!(;; attributes)).inner(|ctx| {
+                        render_elements(ctx, elements);
+                        while let Some(ListItem::SubList { element }) = items.peek() {
+                            render_element(ctx, element);
+                            items.next();
+                        }
+                    });
                 }
-                ListItem::SubList { element } => {
-                    render_element(ctx, element);
-                }
+                ListItem::SubList { element } => render_element(ctx, element),
             }
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::data::PageInfo;
+    use crate::layout::Layout;
+    use crate::render::{Render, html::HtmlRender};
+    use crate::settings::{WikitextMode, WikitextSettings};
+
+    fn render(source: &str) -> String {
+        let page_info = PageInfo::dummy();
+        let settings = WikitextSettings::from_mode(WikitextMode::Page, Layout::Wikidot);
+        let mut text = source.to_owned();
+        crate::preprocess(&mut text);
+        let tokens = crate::tokenize(&text);
+        let (tree, errors) = crate::parse(&tokens, &page_info, &settings).into();
+        assert!(errors.is_empty(), "Unexpected parse errors: {errors:?}");
+        HtmlRender.render(&tree, &page_info, &settings).body
+    }
+
+    #[test]
+    fn nested_navigation_lists_belong_to_their_parent_items_across_groups() {
+        let html = render(
+            "* **Home**\n * [[[home:public|Join]]]\n * [[[home:help|Help]]]\n\n* **Profiles**\n * [[[roster|Characters]]]",
+        );
+        assert!(html.contains("<li><strong>Home</strong><ul><li>"), "{html}");
+        assert!(
+            html.contains("Help</a></li></ul></li><li><strong>Profiles</strong><ul><li>"),
+            "{html}"
+        );
+        assert!(
+            html.contains("Characters</a></li></ul></li></ul>"),
+            "{html}"
+        );
+    }
+
+    #[test]
+    fn numbered_list_continues_after_nested_items() {
+        let html = render("# One\n # Sub\n# Two");
+        assert!(
+            html.contains("<ol><li>One<ol><li>Sub</li></ol></li><li>Two</li></ol>"),
+            "{html}"
+        );
+    }
 }
