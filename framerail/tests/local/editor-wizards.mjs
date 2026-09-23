@@ -452,7 +452,7 @@ test("six editor wizards insert and preview without saving local pages", async (
 
 /** @param {import("@playwright/test").Page} page */
 async function insertAttachedImage(page) {
-  await openEditor(page, "who-we-are")
+  await openEditor(page, "images")
   await setSelection(page, "+ Attachment wizard proof\n\ntail")
   const dialog = await openWizard(page, "image wizard", "Image wizard")
   await dialog.getByRole("radio", { name: "attached file" }).check()
@@ -464,7 +464,7 @@ async function insertAttachedImage(page) {
   await expectImageLoaded(dialog.getByAltText("Selected attachment"))
   const source = await insert(page, dialog)
   assert.ok(source.includes(`[[image ${name}]]tail`))
-  const region = await preview(page, "who-we-are", source)
+  const region = await preview(page, "images", source)
   await expectImageLoaded(region.locator("img").first())
 }
 
@@ -522,13 +522,13 @@ test("attached image wizard selects and previews an authorized existing image wi
         fixture,
         (await readFile(accountPath, "utf8")).trim()
       )
-      const before = await readPage(context.request, fixture, "who-we-are", token)
+      const before = await readPage(context.request, fixture, "images", token)
       assert.equal(before.type, "found")
       try {
         await insertAttachedImage(page)
         await insertFlickrSource(page)
       } finally {
-        const after = await readPage(context.request, fixture, "who-we-are", token)
+        const after = await readPage(context.request, fixture, "images", token)
         assert.equal(after.type, "found")
         assert.deepEqual(after.data.page_revision, before.data.page_revision)
         assert.equal(after.data.wikitext, before.data.wikitext)
