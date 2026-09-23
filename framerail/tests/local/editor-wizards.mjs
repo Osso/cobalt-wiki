@@ -101,7 +101,13 @@ async function login(context, fixture, password) {
   await page.goto(`${origin}/-/login`, { waitUntil: "networkidle" })
   await page.locator('#login [name="nameOrEmail"]').fill(fixture.username)
   await page.locator('#login [name="password"]').fill(password)
+  const loginResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname === "/-/login"
+  )
   await page.locator('#login button[type="submit"]').click()
+  assert.equal((await loginResponse).status(), 200, "login action must succeed")
   await expect(page.locator("#login")).toHaveCount(0)
   const cookie = (await context.cookies()).find(
     (entry) => entry.name === "wikijump_token" && entry.domain === "127.0.0.1"
