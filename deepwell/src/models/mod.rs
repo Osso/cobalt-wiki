@@ -17,6 +17,7 @@ pub mod forum_post_lock;
 pub mod forum_post_revision;
 pub mod forum_thread;
 pub mod forum_thread_lock;
+pub mod imported_page_revision;
 pub mod known_user;
 pub mod message;
 pub mod message_draft;
