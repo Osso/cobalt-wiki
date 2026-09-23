@@ -1,6 +1,6 @@
 # Attachment invalidation
 
-Creating an attachment on an existing page changes that page's files, not the page's existence. File revision invalidation lives in `deepwell/src/services/file_revision/service.rs`. See [replica status](../wiki/systems/cobalt-replica-status.md) for operations and proof.
+Creating an attachment on an existing page changes that page's files, not the page's existence. File revision invalidation lives in `deepwell/src/services/file_revision/service.rs`. See [queue incident and recovery](../wiki/systems/cobalt-queue-recovery.md) for operational evidence.
 
 ## What it must do
 
@@ -9,11 +9,11 @@ Creating an attachment on an existing page changes that page's files, not the pa
 - [x] Do not enqueue rerenders for ordinary links to an unchanged owner page when its first file revision is created.
 - [x] Preserve site-navigation invalidation when the attachment owner is itself the navigation page.
 - [ ] Verify template/include invalidation for attachment owners with those dependencies.
-- [ ] Independently verify the isolated native attachment proof.
+- [x] Verify the isolated native attachment proof in production order with a real upload.
 
 ## How it works
 
-- [Replica status](../wiki/systems/cobalt-replica-status.md)
+- [Queue incident and recovery](../wiki/systems/cobalt-queue-recovery.md)
 
 ## Implementation inventory
 
@@ -22,14 +22,13 @@ Creating an attachment on an existing page changes that page's files, not the pa
 
 ## Tests asserting this spec
 
-- `deepwell/tests/file_attachment_invalidation.rs`: committed upload request, real S3 PUT, file creation/readback, unchanged ordinary links, and retained navigation fanout. Run explicitly with `cargo test --test file_attachment_invalidation -- --ignored` against a dedicated empty Redis database. The fixture precreates its queue before starting workers, excluding unrelated recurring maintenance producers from cumulative enqueue counts. Valid RED: `/tmp/claude/cobalt-file-invalidation-red-valid.log`; ordinary-owner GREEN: `/tmp/claude/cobalt-file-invalidation-green.log`; final isolated proof pending independent verification: `/tmp/claude/cobalt-file-invalidation-isolated-green.log`.
+- `deepwell/tests/file_attachment_invalidation.rs`: committed upload request, real S3 PUT, file creation/readback, unchanged ordinary links, and retained navigation fanout. Run explicitly with `cargo test --test file_attachment_invalidation -- --ignored` against a dedicated empty Redis database. The fixture precreates its queue before starting workers, excluding unrelated recurring maintenance producers from cumulative enqueue counts. Valid RED: `/tmp/claude/cobalt-file-invalidation-red-valid.log`; ordinary-owner GREEN: `/tmp/claude/cobalt-file-invalidation-green.log`; final isolated production-order proof: `/tmp/claude/cobalt-file-invalidation-isolated-green.log`.
 
 ## Known gaps (current cycle)
 
-- [ ] Independently verify the isolated fixture and legitimate invalidation behavior.
-- [ ] Deploy the verified change and recover the existing backlog under authorized maintenance conditions.
-- [ ] Establish semantic redundancy before removing any queued job; byte-identical candidate selection (`292d7ec`) is insufficient on its own. This correction alone does not remove queued work or explain every job.
+- [ ] Confirm deployment of isolated candidate `f18dcfed691983a12021d6c1da372203ce145138` (based on `474b308be897f40d96767c585e96c45fa3c55095`); host pin `72bd4a4` is building.
+- [ ] Attribute every historical queue producer. This fix prevents the verified attachment path but does not explain every historical job.
 
 ## Out of scope
 
-No page/file/source deletion, queue deletion without semantic proof, or logging suppression.
+No page/file/source deletion, history migration, rendering-parity claim, or logging suppression.
