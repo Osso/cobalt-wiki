@@ -1,3 +1,6 @@
+import postcssHtml from "postcss-html"
+import postcssScss from "postcss-scss"
+
 /** @type {import("stylelint").Config} */
 const config = {
   extends: ["stylelint-config-recess-order"],
@@ -17,11 +20,11 @@ const config = {
   overrides: [
     {
       files: ["**/*.scss"],
-      customSyntax: "postcss-scss"
+      customSyntax: postcssScss
     },
     {
       files: ["**/*.svelte"],
-      customSyntax: "postcss-html"
+      customSyntax: postcssHtml
     }
   ]
 }
