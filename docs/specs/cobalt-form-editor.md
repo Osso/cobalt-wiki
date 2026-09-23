@@ -26,7 +26,9 @@ Framerail edits the optional backend `Found.form` payload using ordered source-d
 
 The user selected `sameasWikidot`; the contract therefore follows captured hosted-editor behavior where evidence exists and source-based inference where it does not. The public `gabrys/wikidot` snapshot 0.90 (July 2009; HEAD September 2009) has no page-draft storage or actions. Captured hosted JavaScript shows title/source saving through `synchronize`, **Edit Original**/**Edit Draft** restoration, Cancel **Leave**/**Delete**, and publishing the original discarding the draft. It does not establish current server ownership, visibility, or lifecycle behavior.
 
-The implemented contract infers one shared draft per site/page target, used by current-page **Edit** or **Create**. It is not a per-actor draft contract. A read-only check returned `ok=true`, `draftExists=true`, and `publishedPagePresent=false`; no save/cancel/delete request or user-draft mutation was captured. Browser proof remains pending.
+The implemented contract infers one shared draft per site/page target, used by current-page **Edit** or **Create**. It is not a per-actor draft contract. The hosted read-only check returned `ok=true`, `draftExists=true`, and `publishedPagePresent=false`; it confirms an unpublished draft exists but captured no source Save/Cancel/Delete action or mutation.
+
+Local proof is not hosted-server proof. `/tmp/claude/cobalt-page-draft-browser-fifth.log` passed 1/1: a missing target saves title/source without a published page or search hit; leave/reopen and **Edit Draft** restore it; publishing after **Edit Draft** or **Edit Original** clears it; **Cancel → Delete** explicitly deletes it; and a restored structured draft, then edit, preserves numeric, static, and unknown values. Anonymous get/save/delete RPCs and SvelteKit actions were denied. Native draft tests passed 13 at `835eaf7`; `9d20256` separately proved the delete-response RED (`null`) to GREEN (`{ deleted: true }`) and the local backend alone was deployed.
 
 Draft rows retain exact inline source/title and complete typed form values, including unknown values. Restoration returns unchanged raw bytes; changed source uses a valid JSON/YAML merge. The security boundary is the origin page: creation-only access cannot recover a draft from a private page after move/deletion. Such orphan rows remain inaccessible and are not automatically relocated.
 
@@ -44,13 +46,15 @@ Draft rows retain exact inline source/title and complete typed form values, incl
 
 - `framerail/tests/form-editor.test.ts`: concrete draft changes, scalar codes, readonly/unknown exclusions and wire payloads.
 - `framerail/tests/form-fields.test.mjs`: bounded Svelte server-rendered radio/dropdown controls, typed selection, unknown/unselected values and static text; not browser interaction proof.
+- `deepwell/tests/page_draft.rs`: native draft authorization, save/restore/delete and typed-value coverage; 13 passed at `835eaf7`. `9d20256` adds the confirmed delete response assertion.
+- `/tmp/claude/cobalt-page-draft-browser-fifth.log`: authenticated local browser lifecycle 1/1, including unpublished-target save/reopen/restore/publish/delete, structured typed-value preservation, and anonymous denial.
 - `/tmp/claude/cobalt-preview-911748e-native.log`: native 6/6 proof of authorized missing/existing raw previews, structured preview merge and stale/invalid rejection, trusted request identity/access before submitted validation, and no revisions from invalid/conflicting preview input.
 - `/tmp/claude/cobalt-page-preview-toolbar-browser.log`: browser 1/1 proof that raw create and existing previews use a real bold-toolbar caret/focus interaction and render raw heading/bold HTML; structured Name preview renders; no publication/revision/source/form changes occur; anonymous preview is denied.
 - Run with Node's built-in test runner: `node --test tests/form-editor.test.ts tests/form-fields.test.mjs` from Framerail. Uses the existing `jiti` dependency for extensionless TypeScript imports and existing Svelte dependencies; no full application build/server.
 
 ## Known gaps (current cycle)
 
-- [ ] Browser interaction proof for Save Draft, restore choice, and cancel leave/delete is pending. The hosted-source evidence and stated inferred ownership contract do not prove current-server parity.
+- [ ] Hosted-server ownership, visibility, and lifecycle parity remain unproven. The shared target/ownership model is authorized source-based inference; the captured source check has no Save/Cancel/Delete action.
 - [ ] Six source wizards (table, code, URL, page, image, equation), quick reference/snippets, and watcher-checkbox semantics are unimplemented.
 - [ ] Toolbar transformation behavior is source-backed and the bold path has browser proof, but full visual/editor parity is not established.
 - [ ] Backend unknown-value preservation is relied upon, not reimplemented by frontend tests.

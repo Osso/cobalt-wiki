@@ -42,7 +42,7 @@ Cobalt provides a server-side Meilisearch-backed `search:site` result page for c
 
 ## Known gaps (current cycle)
 
-- [ ] A new independent verifier is running for the current runtime/browser evidence; no result is recorded yet.
+- [ ] A new independent verifier is running. The current target has 22 passes; three older doctype-fixture failures remain unresolved and are not search proof.
 - [ ] Local proof has no production-deployment coverage. The freshness result uses a real database with fake Meilisearch.
 
 ## Out of scope

@@ -55,7 +55,7 @@ Six filtered backend library tests passed after behavioral RED. `deepwell/tests/
 
 The local browser scenario at committed `4f407d0` passed `1/1` against runtime `bc6d5e2` (`/tmp/claude/cobalt-forms-browser-fourth.log`). A real UI login edited text, wiki, radio, and select controls; save/reload retained their typed values, three untouched schema values, and an unknown `true` field. An anonymous browser saw no editor and its direct action submission returned SvelteKit's failure protocol without creating a revision. Cookie percent-decoding and the action-failure protocol are part of that harness result, not application behavior guarantees.
 
-This is a bounded form workflow proof. Formatting toolbar and Save Draft are not implemented.
+This is a bounded form workflow proof. Formatting toolbar remains incomplete. Save Draft has separate local browser/native proof in the [form-editor contract](cobalt-form-editor.md); that does not establish hosted-server draft ownership or lifecycle parity.
 
 ## Source preview
 
@@ -98,8 +98,8 @@ Dependencies: Serde supplies the transport serialization contract; maintained `s
 ## Known gaps (current cycle)
 
 - [ ] The legacy NPC definition's apparent `orc: Orc:` syntax remains an error, not an automatic repair. The source inventory contains no saved NPC records. No real template or private record is included in fixtures.
-- [ ] Formatting toolbar, Save Draft, and source rich-editor parity are not implemented. Preview runtime/browser acceptance remains open.
-- [ ] Draft semantics and server ownership are unknown; no storage behavior is specified.
+- [ ] Formatting toolbar and source rich-editor parity are incomplete. Preview runtime/browser acceptance remains open.
+- [ ] Draft ownership and hosted-server lifecycle semantics remain unproven; the local shared-target behavior is documented authorized inference in the [form-editor contract](cobalt-form-editor.md).
 - [ ] Independent or broader browser coverage remains open; the single local authenticated form roundtrip does not establish site-wide workflow parity.
 - [ ] Private attachment authorization is separate and missing: current WWS attachment routes do not enforce page-view authorization. Do not expose private attachments.
 - [ ] Independent verification, readability, and broader checks belong to the integration owner.
