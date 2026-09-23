@@ -1,5 +1,8 @@
 //! Server-side Meilisearch index and permission-gated current-page search.
 
+pub mod outbox;
+pub mod worker;
+
 use crate::error::prelude::*;
 use crate::models::{page, page_revision};
 use crate::services::permission::{CheckPermissionContext, PermissionService};
@@ -209,11 +212,15 @@ impl SearchService {
     }
 
     pub async fn upsert(&self, document: SearchDocument) -> Result<()> {
+        self.upsert_batch(vec![document]).await
+    }
+
+    pub async fn upsert_batch(&self, documents: Vec<SearchDocument>) -> Result<()> {
         let task: TaskCreated = self
             .request(
                 Method::POST,
                 &format!("/indexes/{INDEX}/documents?primaryKey=page_id"),
-                Some(serde_json::json!([document])),
+                Some(documents),
             )
             .await?;
         self.wait_task(task.task_uid).await
