@@ -1,14 +1,65 @@
 <script lang="ts">
   import { tick } from "svelte"
   import { applyWikitextToolbar } from "$lib/wikitext-toolbar"
+  import { applyWizard, type WizardKind, type WizardOptions } from "$lib/wikitext-wizards"
+  import WikitextWizard from "$lib/component/WikitextWizard.svelte"
 
   let {
     textarea,
-    value = $bindable()
+    value = $bindable(),
+    pageLookup,
+    attachmentLookup
   }: {
     textarea: HTMLTextAreaElement | undefined
     value: string | undefined
+    pageLookup?: (query: string) => Promise<{ slug: string; title: string }[]>
+    attachmentLookup?: () => Promise<{ name: string; url: string }[]>
   } = $props()
+
+  let wizard = $state<{
+    kind: WizardKind
+    source: string
+    start: number
+    end: number
+    scrollTop: number
+  } | null>(null)
+
+  const wizardControls: Record<string, WizardKind> = {
+    tableWizard: "table",
+    codeWizard: "code",
+    uriWizard: "uri",
+    pageLinkWizard: "pageLink",
+    imageWizard: "image",
+    erefWizard: "eref"
+  }
+
+  function openWizard(kind: WizardKind) {
+    if (!textarea) return
+    wizard = {
+      kind,
+      source: value ?? textarea.value,
+      start: textarea.selectionStart,
+      end: textarea.selectionEnd,
+      scrollTop: textarea.scrollTop
+    }
+  }
+
+  async function closeWizard(options?: WizardOptions) {
+    if (!wizard || !textarea) return
+    const captured = wizard
+    const result = options
+      ? applyWizard(captured.source, captured.start, captured.end, options)
+      : null
+    if (result) value = result.value
+    wizard = null
+    await tick()
+    textarea.focus()
+    textarea.setSelectionRange(
+      result?.start ?? captured.start,
+      result?.end ?? captured.end
+    )
+    textarea.scrollTop = captured.scrollTop
+  }
 
   // Offsets measured from the source editor's 22px icons1.png sprite.
   const headings = Array.from({ length: 6 }, (_, index) => ({
@@ -53,11 +104,41 @@
     [
       { id: "hr", label: "horizontal rule", className: "weditor-hr", offset: 330 },
       { id: "div", label: "div", className: "weditor-div", offset: 352 },
+      {
+        id: "tableWizard",
+        label: "table wizard",
+        className: "weditor-table",
+        offset: 440
+      },
       { id: "toc", label: "table of contents", className: "weditor-toc", offset: 462 },
       { id: "code", label: "code", className: "weditor-code", offset: 660 },
+      {
+        id: "codeWizard",
+        label: "code block wizard",
+        className: "weditor-codewiz",
+        offset: 682
+      },
       { id: "uri", label: "url", className: "weditor-uri", offset: 484 },
+      {
+        id: "uriWizard",
+        label: "URL link wizard",
+        className: "weditor-uriwiz",
+        offset: 506
+      },
       { id: "pageLink", label: "page link", className: "weditor-pagelink", offset: 528 },
+      {
+        id: "pageLinkWizard",
+        label: "page link wizard",
+        className: "weditor-pagelinkwiz",
+        offset: 550
+      },
       { id: "image", label: "image", className: "weditor-image", offset: 572 },
+      {
+        id: "imageWizard",
+        label: "image wizard",
+        className: "weditor-imagewiz",
+        offset: 594
+      },
       { id: "html", label: "HTML", className: "weditor-html", offset: 946 }
     ],
     [
@@ -100,6 +181,12 @@
         offset: 858
       },
       {
+        id: "erefWizard",
+        label: "equation reference",
+        className: "weditor-eqref",
+        offset: 880
+      },
+      {
         id: "bibliography",
         label: "bibliography",
         className: "weditor-bib",
@@ -137,6 +224,11 @@
 
   async function insert(control: string) {
     if (!textarea) return
+    const selectedWizard = wizardControls[control]
+    if (selectedWizard) {
+      openWizard(selectedWizard)
+      return
+    }
     const scrollTop = textarea.scrollTop
     const result = applyWikitextToolbar(
       value ?? textarea.value,
@@ -212,7 +304,7 @@
             </div>
           </div>
         {/if}
-        {#if (row === 1 && (index === 3 || index === 4 || index === 6 || index === 7)) || (row === 2 && (index === 6 || index === 8))}
+        {#if (row === 1 && ["code", "uri", "image", "html"].includes(control.id)) || (row === 2 && ["math", "bibliography"].includes(control.id))}
           <span class="separator" aria-hidden="true"></span>
         {/if}
         <button
@@ -229,6 +321,17 @@
     </div>
   {/each}
 </div>
+
+{#if wizard}
+  <WikitextWizard
+    kind={wizard.kind}
+    source={wizard.source}
+    {pageLookup}
+    {attachmentLookup}
+    onInsert={(options) => closeWizard(options)}
+    onCancel={() => closeWizard()}
+  />
+{/if}
 
 <style>
   .wikitext-toolbar {
