@@ -16,10 +16,9 @@ async function renderWizard(kind, source = "", extra = {}) {
   const fixture = new URL(`./.wikitext-wizard-${process.pid}.mjs`, import.meta.url)
   await writeFile(
     fixture,
-    compiled.js.code.replaceAll(
-      '"$lib/wikitext-wizards"',
-      '"../src/lib/wikitext-wizards.ts"'
-    )
+    compiled.js.code
+      .replaceAll('"$lib/wikitext-wizards"', '"../src/lib/wikitext-wizards.ts"')
+      .replaceAll('"$lib/image-check"', '"../src/lib/image-check.ts"')
   )
   try {
     const { default: Wizard } = await import(`${fixture.href}?kind=${kind}`)

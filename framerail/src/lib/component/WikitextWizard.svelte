@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte"
+  import { openImageCheck } from "$lib/image-check"
   import {
     extractEquations,
     normalizeFlickrSource,
@@ -37,8 +38,7 @@
   let filePending = $state(false)
   let fileError = $state("")
   let position = $state<"" | "l" | "r" | "c" | "fl" | "fr">("")
-  let previewUri = $state("")
-  let previewStatus = $state("")
+  let previewError = $state("")
   const equations = $derived(extractEquations(source))
   let label = $state(untrack(() => equations[0]?.label ?? ""))
   let withEq = $state(true)
@@ -106,17 +106,11 @@
   })
 
   function checkImage() {
-    previewUri = ""
-    previewStatus = ""
+    previewError = ""
     try {
-      const url = new URL(imageUri)
-      if (url.protocol !== "http:" && url.protocol !== "https:") {
-        throw new Error("Enter an HTTP or HTTPS image URL.")
-      }
-      previewUri = url.href
-      previewStatus = "Loading image…"
-    } catch {
-      previewStatus = "Enter a valid HTTP or HTTPS image URL."
+      openImageCheck(imageUri)
+    } catch (cause) {
+      previewError = cause instanceof Error ? cause.message : "Unable to check image."
     }
   }
 
@@ -282,13 +276,7 @@
       {#if imageSource === "uri"}
         <label>Image URL: <input type="text" bind:value={imageUri} /></label>
         <button onclick={checkImage} type="button">Check image</button>
-        {#if previewUri}<img
-            alt="Preview of URL"
-            onerror={() => (previewStatus = "Image unavailable.")}
-            onload={() => (previewStatus = "Image loaded.")}
-            src={previewUri}
-          />{/if}
-        {#if previewStatus}<p role="status">{previewStatus}</p>{/if}
+        {#if previewError}<p role="alert">{previewError}</p>{/if}
       {:else if imageSource === "file"}
         {#if filePending}<p role="status">Loading attached files…</p>{/if}
         {#if fileError}<p role="alert">{fileError}</p>{/if}
