@@ -543,6 +543,286 @@ async function insertFlickrSource(page) {
   assert.ok(source.includes("[[image flickr:123]]"))
 }
 
+/**
+ * @typedef {{
+ *   name: string
+ *   initial: string
+ *   from: number
+ *   to: number
+ *   key: string
+ *   expected: string
+ *   start: number
+ *   end: number
+ * }} KeyboardCase
+ */
+
+/**
+ * @param {import("@playwright/test").Page} page
+ * @param {KeyboardCase} scenario
+ */
+async function assertKeyboardCase(page, scenario) {
+  const input = page.locator(sourceSelector)
+  await input.fill(scenario.initial)
+  await input.evaluate(
+    (element, range) => {
+      if (!(element instanceof HTMLTextAreaElement)) throw new Error("textarea required")
+      element.focus()
+      element.setSelectionRange(range.from, range.to)
+    },
+    { from: scenario.from, to: scenario.to }
+  )
+  await input.press(scenario.key)
+  assert.deepEqual(
+    await selection(page),
+    {
+      focused: true,
+      value: scenario.expected,
+      start: scenario.start,
+      end: scenario.end
+    },
+    scenario.name
+  )
+}
+
+test("raw editor keyboard controls and Enter assistance keep local pages unchanged", async () => {
+  const fixturePath = process.env.COBALT_PAGE_PREVIEW_FIXTURE
+  const basicPasswordPath = process.env.COBALT_LOCAL_PASSWORD_FILE
+  const accountPasswordPath = process.env.COBALT_LOCAL_ADMIN_PASSWORD_FILE
+  assert.ok(
+    fixturePath && basicPasswordPath && accountPasswordPath,
+    "explicit preview fixture, Basic Auth and account password files required"
+  )
+  const fixture = await readFixture(fixturePath)
+  const browser = await chromium.launch({
+    executablePath: "/usr/bin/chromium",
+    headless: true
+  })
+  try {
+    const context = await browser.newContext({
+      httpCredentials: {
+        username: "cobalt",
+        password: (await readFile(basicPasswordPath, "utf8")).trim(),
+        origin
+      }
+    })
+    /** @type {string[]} */
+    const denied = []
+    try {
+      const { page, token } = await login(
+        context,
+        fixture,
+        (await readFile(accountPasswordPath, "utf8")).trim(),
+        denied
+      )
+      const before = await readPage(context.request, fixture, fixture.existingSlug, token)
+      const missingBefore = await readPage(
+        context.request,
+        fixture,
+        fixture.missingSlug,
+        token
+      )
+      assert.equal(before?.type, "found", "existing source page required")
+      assert.ok(!before.data.form, "keyboard fixture must use raw wikitext")
+      assert.equal(missingBefore?.type, "missing", "missing fixture page must be absent")
+      try {
+        await openEditor(page, fixture.existingSlug)
+        /** @type {KeyboardCase[]} */
+        const cases = [
+          {
+            name: "Ctrl+B wraps selection",
+            initial: "pre tail post",
+            from: 4,
+            to: 8,
+            key: "Control+b",
+            expected: "pre **tail** post",
+            start: 12,
+            end: 12
+          },
+          {
+            name: "Ctrl+I wraps selection",
+            initial: "pre tail post",
+            from: 4,
+            to: 8,
+            key: "Control+i",
+            expected: "pre //tail// post",
+            start: 12,
+            end: 12
+          },
+          {
+            name: "Ctrl+U wraps selection",
+            initial: "pre tail post",
+            from: 4,
+            to: 8,
+            key: "Control+u",
+            expected: "pre __tail__ post",
+            start: 12,
+            end: 12
+          },
+          {
+            name: "empty caret selects bold placeholder",
+            initial: "headtail",
+            from: 4,
+            to: 4,
+            key: "Control+b",
+            expected: "head**bold text**tail",
+            start: 6,
+            end: 15
+          },
+          {
+            name: "Tab inserts literal tab at caret",
+            initial: "ab",
+            from: 1,
+            to: 1,
+            key: "Tab",
+            expected: "a\tb",
+            start: 2,
+            end: 2
+          },
+          {
+            name: "Tab retains selection text and collapses caret",
+            initial: "aBCd",
+            from: 1,
+            to: 3,
+            key: "Tab",
+            expected: "a\tBCd",
+            start: 4,
+            end: 4
+          },
+          {
+            name: "ordinary typing remains native",
+            initial: "ab",
+            from: 1,
+            to: 1,
+            key: "x",
+            expected: "axb",
+            start: 2,
+            end: 2
+          },
+          {
+            name: "bulleted list continues",
+            initial: "* item",
+            from: 6,
+            to: 6,
+            key: "Enter",
+            expected: "* item\n* ",
+            start: 9,
+            end: 9
+          },
+          {
+            name: "numbered list continues",
+            initial: "# item",
+            from: 6,
+            to: 6,
+            key: "Enter",
+            expected: "# item\n# ",
+            start: 9,
+            end: 9
+          },
+          {
+            name: "empty list marker ends list",
+            initial: "* item\n* ",
+            from: 9,
+            to: 9,
+            key: "Enter",
+            expected: "* item\n\n",
+            start: 8,
+            end: 8
+          },
+          {
+            name: "nested list retains depth and marker",
+            initial: "\n* parent\n  # child",
+            from: 19,
+            to: 19,
+            key: "Enter",
+            expected: "\n* parent\n  # child\n  # ",
+            start: 24,
+            end: 24
+          },
+          {
+            name: "definition list continues after preceding newline",
+            initial: "\n: term : meaning",
+            from: 17,
+            to: 17,
+            key: "Enter",
+            expected: "\n: term : meaning\n: ",
+            start: 20,
+            end: 20
+          },
+          {
+            name: "tab indent continues after preceding newline",
+            initial: "\n\titem",
+            from: 6,
+            to: 6,
+            key: "Enter",
+            expected: "\n\titem\n\t",
+            start: 8,
+            end: 8
+          },
+          {
+            name: "empty tab indent terminates",
+            initial: "\n\titem\n\t",
+            from: 8,
+            to: 8,
+            key: "Enter",
+            expected: "\n\titem\n\n",
+            start: 8,
+            end: 8
+          },
+          {
+            name: "code block closes before suffix",
+            initial: "[[code]]tail",
+            from: 8,
+            to: 8,
+            key: "Enter",
+            expected: "[[code]]\n\n[[/code]]tail",
+            start: 9,
+            end: 9
+          },
+          {
+            name: "math block closes before suffix",
+            initial: "[[math Eq1]]tail",
+            from: 12,
+            to: 12,
+            key: "Enter",
+            expected: "[[math Eq1]]\n\n[[/math]]tail",
+            start: 13,
+            end: 13
+          }
+        ]
+        for (const scenario of cases) await assertKeyboardCase(page, scenario)
+
+        await openEditor(page, fixture.missingSlug)
+        await assertKeyboardCase(page, cases[0])
+        await assertKeyboardCase(page, cases[7])
+      } finally {
+        const after = await readPage(
+          context.request,
+          fixture,
+          fixture.existingSlug,
+          token
+        )
+        assert.equal(after?.type, "found", "existing fixture must remain present")
+        assert.deepEqual(
+          after.data.page_revision,
+          before.data.page_revision,
+          "revision unchanged"
+        )
+        assert.equal(after.data.wikitext, before.data.wikitext, "stored source unchanged")
+        assert.deepEqual(
+          await readPage(context.request, fixture, fixture.missingSlug, token),
+          missingBefore,
+          "missing target must remain absent"
+        )
+        assert.deepEqual(denied, [], "browser must not make write or external requests")
+      }
+    } finally {
+      await context.close()
+    }
+  } finally {
+    await browser.close()
+  }
+})
+
 test("attached image wizard selects and previews an authorized existing image without saving", async () => {
   const fixturePath = process.env.COBALT_PAGE_PREVIEW_FIXTURE
   const basicPath = process.env.COBALT_LOCAL_PASSWORD_FILE
