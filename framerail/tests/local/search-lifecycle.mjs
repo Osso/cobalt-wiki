@@ -121,7 +121,7 @@ async function waitForSearch(client, token, slug, query, pageId, present) {
 
 /**
  * @param {unknown} hit @param {Fixture} fixture @param {string} slug
- *   @param {string} token @param {number} pageId
+ * @param {string} token @param {number} pageId
  */
 function assertHit(hit, fixture, slug, token, pageId) {
   assert.equal(hit?.page_id, pageId, "search page ID")

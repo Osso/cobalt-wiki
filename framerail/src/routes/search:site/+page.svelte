@@ -9,7 +9,7 @@
 </svelte:head>
 
 <h1>Search results</h1>
-<form method="GET" action="/search:site">
+<form action="/search:site" method="GET">
   <label for="search-page-query">Search this wiki</label>
   <input id="search-page-query" name="query" type="search" value={data.query} />
   <button type="submit">Search</button>
