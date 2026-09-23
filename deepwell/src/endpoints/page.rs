@@ -18,8 +18,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+mod form_create;
 pub(crate) mod form_edit;
 
+use self::form_create::{CreatePageRequest, load_create_form};
 use self::form_edit::EditPageRequest;
 use super::prelude::*;
 use crate::models::file::Model as FileModel;
@@ -42,6 +44,9 @@ use serde::Serialize;
 #[derive(Debug, Clone, Serialize)]
 pub struct PageCreatePermissionOutput {
     pub can_create: bool,
+
+    /// The category data form the new page is created from, if any.
+    pub form: Option<serde_json::Value>,
 }
 
 pub async fn page_create_permission(
@@ -49,21 +54,29 @@ pub async fn page_create_permission(
     _params: Params<'static>,
 ) -> Result<PageCreatePermissionOutput> {
     let request = ctx.request();
-    let can_create = match (&request.site_id, &request.user_id, &request.page_reference) {
-        (Some(site_id), Some(user_id), Some(Reference::Slug(slug))) => {
-            PageService::can_create(ctx, *site_id, *user_id, slug).await?
-        }
-        _ => false,
-    };
-    Ok(PageCreatePermissionOutput { can_create })
+    let (can_create, form) =
+        match (&request.site_id, &request.user_id, &request.page_reference) {
+            (Some(site_id), Some(user_id), Some(Reference::Slug(slug)))
+                if PageService::can_create(ctx, *site_id, *user_id, slug).await? =>
+            {
+                let form = load_create_form(ctx, *site_id, slug).await?;
+                let form = form.map(serde_json::to_value).transpose().or_raise(|| {
+                    Error::new("failed to serialize category form", ErrorType::Page)
+                })?;
+                (true, form)
+            }
+            _ => (false, None),
+        };
+    Ok(PageCreatePermissionOutput { can_create, form })
 }
 
 pub async fn page_create(
     ctx: &ServiceContext<'_>,
     params: Params<'static>,
 ) -> Result<CreatePageOutput> {
-    let input: CreatePage = parse!(params, Page);
-    info!("Creating new page in site ID {}", input.site_id);
+    let input: CreatePageRequest = parse!(params, Page);
+    info!("Creating new page in site ID {}", input.create.site_id);
+    let input = input.load_create(ctx).await?;
     PageService::create(ctx, input)
         .await
         .or_raise(|| Error::new("failed to create page", ErrorType::Page))

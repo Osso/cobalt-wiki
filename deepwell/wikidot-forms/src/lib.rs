@@ -5,6 +5,7 @@
 //! decoded scalar types/content, not YAML comments, quoting, or byte formatting.
 //! This crate performs no I/O, rendering, permission checks, or editor selection.
 
+mod dump;
 mod error;
 mod legacy;
 mod schema;
@@ -17,5 +18,5 @@ pub use legacy::normalize_legacy_yaml;
 pub use schema::{FieldKind, FormField, FormSchema, SelectOption, parse_schema};
 pub use serde_yaml_ng::{Mapping, Value};
 pub use template::{TemplateParts, split_template};
-pub use values::{apply_field_updates, parse_values, serialize_values};
+pub use values::{apply_field_updates, new_record, parse_values, serialize_values};
 pub use view::{FormView, extract_form_view};

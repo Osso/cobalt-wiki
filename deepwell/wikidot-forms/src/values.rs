@@ -109,13 +109,53 @@ fn validate_update(
     }
 }
 
-/// Serialize a scalar field mapping without dropping or coercing field values.
-///
-/// Output uses normal YAML formatting, not the original comments/quote style.
+/// Serialize a scalar field mapping as Wikidot writes form records
+/// (sfYaml quoting, no trailing newline) without dropping or coercing values.
 pub fn serialize_values(values: &Mapping) -> Result<String, FormError> {
     validate_values(values)?;
-    serde_yaml_ng::to_string(values).map_err(|source| FormError::Yaml {
-        context: "stored field mapping",
-        source,
-    })
+    Ok(crate::dump::dump_record(values))
+}
+
+/// The record Wikidot saves for a new page from its form: every non-static
+/// field in schema order, as the posted form text (the submitted value, else
+/// the field default, else empty).
+pub fn new_record(
+    schema: &crate::FormSchema,
+    submitted: &Mapping,
+) -> Result<String, FormError> {
+    for (key, value) in submitted {
+        let name = require_name(key, "submitted field mapping")?;
+        let field = schema
+            .fields
+            .iter()
+            .find(|field| field.name == name)
+            .ok_or_else(|| {
+                FormError::Shape(format!("unknown submitted field {name:?}"))
+            })?;
+        validate_update(field, None, value)?;
+    }
+    let values = schema
+        .fields
+        .iter()
+        .filter(|field| field.kind != crate::FieldKind::Static)
+        .map(|field| {
+            let key = Value::String(field.name.clone());
+            let value = submitted
+                .get(&key)
+                .or_else(|| field.properties.get("default"))
+                .map_or_else(String::new, posted_text);
+            (key, Value::String(value))
+        })
+        .collect();
+    serialize_values(&values)
+}
+
+/// A scalar as a browser posts it from a form control.
+fn posted_text(value: &Value) -> String {
+    match value {
+        Value::String(text) => text.clone(),
+        Value::Number(number) => number.to_string(),
+        Value::Bool(true) => "1".into(),
+        _ => String::new(),
+    }
 }
