@@ -16,6 +16,18 @@
         inherit pkgs;
         craneLib = crane.mkLib pkgs;
       };
+      # install/dev-deploy.sh builds in this shell, so binaries link the same
+      # store paths as the deployed packages.
+      devShells.${system}.deploy = pkgs.mkShell {
+        nativeBuildInputs = [
+          pkgs.cargo
+          pkgs.rustc
+          pkgs.pkg-config
+          pkgs.nodejs_22
+          pkgs.pnpm
+        ];
+        buildInputs = [ pkgs.file ];
+      };
       formatter.${system} = pkgs.nixfmt;
     };
 }

@@ -101,3 +101,11 @@ ignored = ["rust-s3"]  # renamed to s3
 
 [profile.release]
 lto = true
+
+# install/dev-deploy.sh: release speed without link-time optimization, rebuilt
+# incrementally.
+[profile.deploy]
+inherits = "release"
+lto = false
+codegen-units = 16
+incremental = true

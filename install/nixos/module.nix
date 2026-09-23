@@ -13,6 +13,11 @@ let
   postgres = pkgs.postgresql_17;
   python = "${pkgs.python3}/bin/python3";
   marker = "${state}/provisioned";
+  # Development deploys (install/dev-deploy.sh) run the apps from a mutable
+  # directory instead of the Nix packages.
+  app = cfg.appDirectory;
+  deepwellBin = if app == null then "${packages.deepwell}/bin/deepwell" else "${app}/deepwell/deepwell";
+  deepwellShare = if app == null then "${packages.deepwell}/share/deepwell" else "${app}/deepwell";
   defaults = builtins.fromTOML (builtins.readFile ../../deepwell/config.example.toml);
   runtimeConfig = (pkgs.formats.toml { }).generate "cobalt-deepwell.toml" (
     lib.recursiveUpdate defaults {
@@ -29,7 +34,7 @@ let
         main = cfg.mainDomain;
         files = cfg.filesDomain;
       };
-      locale.path = "${packages.deepwell}/share/deepwell/locales";
+      locale.path = "${deepwellShare}/locales";
       email = {
         mock-mailcheck = false;
         automation-address = "noreply@${cfg.mainDomain}";
@@ -127,7 +132,7 @@ let
     if not Path("${marker}").is_file():
         raise RuntimeError("Cobalt database is not provisioned. Apply migrations and reviewed production seeds, then create ${marker}; stock demo seeds must not be used.")
     # Deploys ship new migrations with the package; sqlx applies only pending ones.
-    subprocess.run(["${pkgs.sqlx-cli}/bin/sqlx", "migrate", "run", "--source", "${packages.deepwell}/share/deepwell/migrations"], check=True)
+    subprocess.run(["${pkgs.sqlx-cli}/bin/sqlx", "migrate", "run", "--source", "${deepwellShare}/migrations"], check=True)
   '';
   bootstrap = pkgs.writeText "cobalt-bootstrap.py" ''
     import os
@@ -136,9 +141,9 @@ let
     marker = pathlib.Path("${marker}")
     if marker.exists():
         raise RuntimeError("Cobalt provisioning marker already exists; refusing to reseed")
-    subprocess.run(["${pkgs.sqlx-cli}/bin/sqlx", "migrate", "run", "--source", "${packages.deepwell}/share/deepwell/migrations"], check=True)
+    subprocess.run(["${pkgs.sqlx-cli}/bin/sqlx", "migrate", "run", "--source", "${deepwellShare}/migrations"], check=True)
     os.environ["DEEPWELL_RUNTIME_ACTION"] = "run-seeder"
-    subprocess.run(["${packages.deepwell}/bin/deepwell", "${runtimeConfig}"], check=True)
+    subprocess.run(["${deepwellBin}", "${runtimeConfig}"], check=True)
     marker.touch(mode=0o600, exist_ok=False)
   '';
   dependencies = [
@@ -168,6 +173,12 @@ in
     filesDomain = lib.mkOption {
       type = lib.types.str;
       description = "Wikijump file-domain configuration supplied by routing integration.";
+    };
+    appDirectory = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      example = "/var/lib/cobalt-wiki/app";
+      description = "Run Deepwell (deepwell/{deepwell,migrations,locales}) and Framerail (framerail/{build,node_modules,package.json}) from this mutable directory, filled by install/dev-deploy.sh, instead of the Nix packages. For fast iteration only; null deploys the reproducible packages.";
     };
     wikidotSync = {
       enable = lib.mkEnableOption "periodic sync of pages changed on the source Wikidot site";
@@ -227,6 +238,10 @@ in
         message = "Cobalt main and files domains must be supplied by routing integration.";
       }
     ];
+    # A dev Deepwell binary links the Nix package's glibc and libmagic; keep them.
+    environment.etc."cobalt-wiki/deepwell-package" = lib.mkIf (app != null) {
+      source = packages.deepwell;
+    };
     users.groups.${account} = { };
     users.users.${account} = {
       isSystemUser = true;
@@ -322,7 +337,7 @@ in
           StateDirectory = "cobalt-wiki";
           EnvironmentFile = cfg.environmentFile;
           ExecStartPre = "${python} ${requireProvisioning}";
-          ExecStart = "${packages.deepwell}/bin/deepwell ${runtimeConfig}";
+          ExecStart = "${deepwellBin} ${runtimeConfig}";
           ExecStartPost = "${python} ${./wait_deepwell.py}";
         };
       };
@@ -340,7 +355,11 @@ in
           DEEPWELL_PORT = "2747";
         };
         serviceConfig = daemon // {
-          ExecStart = "${packages.framerail}/bin/framerail";
+          ExecStart =
+            if app == null then
+              "${packages.framerail}/bin/framerail"
+            else
+              "${pkgs.nodejs_22}/bin/node ${app}/framerail/build/index.js";
         };
       };
       cobalt-wiki-wws = {
