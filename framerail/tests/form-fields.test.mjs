@@ -156,10 +156,10 @@ test("source-defined fields render accessible typed controls and readonly static
     assert.match(unknownRaceBody, /<option[^>]*selected[^>]*>legacy<\/option>/)
     assert.deepEqual(changedFields(unknownRace, unknownRaceDraft), {})
 
-    const missing = {
-      ...form,
-      values: { ...form.values, rank: undefined, sex: undefined }
-    }
+    const missingValues = { ...form.values }
+    delete missingValues.rank
+    delete missingValues.sex
+    const missing = { ...form, values: missingValues }
     const missingBody = render(Component, {
       props: { form: missing, draft: createDraft(missing) }
     }).body

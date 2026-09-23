@@ -878,8 +878,9 @@ export async function importedHistoryAction(event: RequestEvent) {
   }
   try {
     const page = await resolveImportedHistoryPage(event)
-    if ("status" in page)
+    if ("status" in page) {
       return fail(page.status, { message: "Page history unavailable" })
+    }
     const res = await pageImportedHistory(
       page.siteId,
       page.pageId,
@@ -910,8 +911,9 @@ export async function importedRevisionAction(event: RequestEvent) {
   }
   try {
     const page = await resolveImportedHistoryPage(event)
-    if ("status" in page)
+    if ("status" in page) {
       return fail(page.status, { message: "Page history unavailable" })
+    }
     const res = await pageImportedRevision(
       page.siteId,
       page.pageId,

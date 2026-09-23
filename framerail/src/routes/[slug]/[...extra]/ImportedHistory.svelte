@@ -75,7 +75,7 @@
   onMount(loadOlder)
 </script>
 
-<section aria-labelledby="imported-history-heading" aria-busy={loading}>
+<section aria-busy={loading} aria-labelledby="imported-history-heading">
   <h2 id="imported-history-heading">Imported Wikidot history</h2>
   <p>
     Source records are separate from editable local revisions and cannot be rolled back
@@ -103,11 +103,10 @@
               <td>{revision.source_revision_number}</td>
               <td>
                 <button
-                  type="button"
                   disabled={loading}
                   aria-label={`View source revision ${revision.source_revision_number}`}
                   onclick={() => viewSource(revision.source_revision_number)}
-                  >View source</button
+                  type="button">View source</button
                 >
                 <small>ID {revision.source_revision_id}</small>
               </td>
@@ -135,7 +134,7 @@
     <p role="status">Loading history…</p>
   {/if}
   {#if hasOlder}
-    <button type="button" disabled={loading} onclick={loadOlder}
+    <button disabled={loading} onclick={loadOlder} type="button"
       >Load older revisions</button
     >
   {/if}
