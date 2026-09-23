@@ -1,6 +1,5 @@
 import { fail, type RequestEvent } from "@sveltejs/kit"
 import { client } from "$lib/server/deepwell"
-import { pageSearch } from "$lib/server/deepwell/search"
 import { getRequestContext } from "./request-ctx"
 
 export async function editorPagesAction({ request, locals }: RequestEvent) {
@@ -10,8 +9,12 @@ export async function editorPagesAction({ request, locals }: RequestEvent) {
     return fail(400, { message: "Enter at least two characters" })
   }
   try {
-    const result = await pageSearch(query.trim(), 0, 20, getRequestContext(locals))
-    return { pages: result.hits.map(({ slug, title }) => ({ slug, title })) }
+    const pages: { slug: string; title: string }[] = await client.request(
+      "editor_pages",
+      { query },
+      getRequestContext(locals)
+    )
+    return { pages }
   } catch {
     return fail(500, { message: "Unable to look up pages" })
   }

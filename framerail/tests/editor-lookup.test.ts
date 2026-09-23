@@ -79,12 +79,12 @@ test("page lookup uses trusted request context, never forged body authority", as
   const { result, calls } = await callAction(
     editorPagesAction,
     { query: "  docs ", site_id: "9", page: "other:page", sessionToken: "forged" },
-    () => ({ result: { hits: [hit], has_more: false } })
+    () => ({ result: [{ slug: hit.slug, title: hit.title }] })
   )
   assert.deepEqual(result, { pages: [{ slug: "docs:guide", title: "Guide" }] })
   assert.equal(calls.length, 1)
-  assert.equal(calls[0].request.method, "page_search")
-  assert.deepEqual(calls[0].request.params, { query: "docs", offset: 0, limit: 20 })
+  assert.equal(calls[0].request.method, "editor_pages")
+  assert.deepEqual(calls[0].request.params, { query: "  docs " })
   assert.equal(calls[0].headers.get("X-Deepwell-Site-Id"), "6000011")
   assert.equal(calls[0].headers.get("X-Deepwell-Page"), "wiki:page")
   assert.equal(calls[0].headers.get("X-Deepwell-Session-Token"), "trusted-session")

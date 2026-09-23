@@ -60,7 +60,7 @@
       pageError = ""
       return
     }
-    const query = page.trim()
+    const query = page
     let current = true
     pageMatches = []
     pageError = ""
