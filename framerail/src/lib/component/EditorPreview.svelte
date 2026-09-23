@@ -26,7 +26,11 @@
     try {
       const response = await fetch("?/preview", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          "accept": "application/json",
+          "x-sveltekit-action": "true"
+        },
         body: JSON.stringify(getPayload())
       })
       const result = deserialize(await response.text())
