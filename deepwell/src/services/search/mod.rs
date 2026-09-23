@@ -351,18 +351,21 @@ impl SearchService {
                 if doc.site_id != site_id {
                     continue;
                 }
-                if let Some(hit) = visible(doc).await? {
-                    if visible_count >= input.offset {
-                        if hits.len() == input.limit {
-                            return Ok(SearchPage {
-                                hits,
-                                has_more: true,
-                            });
-                        }
-                        hits.push(hit);
-                    }
+                let Some(hit) = visible(doc).await? else {
+                    continue;
+                };
+                if visible_count < input.offset {
                     visible_count += 1;
+                    continue;
                 }
+                if hits.len() == input.limit {
+                    return Ok(SearchPage {
+                        hits,
+                        has_more: true,
+                    });
+                }
+                hits.push(hit);
+                visible_count += 1;
             }
             raw_offset += count;
             if count < size {

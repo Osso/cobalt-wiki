@@ -3,8 +3,8 @@ use super::{SearchDocument, SearchService, outbox, plain_body};
 use crate::error::prelude::*;
 use crate::models::{page, page_revision, search_index_pending, text};
 use sea_orm::{
-    ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait, QueryOrder, QuerySelect,
-    Statement, TransactionTrait,
+    ConnectionTrait, DatabaseConnection, DatabaseTransaction, DbBackend, EntityTrait,
+    QueryOrder, QuerySelect, Statement, TransactionTrait,
 };
 use std::future::Future;
 use tokio::time::{Duration, sleep};
@@ -41,6 +41,24 @@ pub async fn process_one_batch(
     let txn = db.begin().await.or_raise(|| {
         Error::new("failed to start search worker transaction", ErrorType::Page)
     })?;
+    if !acquire_worker_lock(&txn).await? {
+        return Ok(0);
+    }
+
+    let pending = read_pending_pages(&txn).await?;
+    let (documents, deleted) = read_batch_documents(&txn, &pending).await?;
+    publish_batch(search, documents, deleted).await?;
+    acknowledge_batch(&txn, &pending).await?;
+    txn.commit().await.or_raise(|| {
+        Error::new(
+            "failed to commit search worker acknowledgements",
+            ErrorType::Page,
+        )
+    })?;
+    Ok(pending.len())
+}
+
+async fn acquire_worker_lock(txn: &DatabaseTransaction) -> Result<bool> {
     let lock = txn
         .query_one_raw(Statement::from_sql_and_values(
             DbBackend::Postgres,
@@ -50,45 +68,58 @@ pub async fn process_one_batch(
         .await
         .or_raise(|| Error::new("failed to acquire search worker lock", ErrorType::Page))?
         .expect("advisory lock query returns one row");
-    let acquired: bool = lock
-        .try_get("", "acquired")
-        .or_raise(|| Error::new("invalid search worker lock result", ErrorType::Page))?;
-    if !acquired {
-        return Ok(0);
-    }
+    lock.try_get("", "acquired")
+        .or_raise(|| Error::new("invalid search worker lock result", ErrorType::Page))
+}
 
-    let pending = search_index_pending::Entity::find()
+async fn read_pending_pages(
+    txn: &DatabaseTransaction,
+) -> Result<Vec<search_index_pending::Model>> {
+    search_index_pending::Entity::find()
         .order_by_asc(search_index_pending::Column::Generation)
         .limit(BATCH_SIZE)
-        .all(&txn)
+        .all(txn)
         .await
-        .or_raise(|| {
-            Error::new("failed to read pending search pages", ErrorType::Page)
-        })?;
+        .or_raise(|| Error::new("failed to read pending search pages", ErrorType::Page))
+}
+
+async fn read_batch_documents(
+    txn: &DatabaseTransaction,
+    pending: &[search_index_pending::Model],
+) -> Result<(Vec<SearchDocument>, Vec<i64>)> {
     let mut documents = Vec::new();
     let mut deleted = Vec::new();
-    for row in &pending {
-        match read_current_document(&txn, row.page_id).await? {
+    for row in pending {
+        match read_current_document(txn, row.page_id).await? {
             Some(document) => documents.push(document),
             None => deleted.push(row.page_id),
         }
     }
+    Ok((documents, deleted))
+}
+
+async fn publish_batch(
+    search: &SearchService,
+    documents: Vec<SearchDocument>,
+    deleted: Vec<i64>,
+) -> Result<()> {
     if !documents.is_empty() {
         search.upsert_batch(documents).await?;
     }
     for page_id in deleted {
         search.remove_page(page_id).await?;
     }
-    for row in &pending {
-        outbox::acknowledge(&txn, row.page_id, row.generation).await?;
+    Ok(())
+}
+
+async fn acknowledge_batch(
+    txn: &DatabaseTransaction,
+    pending: &[search_index_pending::Model],
+) -> Result<()> {
+    for row in pending {
+        outbox::acknowledge(txn, row.page_id, row.generation).await?;
     }
-    txn.commit().await.or_raise(|| {
-        Error::new(
-            "failed to commit search worker acknowledgements",
-            ErrorType::Page,
-        )
-    })?;
-    Ok(pending.len())
+    Ok(())
 }
 
 #[cfg(test)]
