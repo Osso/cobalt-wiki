@@ -149,9 +149,9 @@
       />
       <WikitextToolbar textarea={sourceTextarea} bind:value={$editForm.wikitext} />
       <textarea
+        bind:this={sourceTextarea}
         name="wikitext"
         class="editor-wikitext"
-        bind:this={sourceTextarea}
         bind:value={$editForm.wikitext}></textarea>
       <input
         name="tags"

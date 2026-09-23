@@ -92,8 +92,9 @@ const formatting: Record<string, Formatting> = {
 function separateBefore(text: string, block: Formatting["block"]): string {
   if (!block) return text
   if (block === "heading") return text ? `${text.trimEnd()}\n\n` : ""
-  if (block === "paragraph")
+  if (block === "paragraph") {
     return text ? `${text.replace(/(\r?\n\s*)?\r?\n$/, "")}\n\n` : ""
+  }
   return `${text.replace(/\r?\n$/, "")}\n`
 }
 
@@ -138,8 +139,8 @@ export function applyWikitextToolbar(
   if (!format) throw new Error(`Unknown wikitext toolbar control: ${control}`)
 
   const selected = value.slice(start, end)
-  const leading = selected.match(/^\s*/)?.[0].length ?? 0
-  const trailing = selected.match(/\s*$/)?.[0].length ?? 0
+  const leading = /^\s*/.exec(selected)?.[0].length ?? 0
+  const trailing = /\s*$/.exec(selected)?.[0].length ?? 0
   const from = start + leading
   const to = Math.max(from, end - trailing)
   const before = separateBefore(value.slice(0, from), format.block)

@@ -4,10 +4,10 @@
 
   let {
     textarea,
-    value = $bindable("")
+    value = $bindable()
   }: {
     textarea: HTMLTextAreaElement | undefined
-    value: string
+    value: string | undefined
   } = $props()
 
   // Offsets measured from the source editor's 22px icons1.png sprite.
@@ -139,7 +139,7 @@
     if (!textarea) return
     const scrollTop = textarea.scrollTop
     const result = applyWikitextToolbar(
-      textarea.value,
+      value ?? textarea.value,
       textarea.selectionStart,
       textarea.selectionEnd,
       control
@@ -152,61 +152,61 @@
   }
 </script>
 
-<div class="wikitext-toolbar" role="toolbar" aria-label="Wikitext formatting">
-  {#each groups as group, row}
+<div class="wikitext-toolbar" aria-label="Wikitext formatting" role="toolbar">
+  {#each groups as group, row (group[0].id)}
     <div class="toolbar-group">
       {#if row === 0}
         <div class="submenu-holder">
           <button
-            type="button"
-            class={headings[0].className}
             style:background-position="0 0"
+            class={headings[0].className}
             aria-label={headings[0].label}
-            title={headings[0].label}
             disabled={!textarea}
-            onpointerdown={(event) => event.preventDefault()}
             onclick={() => insert(headings[0].id)}
+            onpointerdown={(event) => event.preventDefault()}
+            title={headings[0].label}
+            type="button"
           ></button>
           <div class="submenu" aria-label="Other heading levels">
-            {#each headings.slice(1) as heading}
+            {#each headings.slice(1) as heading (heading.id)}
               <button
-                type="button"
-                class={heading.className}
                 style:background-position={`-${heading.offset}px 0`}
+                class={heading.className}
                 aria-label={heading.label}
-                title={heading.label}
                 disabled={!textarea}
-                onpointerdown={(event) => event.preventDefault()}
                 onclick={() => insert(heading.id)}
+                onpointerdown={(event) => event.preventDefault()}
+                title={heading.label}
+                type="button"
               ></button>
             {/each}
           </div>
         </div>
       {/if}
-      {#each group as control, index}
+      {#each group as control, index (control.id)}
         {#if row === 1 && index === 2}
           <div class="submenu-holder">
             <button
-              type="button"
-              class={clearFloat[0].className}
               style:background-position={`-${clearFloat[0].offset}px 0`}
+              class={clearFloat[0].className}
               aria-label={clearFloat[0].label}
-              title={clearFloat[0].label}
               disabled={!textarea}
-              onpointerdown={(event) => event.preventDefault()}
               onclick={() => insert(clearFloat[0].id)}
+              onpointerdown={(event) => event.preventDefault()}
+              title={clearFloat[0].label}
+              type="button"
             ></button>
             <div class="submenu" aria-label="Clear float direction">
-              {#each clearFloat.slice(1) as direction}
+              {#each clearFloat.slice(1) as direction (direction.id)}
                 <button
-                  type="button"
-                  class={direction.className}
                   style:background-position={`-${direction.offset}px 0`}
+                  class={direction.className}
                   aria-label={direction.label}
-                  title={direction.label}
                   disabled={!textarea}
-                  onpointerdown={(event) => event.preventDefault()}
                   onclick={() => insert(direction.id)}
+                  onpointerdown={(event) => event.preventDefault()}
+                  title={direction.label}
+                  type="button"
                 ></button>
               {/each}
             </div>
@@ -216,14 +216,14 @@
           <span class="separator" aria-hidden="true"></span>
         {/if}
         <button
-          type="button"
-          class={control.className}
           style:background-position={`-${control.offset}px 0`}
+          class={control.className}
           aria-label={control.label}
-          title={control.label}
           disabled={!textarea}
-          onpointerdown={(event) => event.preventDefault()}
           onclick={() => insert(control.id)}
+          onpointerdown={(event) => event.preventDefault()}
+          title={control.label}
+          type="button"
         ></button>
       {/each}
     </div>
@@ -250,11 +250,11 @@
     width: 22px;
     height: 22px;
     padding: 0;
+    cursor: pointer;
     background-color: transparent;
     background-image: url("/cobalt-editor/icons1.png");
     background-repeat: no-repeat;
     border: 0;
-    cursor: pointer;
   }
 
   button:hover,
@@ -268,8 +268,8 @@
   }
 
   button:disabled {
-    opacity: 0.5;
     cursor: not-allowed;
+    opacity: 0.5;
   }
 
   .separator {
@@ -283,9 +283,9 @@
 
   .submenu {
     position: absolute;
-    z-index: 1;
     top: 100%;
     left: 0;
+    z-index: 1;
     display: none;
     background: #fff;
     box-shadow: 0 1px 3px #888;

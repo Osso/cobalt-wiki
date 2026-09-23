@@ -14,7 +14,7 @@ export interface SearchPage {
   has_more: boolean
 }
 
-export function pageSearch(
+export async function pageSearch(
   query: string,
   offset: number,
   limit: number,

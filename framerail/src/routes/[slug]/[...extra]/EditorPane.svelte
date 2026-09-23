@@ -104,9 +104,9 @@
   {:else}
     <WikitextToolbar textarea={sourceTextarea} bind:value={$form.wikitext} />
     <textarea
+      bind:this={sourceTextarea}
       name="wikitext"
       class="editor-wikitext"
-      bind:this={sourceTextarea}
       bind:value={$form.wikitext}></textarea>
   {/if}
   <input

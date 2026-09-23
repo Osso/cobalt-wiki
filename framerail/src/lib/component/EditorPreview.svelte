@@ -48,13 +48,13 @@
   }
 </script>
 
-<button id="edit-preview-button" type="button" onclick={preview} disabled={pending}>
+<button id="edit-preview-button" disabled={pending} onclick={preview} type="button">
   {pending ? "Previewing…" : label}
 </button>
 {#if errorMessage}
   <p role="alert">{errorMessage}</p>
 {/if}
-<section role="region" aria-label="Page preview" aria-busy={pending}>
+<section aria-busy={pending} aria-label="Page preview">
   {#if html !== null}
     {@html html}
   {/if}
