@@ -63,16 +63,14 @@ async function readPage(request, fixture, slug, token) {
 }
 
 /**
- * @param {import("@playwright/test").Page} page
- * @param {string[]} denied
+ * @param {import("@playwright/test").BrowserContext} context
+ * @param {string[]} unexpected
  */
-async function denyWritesAndExternalRequests(page, denied) {
-  // Guard the application page, not its image-only popup: context-wide request
-  // interception stalls initial about:blank image loads in Chromium.
-  await page.route("**/*", async (route) => {
-    const request = route.request()
+function auditEditorRequests(context, unexpected) {
+  // Fetch interception stalls initial about:blank image loads in Chromium.
+  // Audit actual requests and persisted readback instead; tests never click Save.
+  context.on("request", (request) => {
     const url = new URL(request.url())
-    const local = url.origin === origin
     const action = url.search.startsWith("?/") ? url.search.slice(2) : null
     const allowedPost =
       request.method() === "POST" &&
@@ -80,16 +78,14 @@ async function denyWritesAndExternalRequests(page, denied) {
         (url.pathname.endsWith("/edit") &&
           action !== null &&
           ["preview", "editorPages", "editorAttachments", "draftGet"].includes(action)))
-    if (local && (["GET", "HEAD"].includes(request.method()) || allowedPost)) {
-      await route.continue()
-      return
-    }
-    // Imported theme styles attempt read-only CDN fetches; block them without
-    // confusing a prevented stylesheet fetch with a forbidden write.
-    if (request.method() !== "GET" || request.resourceType() !== "stylesheet") {
-      denied.push(`${request.method()} ${url.origin}${url.pathname}`)
-    }
-    await route.abort("blockedbyclient")
+    const localRead = ["GET", "HEAD"].includes(request.method())
+    if (url.origin === origin && (localRead || allowedPost)) return
+    const publicThemeRead =
+      request.method() === "GET" &&
+      request.resourceType() === "stylesheet" &&
+      url.hostname === "d3g0gp89917ko0.cloudfront.net"
+    if (!publicThemeRead)
+      unexpected.push(`${request.method()} ${url.origin}${url.pathname}`)
   })
 }
 
@@ -101,7 +97,7 @@ async function denyWritesAndExternalRequests(page, denied) {
  */
 async function login(context, fixture, password, denied) {
   const page = await context.newPage()
-  await denyWritesAndExternalRequests(page, denied)
+  auditEditorRequests(context, denied)
   await page.goto(`${origin}/-/login`, { waitUntil: "networkidle" })
   await page.locator('#login [name="nameOrEmail"]').fill(fixture.username)
   await page.locator('#login [name="password"]').fill(password)
