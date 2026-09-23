@@ -8,7 +8,7 @@ use deepwell::constants::ADMIN_USER_ID;
 use deepwell::models::{page_revision, role_permission};
 use deepwell::services::page::CreatePage;
 use deepwell::services::page_revision::RerenderType;
-use deepwell::services::{PageRevisionService, PageService};
+use deepwell::services::{PageRevisionService, PageService, TextService};
 use deepwell::types::{Action, PageId, Reference, RerenderDepth, Resource};
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use serde_json::json;
@@ -240,4 +240,133 @@ async fn unsupported_list_pages_arguments_render_an_explicit_error() {
         html.contains("ListPages module error: unsupported argument rsstitle."),
         "{html}"
     );
+}
+
+/// Seeded test-site pages sharing an archived name take the archived source.
+async fn import_or_replace_source(
+    runner: &TestRunner,
+    site_id: i64,
+    slug: &str,
+    source: String,
+) {
+    let existing = PageService::get_optional(
+        runner.context(),
+        site_id,
+        Reference::Slug(slug.into()),
+    )
+    .await
+    .unwrap();
+    let Some(page) = existing else {
+        return import_page(runner, site_id, slug, &source).await;
+    };
+    let revision =
+        PageRevisionService::get_latest(runner.context(), site_id, page.page_id)
+            .await
+            .unwrap();
+    let hash = TextService::create(runner.context(), source).await.unwrap();
+    page_revision::ActiveModel {
+        revision_id: Set(revision.revision_id),
+        wikitext_hash: Set(hash.to_vec()),
+        ..Default::default()
+    }
+    .update(runner.context().transaction())
+    .await
+    .unwrap();
+}
+
+/// Render archived Cobalt pages against the whole archive imported in Wikidot page-ID order.
+///
+/// `COBALT_ARCHIVE_SOURCE` holds `<archive_key>.txt` sources, `COBALT_METADATA` the
+/// metadata checkpoint, and `COBALT_RENDER_OUT` receives compiled HTML for inspection.
+#[tokio::test]
+#[ignore = "requires the protected Cobalt source archive"]
+async fn archived_cobalt_pages_render_without_template_syntax() {
+    let archive = std::env::var("COBALT_ARCHIVE_SOURCE").expect("archive directory");
+    let output = std::env::var("COBALT_RENDER_OUT").expect("output directory");
+    let metadata: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(std::env::var("COBALT_METADATA").expect("metadata"))
+            .unwrap(),
+    )
+    .unwrap();
+    let mut records: Vec<_> = metadata["records"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|record| record["status"] == "accepted")
+        .collect();
+    records.sort_by_key(|record| record["page_id"].as_i64().unwrap());
+
+    let runner = TestRunner::setup().await;
+    let site_id = site_id(&runner).await;
+    for record in &records {
+        let slug = record["fullname"].as_str().unwrap();
+        let key = record["archive_key"].as_str().unwrap();
+        let source = std::fs::read_to_string(format!("{archive}/{key}.txt")).unwrap();
+        import_or_replace_source(&runner, site_id, slug, source).await;
+        let tags: Vec<_> = record["tags"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|tag| tag.as_str().unwrap())
+            .collect();
+        set_title_and_tags(
+            &runner,
+            site_id,
+            slug,
+            record["title"].as_str().unwrap(),
+            &tags,
+        )
+        .await;
+    }
+    deepwell::models::site::ActiveModel {
+        site_id: Set(site_id),
+        top_bar_page: Set("nav:top".into()),
+        side_bar_page: Set("nav:side".into()),
+        ..Default::default()
+    }
+    .update(runner.context().transaction())
+    .await
+    .unwrap();
+
+    let pages = [
+        "home:start",
+        "character:atley",
+        "writing:2005-04-02-a-brief-emphatic-response",
+        "roster",
+        "membersonly:players",
+        "writings",
+    ];
+    for slug in pages {
+        rerender(&runner, site_id, slug).await;
+        let page =
+            PageService::get(runner.context(), site_id, Reference::Slug(slug.into()))
+                .await
+                .unwrap();
+        let revision =
+            PageRevisionService::get_latest(runner.context(), site_id, page.page_id)
+                .await
+                .unwrap();
+        let body = TextService::get(runner.context(), &revision.compiled_body_html_hash)
+            .await
+            .unwrap();
+        let top = TextService::get(
+            runner.context(),
+            &revision.compiled_top_bar_html_hash.unwrap(),
+        )
+        .await
+        .unwrap();
+        let file = slug.replace(':', "_");
+        std::fs::write(format!("{output}/{file}.html"), &body).unwrap();
+        std::fs::write(format!("{output}/{file}.top.html"), &top).unwrap();
+        for html in [&body, &top] {
+            for leaked in [
+                "%%",
+                "[[module ListPages",
+                "[[/module]]",
+                "TODO: module ListPages",
+            ] {
+                assert!(!html.contains(leaked), "{slug}: {leaked} leaked");
+            }
+        }
+    }
 }
