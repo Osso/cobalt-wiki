@@ -40,10 +40,15 @@ const hit = (index: number) => ({
 })
 
 type Rpc = { method: string; params: Record<string, unknown>; id: string | number }
+type RpcResponse =
+  | { result: { hits: ReturnType<typeof hit>[]; has_more: boolean } }
+  | { error: { code: number; message: string } }
 
 async function search(
   url: string,
-  responder: (rpc: Rpc) => unknown = () => ({ hits: [], has_more: false })
+  responder: (rpc: Rpc) => RpcResponse = () => ({
+    result: { hits: [], has_more: false }
+  })
 ) {
   const previousFetch = globalThis.fetch
   const calls: { rpc: Rpc; headers: Headers }[] = []

@@ -12,6 +12,11 @@ const pollIntervalMs = 500
 const pollTimeoutMs = 60_000
 
 /**
+ * @typedef {import("../../src/lib/server/deepwell/search").SearchHit} SearchHit
+ *
+ * @typedef {import("../../src/lib/server/deepwell/search").SearchPage} SearchPage
+ *
+ *
  * @typedef {{
  *   sacrificial: true
  *   previewUrl: string
@@ -59,6 +64,7 @@ async function readFixture(path) {
  * @param {unknown} params
  */
 async function rpc(client, sessionToken, pageRef, method, params) {
+  /** @type {Record<string, string>} */
   const headers = {
     "X-Deepwell-Site-Id": String(siteId),
     "X-Deepwell-Page": pageRef
@@ -87,6 +93,7 @@ async function readPage(client, token, slug) {
  *   {string} token @param {string} slug @param {string} query
  */
 async function search(client, token, slug, query) {
+  /** @type {SearchPage} */
   const page = await rpc(client, token, slug, "page_search", {
     query,
     offset: 0,
@@ -120,11 +127,13 @@ async function waitForSearch(client, token, slug, query, pageId, present) {
 }
 
 /**
- * @param {unknown} hit @param {Fixture} fixture @param {string} slug
+ * @param {SearchHit | undefined} hit @param {Fixture} fixture @param
+ *   {string} slug
  * @param {string} token @param {number} pageId
  */
 function assertHit(hit, fixture, slug, token, pageId) {
-  assert.equal(hit?.page_id, pageId, "search page ID")
+  assert.ok(hit, "search hit required")
+  assert.equal(hit.page_id, pageId, "search page ID")
   assert.equal(hit.title, fixture.title, "search title")
   assert.equal(hit.slug, slug, "search slug")
   assert.deepEqual(hit.tags, fixture.tags, "search tags")

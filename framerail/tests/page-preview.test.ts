@@ -8,6 +8,10 @@ const { pagePreviewAction } = await vite.ssrLoadModule(
   "/src/lib/server/load/page-preview.ts"
 )
 
+type RpcResponse =
+  | { result: { html: string } }
+  | { error: { code: number; message: string; data?: Record<string, string> } }
+
 type RpcRequest = {
   jsonrpc: string
   id: number | string
@@ -29,7 +33,7 @@ function event(payload: unknown) {
 
 async function callPreview(
   payload: unknown,
-  responder: (rpc: RpcRequest) => unknown = () => ({
+  responder: (rpc: RpcRequest) => RpcResponse = () => ({
     result: { html: "<p>Rendered preview</p>" }
   })
 ) {

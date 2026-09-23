@@ -7,6 +7,10 @@ const preview = "http://127.0.0.1:3090"
 const backend = "http://127.0.0.1:2749/jsonrpc"
 
 /**
+ * @typedef {import("../../src/lib/server/deepwell/views").PageView} PageView
+ *
+ * @typedef {Extract<PageView, { type: "found" }>["data"]} StoredPage
+ *
  * @typedef {{
  *   sacrificial: true
  *   siteId: 6000000
@@ -36,7 +40,12 @@ async function readFixture(path) {
   assert.match(fixture.missingSlug, /^local-preview-proof:[a-z0-9-]{8,}$/)
   assert.notEqual(fixture.existingSlug, fixture.missingSlug)
   assert.equal(fixture.formSlug, "local-acceptance:form-roundtrip")
-  for (const key of ["rawMarker", "formFieldName", "formFieldLabel", "formMarker"]) {
+  for (const key of /** @type {const} */ ([
+    "rawMarker",
+    "formFieldName",
+    "formFieldLabel",
+    "formMarker"
+  ])) {
     assert.ok(fixture[key]?.trim(), `${key} required`)
   }
   assert.notEqual(fixture.rawMarker, fixture.formMarker)
@@ -66,7 +75,9 @@ async function readPage(request, fixture, slug, sessionToken) {
   assert.equal(response.status(), 200, `page_view must respond for ${slug}`)
   const payload = await response.json()
   assert.ok(!payload.error, `page_view failed (code ${payload.error?.code ?? "?"})`)
-  return payload.result
+  /** @type {PageView} */
+  const view = payload.result
+  return view
 }
 
 /**
@@ -74,11 +85,12 @@ async function readPage(request, fixture, slug, sessionToken) {
  * @param {Fixture} fixture
  * @param {string} slug
  * @param {string} token
- * @param {unknown} before
+ * @param {StoredPage} before
  */
 async function assertStoredUnchanged(request, fixture, slug, token, before) {
   const after = await readPage(request, fixture, slug, token)
   assert.equal(after?.type, "found", `${slug} must remain present`)
+  if (after.type !== "found") assert.fail(`${slug} must remain present`)
   assert.deepEqual(after.data.page_revision, before.page_revision, `${slug} revision`)
   assert.deepEqual(after.data.wikitext, before.wikitext, `${slug} source`)
   assert.deepEqual(after.data.form?.values, before.form?.values, `${slug} form values`)
@@ -131,14 +143,17 @@ async function clickPreview(page, slug) {
   const region = page.locator('section[aria-label="Page preview"]')
   await expect(region).toHaveAttribute("aria-busy", "false")
   const posted = response.request()
+  const postedBody = posted.postDataBuffer()
+  assert.ok(postedBody, "preview request must contain a multipart body")
+  const body = new Uint8Array(postedBody).buffer
   const request = new Request(posted.url(), {
     method: "POST",
     headers: posted.headers(),
-    body: posted.postDataBuffer()
+    body
   })
   const form = await request.formData()
   const payload = form.get("payload")
-  assert.equal(typeof payload, "string", "preview form payload required")
+  assert.ok(typeof payload === "string", "preview form payload required")
   return { region, submitted: JSON.parse(payload) }
 }
 
@@ -151,6 +166,8 @@ async function fillFormattedSource(page, marker) {
   const unformatted = `+ ${marker}\n${marker}`
   await input.fill(unformatted)
   await input.evaluate((element, length) => {
+    if (!(element instanceof HTMLTextAreaElement))
+      throw new Error("editor source must be a textarea")
     element.focus()
     element.setSelectionRange(element.value.length - length, element.value.length)
   }, marker.length)
@@ -161,11 +178,15 @@ async function fillFormattedSource(page, marker) {
   const formatted = `+ ${marker}\n**${marker}**`
   await expect(input).toHaveValue(formatted)
   assert.deepEqual(
-    await input.evaluate((element) => ({
-      focused: document.activeElement === element,
-      start: element.selectionStart,
-      end: element.selectionEnd
-    })),
+    await input.evaluate((element) => {
+      if (!(element instanceof HTMLTextAreaElement))
+        throw new Error("editor source must be a textarea")
+      return {
+        focused: document.activeElement === element,
+        start: element.selectionStart,
+        end: element.selectionEnd
+      }
+    }),
     { focused: true, start: formatted.length, end: formatted.length }
   )
 }
@@ -179,6 +200,7 @@ async function fillFormattedSource(page, marker) {
 async function previewExisting(page, request, fixture, token) {
   const before = await readPage(request, fixture, fixture.existingSlug, token)
   assert.equal(before?.type, "found", "created local-create-proof fixture required")
+  if (before.type !== "found") assert.fail("created local-create-proof fixture required")
   assert.ok(!before.data.wikitext.includes(fixture.rawMarker), "marker must be new")
   await openEditor(page, fixture.existingSlug)
   const title = `Preview ${fixture.rawMarker}`
@@ -228,6 +250,7 @@ async function previewMissing(page, request, fixture, token) {
 async function previewForm(page, request, fixture, token) {
   const before = await readPage(request, fixture, fixture.formSlug, token)
   assert.equal(before?.type, "found", "prepared data form must exist")
+  if (before.type !== "found") assert.fail("prepared data form must exist")
   assert.ok(before.data.form, "form fixture required")
   const field = before.data.form.schema.fields.find(
     (candidate) => candidate.name === fixture.formFieldName

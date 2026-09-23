@@ -22,6 +22,14 @@ const digest = (value) => createHash("sha256").update(JSON.stringify(value)).dig
  * }} Field
  *
  *
+ * @typedef {import("../../src/lib/form-editor").PageForm} PageForm
+ *
+ * @typedef {Extract<
+ *   import("../../src/lib/server/deepwell/views").PageView,
+ *   { type: "found" }
+ * >["data"] & { form: PageForm }} FormPage
+ *
+ *
  * @typedef {{
  *   sacrificial: true
  *   siteSlug: "cobalt-company"
@@ -58,9 +66,14 @@ async function readPage(request, fixture, sessionToken) {
   assert.equal(response.status(), 200, "local backend page_view must respond")
   const payload = await response.json()
   assert.ok(!payload.error, `page_view failed (code ${payload.error?.code ?? "?"})`)
-  assert.equal(payload.result?.type, "found", "dedicated fixture page must exist")
-  assert.ok(payload.result.data.form, "dedicated fixture must be a data form")
-  return payload.result.data
+  /** @type {import("../../src/lib/server/deepwell/views").PageView} */
+  const view = payload.result
+  assert.equal(view?.type, "found", "dedicated fixture page must exist")
+  if (view.type !== "found") assert.fail("dedicated fixture page must exist")
+  assert.ok(view.data.form, "dedicated fixture must be a data form")
+  /** @type {FormPage} */
+  const formPage = { ...view.data, form: view.data.form }
+  return formPage
 }
 
 /**
@@ -95,7 +108,7 @@ async function assertControls(page, fixture, version) {
   const editor = page.locator("#editor")
   await expect(editor).toBeVisible()
   await expect(editor.locator(".editor-wikitext")).toHaveCount(0)
-  for (const kind of ["text", "wiki"]) {
+  for (const kind of /** @type {const} */ (["text", "wiki"])) {
     const field = fixture.fields[kind]
     await expect(editor.getByLabel(field.label, { exact: true })).toHaveValue(
       String(field[version])

@@ -33,7 +33,10 @@ async function readFixture(path) {
   return fixture
 }
 
-/** @param {import("@playwright/test").APIResponse} response */
+/**
+ * @param {import("@playwright/test").APIResponse
+ *   | import("@playwright/test").Response} response
+ */
 function assertNoindex(response) {
   assert.match(
     response.headers()["x-robots-tag"] ?? "",
@@ -46,7 +49,11 @@ function assertNoindex(response) {
 async function readResultSlugs(page) {
   const links = page.locator("#main-content ul > li h2 a")
   return links.evaluateAll((elements) =>
-    elements.map((element) => new URL(element.href).pathname)
+    elements.map((element) => {
+      if (!(element instanceof HTMLAnchorElement))
+        throw new Error("search result must be a link")
+      return new URL(element.href).pathname
+    })
   )
 }
 
