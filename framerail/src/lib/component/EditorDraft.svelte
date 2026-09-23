@@ -20,11 +20,11 @@
   let message = $state("")
   let errorMessage = $state("")
   let pendingCancel: (() => void) | null = null
-  let prompt = $state<HTMLElement>()
+  let prompt = $state<HTMLDialogElement>()
 
   async function focusPrompt() {
     await tick()
-    prompt?.focus()
+    prompt?.showModal()
   }
 
   async function sendAction(
@@ -151,20 +151,24 @@
 {#if message}<p role="status">{message}</p>{/if}
 {#if errorMessage}<p role="alert">{errorMessage}</p>{/if}
 {#if choice === "restore" && draft}
-  <section aria-label="Saved draft" tabindex="-1" bind:this={prompt}>
+  <dialog aria-label="Saved draft" bind:this={prompt} oncancel={() => (choice = null)}>
     <p>A saved draft exists. Choose which version to edit.</p>
     <button type="button" disabled={pending} onclick={() => (choice = null)}>
       Edit Original
     </button>
     <button type="button" disabled={pending} onclick={restoreDraft}>Edit Draft</button>
-  </section>
+  </dialog>
 {:else if choice === "cancel"}
-  <section aria-label="Keep saved draft" tabindex="-1" bind:this={prompt}>
+  <dialog
+    aria-label="Keep saved draft"
+    bind:this={prompt}
+    oncancel={() => (choice = null)}
+  >
     <p>Delete saved draft or leave it for later?</p>
     <button type="button" disabled={pending} onclick={deleteDraft}>Delete Draft</button>
     <button type="button" disabled={pending} onclick={leaveDraft}>Leave Draft</button>
     <button type="button" disabled={pending} onclick={() => (choice = null)}>
       Continue Editing
     </button>
-  </section>
+  </dialog>
 {/if}

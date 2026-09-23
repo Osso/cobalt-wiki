@@ -59,7 +59,15 @@ impl PageService {
                 ErrorType::PermissionDenied,
             ));
         }
-        Self::import(ctx, input).await
+        let site_id = input.site_id;
+        let output = Self::import(ctx, input).await?;
+        crate::services::page_draft::PageDraftService::delete_for_target(
+            ctx.transaction(),
+            site_id,
+            &output.slug,
+        )
+        .await?;
+        Ok(output)
     }
 
     pub async fn can_create(
@@ -347,6 +355,11 @@ impl PageService {
         )
         .await
         .or_raise(make_error)?;
+
+        crate::services::page_draft::PageDraftService::delete_for_target(
+            txn, site_id, &slug,
+        )
+        .await?;
 
         // Build and return
         Ok(revision_output)
