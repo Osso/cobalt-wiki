@@ -77,10 +77,12 @@ def _revision(row):
     if versions and _optional_identity(versions, "version ID") != revision_id:
         raise PageHistoryError("version ID differs from revision row")
     user_container = [node for node in _walk(cells[4]) if _class(node, "printuser")]
-    user_ids = _handler_ids(
-        list(_walk(_one(user_container, "author container"))), "userInfo"
-    )
-    author_id = _optional_identity(user_ids, "author ID")
+    if len(user_container) > 1:
+        raise PageHistoryError("ambiguous author container")
+    author_id = None
+    if user_container:
+        user_ids = _handler_ids(list(_walk(user_container[0])), "userInfo")
+        author_id = _optional_identity(user_ids, "author ID")
     timestamps = [node for node in _walk(cells[5]) if _class(node, "odate")]
     if len(timestamps) > 1:
         raise PageHistoryError("ambiguous revision date")

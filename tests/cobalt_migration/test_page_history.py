@@ -90,6 +90,14 @@ class PageHistoryTest(unittest.TestCase):
             ],
         )
 
+    def test_absent_author_and_date_are_recorded_as_unknown(self):
+        html = history(
+            [revision(0, 100).replace('<span class="printuser">Unknown</span>', "")]
+        )
+        record = parse_history_list(html)["revisions"][0]
+        self.assertIsNone(record["author_id"])
+        self.assertIsNone(record["created_at"])
+
     def test_native_td_header_is_not_a_revision(self):
         html = history([revision(0, 100)])
         html = html.replace(
