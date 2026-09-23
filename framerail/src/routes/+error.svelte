@@ -8,6 +8,7 @@
   import { toast } from "$lib/component/scripts/toasts"
   import { superForm } from "sveltekit-superforms"
   import { untrack } from "svelte"
+  import EditorPreview from "$lib/component/EditorPreview.svelte"
 
   import type { PageData } from "./$types"
   import type { PageDeletedGet } from "$lib/server/deepwell/page"
@@ -197,6 +198,14 @@
         </div>
       {/if}
     </form>
+    <EditorPreview
+      getPayload={() => ({
+        title: $editForm.title,
+        alt_title: $editForm.altTitle || null,
+        tags: ($editForm.tags ?? "").split(/\s+/).filter(Boolean),
+        wikitext: $editForm.wikitext ?? ""
+      })}
+    />
   {:else}
     <div id="page-content">
       {@html errorData.compiled_body_html}

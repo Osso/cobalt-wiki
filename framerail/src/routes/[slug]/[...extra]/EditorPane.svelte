@@ -8,6 +8,7 @@
   import { untrack } from "svelte"
 
   import DataFormFields from "$lib/component/DataFormFields.svelte"
+  import EditorPreview from "$lib/component/EditorPreview.svelte"
   import { createDraft, changedFields } from "$lib/form-editor"
 
   import type { PageProps } from "./$types"
@@ -145,6 +146,18 @@
     </div>
   {/if}
 </form>
+
+<EditorPreview
+  getPayload={() => ({
+    title: $form.title,
+    alt_title: $form.altTitle || null,
+    tags: ($form.tags ?? "").split(/\s+/).filter(Boolean),
+    last_revision_id: data.page_revision?.revision_id,
+    ...(sourceForm
+      ? { form_updates: changedFields(sourceForm, draft) }
+      : { wikitext: $form.wikitext ?? "" })
+  })}
+/>
 
 <style lang="scss">
   .editor-actions {
