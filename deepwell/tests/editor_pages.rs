@@ -34,12 +34,17 @@ async fn import_page(
     title: &str,
     body: &str,
 ) -> i64 {
+    let slug_marker = slug
+        .bytes()
+        .map(|byte| format!("{byte:03}"))
+        .collect::<String>();
+    let wikitext = format!("{body}\n\nFixture {site_id}-{slug_marker}");
     run_endpoint!(
         runner,
         page_import,
         json!({
             "site_id": site_id, "user_id": ADMIN_USER_ID, "slug": slug,
-            "title": title, "wikitext": body, "alt_title": null,
+            "title": title, "wikitext": wikitext, "alt_title": null,
             "layout": "wikidot", "revision_comments": "Fixture", "bypass_filter": true,
             "ip_address": common::IP_ADDRESS
         })
