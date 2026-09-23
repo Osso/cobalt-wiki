@@ -19,7 +19,7 @@ export async function editorPagesAction({ request, locals }: RequestEvent) {
 
 export async function editorAttachmentsAction({ locals }: RequestEvent) {
   try {
-    const files = await client.request<{ name: string }[]>(
+    const files: { name: string }[] = await client.request(
       "editor_attachments",
       {},
       getRequestContext(locals)
