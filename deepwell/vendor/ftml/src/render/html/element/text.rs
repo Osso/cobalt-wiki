@@ -24,6 +24,8 @@ pub fn render_wikitext_raw(ctx: &mut HtmlContext, text: &str) {
     debug!("Escaping raw string '{text}'");
 
     match ctx.layout() {
+        // Wikidot emits nothing for an empty raw span such as `@@@@`.
+        Layout::Wikidot if text.is_empty() => {}
         Layout::Wikidot => {
             ctx.html()
                 .span()

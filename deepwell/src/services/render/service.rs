@@ -177,14 +177,20 @@ impl RenderService {
         // outside the timeout guards.
 
         let (tokens, included_pages) = timeout(config.preprocess_timeout, async {
-            let (expanded, included_pages) = super::includes::expand_includes(
-                ctx,
-                std::mem::take(&mut wikitext),
-                &page_info.site,
-                settings,
-            )
-            .await?;
-            wikitext = expanded;
+            let mut source = std::mem::take(&mut wikitext);
+            if page_id.is_some() {
+                source =
+                    super::live_template::apply_live_template(ctx, source, page_info)
+                        .await?;
+            }
+            let source = super::show_to::strip_show_to_regions(source);
+            let (expanded, included_pages) =
+                super::includes::expand_includes(ctx, source, &page_info.site, settings)
+                    .await?;
+            wikitext =
+                super::list_pages::expand_list_pages(ctx, expanded, page_info).await?;
+            wikitext =
+                super::wikidot_comments::strip_comments(std::mem::take(&mut wikitext));
             ftml::preprocess(&mut wikitext);
             Ok::<_, ExnError>((ftml::tokenize(&wikitext), included_pages))
         })

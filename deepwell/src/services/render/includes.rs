@@ -171,26 +171,11 @@ async fn fetch_include_sources(
     Ok(())
 }
 
-async fn fetch_shared_source(
+pub(super) async fn fetch_shared_source(
     ctx: &ServiceContext<'_>,
     page: &page::Model,
 ) -> Result<Option<String>> {
-    // Compiled HTML is shared: never materialize a privileged viewer's private source.
-    let can_view = PermissionService::check_user_can(
-        ctx,
-        &CheckPermissionContext {
-            user_id: None,
-            site_id: page.site_id,
-            page_reference: Some(Reference::Id(page.page_id)),
-        },
-        Permission {
-            resource_type: Resource::Page,
-            resource_category: Some(Reference::Id(page.page_category_id)),
-            action: Action::View,
-        },
-    )
-    .await?;
-    if !can_view {
+    if !can_view_shared(ctx, page.site_id, page.page_id, page.page_category_id).await? {
         return Ok(None);
     }
     let revision =
@@ -198,4 +183,46 @@ async fn fetch_shared_source(
     TextService::get(ctx, &revision.wikitext_hash)
         .await
         .map(Some)
+}
+
+/// Latest source of a same-site page that anonymous readers may view.
+pub(super) async fn fetch_shared_source_by_slug(
+    ctx: &ServiceContext<'_>,
+    site_id: i64,
+    slug: &str,
+) -> Result<Option<String>> {
+    let page = Page::find()
+        .filter(page::Column::SiteId.eq(site_id))
+        .filter(page::Column::Slug.eq(slug))
+        .filter(page::Column::DeletedAt.is_null())
+        .one(ctx.transaction())
+        .await
+        .or_raise(|| Error::new("failed to fetch shared page", ErrorType::Render))?;
+    match page {
+        Some(page) => fetch_shared_source(ctx, &page).await,
+        None => Ok(None),
+    }
+}
+
+/// Compiled HTML is shared: never materialize content a privileged viewer alone may read.
+pub(super) async fn can_view_shared(
+    ctx: &ServiceContext<'_>,
+    site_id: i64,
+    page_id: i64,
+    category_id: i64,
+) -> Result<bool> {
+    PermissionService::check_user_can(
+        ctx,
+        &CheckPermissionContext {
+            user_id: None,
+            site_id,
+            page_reference: Some(Reference::Id(page_id)),
+        },
+        Permission {
+            resource_type: Resource::Page,
+            resource_category: Some(Reference::Id(category_id)),
+            action: Action::View,
+        },
+    )
+    .await
 }

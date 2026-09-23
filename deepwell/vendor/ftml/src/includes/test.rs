@@ -101,6 +101,14 @@ fn empty_final_argument_substitutes_empty_and_keeps_first_value() {
 }
 
 #[test]
+fn argument_values_exclude_whitespace_before_the_next_separator() {
+    let input = "[[include card\n| leading=Left \n| empty= \t\n| trailing=Right\n]]";
+    let settings = WikitextSettings::from_mode(WikitextMode::Page, Layout::Wikidot);
+    let (output, _) = include(input, &settings, CardIncluder, || panic!()).unwrap();
+    assert_eq!(output, "Left||Right");
+}
+
+#[test]
 fn scans_directive_ranges_references_and_arguments() {
     let input =
         "Before\n[[include component:card | label=Hello]]\n[[include :other:theme:test]]";

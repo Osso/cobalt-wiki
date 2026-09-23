@@ -8,6 +8,7 @@ Expand archived Wikidot includes before FTML rendering without rewriting stored 
 - [x] Apply expansion to page body and both navigation regions.
 - [x] Never insert missing, deleted, foreign-site, or anonymously unreadable target content into shared compiled HTML.
 - [x] Record only resolved same-site included-page dependencies; unavailable and foreign directives create none.
+- [x] Omit `:snippets:suo` `type=showto` regions (with their markers) from shared output; an unterminated region hides the rest of the source. Showing them to the listed users needs viewer-aware rendering.
 - [ ] Invalidate compiled output after included-page or permission changes.
 - [x] Terminate cyclic expansion with an explicit error without replacing the stored compiled revision.
 - [x] Accept terminal output at depth 16; reject an additional nesting level without replacing the stored compiled revision.
