@@ -180,7 +180,17 @@ async fn existing_index_configuration_is_repeatable() {
     service.ensure_index().await.unwrap();
     let requests = requests.lock().unwrap();
     assert!(requests[0].starts_with("GET /indexes/pages HTTP/1.1"));
-    assert!(requests[1].contains("filterable-attributes"));
+    assert!(requests[1].starts_with("PATCH /indexes/pages/settings HTTP/1.1"));
+    let settings: serde_json::Value =
+        serde_json::from_str(requests[1].split_once("\r\n\r\n").unwrap().1).unwrap();
+    assert_eq!(
+        settings["filterableAttributes"],
+        serde_json::json!(["site_id"])
+    );
+    assert_eq!(
+        settings["searchableAttributes"],
+        serde_json::json!(["title", "slug", "tags", "body"])
+    );
 }
 
 #[test]

@@ -164,9 +164,12 @@ impl SearchService {
         }
         let task: TaskCreated = self
             .request(
-                Method::PUT,
-                &format!("/indexes/{INDEX}/settings/filterable-attributes"),
-                Some(serde_json::json!(["site_id"])),
+                Method::PATCH,
+                &format!("/indexes/{INDEX}/settings"),
+                Some(serde_json::json!({
+                    "filterableAttributes": ["site_id"],
+                    "searchableAttributes": ["title", "slug", "tags", "body"],
+                })),
             )
             .await?;
         self.wait_task(task.task_uid).await
