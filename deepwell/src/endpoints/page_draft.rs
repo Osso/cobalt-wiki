@@ -15,12 +15,12 @@ use serde::{Deserialize, Serialize};
 use wikidot_forms::Mapping;
 use wikidot_normalize::normalize;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct PageDraftOutput {
     pub draft: Option<DraftContent>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct DraftContent {
     pub title: String,
     pub wikitext: String,

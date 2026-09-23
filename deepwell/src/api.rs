@@ -353,6 +353,9 @@ async fn build_module(app_state: ServerState) -> Result<RpcModule<ServerState>> 
     register!("page_create", page_create);
     register!("page_create_permission", page_create_permission);
     register!("page_preview", page_preview);
+    register!("page_draft_get", page_draft_get);
+    register!("page_draft_save", page_draft_save);
+    register!("page_draft_delete", page_draft_delete);
     register!("page_search", page_search);
     register!("page_import", page_import);
     register!("page_get", page_get);

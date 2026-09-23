@@ -9,6 +9,8 @@
   import { superForm } from "sveltekit-superforms"
   import { untrack } from "svelte"
   import EditorPreview from "$lib/component/EditorPreview.svelte"
+  import EditorDraft from "$lib/component/EditorDraft.svelte"
+  import type { PageDraft } from "$lib/server/deepwell/page-draft"
   import WikitextToolbar from "$lib/component/WikitextToolbar.svelte"
 
   import type { PageData } from "./$types"
@@ -19,10 +21,20 @@
   )
 
   let sourceTextarea = $state<HTMLTextAreaElement>()
+  let draftControls = $state<{ cancel: (proceed: () => void) => void }>()
   let showRestoreAction = $state<boolean>(false)
   let deletedPages = $state<PageDeletedGet[]>([])
 
   function cancelCreate() {
+    draftControls?.cancel(leaveCreate)
+  }
+
+  function restoreDraft(saved: PageDraft) {
+    $editForm.title = saved.title
+    $editForm.wikitext = saved.wikitext
+  }
+
+  function leaveCreate() {
     goto(resolve(`/${page.params.slug}`, {}), {
       noScroll: true
     })
@@ -211,6 +223,15 @@
         tags: ($editForm.tags ?? "").split(/\s+/).filter(Boolean),
         wikitext: $editForm.wikitext ?? ""
       })}
+    />
+    <EditorDraft
+      bind:this={draftControls}
+      getPayload={() => ({
+        title: $editForm.title ?? "",
+        wikitext: $editForm.wikitext ?? ""
+      })}
+      onRestore={restoreDraft}
+      loadOnMount
     />
   {:else}
     <div id="page-content">

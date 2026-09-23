@@ -119,9 +119,13 @@
 
   function restoreDraft() {
     if (draft === null) return
-    onRestore(draft)
-    choice = null
-    message = "Draft restored"
+    try {
+      onRestore(draft)
+      choice = null
+      message = "Draft restored"
+    } catch {
+      errorMessage = "Unable to restore draft in this editor"
+    }
   }
 
   function leaveDraft() {
@@ -136,7 +140,12 @@
   })
 </script>
 
-<button type="button" disabled={pending || choice === "restore"} onclick={saveDraft}>
+<button
+  id="edit-save-draft-button"
+  type="button"
+  disabled={pending || choice === "restore"}
+  onclick={saveDraft}
+>
   {pending ? "Working…" : "Save Draft"}
 </button>
 {#if message}<p role="status">{message}</p>{/if}

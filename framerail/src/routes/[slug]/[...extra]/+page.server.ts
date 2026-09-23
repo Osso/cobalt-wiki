@@ -30,6 +30,11 @@ import {
   pageVoteGetAction
 } from "$lib/server/load/page"
 import { pagePreviewAction } from "$lib/server/load/page-preview"
+import {
+  pageDraftGetAction,
+  pageDraftSaveAction,
+  pageDraftDeleteAction
+} from "$lib/server/load/page-draft"
 
 export async function load({ params, request, cookies, parent, locals }) {
   const page = await loadPage(params.slug, params.extra, request, cookies, parent)
@@ -43,6 +48,9 @@ export const actions = {
   delete: pageDeleteAction,
   edit: pageEditAction,
   preview: pagePreviewAction,
+  draftGet: pageDraftGetAction,
+  draftSave: pageDraftSaveAction,
+  draftDelete: pageDraftDeleteAction,
   editPermission: pageEditPermissionAction,
   fileList: pageFileListAction,
   fileUpload: pageFileUploadAction,

@@ -9,8 +9,11 @@
 
   import DataFormFields from "$lib/component/DataFormFields.svelte"
   import EditorPreview from "$lib/component/EditorPreview.svelte"
+  import EditorDraft from "$lib/component/EditorDraft.svelte"
+  import type { PageDraft, PageDraftRequest } from "$lib/server/deepwell/page-draft"
   import WikitextToolbar from "$lib/component/WikitextToolbar.svelte"
-  import { createDraft, changedFields } from "$lib/form-editor"
+  import { createDraft, changedFields, mergeDraftSource } from "$lib/form-editor"
+  import type { PageForm } from "$lib/form-editor"
 
   import type { PageProps } from "./$types"
 
@@ -19,6 +22,49 @@
   const sourceForm = untrack(() => data.form)
   let draft = $state(sourceForm ? createDraft(sourceForm) : {})
   let sourceTextarea = $state<HTMLTextAreaElement>()
+  let draftControls = $state<{ cancel: (proceed: () => void) => void }>()
+  let restoredForm = $state<{ source: string; form: PageForm }>()
+
+  function editorContent() {
+    if (!sourceForm) return { wikitext: $form.wikitext ?? "", formUpdates: undefined }
+    if (restoredForm) {
+      return {
+        wikitext: mergeDraftSource(
+          restoredForm.source,
+          restoredForm.form.values,
+          changedFields(restoredForm.form, draft)
+        ),
+        formUpdates: undefined
+      }
+    }
+    return { wikitext: undefined, formUpdates: changedFields(sourceForm, draft) }
+  }
+
+  function draftPayload(): PageDraftRequest {
+    const content = editorContent()
+    const metadata = {
+      title: $form.title ?? "",
+      last_revision_id: data.page_revision?.revision_id
+    }
+    return content.wikitext === undefined
+      ? { ...metadata, form_updates: content.formUpdates }
+      : { ...metadata, wikitext: content.wikitext }
+  }
+
+  function restoreDraft(saved: PageDraft) {
+    if (sourceForm) {
+      if (!saved.form_values) throw new Error("Saved draft has no form values")
+      const form = { ...sourceForm, values: saved.form_values }
+      restoredForm = { source: saved.wikitext, form }
+      draft = createDraft(form)
+    }
+    $form.title = saved.title
+    $form.wikitext = saved.wikitext
+  }
+
+  function requestCancel() {
+    draftControls?.cancel(cancelEdit)
+  }
 
   function cancelEdit() {
     const options: string[] = Object.entries({
@@ -40,8 +86,7 @@
       onSubmit: async ({ jsonData }) => {
         const submitForm = {
           ...$form,
-          wikitext: sourceForm ? undefined : $form.wikitext,
-          formUpdates: sourceForm ? changedFields(sourceForm, draft) : undefined,
+          ...editorContent(),
           siteId: data.site.site_id,
           pageId: data.page?.page_id,
           lastRevisionId: data.page_revision?.revision_id
@@ -126,7 +171,7 @@
       <input
         name="cancel"
         class="btn btn-danger"
-        onclick={cancelEdit}
+        onclick={requestCancel}
         type="button"
         value={data.internationalization?.cancel}
       />
@@ -141,7 +186,7 @@
     <div class="action-row editor-actions">
       <button
         class="action-button editor-button button-cancel clickable"
-        onclick={cancelEdit}
+        onclick={requestCancel}
         type="button"
       >
         {data.internationalization?.cancel}
@@ -155,14 +200,16 @@
 
 <EditorPreview
   getPayload={() => ({
-    title: $form.title,
+    ...draftPayload(),
     alt_title: $form.altTitle || null,
-    tags: ($form.tags ?? "").split(/\s+/).filter(Boolean),
-    last_revision_id: data.page_revision?.revision_id,
-    ...(sourceForm
-      ? { form_updates: changedFields(sourceForm, draft) }
-      : { wikitext: $form.wikitext ?? "" })
+    tags: ($form.tags ?? "").split(/\s+/).filter(Boolean)
   })}
+/>
+<EditorDraft
+  bind:this={draftControls}
+  getPayload={draftPayload}
+  onRestore={restoreDraft}
+  loadOnMount
 />
 
 <style lang="scss">
