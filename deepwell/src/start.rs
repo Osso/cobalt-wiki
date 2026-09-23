@@ -25,6 +25,7 @@ use crate::watch::setup_autorestart;
 
 use crate::config::SetupConfig;
 use crate::error::prelude::*;
+use crate::services::search::{SearchService, worker as search_worker};
 use crate::{api, database};
 use cfg_if::cfg_if;
 use std::fs::File;
@@ -91,11 +92,30 @@ pub async fn start() -> Result<()> {
         database::seed(&app_state).await.or_raise(make_error)?;
     }
 
-    // Build and run server
+    let search = if std::env::var_os("MEILISEARCH_URL").is_some()
+        || std::env::var_os("MEILISEARCH_MASTER_KEY").is_some()
+    {
+        Some(SearchService::from_env().or_raise(make_error)?)
+    } else {
+        None
+    };
+
+    // Build and run server; indexing failures must not leave a silently dead worker.
     info!("Building server...");
-    let server = api::build_server(app_state).await.or_raise(make_error)?;
+    let server = api::build_server(app_state.clone())
+        .await
+        .or_raise(make_error)?;
 
     info!("Listening to connections on {address}...");
-    server.stopped().await; // block until end
+    if let Some(search) = search {
+        tokio::select! {
+            _ = server.stopped() => (),
+            result = search_worker::run(&app_state.database, &search) => {
+                result.or_raise(make_error)?;
+            }
+        }
+    } else {
+        server.stopped().await;
+    }
     Ok(())
 }
