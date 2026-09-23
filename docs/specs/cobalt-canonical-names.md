@@ -25,7 +25,7 @@ The replica must preserve existing Wikidot names rather than flattening their co
 
 ## Known gaps (current cycle)
 
-- [ ] Native tests, full canonical-name corpus proof and deployment of the naming code (existing-data reconciliation is done).
+- [ ] Full canonical-name corpus proof. The naming code (`f5fbf4c`) is deployed with the rendering branch and existing data is reconciled.
 - [ ] Category ACL/creator metadata remains separate; source observations must not be treated as a complete permission export.
 
 ## Out of scope
