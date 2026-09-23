@@ -42,7 +42,8 @@ fn parse_fn<'r, 't>(
     assert!(!flag_score, "Image doesn't allow score flag");
     assert_block_name(&BLOCK_IMAGE, name);
 
-    let (source, mut arguments) = parser.get_head_name_map(&BLOCK_IMAGE, in_head)?;
+    let (source, mut arguments) =
+        parser.get_head_name_lenient_map(&BLOCK_IMAGE, in_head)?;
     let link = arguments.get("link").map(LinkLocation::parse);
     let alignment = FloatAlignment::parse(name);
 
@@ -61,4 +62,51 @@ fn parse_fn<'r, 't>(
     };
 
     ok!(element)
+}
+
+#[cfg(test)]
+mod test {
+    use crate::data::PageInfo;
+    use crate::layout::Layout;
+    use crate::settings::{WikitextMode, WikitextSettings};
+    use crate::tree::{Element, FileSource};
+
+    fn first_image(text: &str) -> Element<'static> {
+        let settings = WikitextSettings::from_mode(WikitextMode::Page, Layout::Wikidot);
+        let tokens = crate::tokenize(text);
+        let page_info = PageInfo::dummy();
+        let (tree, _) = crate::parse(&tokens, &page_info, &settings).into();
+        let paragraph = match &tree.elements[0] {
+            Element::Container(container) => container.elements().to_vec(),
+            other => panic!("expected paragraph, got {other:?}"),
+        };
+        paragraph
+            .into_iter()
+            .find(|element| matches!(element, Element::Image { .. }))
+            .expect("image element")
+            .to_owned()
+    }
+
+    #[test]
+    fn empty_source_takes_the_first_word_and_skips_unreadable_arguments_like_wikidot() {
+        // An empty template variable leaves the style attribute first.
+        let image = first_image(
+            "[[image  style=\"margin: 0; border: 0;\" width=\"100%\" alt=\"\"]]",
+        );
+        let Element::Image {
+            source, attributes, ..
+        } = image
+        else {
+            unreachable!();
+        };
+        assert_eq!(
+            source,
+            FileSource::File1 {
+                file: "style=\"margin:".into()
+            }
+        );
+        let attributes = attributes.get();
+        assert_eq!(attributes.get("width").map(AsRef::as_ref), Some("100%"));
+        assert_eq!(attributes.get("alt").map(AsRef::as_ref), Some(""));
+    }
 }

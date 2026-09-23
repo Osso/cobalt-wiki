@@ -29,10 +29,15 @@ use crate::parsing::{
 };
 use crate::tree::Element;
 use regex::Regex;
+use std::borrow::Cow;
 use std::sync::LazyLock;
 
 static ARGUMENT_KEY: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"[A-Za-z0-9_\-]+").unwrap());
+
+/// Wikidot reads only `key="value"` pairs from a lenient block head.
+static LENIENT_ARGUMENT: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"([A-Za-z0-9_\-]+)\s*=\s*"([^"]*)""#).unwrap());
 
 impl<'r, 't> Parser<'r, 't>
 where
@@ -366,6 +371,43 @@ where
         // Get arguments and end of block
         let arguments = self.get_head_map(block_rule, in_head)?;
 
+        Ok((subname, arguments))
+    }
+
+    /// Like `get_head_name_map()`, but as Wikidot does for images: text that is not a
+    /// `key="value"` pair is skipped instead of rejecting the whole block.
+    pub fn get_head_name_lenient_map(
+        &mut self,
+        block_rule: &BlockRule,
+        in_head: bool,
+    ) -> Result<(&'t str, Arguments<'t>), ParseError> {
+        if !in_head {
+            warn!("Block is already over, there is no name or arguments");
+            return Err(self.make_err(ParseErrorKind::BlockMissingName));
+        }
+
+        let (subname, in_head) =
+            self.get_block_name_internal(ParseErrorKind::ModuleMissingName)?;
+        let mut arguments = Arguments::new();
+        if in_head {
+            let head = collect_text(
+                self,
+                self.rule(),
+                &[ParseCondition::current(Token::RightBlock)],
+                &[
+                    ParseCondition::current(Token::ParagraphBreak),
+                    ParseCondition::current(Token::LineBreak),
+                ],
+                Some(ParseErrorKind::BlockMalformedArguments),
+            )?;
+            for captures in LENIENT_ARGUMENT.captures_iter(head) {
+                let (_, [key, value]) = captures.extract();
+                arguments.insert(key, Cow::Borrowed(value));
+            }
+        }
+
+        // Collection always ends the head, like get_head_value().
+        self.get_head_block(block_rule, false)?;
         Ok((subname, arguments))
     }
 
