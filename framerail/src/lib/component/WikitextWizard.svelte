@@ -45,10 +45,11 @@
   let inserting = $state(false)
   const equations = $derived(extractEquations(source))
   const selectedEquation = $derived(
-    equations.find((equation) => equation.label === (label || equations[0]?.label))
+    equations.find((equation) => equation.label === label)
   )
 
   onMount(() => {
+    if (kind === "eref") label = equations[0]?.label ?? ""
     dialog.showModal()
     dialog.querySelector<HTMLElement>("input, select")?.focus()
   })
