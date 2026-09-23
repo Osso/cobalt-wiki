@@ -108,6 +108,7 @@ test("image check helper opens and closes a real isolated browser popup", async 
       headless: true
     })
     context = await browser.newContext()
+    await context.tracing.start({ screenshots: true, snapshots: true })
     /** @type {string[]} */
     const denied = []
     await context.route("**/*", async (route) => {
@@ -177,6 +178,9 @@ test("image check helper opens and closes a real isolated browser popup", async 
     assert.deepEqual(denied, [], "browser must make only loopback GET requests")
   } finally {
     try {
+      await context?.tracing.stop({
+        path: "/tmp/claude/cobalt-isolated-image-check-trace.zip"
+      })
       await context?.close()
     } finally {
       try {
