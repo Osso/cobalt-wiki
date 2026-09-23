@@ -1,6 +1,6 @@
 # Cobalt history import
 
-Cobalt history import must backfill authorized source revision history without presenting the latest-source migration as complete history. The current migration has 6,092 pages and 1,471 files, but the historical revision count and records have not been acquired. See the [current POC import contract](cobalt-poc-import.md), the [native revision import endpoint](../../deepwell/src/endpoints/import.rs), the [native import service](../../deepwell/src/services/import/service.rs), and the [stock WikiComma importer entry point](../../deepwell/importer/__main__.py).
+Cobalt history import must backfill authorized source revision history without presenting the latest-source migration as complete history. The current migration has 6,092 pages and 1,471 files, but the historical revision count and bodies have not been acquired. See the [current POC import contract](cobalt-poc-import.md), the [native revision import endpoint](../../deepwell/src/endpoints/import.rs), the [native import service](../../deepwell/src/services/import/service.rs), and the [stock WikiComma importer entry point](../../deepwell/importer/__main__.py).
 
 ## What it must do
 
@@ -22,8 +22,10 @@ Cobalt history import must backfill authorized source revision history without p
 
 ### Proof and operational safety
 
-- [ ] Complete a local authorized multi-revision-page pilot before any production history work.
-- [ ] Prove the pilot's final revision body matches the authorized source body by hash.
+- [x] Acquire one page's revision-list metadata and sample historical bodies through the authenticated read-only source UI.
+- [ ] Complete a reversible local multi-revision backfill pilot before any production history write.
+- [ ] Prove imported final-body equality by an unambiguous source hash; DOM-decoded body hashes alone are insufficient.
+- [ ] Determine whether the HTML source-module representation is invertible; one current-body normalization matched after newline/NBSP conversion, while sampled historical DOM-decoded bytes differ from archive bytes.
 - [ ] Prevent historical bulk work from causing an outdate or rerender flood; validate queue impact before production work.
 - [ ] Require review before selecting an implementation, identifier-rekeying policy, deletion policy, or replacement/backfill policy.
 
@@ -47,13 +49,14 @@ Cobalt history import must backfill authorized source revision history without p
 
 ## Tests asserting this spec
 
-None. No authorized source history, revision count, pilot fixture, or backing history-import test has been acquired.
+No importer/backfill tests yet. Read-only one-page pilot artifacts are protected outside git at `/home/osso/.local/share/cobalt-wiki/source/history-pilot/`; they do not establish complete history or import behavior.
 
 ## Known gaps (current cycle)
 
-- [ ] Acquire authorized source revision records and determine the historical revision count.
+- [x] Verify revision-list pagination and historical-source module contract for one page (40 rows across two list pages, revisions 239–200).
+- [ ] Acquire every required page's authorized revisions and establish complete counts/pagination.
 - [ ] Review a backfill design for pages whose technical import already occupies revision 0; straight append of source revision 0 conflicts with the native sequential requirement.
-- [ ] Build and prove one local multi-revision history pilot, including final-body hash equality and bounded queue impact.
+- [ ] Build and prove a reversible local multi-revision backfill pilot, including unambiguous body equality and bounded queue impact.
 - [ ] Establish source-backed creator and ACL dependencies before claiming permission parity.
 
 ## Out of scope
