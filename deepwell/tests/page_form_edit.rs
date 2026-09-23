@@ -31,11 +31,17 @@ async fn setup() -> (TestRunner, i64) {
 }
 
 async fn create_page(
-    runner: &TestRunner,
+    runner: &mut TestRunner,
     site_id: i64,
     slug: &str,
     source: &str,
 ) -> CreatePageOutput {
+    runner.set_request_context(RequestContext {
+        user_id: Some(ADMIN_USER_ID),
+        site_id: Some(site_id),
+        page_reference: Some(Reference::Slug(slug.to_owned().into())),
+        ..Default::default()
+    });
     run_endpoint!(
         runner,
         page_create,
@@ -73,9 +79,9 @@ async fn read_page(runner: &TestRunner, site_id: i64, page_id: i64) -> GetPageOu
 
 #[tokio::test]
 async fn scalar_updates_round_trip_and_stale_edits_leave_the_newer_revision_untouched() {
-    let (runner, site_id) = setup().await;
-    create_page(&runner, site_id, "form-edit:_template", TEMPLATE).await;
-    let page = create_page(&runner, site_id, SLUG, SOURCE).await;
+    let (mut runner, site_id) = setup().await;
+    create_page(&mut runner, site_id, "form-edit:_template", TEMPLATE).await;
+    let page = create_page(&mut runner, site_id, SLUG, SOURCE).await;
     let edited = run_endpoint!(
         runner,
         page_edit,
@@ -141,8 +147,9 @@ async fn scalar_updates_round_trip_and_stale_edits_leave_the_newer_revision_unto
 #[tokio::test]
 async fn invalid_updates_conflicting_modes_and_templates_do_not_create_revisions() {
     let (mut runner, site_id) = setup().await;
-    let template = create_page(&runner, site_id, "form-edit:_template", TEMPLATE).await;
-    let page = create_page(&runner, site_id, SLUG, SOURCE).await;
+    let template =
+        create_page(&mut runner, site_id, "form-edit:_template", TEMPLATE).await;
+    let page = create_page(&mut runner, site_id, SLUG, SOURCE).await;
     for fields in [
         json!({"wikitext": "", "form_updates": {}}),
         json!({"form_updates": {"unknown": false}}),
@@ -187,8 +194,8 @@ async fn invalid_updates_conflicting_modes_and_templates_do_not_create_revisions
 async fn request_context_permission_precedes_form_validation_and_does_not_trust_body_user()
  {
     let (mut runner, site_id) = setup().await;
-    create_page(&runner, site_id, "form-edit:_template", "[[form]]").await;
-    let page = create_page(&runner, site_id, SLUG, "not: [yaml").await;
+    create_page(&mut runner, site_id, "form-edit:_template", "[[form]]").await;
+    let page = create_page(&mut runner, site_id, SLUG, "not: [yaml").await;
     runner.set_request_context(RequestContext {
         session: None,
         user_id: None,
