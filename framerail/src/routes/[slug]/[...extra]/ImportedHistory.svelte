@@ -103,8 +103,8 @@
               <td>{revision.source_revision_number}</td>
               <td>
                 <button
-                  disabled={loading}
                   aria-label={`View source revision ${revision.source_revision_number}`}
+                  disabled={loading}
                   onclick={() => viewSource(revision.source_revision_number)}
                   type="button">View source</button
                 >
