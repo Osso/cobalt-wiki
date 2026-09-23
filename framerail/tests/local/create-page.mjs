@@ -143,6 +143,7 @@ async function createViaEditor(page, fixture) {
   await page.locator(`a[href="/${fixture.slug}/edit"]`).click()
   const editor = page.locator("#editor")
   await expect(editor).toBeVisible()
+  await expect(page.locator("textarea.debug")).toHaveCount(0)
   await editor.locator('[name="title"]').fill(fixture.title)
   await editor.locator('[name="wikitext"]').fill(fixture.wikitext)
   await editor.locator('[name="tags"]').fill(fixture.tags.join(" "))

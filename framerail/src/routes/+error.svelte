@@ -115,10 +115,6 @@
   )
 </script>
 
-<h1>UNTRANSLATED:Svelte Error</h1>
-
-<p><textarea class="debug">{JSON.stringify(page, null, 2)}</textarea></p>
-
 {#if errorData.view === "missing"}
   UNTRANSLATED:Page not found
 
@@ -377,11 +373,6 @@
 {/if}
 
 <style global lang="scss">
-  .debug {
-    width: 100%;
-    height: 60vh;
-  }
-
   .editor,
   .page-restore {
     display: flex;
