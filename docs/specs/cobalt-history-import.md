@@ -11,6 +11,9 @@ Cobalt history import must store authorized source revision history without pres
 - [ ] Record unavailable or inaccessible revisions as explicit gaps; do not infer, synthesize, or silently omit them.
 - [ ] Keep source creator and ACL dependencies explicitly unknown until authorized source evidence establishes them.
 - [ ] Avoid an API-key dependency for acquisition or import.
+- [ ] Archive each authorized page's revision lists before source bodies; persist owner-only raw and parsed responses before advancing its checkpoint, then resume without refetching verified records.
+- [ ] Classify unavailable body responses and unobserved revision-number ranges as explicit gaps. Stop on unavailable or inconsistent revision-list responses; never reinterpret them as missing history.
+- [ ] Bind page and site checkpoints to the requested source origin, source page identity, protected inventory, and response hashes. Use sequential one-second request spacing and at most four retry attempts for transient failures, respecting `Retry-After`.
 
 ### Imported history integrity
 
@@ -23,11 +26,11 @@ Cobalt history import must store authorized source revision history without pres
 ### Proof and operational safety
 
 - [x] Acquire all 240 revision-list records (numbers 0–239) and all 240 historical source-module responses for one page through the authenticated read-only source UI.
-- [x] Decode all 240 captured source-module representations with explicit display-decoded provenance; the current revision decodes to the archived source hash.
+- [x] Decode all 240 captured source-module representations with explicit display-decoded provenance; revision 239 decodes to the archived source SHA-256 `eb0478369cf1cae46acb85b994c77162e3116ce7694ca7c5399ae26e46890beb`.
 - [x] Confirm that the module returns HTML-wrapped source representations rather than an independently verified byte-identical archive representation.
 - [x] Store three source records idempotently in local imported-history storage without changing the current revision, compiled output, or native revision count.
 - [x] Import the acquired 240-revision homepage pilot into local imported-history storage before any production history write. Local site `6000011` inserted 240 records; the current revision, source, and compiled output remained unchanged.
-- [ ] Resolve the current-body comparison chronology before claiming the imported pilot's current body equals the existing archived source hash. Local readback matched all 240 imported bodies and metadata, but an earlier comparison artifact records archive/decoded inequality.
+- [x] Reconcile the current-body comparison: revision 239's decoded payload and local API body are 2,473 bytes with SHA-256 `eb0478369cf1cae46acb85b994c77162e3116ce7694ca7c5399ae26e46890beb`, matching the archived current source. The older unequal comparison artifact predates decoder correction and is retained as superseded evidence.
 - [ ] Keep historical display-decoding provenance and raw responses through import. Do not promise byte-exact recovery for old bodies.
 - [ ] Prevent historical bulk work from causing an outdate or rerender flood; validate queue impact before production work.
 - [ ] Require review before any operation that changes native editable revisions, page identity, or source deletion policy.
@@ -51,7 +54,7 @@ Imported source history uses `imported_page_revision`, separate from native edit
 - [x] Enforce current-page visibility using trusted request identity; JSON `user_id` cannot override it.
 - [x] Preserve imported bodies during normal text pruning while removing an unreferenced text fixture.
 - [x] Import and replay history for a navigation-page fixture without enqueueing rerenders.
-- [ ] Independently verify the final integrated history backend and its local pilot.
+- [x] Independently verify the integrated history backend and local pilot at `9c4ff20`: six history tests and one prune test passed; the existing isolated queue test remains valid at one passing test. Format and cargo check passed.
 - [x] Run the acquired 240-revision pilot through this storage path: seven cursor pages read 240 matching bodies and metadata; idempotent replay inserted zero records. No production history was imported.
 - [ ] Expose imported source history in the history UI with the rendering owner.
 
@@ -66,6 +69,8 @@ Imported source history uses `imported_page_revision`, separate from native edit
 - `deepwell/src/services/import/service.rs`: native Wikidot revision import behavior; the endpoint expects a sequential history beginning at revision 0.
 - `tools/cobalt_migration/page_history.py`: parses revision-list metadata and gaps.
 - `tools/cobalt_migration/history_source.py`: decodes the source display with explicit non-byte-exact provenance.
+- `tools/cobalt_migration/history_export.py`: owner-only, resumable archive for one page's list and source-body module responses; lists complete before body capture.
+- `tools/cobalt_migration/history_acquire.py`: validates the protected latest-source plan and runs the page exporter sequentially, retaining explicit metadata-unresolved records.
 - `tools/cobalt_migration/poc_import.py`: remains latest-source only; no history target write exists yet.
 
 - `deepwell/src/services/import/history.rs` and `history_structs.rs`: guarded import and permission-checked reads.
@@ -75,12 +80,13 @@ Imported source history uses `imported_page_revision`, separate from native edit
 
 - `deepwell/tests/imported_history.rs`: native import/idempotence/current-page preservation and real two-page history reads.
 
-`tests/cobalt_migration/test_page_history.py` has nine independently verified parser tests. `tests/cobalt_migration/test_history_source.py` has five decoder tests; all 240 protected pilot responses decode. The current-body hash comparison remains unresolved because protected artifacts record conflicting archive/decoded results whose chronology must be reconciled. Protected artifacts under `/home/osso/.local/share/cobalt-wiki/source/history-pilot/` retain raw responses, metadata, decoded bodies, calibration, and local import/readback proofs. The local target proof inserted 240 records on site `6000011`, preserved current revision/source/compiled output, read all records across seven cursor pages with matching bodies and metadata, and replayed idempotently with zero insertions. It does not establish final integrated-backend verification, production import, UI access, site-wide acquisition, or byte-exact historical recovery.
+`tests/cobalt_migration/test_page_history.py` has nine independently verified parser tests. `tests/cobalt_migration/test_history_source.py` has five decoder tests; all 240 protected pilot responses decode. `tests/cobalt_migration/test_history_export.py` has eight synthetic tests for resumable list/body archival, protected checkpoint validation, gaps, and bounded failures. `tests/cobalt_migration/test_history_acquire.py` covers protected-plan site orchestration. These tests do not establish source-wide acquisition or live browser transport. Independent verification at `9c4ff20` passed six history tests, one prune test, the retained isolated queue test, format, and cargo check; its prior abnormal scoped run lacked `DATABASE_URL`. Protected artifacts under `/home/osso/.local/share/cobalt-wiki/source/history-pilot/` retain raw responses, metadata, decoded bodies, calibration, and local import/readback proofs. The local target proof inserted 240 records on site `6000011`, preserved current revision/source/compiled output, read all records across three cursor pages with matching bodies and metadata, and replayed idempotently with zero insertions. Revision 239's decoded payload and local API body match the archived 2,473-byte SHA-256 `eb0478369cf1cae46acb85b994c77162e3116ce7694ca7c5399ae26e46890beb`; the earlier unequal comparison is superseded by corrected-decoder evidence. This does not establish production import, UI access, site-wide acquisition, or byte-exact recovery of older historical bodies.
 
 ## Known gaps (current cycle)
 
 - [x] Verify homepage revision-list pagination and IDs: 12 pages of 20 rows cover revisions 0–239 exactly once; all 240 rows have numeric author/date fields, five source author profiles were captured, seven metadata-change diff responses were captured, and all 240 bodies were captured. This establishes only that page's listed history.
-- [ ] Acquire every required page's authorized revisions and establish complete counts/pagination. Current latest-revision positions total 45,367 across 6,090 accepted pages plus two unresolved pages; this is a position estimate, not an actual revision inventory.
+- [ ] Acquire every required page's authorized revisions and establish complete counts/pagination. The protected plan has 6,090 accepted source-page identities and two metadata-unresolved records; latest-revision positions total 45,367 across accepted pages. This is a position estimate, not an actual revision inventory.
+- [ ] Wire the pending target-pinned browser transport to `history_acquire.py` and run only authorized, checkpointed source acquisition. The CLI interface is `--plan`, `--source-origin`, `--archive-directory`, `--target-id`, and `--node-binary`; it is not yet evidence of a working live transport.
 - [ ] Resolve source-backed old title, slug, tag, and author-profile timestamp transitions.
 - [x] Import the acquired 240-revision homepage pilot through separate storage and reconcile it locally: 240 records, seven read cursor pages, matching bodies/metadata, and zero replay insertions; current revision/source/compiled output unchanged. The separate navigation-fixture test established zero rerender enqueueing, but this is not final integrated verification.
 - [ ] Review any future native editable-revision replacement separately; it is not required for imported source history.
