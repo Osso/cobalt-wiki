@@ -186,10 +186,11 @@ test("authenticated data-form edit persists typed values without dropping untouc
       .fill((await readFile(adminPasswordFile, "utf8")).trim())
     await page.locator("#login button[type=submit]").click()
     await expect(page.locator("#login")).toHaveCount(0)
-    const sessionToken = (await context.cookies()).find(
+    const sessionCookie = (await context.cookies()).find(
       (cookie) => cookie.name === "wikijump_token" && cookie.domain === "127.0.0.1"
-    )?.value
-    assert.ok(sessionToken, "login must create a real browser session")
+    )
+    assert.ok(sessionCookie, "login must create a real browser session")
+    const sessionToken = decodeURIComponent(sessionCookie.value)
 
     const initial = await readPage(context.request, fixture, sessionToken)
     assertValues(initial.form.values, fixture.initialValues, "initial")
