@@ -39,9 +39,10 @@ async function pageResponse(
                       slug: "who-we-are"
                     },
                     page_revision: { revision_number: 1 },
+                    options: { title: null },
                     redirect_page: null
                   }
-                : { redirect_page: null }
+                : { redirect_page: null, options: { title: null } }
           }
         : {}
     return new Response(JSON.stringify({ jsonrpc: "2.0", id: rpc.id, result }))
