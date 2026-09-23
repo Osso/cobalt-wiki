@@ -204,4 +204,21 @@ pub enum RerenderType {
     /// they are present for this page. Does not do any outdating.
     #[serde(rename = "nav")]
     NavigationOnly,
+
+    /// Rerender the page like `Full`, but queue no dependent pages.
+    ///
+    /// For sweeps that rerender every page anyway, where outdating would
+    /// render most pages many times over.
+    #[serde(rename = "standalone")]
+    Standalone,
+}
+
+/// Input for the `page_rerender` endpoint.
+#[derive(Deserialize, Debug, Clone)]
+pub struct RerenderPage {
+    #[serde(flatten)]
+    pub id: PageId,
+
+    #[serde(default)]
+    pub rerender_type: RerenderType,
 }

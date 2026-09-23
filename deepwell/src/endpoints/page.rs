@@ -33,11 +33,9 @@ use crate::services::page::{
     PageEditPermissionOutput, RestorePage, RestorePageOutput, RollbackPage,
     SetPageLayout,
 };
-use crate::services::page_revision::RerenderType;
+use crate::services::page_revision::RerenderPage;
 use crate::services::permission::CheckPermissionContext;
-use crate::types::{
-    Action, Bytes, FileOrder, PageDetails, PageId, Reference, RerenderDepth,
-};
+use crate::types::{Action, Bytes, FileOrder, PageDetails, Reference, RerenderDepth};
 use futures::future::try_join_all;
 
 pub async fn page_create(
@@ -303,19 +301,14 @@ pub async fn page_rerender(
     ctx: &ServiceContext<'_>,
     params: Params<'static>,
 ) -> Result<()> {
-    let input: PageId = parse!(params, Page);
+    let RerenderPage { id, rerender_type } = parse!(params, Page);
     info!(
-        "Re-rendering page ID {} in site ID {}",
-        input.page_id, input.site_id,
+        "Re-rendering page ID {} in site ID {} ({:?})",
+        id.page_id, id.site_id, rerender_type,
     );
-    PageRevisionService::rerender(
-        ctx,
-        input,
-        RerenderDepth::default(),
-        RerenderType::Full,
-    )
-    .await
-    .or_raise(|| Error::new("failed to rerender page", ErrorType::Page))
+    PageRevisionService::rerender(ctx, id, RerenderDepth::default(), rerender_type)
+        .await
+        .or_raise(|| Error::new("failed to rerender page", ErrorType::Page))
 }
 
 pub async fn page_restore(
