@@ -27,6 +27,7 @@
 use super::prelude::*;
 use crate::hash::{TEXT_HASH_LENGTH, TextHash, k12_hash};
 use crate::models::forum_post_revision::{self, Entity as ForumPostRevision};
+use crate::models::imported_page_revision::{self, Entity as ImportedPageRevision};
 use crate::models::message_draft::{self, Entity as MessageDraft};
 use crate::models::message_record::{self, Entity as MessageRecord};
 use crate::models::page_revision::{self, Entity as PageRevision};
@@ -205,6 +206,10 @@ impl TextService {
         let DeleteResult { rows_affected, .. } = Text::delete_many()
             .filter(
                 Condition::all()
+                    .add(not_in_column!(
+                        ImportedPageRevision,
+                        imported_page_revision::Column::WikitextHash,
+                    ))
                     .add(not_in_column!(
                         PageRevision,
                         page_revision::Column::WikitextHash,
