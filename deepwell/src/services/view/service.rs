@@ -40,7 +40,7 @@ use crate::services::permission::{CheckPermissionContext, PermissionService};
 use crate::services::relation::{
     GetPageAttributions, GetSiteBan, PageAttribution, RelationService,
 };
-use crate::services::render::RenderOutput;
+use crate::services::render::{COMPILED_GENERATOR, RenderOutput};
 use crate::services::settings::{NavigationPageHtml, SettingsService};
 use crate::services::user::User;
 use crate::services::view::ViewType;
@@ -255,6 +255,26 @@ impl ViewService {
                         )
                         .await
                         .or_raise(make_error)?;
+                    };
+
+                    // Stored HTML from another renderer build is rerendered now,
+                    // instead of sweeping every page after each deploy.
+                    let page_revision = if page_revision.compiled_generator
+                        != *COMPILED_GENERATOR
+                    {
+                        PageRevisionService::rerender(
+                            ctx,
+                            PageId::from_page_model(&page),
+                            RerenderDepth::default(),
+                            RerenderType::Standalone,
+                        )
+                        .await
+                        .or_raise(make_error)?;
+                        PageRevisionService::get_latest(ctx, site.site_id, page.page_id)
+                            .await
+                            .or_raise(make_error)?
+                    } else {
+                        page_revision
                     };
 
                     let (

@@ -29,7 +29,17 @@ use crate::services::text_block::{
 use crate::types::{PageId, TextBlockType};
 use ftml::prelude::*;
 use ftml::tree::CodeBlock;
+use std::sync::LazyLock;
 use tokio::time::timeout;
+
+/// Identifies what compiled stored HTML: FTML's version plus this Deepwell build
+/// (`DEEPWELL_BUILD_ID`, set by the Nix package from the source hash). A page
+/// compiled by another build is rerendered when it is next viewed.
+pub static COMPILED_GENERATOR: LazyLock<String> =
+    LazyLock::new(|| match option_env!("DEEPWELL_BUILD_ID") {
+        Some(build) => format!("{} {build}", *FTML_VERSION),
+        None => FTML_VERSION.to_string(),
+    });
 
 #[derive(Debug)]
 pub struct RenderService;
@@ -65,7 +75,7 @@ impl RenderService {
             errors,
             compiled_hash,
             compiled_at: now(),
-            compiled_generator: FTML_VERSION.clone(),
+            compiled_generator: COMPILED_GENERATOR.clone(),
         })
     }
 
@@ -154,7 +164,7 @@ impl RenderService {
             compiled_top_bar_html_hash,
             compiled_side_bar_html_hash,
             compiled_at: now(),
-            compiled_generator: FTML_VERSION.clone(),
+            compiled_generator: COMPILED_GENERATOR.clone(),
         })
     }
 

@@ -44,5 +44,5 @@ mod wikidot_comments;
 
 pub use self::list_pages::ListingSubject;
 pub use self::listing_deps::affected_pages as listing_pages_affected_by;
-pub use self::service::RenderService;
+pub use self::service::{COMPILED_GENERATOR, RenderService};
 pub use self::structs::*;

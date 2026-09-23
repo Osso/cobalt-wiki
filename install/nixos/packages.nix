@@ -66,6 +66,14 @@ let
   deepwell = craneLib.buildPackage (
     deepwellArgs
     // {
+      # Stored pages compiled by another build are rerendered when viewed; the
+      # source store hash names the build. Kept out of the dependency build.
+      DEEPWELL_BUILD_ID = builtins.substring 0 12 (
+        builtins.baseNameOf (builtins.path {
+          path = root + /deepwell;
+          name = "deepwell-source";
+        })
+      );
       # Only manifests feed the dependency build, so source edits keep its cache.
       cargoArtifacts = craneLib.buildDepsOnly (
         deepwellArgs
