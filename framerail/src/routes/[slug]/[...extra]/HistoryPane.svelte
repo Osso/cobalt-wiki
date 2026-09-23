@@ -4,6 +4,7 @@
   import { errorPopupState, pageLayoutState } from "$lib/stores.svelte"
   import { Layout } from "$lib/types"
   import { SvelteMap } from "svelte/reactivity"
+  import ImportedHistory from "./ImportedHistory.svelte"
 
   import type { PageProps } from "./$types"
   import type {
@@ -139,6 +140,8 @@
     fetchHistory()
   })
 </script>
+
+<ImportedHistory />
 
 {#if pageLayoutState.current === Layout.WIKIDOT}
   <h1 class="page-revision-header">
