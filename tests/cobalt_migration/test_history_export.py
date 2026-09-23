@@ -1,10 +1,10 @@
 """Synthetic authenticated module responses; no private source content."""
 
 import json
-from pathlib import Path
 import stat
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from tools.cobalt_migration.history_export import (
@@ -163,12 +163,14 @@ class HistoryExportTest(unittest.TestCase):
                 raise RuntimeError("interrupted after last list")
             _save_checkpoint(path, state)
 
-        with patch(
-            "tools.cobalt_migration.history_export._save_checkpoint",
-            stop_before_inventory,
+        with (
+            patch(
+                "tools.cobalt_migration.history_export._save_checkpoint",
+                stop_before_inventory,
+            ),
+            self.assertRaisesRegex(RuntimeError, "interrupted after last list"),
         ):
-            with self.assertRaisesRegex(RuntimeError, "interrupted after last list"):
-                self.export()
+            self.export()
         self.assertEqual([r["page"] for r in self.requests], [1, 2])
         self.export()
         self.assertEqual([r["page"] for r in self.requests if "page" in r], [1, 2])

@@ -2,13 +2,13 @@
 
 import base64
 import hashlib
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
-import socket
 import subprocess
 import threading
 import time
 import unittest
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from typing import ClassVar
 from urllib.parse import parse_qsl
 
 from tools.cobalt_migration.history_export import HistoryResponse
@@ -74,14 +74,14 @@ class Runner:
 class CDPFixture(BaseHTTPRequestHandler):
     target_id = TARGET
     target_origin = ORIGIN
-    eval_result = {
+    eval_result: ClassVar[dict] = {
         "state": "done",
         "status": 200,
         "raw": "raw",
         "html": "decoded",
         "retry_after": None,
     }
-    requests = []
+    requests: ClassVar[list] = []
     execute_js = False
     timeout_text = False
     module_status = "ok"
@@ -166,7 +166,7 @@ class CDPFixture(BaseHTTPRequestHandler):
         self.connection.settimeout(1)
         try:
             self.connection.recv(1024)
-        except (socket.timeout, ConnectionError, OSError):
+        except (TimeoutError, ConnectionError, OSError):
             pass
 
 
@@ -356,6 +356,8 @@ class HistoryTransportTests(unittest.TestCase):
         for request in invalid:
             with self.subTest(request=request), self.assertRaises(ValueError):
                 self.factory(runner)(request)
+        with self.assertRaises(TypeError):
+            self.factory(runner)(None)
         self.assertEqual(runner.calls, [])
 
     def test_rejects_invalid_origin_target_and_cdp_endpoint(self):
@@ -368,12 +370,12 @@ class HistoryTransportTests(unittest.TestCase):
             {"cdp_origin": "http://remote.test:9222"},
             {"cdp_origin": "http://127.0.0.1:9222/json"},
         ):
-            options = dict(
-                source_origin=ORIGIN,
-                target_id=TARGET,
-                runner=runner,
-                node_binary="node",
-            )
+            options = {
+                "source_origin": ORIGIN,
+                "target_id": TARGET,
+                "runner": runner,
+                "node_binary": "node",
+            }
             options.update(kwargs)
             with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):
                 make_history_fetch(**options)

@@ -1,14 +1,14 @@
 """Resumable private archive of one authorized page's Wikidot history."""
 
-from dataclasses import dataclass
 import hashlib
 import json
-from pathlib import Path
+import os
 import random
 import stat
-import os
 import tempfile
 import time
+from dataclasses import dataclass
+from pathlib import Path
 from urllib.parse import urlsplit
 
 from .history_source import HistorySourceError, decode_history_source
@@ -80,16 +80,16 @@ def _load(directory, origin, page_id):
     path = directory / "checkpoint.json"
     _prepare_path(path)
     if not path.exists():
-        return dict(
-            schema=1,
-            source_origin=origin,
-            source_page_id=page_id,
-            list_pages=[],
-            next_page=1,
-            revisions=None,
-            unobserved_ranges=None,
-            bodies={},
-        )
+        return {
+            "schema": 1,
+            "source_origin": origin,
+            "source_page_id": page_id,
+            "list_pages": [],
+            "next_page": 1,
+            "revisions": None,
+            "unobserved_ranges": None,
+            "bodies": {},
+        }
     try:
         state = json.loads(path.read_text(encoding="utf-8"))
     except (ValueError, UnicodeError):

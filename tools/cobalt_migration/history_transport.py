@@ -147,7 +147,7 @@ def _origin(value, *, cdp=False):
 
 def _request(request):
     if not isinstance(request, dict):
-        raise ValueError("invalid history module request")
+        raise TypeError("invalid history module request")
     module = request.get("moduleName")
     if module == "history/PageRevisionListModule":
         valid = (

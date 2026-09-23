@@ -1,9 +1,9 @@
 """Behavioral site acquisition tests using concrete source inventories."""
 
 import json
-from pathlib import Path
 import tempfile
 import unittest
+from pathlib import Path
 
 from tools.cobalt_migration.history_acquire import acquire_site_history
 from tools.cobalt_migration.history_export import HistoryExportError
@@ -58,11 +58,13 @@ class SiteAcquisitionTest(unittest.TestCase):
         plan = {
             "pages": [{"metadata_status": "accepted", "metadata": {"page_id": 11}}] * 2
         }
-        with tempfile.TemporaryDirectory() as temporary:
-            with self.assertRaisesRegex(ValueError, "duplicate"):
-                acquire_site_history(
-                    plan, "https://example.test", Path(temporary) / "history", None
-                )
+        with (
+            tempfile.TemporaryDirectory() as temporary,
+            self.assertRaisesRegex(ValueError, "duplicate"),
+        ):
+            acquire_site_history(
+                plan, "https://example.test", Path(temporary) / "history", None
+            )
 
     def test_origin_or_inventory_change_cannot_reuse_archive(self):
         plan = {"pages": [{"metadata_status": "accepted", "metadata": {"page_id": 11}}]}
