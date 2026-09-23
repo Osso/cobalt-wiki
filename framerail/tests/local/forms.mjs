@@ -217,6 +217,7 @@ test("authenticated data-form edit persists typed values without dropping untouc
       const denied = await anonymousContext.request.post(
         `${preview}/${fixture.slug}?/edit`,
         {
+          headers: { accept: "application/json", "x-sveltekit-action": "true" },
           form: {
             pageId: String(initial.page.page_id),
             siteId: String(fixture.siteId),
@@ -225,11 +226,20 @@ test("authenticated data-form edit persists typed values without dropping untouc
             altTitle: initial.page_revision.alt_title ?? "",
             tags: (initial.page_revision.tags ?? []).join(" "),
             comments: "",
-            wikitext: "unauthorized fixture attempt"
+            wikitext: JSON.stringify({
+              ...fixture.initialValues,
+              [fixture.fields.text.name]: "Unauthorized fixture change"
+            })
           }
         }
       )
-      assert.ok(denied.status() >= 400, "anonymous edit action must reject writes")
+      const deniedAction = await denied.json()
+      assert.equal(
+        deniedAction.type,
+        "failure",
+        "anonymous edit action must reject writes"
+      )
+      assert.ok(deniedAction.status >= 400)
       const unchanged = await readPage(anonymousContext.request, fixture, null)
       assert.equal(unchanged.page_revision.revision_id, initialRevision)
       assertValues(
