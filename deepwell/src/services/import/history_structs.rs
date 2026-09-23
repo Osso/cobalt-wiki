@@ -42,7 +42,6 @@ pub struct ReadImportedHistory {
     pub page_id: i64,
     pub before_revision: Option<i32>,
     pub limit: u64,
-    pub user_id: Option<i64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -50,7 +49,6 @@ pub struct ReadImportedRevision {
     pub site_id: i64,
     pub page_id: i64,
     pub source_revision_number: i32,
-    pub user_id: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, sea_orm::FromQueryResult)]

@@ -6,7 +6,7 @@ mod common;
 use common::TestRunner;
 use deepwell::constants::ADMIN_USER_ID;
 use deepwell::error::prelude::ErrorType;
-use deepwell::models::role_permission;
+use deepwell::models::{role, role_permission};
 use deepwell::services::RequestContext;
 use deepwell::types::{Action, Reference, Resource};
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
@@ -323,4 +323,65 @@ async fn history_list_and_source_refuse_anonymous_page_view_denial() {
         })
     );
     assert_contains_error!(source_error, ErrorType::Permission);
+}
+
+#[tokio::test]
+async fn history_reads_use_request_identity_not_json_user_id() {
+    let mut runner = TestRunner::setup().await;
+    let (site_id, page_id, revision_id) =
+        fixture_page(&runner, "history-identity-fixture").await;
+    run_endpoint!(
+        runner,
+        import_wikidot_history,
+        history_input(site_id, page_id, revision_id, vec![archived_revision(0)])
+    );
+    let roles = role::Entity::find()
+        .filter(role::Column::SiteId.eq(site_id))
+        .filter(role::Column::Name.is_in(["anonymous", "everyone", "guest"]))
+        .all(runner.context().transaction())
+        .await
+        .unwrap();
+    assert!(!roles.is_empty());
+    role_permission::Entity::delete_many()
+        .filter(
+            role_permission::Column::RoleId
+                .is_in(roles.into_iter().map(|role| role.role_id)),
+        )
+        .filter(role_permission::Column::ResourceType.eq(Resource::Page))
+        .filter(role_permission::Column::Action.eq(Action::View))
+        .exec(runner.context().transaction())
+        .await
+        .unwrap();
+    let request = json!({"site_id":site_id,"page_id":page_id,"before_revision":null,"limit":10,"user_id":ADMIN_USER_ID});
+    let error = run_endpoint_err!(runner, page_imported_history, request);
+    assert_contains_error!(error, ErrorType::Permission);
+    let error = run_endpoint_err!(
+        runner,
+        page_imported_revision,
+        json!({"site_id":site_id,"page_id":page_id,"source_revision_number":0,"user_id":ADMIN_USER_ID})
+    );
+    assert_contains_error!(error, ErrorType::Permission);
+    runner.set_request_context(RequestContext {
+        session: None,
+        user_id: Some(ADMIN_USER_ID),
+        site_id: Some(site_id),
+        page_reference: Some(Reference::Id(page_id)),
+    });
+    assert_eq!(
+        run_endpoint!(
+            runner,
+            page_imported_history,
+            json!({"site_id":site_id,"page_id":page_id,"before_revision":null,"limit":10})
+        )
+        .len(),
+        1
+    );
+    assert!(
+        run_endpoint!(
+            runner,
+            page_imported_revision,
+            json!({"site_id":site_id,"page_id":page_id,"source_revision_number":0})
+        )
+        .is_some()
+    );
 }

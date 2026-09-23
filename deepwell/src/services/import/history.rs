@@ -91,7 +91,7 @@ impl ImportedHistoryService {
         if input.limit == 0 || input.limit > 100 {
             return Err(invalid("history page limit must be between 1 and 100"));
         }
-        authorize_read(ctx, input.site_id, input.page_id, input.user_id).await?;
+        authorize_read(ctx, input.site_id, input.page_id).await?;
         let mut query = History::find()
             .filter(imported_page_revision::Column::SiteId.eq(input.site_id))
             .filter(imported_page_revision::Column::PageId.eq(input.page_id));
@@ -133,7 +133,7 @@ impl ImportedHistoryService {
         ctx: &ServiceContext<'_>,
         input: ReadImportedRevision,
     ) -> Result<Option<ImportedRevisionSource>> {
-        authorize_read(ctx, input.site_id, input.page_id, input.user_id).await?;
+        authorize_read(ctx, input.site_id, input.page_id).await?;
         let row = History::find()
             .filter(imported_page_revision::Column::SiteId.eq(input.site_id))
             .filter(imported_page_revision::Column::PageId.eq(input.page_id))
@@ -251,13 +251,12 @@ async fn authorize_read(
     ctx: &ServiceContext<'_>,
     site_id: i64,
     page_id: i64,
-    user_id: Option<i64>,
 ) -> Result<()> {
     let page = PageService::get(ctx, site_id, Reference::Id(page_id)).await?;
     let allowed = PermissionService::check_user_can(
         ctx,
         &CheckPermissionContext {
-            user_id,
+            user_id: ctx.request().user_id,
             site_id,
             page_reference: Some(Reference::Id(page_id)),
         },
