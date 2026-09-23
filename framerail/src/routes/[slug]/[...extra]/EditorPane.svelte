@@ -22,7 +22,10 @@
   const sourceForm = untrack(() => data.form)
   let draft = $state(sourceForm ? createDraft(sourceForm) : {})
   let sourceTextarea = $state<HTMLTextAreaElement>()
-  let draftControls = $state<{ cancel: (proceed: () => void) => void }>()
+  let draftControls = $state<{
+    cancel: (proceed: () => void) => void
+    canPublish: () => boolean
+  }>()
   let restoredForm = $state<{ source: string; form: PageForm }>()
 
   function editorContent() {
@@ -83,7 +86,11 @@
     untrack(() => data.forms.pageEditForm),
     {
       dataType: "json",
-      onSubmit: async ({ jsonData }) => {
+      onSubmit: async ({ jsonData, cancel }) => {
+        if (!draftControls?.canPublish()) {
+          cancel()
+          return
+        }
         const submitForm = {
           ...$form,
           ...editorContent(),
@@ -178,6 +185,7 @@
       <input
         name="save"
         class="btn btn-primary"
+        disabled={!draftControls?.canPublish()}
         type="submit"
         value={data.internationalization?.save}
       />
@@ -191,7 +199,11 @@
       >
         {data.internationalization?.cancel}
       </button>
-      <button class="action-button editor-button button-save clickable" type="submit">
+      <button
+        class="action-button editor-button button-save clickable"
+        disabled={!draftControls?.canPublish()}
+        type="submit"
+      >
         {data.internationalization?.save}
       </button>
     </div>

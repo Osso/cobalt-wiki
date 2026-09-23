@@ -16,6 +16,7 @@
   let { getPayload, onRestore, loadOnMount = false }: Props = $props()
   let draft = $state<PageDraft | null>(null)
   let pending = $state(false)
+  let loaded = $state(false)
   let choice = $state<"restore" | "cancel" | null>(null)
   let message = $state("")
   let errorMessage = $state("")
@@ -51,13 +52,19 @@
     return response.draft
   }
 
+  export function canPublish() {
+    return loaded && !pending && choice === null
+  }
+
   export async function loadDraft() {
     if (pending) return
+    loaded = false
     pending = true
     message = ""
     errorMessage = ""
     try {
       draft = readDraft(await sendAction("draftGet"))
+      loaded = true
       choice = draft === null ? null : "restore"
       if (choice) await focusPrompt()
     } catch {
@@ -137,13 +144,14 @@
 
   onMount(() => {
     if (loadOnMount) void loadDraft()
+    else loaded = true
   })
 </script>
 
 <button
   id="edit-save-draft-button"
   type="button"
-  disabled={pending || choice === "restore"}
+  disabled={!loaded || pending || choice === "restore"}
   onclick={saveDraft}
 >
   {pending ? "Working…" : "Save Draft"}

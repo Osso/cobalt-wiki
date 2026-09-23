@@ -21,7 +21,10 @@
   )
 
   let sourceTextarea = $state<HTMLTextAreaElement>()
-  let draftControls = $state<{ cancel: (proceed: () => void) => void }>()
+  let draftControls = $state<{
+    cancel: (proceed: () => void) => void
+    canPublish: () => boolean
+  }>()
   let showRestoreAction = $state<boolean>(false)
   let deletedPages = $state<PageDeletedGet[]>([])
 
@@ -44,7 +47,11 @@
     untrack(() => errorData.forms.pageEditForm),
     {
       dataType: "json",
-      onSubmit: async ({ jsonData }) => {
+      onSubmit: async ({ jsonData, cancel }) => {
+        if (!draftControls?.canPublish()) {
+          cancel()
+          return
+        }
         const submitForm = {
           ...$editForm,
           siteId: page.data.site.site_id,
@@ -197,6 +204,7 @@
           />
           <input
             class="btn btn-primary"
+            disabled={!draftControls?.canPublish()}
             type="submit"
             value={errorData.internationalization?.save}
           />
@@ -210,7 +218,11 @@
           >
             {errorData.internationalization?.cancel}
           </button>
-          <button class="action-button editor-button button-save clickable" type="submit">
+          <button
+            class="action-button editor-button button-save clickable"
+            disabled={!draftControls?.canPublish()}
+            type="submit"
+          >
             {errorData.internationalization?.save}
           </button>
         </div>
