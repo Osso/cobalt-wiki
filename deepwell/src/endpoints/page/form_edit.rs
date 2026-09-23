@@ -4,7 +4,7 @@ use crate::services::view::{extract_page_form, template_slug};
 use crate::services::{
     PageRevisionService, PageService, ServiceContext, TextService, ViewService,
 };
-use crate::types::Maybe;
+use crate::types::{Maybe, Reference};
 use wikidot_forms::{FormError, Mapping, apply_field_updates};
 
 #[derive(Debug, Deserialize)]
@@ -34,34 +34,43 @@ impl<'a> EditPageRequest<'a> {
     ) -> Result<EditPage<'a>> {
         self.validate_modes()?;
         if let Maybe::Set(updates) = &self.form_updates {
-            self.edit.body.wikitext =
-                Maybe::Set(load_updated_source(ctx, &self.edit, updates).await?);
+            self.edit.body.wikitext = Maybe::Set(
+                load_updated_source(
+                    ctx,
+                    self.edit.site_id,
+                    self.edit.page.clone(),
+                    self.edit.last_revision_id,
+                    updates,
+                )
+                .await?,
+            );
         }
         Ok(self.edit)
     }
 }
 
-async fn load_updated_source(
+pub(crate) async fn load_updated_source(
     ctx: &ServiceContext<'_>,
-    edit: &EditPage<'_>,
+    site_id: i64,
+    reference: Reference<'_>,
+    last_revision_id: i64,
     updates: &Mapping,
 ) -> Result<String> {
-    let page = PageService::get(ctx, edit.site_id, edit.page.clone()).await?;
-    check_last_revision(None, page.latest_revision_id, edit.last_revision_id)?;
+    let page = PageService::get(ctx, site_id, reference).await?;
+    check_last_revision(None, page.latest_revision_id, last_revision_id)?;
     let slug = template_slug(&page.slug).ok_or_else(|| {
         Error::new(
             "template pages cannot be edited using form_updates",
             ErrorType::BadRequest,
         )
     })?;
-    let revision =
-        PageRevisionService::get_latest(ctx, edit.site_id, page.page_id).await?;
+    let revision = PageRevisionService::get_latest(ctx, site_id, page.page_id).await?;
     // Reject a revision that advanced after the page-row read, before loading text.
-    check_last_revision(None, Some(revision.revision_id), edit.last_revision_id)?;
+    check_last_revision(None, Some(revision.revision_id), last_revision_id)?;
     let source = TextService::get(ctx, &revision.wikitext_hash).await?;
     let template = ViewService::load_visible_template_source(
         ctx,
-        edit.site_id,
+        site_id,
         ctx.request().user_id,
         &slug,
     )

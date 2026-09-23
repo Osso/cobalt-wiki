@@ -18,7 +18,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-mod form_edit;
+pub(crate) mod form_edit;
 
 use self::form_edit::EditPageRequest;
 use super::prelude::*;
