@@ -293,6 +293,50 @@ async fn identical_slugs_in_different_sites_have_independent_drafts() {
     )
     .await
     .unwrap();
+    let role = RoleService::create(
+        runner.context(),
+        InternalCreateRoleInput {
+            site_id: other.site_id,
+            name: "Creator".into(),
+            description: None,
+            is_virtual: false,
+            parent_role_id: None,
+            creating_user_id: SYSTEM_USER_ID,
+            ip_address: common::IP_ADDRESS,
+        },
+    )
+    .await
+    .unwrap();
+    PermissionService::update_permissions_for_role(
+        runner.context(),
+        UpdateRolePermissionsInput {
+            site_id: other.site_id,
+            role_reference: Reference::Id(role.role_id),
+            new_permissions: vec![Permission {
+                resource_type: Resource::Page,
+                resource_category: None,
+                action: Action::Create,
+            }],
+            cascade_removals: false,
+            updating_user_id: SYSTEM_USER_ID,
+            ip_address: common::IP_ADDRESS,
+        },
+    )
+    .await
+    .unwrap();
+    RoleService::grant_role_to_user(
+        runner.context(),
+        GrantUserRoleInput {
+            site_id: other.site_id,
+            user_id: ADMIN_USER_ID,
+            role_id: role.role_id,
+            assigning_user_id: SYSTEM_USER_ID,
+            expires_at: None,
+            ip_address: common::IP_ADDRESS,
+        },
+    )
+    .await
+    .unwrap();
     target(&mut runner, other.site_id, SLUG, Some(ADMIN_USER_ID));
     assert!(run_endpoint!(runner, page_draft_get).draft.is_none());
     run_endpoint!(
