@@ -26,11 +26,14 @@ Cobalt's Wikidot-layout renderer must preserve paragraph boundaries needed by im
 - `deepwell/src/services/render/wikidot_comments.rs`: four comment/raw/UTF-8 regressions and one faithful ImageBox include/render regression.
 - Existing FTML regression: one test; existing list regressions: two tests.
 
+## Proof ledger
+
+- `2ffcebe` implements the checked rendering/comment requirements. The comment behavior follows `gabrys/wikidot` `Parse/Default/Comment.php` for the preceding LF.
+- Local import target source is unchanged: 4,758 bytes, SHA-256 `81faa6b5a13d43bd59177409909c4c650df86550cd60601f7db36d54da260bbe`. Three source images are loaded with matching MIME type and SHA-256; visible text matches.
+- Main rebuilt Deepwell `2749` and rerendered only `who-we-are`; source and revision remain unchanged.
+
 ## Known gaps (current cycle)
 
-- [x] `2ffcebe` implements the checked rendering/comment requirements. The comment behavior follows `gabrys/wikidot` `Parse/Default/Comment.php` for the preceding LF.
-- [x] Local import target source is unchanged: 4,758 bytes, SHA-256 `81faa6b5a13d43bd59177409909c4c650df86550cd60601f7db36d54da260bbe`. Three source images are loaded with matching MIME type and SHA-256; visible text matches.
-- [x] Main rebuilt Deepwell `2749` and rerendered only `who-we-are`; source and revision remain unchanged.
 - [ ] Browser parity remains red at `d921960`: article height is 1,610 px locally versus 1,605 px in the source. Caption gap is 13 px locally versus 5 px because the documents use HTML5 and XHTML Transitional modes respectively.
 - [ ] Per-Wikidot doctype rendering is under implementation by agent 293 and is not committed; do not mark the page comparison complete.
 
