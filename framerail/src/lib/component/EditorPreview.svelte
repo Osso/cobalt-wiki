@@ -24,14 +24,15 @@
     html = null
     errorMessage = ""
     try {
+      const body = new FormData()
+      body.set("payload", JSON.stringify(getPayload()))
       const response = await fetch("?/preview", {
         method: "POST",
         headers: {
-          "content-type": "application/json",
           "accept": "application/json",
           "x-sveltekit-action": "true"
         },
-        body: JSON.stringify(getPayload())
+        body
       })
       const result = deserialize(await response.text())
       if (result.type === "success" && typeof result.data?.html === "string") {

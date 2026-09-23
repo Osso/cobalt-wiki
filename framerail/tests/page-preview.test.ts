@@ -19,7 +19,7 @@ function event(payload: unknown) {
   return {
     request: new Request("http://local.test/page?/preview", {
       method: "POST",
-      body: JSON.stringify(payload)
+      body: new URLSearchParams({ payload: JSON.stringify(payload) })
     }),
     locals: {
       requestContext: { siteId: 6000011, page: "guild:welcome", sessionToken: "trusted" }

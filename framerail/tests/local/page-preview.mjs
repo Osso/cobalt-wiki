@@ -130,7 +130,16 @@ async function clickPreview(page, slug) {
   assert.equal(response.status(), 200, `${slug} preview action must succeed`)
   const region = page.locator('section[aria-label="Page preview"]')
   await expect(region).toHaveAttribute("aria-busy", "false")
-  return { region, submitted: response.request().postDataJSON() }
+  const posted = response.request()
+  const request = new Request(posted.url(), {
+    method: "POST",
+    headers: posted.headers(),
+    body: posted.postDataBuffer()
+  })
+  const form = await request.formData()
+  const payload = form.get("payload")
+  assert.equal(typeof payload, "string", "preview form payload required")
+  return { region, submitted: JSON.parse(payload) }
 }
 
 /**
@@ -226,7 +235,7 @@ async function assertAnonymousPreviewDenied(context, fixture) {
     `${preview}/${fixture.existingSlug}?/preview`,
     {
       headers: { accept: "application/json", "x-sveltekit-action": "true" },
-      data: { wikitext: `+ ${fixture.rawMarker}` }
+      form: { payload: JSON.stringify({ wikitext: `+ ${fixture.rawMarker}` }) }
     }
   )
   const action = await response.json()

@@ -41,7 +41,11 @@ const previewSchema = pipe(
 export async function pagePreviewAction({ request, locals }: RequestEvent) {
   let body: unknown
   try {
-    body = await request.json()
+    const form = await request.formData()
+    const payload = form.get("payload")
+    if (typeof payload !== "string")
+      return fail(400, { message: "Invalid preview request" })
+    body = JSON.parse(payload)
   } catch {
     return fail(400, { message: "Invalid preview request" })
   }
