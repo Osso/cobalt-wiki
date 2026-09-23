@@ -42,7 +42,7 @@ Cobalt's Wikidot-layout renderer must preserve paragraph boundaries needed by im
 
 ## Known gaps (current cycle)
 
-- [ ] Independent final verification of the current browser proof remains pending.
+- [x] Independent verification passed at `080849e`: HTTP 200, unauthenticated 401, no-index preserved, matching visible text and three image hashes/positions, caption y=670, ImageBox height=289, article height=1605, unchanged source/current revision, and no JavaScript errors. Protected evidence: `local-full/review/who-we-are-independent-proof.json`; screenshot dimensions independently checked at 1440×1000. Rust formatting/check passed; current Svelte check reports zero errors and warnings; doctype tests pass 4/4. Existing dependency/tooling notices and baseline `app.d.ts` lint warnings are not resolved by this scoped work.
 - [ ] Broader archived-page/browser comparison remains unproven; this `who-we-are` result does not establish full-site parity or readiness.
 
 ## Out of scope
