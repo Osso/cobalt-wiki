@@ -66,7 +66,18 @@ let
   deepwell = craneLib.buildPackage (
     deepwellArgs
     // {
-      cargoArtifacts = craneLib.buildDepsOnly deepwellArgs;
+      # Only manifests feed the dependency build, so source edits keep its cache.
+      cargoArtifacts = craneLib.buildDepsOnly (
+        deepwellArgs
+        // {
+          src = lib.fileset.toSource {
+            root = root + /deepwell;
+            fileset = lib.fileset.fileFilter (
+              file: file.name == "Cargo.toml" || file.name == "Cargo.lock"
+            ) (root + /deepwell);
+          };
+        }
+      );
       postInstall = ''
         mkdir -p "$out/share/deepwell"
         cp -r migrations seeder "$out/share/deepwell/"
