@@ -223,7 +223,7 @@ impl FileRevisionService {
             .await
             .or_raise(make_error)?;
 
-        OutdateService::process_page_displace(
+        OutdateService::process_page_edit(
             ctx,
             site_id,
             page_id,
