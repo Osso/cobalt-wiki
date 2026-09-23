@@ -67,6 +67,7 @@ fn import_input(site_id: i64) -> CreatePage {
         slug: SLUG.into(),
         layout: None,
         revision_comments: COMMENTS.into(),
+        tags: vec![],
         user_id: ADMIN_USER_ID,
         bypass_filter: true,
         ip_address: common::IP_ADDRESS,

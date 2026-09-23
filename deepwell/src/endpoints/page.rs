@@ -39,6 +39,26 @@ use crate::types::{
     Action, Bytes, FileOrder, PageDetails, PageId, Reference, RerenderDepth,
 };
 use futures::future::try_join_all;
+use serde::Serialize;
+
+#[derive(Debug, Serialize)]
+pub struct PageCreatePermissionOutput {
+    pub can_create: bool,
+}
+
+pub async fn page_create_permission(
+    ctx: &ServiceContext<'_>,
+    _params: Params<'static>,
+) -> Result<PageCreatePermissionOutput> {
+    let request = ctx.request();
+    let can_create = match (&request.site_id, &request.user_id, &request.page_reference) {
+        (Some(site_id), Some(user_id), Some(Reference::Slug(slug))) => {
+            PageService::can_create(ctx, *site_id, *user_id, slug).await?
+        }
+        _ => false,
+    };
+    Ok(PageCreatePermissionOutput { can_create })
+}
 
 pub async fn page_create(
     ctx: &ServiceContext<'_>,

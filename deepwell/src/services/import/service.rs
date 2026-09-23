@@ -377,6 +377,7 @@ impl ImportService {
                         alt_title: None,
                         slug,
                         layout: Some(Layout::Wikidot),
+                        tags: vec![],
                     },
                 )
                 .await

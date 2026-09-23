@@ -83,7 +83,7 @@ async fn page(
     slug: &str,
     source: &str,
 ) {
-    let created = PageService::create(
+    let created = PageService::import(
         ctx,
         CreatePage {
             site_id,
@@ -94,6 +94,7 @@ async fn page(
             wikitext: source.into(),
             layout: None,
             revision_comments: "fixture".into(),
+            tags: vec![],
             bypass_filter: true,
             ip_address: common::IP_ADDRESS,
         },

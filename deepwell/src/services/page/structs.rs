@@ -36,6 +36,8 @@ pub struct CreatePage {
     pub slug: String,
     pub layout: Option<Layout>,
     pub revision_comments: String,
+    #[serde(default)]
+    pub tags: Vec<String>,
     pub user_id: i64,
 
     #[serde(default)]

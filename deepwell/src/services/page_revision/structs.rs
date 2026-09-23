@@ -54,6 +54,8 @@ pub struct CreateFirstPageRevision {
     pub alt_title: Option<String>,
     pub slug: String,
     pub layout: Option<Layout>,
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 #[derive(Deserialize, Debug, Clone)]

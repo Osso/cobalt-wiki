@@ -314,7 +314,7 @@ pub async fn seed(state: &ServerState) -> Result<()> {
         for page in pages {
             info!("Creating page '{}' (slug {})", page.title, page.slug);
 
-            let model = PageService::create(
+            let model = PageService::import(
                 &ctx,
                 CreatePage {
                     site_id,
@@ -324,6 +324,7 @@ pub async fn seed(state: &ServerState) -> Result<()> {
                     slug: page.slug,
                     layout: None,
                     revision_comments: str!(),
+                    tags: vec![],
                     user_id: SYSTEM_USER_ID,
                     bypass_filter: true,
                     ip_address: SEED_IP_ADDRESS,

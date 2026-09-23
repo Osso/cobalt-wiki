@@ -26,6 +26,7 @@ async fn create_page(
             alt_title: None,
             layout: Some(ftml::layout::Layout::Wikidot),
             revision_comments: "Link title fixture".into(),
+            tags: vec![],
             user_id: ADMIN_USER_ID,
             bypass_filter: true,
             ip_address: common::IP_ADDRESS,

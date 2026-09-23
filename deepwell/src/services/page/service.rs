@@ -53,7 +53,48 @@ impl PageService {
         mut input: CreatePage,
     ) -> Result<CreatePageOutput> {
         normalize(&mut input.slug);
+        if !Self::can_create(ctx, input.site_id, input.user_id, &input.slug).await? {
+            bail!(Error::new(
+                "user does not have permission to create this page",
+                ErrorType::PermissionDenied,
+            ));
+        }
         Self::import(ctx, input).await
+    }
+
+    pub async fn can_create(
+        ctx: &ServiceContext<'_>,
+        site_id: i64,
+        user_id: i64,
+        slug: &str,
+    ) -> Result<bool> {
+        let request = ctx.request();
+        if request.site_id != Some(site_id) || request.user_id != Some(user_id) {
+            return Ok(false);
+        }
+        let Some(Reference::Slug(route_slug)) = request.page_reference.as_ref() else {
+            return Ok(false);
+        };
+        let mut route_slug = route_slug.to_string();
+        normalize(&mut route_slug);
+        if route_slug != slug {
+            return Ok(false);
+        }
+
+        PermissionService::check_user_can(
+            ctx,
+            &CheckPermissionContext {
+                user_id: request.user_id,
+                site_id,
+                page_reference: request.page_reference.clone(),
+            },
+            Permission {
+                resource_type: Resource::Page,
+                resource_category: Some(Reference::from(get_category_name(slug))),
+                action: Action::Create,
+            },
+        )
+        .await
     }
 
     /// Atomically create a migration page and its first revision, preserving its identity.
@@ -67,6 +108,7 @@ impl PageService {
             slug,
             layout,
             revision_comments: comments,
+            tags,
             user_id,
             bypass_filter,
             ip_address,
@@ -128,6 +170,7 @@ impl PageService {
             alt_title,
             slug: slug.clone(),
             layout,
+            tags,
         };
 
         let CreateFirstPageRevisionOutput {

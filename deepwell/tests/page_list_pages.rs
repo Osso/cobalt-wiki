@@ -33,6 +33,7 @@ async fn import_page(runner: &TestRunner, site_id: i64, slug: &str, source: &str
             alt_title: None,
             layout: Some(ftml::layout::Layout::Wikidot),
             revision_comments: "ListPages rendering fixture".into(),
+            tags: vec![],
             user_id: ADMIN_USER_ID,
             bypass_filter: true,
             ip_address: common::IP_ADDRESS,
