@@ -66,7 +66,7 @@ function makeServer(javascript) {
 async function listen(server) {
   await new Promise((resolve, reject) => {
     server.once("error", reject)
-    server.listen(0, "127.0.0.1", resolve)
+    server.listen(0, "127.0.0.1", () => resolve(undefined))
   })
   const address = server.address()
   assert.ok(address && typeof address !== "string", "loopback port required")
@@ -76,7 +76,7 @@ async function listen(server) {
 /** @param {import("node:http").Server} server */
 async function closeServer(server) {
   await new Promise((resolve, reject) => {
-    server.close((error) => (error ? reject(error) : resolve()))
+    server.close((error) => (error ? reject(error) : resolve(undefined)))
   })
 }
 
@@ -107,7 +107,8 @@ test("image check helper opens and closes a real isolated browser popup", async 
       executablePath: "/usr/bin/chromium",
       headless: true
     })
-    context = await browser.newContext()
+    const browserContext = await browser.newContext()
+    context = browserContext
     await context.tracing.start({ screenshots: true, snapshots: true })
     /** @type {string[]} */
     const denied = []
@@ -152,11 +153,11 @@ test("image check helper opens and closes a real isolated browser popup", async 
     )
 
     await t.test("invalid scheme reports error without opening popup", async () => {
-      const count = context.pages().length
-      await page.locator("#url").fill("javascript:alert(1)")
+      const count = browserContext.pages().length
+      await page.locator("#url").fill("data:text/html,<p>not an image</p>")
       await page.getByRole("button", { name: "Check image" }).click()
       await expect(page.getByRole("alert")).toContainText("valid HTTP or HTTPS image URL")
-      assert.equal(context.pages().length, count)
+      assert.equal(browserContext.pages().length, count)
     })
 
     await t.test("missing image reports unavailable", async () => {

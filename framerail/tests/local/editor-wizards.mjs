@@ -488,7 +488,7 @@ async function checkExternalImageWindows(page) {
     await expect(page.locator(sourceSelector)).toHaveValue(original)
   }
   const pagesBefore = page.context().pages().length
-  await dialog.getByLabel("Image URL:").fill("javascript:alert(1)")
+  await dialog.getByLabel("Image URL:").fill("data:text/html,<p>not an image</p>")
   await dialog.getByRole("button", { name: "Check image", exact: true }).click()
   await expect(dialog.getByRole("alert")).toBeVisible()
   assert.equal(
