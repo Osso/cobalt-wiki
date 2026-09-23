@@ -142,7 +142,7 @@ pub async fn build_server_state(
 
     // Set up reqwest client for the MailCheck API
     let mailcheck_api_client = {
-        use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
+        use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
         use reqwest::redirect::Policy as RedirectPolicy;
 
         let mut builder = ReqwestClient::builder();
@@ -353,6 +353,7 @@ async fn build_module(app_state: ServerState) -> Result<RpcModule<ServerState>> 
     register!("page_create", page_create);
     register!("page_create_permission", page_create_permission);
     register!("page_preview", page_preview);
+    register!("editor_attachments", editor_attachments);
     register!("page_draft_get", page_draft_get);
     register!("page_draft_save", page_draft_save);
     register!("page_draft_delete", page_draft_delete);
