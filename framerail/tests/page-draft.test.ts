@@ -84,6 +84,7 @@ test("get and delete use empty RPC params with trusted headers", async () => {
     assert.equal(call.headers.get("X-Deepwell-Site-Id"), "6000011")
     assert.equal(call.headers.get("X-Deepwell-Page"), "guild:welcome")
     assert.equal(call.headers.get("X-Deepwell-Session-Token"), "trusted")
+    assert.equal(call.headers.get("content-type"), "application/json")
   }
 })
 
