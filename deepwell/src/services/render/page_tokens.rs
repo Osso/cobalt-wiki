@@ -60,7 +60,16 @@ impl PageTokens<'_> {
             })
             .and_then(|select| select.options.iter().find(|option| &option.code == value))
             .map(|option| &option.label);
-        scalar_text(label.unwrap_or(value))
+        let kind = form
+            .schema
+            .fields
+            .iter()
+            .find(|candidate| candidate.name == field);
+        let text = scalar_text(label.unwrap_or(value));
+        match kind.map(|field| &field.kind) {
+            Some(FieldKind::Wiki) => text,
+            _ => literal_text(&text),
+        }
     }
 
     fn stored(&self, field: &str) -> Option<&Value> {
@@ -73,6 +82,22 @@ fn field_argument<'t>(token: &'t str, function: &str) -> Option<&'t str> {
         .strip_prefix(function)?
         .strip_prefix('{')?
         .strip_suffix('}')
+}
+
+/// Wikidot shows non-wiki form values as escaped text, so wrap each line in a raw span.
+/// A line containing both raw delimiters (absent from the Cobalt archive) has its
+/// `>@` split by a space.
+fn literal_text(text: &str) -> String {
+    let spans: Vec<_> = text
+        .lines()
+        .filter(|line| !line.is_empty())
+        .map(|line| match (line.contains(">@"), line.contains("@@")) {
+            (false, _) => format!("@<{line}>@"),
+            (true, false) => format!("@@{line}@@"),
+            (true, true) => format!("@<{}>@", line.replace(">@", "> @")),
+        })
+        .collect();
+    spans.join(" ")
 }
 
 fn scalar_text(value: &Value) -> String {
@@ -135,7 +160,7 @@ mod tests {
     use super::*;
     use wikidot_forms::{parse_schema, parse_values};
 
-    const SCHEMA: &str = "fields:\n  rating:\n    type: select\n    values:\n      rated-t: T for Teen\n      rated-m: M for Mature\n  summary:\n    type: text\n  count:\n    type: text\n";
+    const SCHEMA: &str = "fields:\n  rating:\n    type: select\n    values:\n      rated-t: T for Teen\n      rated-m: M for Mature\n  summary:\n    type: text\n  count:\n    type: text\n  hooks:\n    type: wiki\n";
 
     fn page<'a>(form: Option<&'a FormRecord<'a>>) -> PageTokens<'a> {
         PageTokens {
@@ -162,18 +187,31 @@ mod tests {
     }
 
     #[test]
-    fn form_data_shows_select_labels_and_form_raw_shows_codes() {
+    fn form_data_shows_literal_text_and_form_raw_shows_wikitext() {
         let schema = parse_schema(SCHEMA).unwrap();
         let form = FormRecord {
             schema: &schema,
-            values: parse_values("rating: rated-m\nsummary: 'A letter.'\ncount: 7\n")
-                .unwrap(),
+            values: parse_values(
+                "rating: rated-m\nsummary: 'A task -- to **help**'\ncount: 7\nhooks: '**Brave**'\n",
+            )
+            .unwrap(),
         };
         let output = substitute_tokens(
-            "%%form_data{rating}%%|%%form_raw{rating}%%|%%form_data{summary}%%|%%form_raw{count}%%|%%form_data{missing}%%|",
+            "%%form_data{rating}%%|%%form_raw{rating}%%|%%form_data{summary}%%|%%form_raw{summary}%%|%%form_raw{count}%%|%%form_data{hooks}%%|%%form_data{missing}%%|",
             &page(Some(&form)),
         );
-        assert_eq!(output, "M for Mature|rated-m|A letter.|7||");
+        assert_eq!(
+            output,
+            "@<M for Mature>@|rated-m|@<A task -- to **help**>@|A task -- to **help**|7|**Brave**||"
+        );
+    }
+
+    #[test]
+    fn literal_text_survives_raw_delimiters_and_line_breaks() {
+        assert_eq!(literal_text("a >@ b"), "@@a >@ b@@");
+        assert_eq!(literal_text("x@@y >@z"), "@<x@@y > @z>@");
+        assert_eq!(literal_text("first\n\nsecond"), "@<first>@ @<second>@");
+        assert_eq!(literal_text(""), "");
     }
 
     #[test]

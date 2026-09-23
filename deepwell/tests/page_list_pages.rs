@@ -137,7 +137,7 @@ async fn form_pages_render_through_their_category_template() {
         "[[include writing-box | author=%%form_data{author}%% | rating=%%form_data{rating}%%]]\n\n%%form_raw{content}%%\n\n====\n\n[[form]]\nfields:\n  author:\n    type: text\n  rating:\n    type: select\n    values:\n      rated-t: T for Teen\n      rated-m: M for Mature\n  content:\n    type: wiki\n[[/form]]\n",
     )
     .await;
-    let record = "author: Mishell\nrating: rated-m\ncontent: \"Dear //Slicket//\"\n";
+    let record = "author: 'Mishell -- //ooc//'\nrating: rated-m\ncontent: \"Dear //Slicket// -- Natlee\"\n";
     import_page(&runner, site_id, "writing:letter", record).await;
     import_page(&runner, site_id, "writing:_public", "Members only.").await;
 
@@ -150,10 +150,14 @@ async fn form_pages_render_through_their_category_template() {
     assert_eq!(page.wikitext.as_deref(), Some(record));
     let html = page.compiled_body_html.unwrap();
     assert!(
-        html.contains("Box by <strong>Mishell</strong> rated M for Mature"),
+        html.contains("Box by <strong><span style=\"white-space: pre-wrap;\">Mishell -- //ooc//</span></strong> rated <span style=\"white-space: pre-wrap;\">M for Mature</span>"),
         "{html}"
     );
-    assert!(html.contains("Dear <em>Slicket</em>"), "{html}");
+    // Wiki fields are wikitext: `--` becomes a dash.
+    assert!(
+        html.contains("Dear <em>Slicket</em> \u{2014} Natlee"),
+        "{html}"
+    );
     for leaked in ["rating:", "rated-m", "[[form]]", "===="] {
         assert!(!html.contains(leaked), "{leaked} leaked: {html}");
     }

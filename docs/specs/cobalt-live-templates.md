@@ -5,7 +5,7 @@ Render archived Wikidot form pages through their category `_template`, as Wikido
 ## What it must do
 
 - [x] When a page's category `_template` (or `_template` for the default category) is anonymously readable and contains one `[[form]]` definition, render the template text before its first `====` line instead of the page source.
-- [x] Substitute `%%form_data{field}%%` (select option label; other fields their stored value), `%%form_raw{field}%%` (stored value), `%%title%%`, `%%name%%`, `%%fullname%%`; missing fields become empty and unknown tokens stay literal.
+- [x] Substitute `%%form_data{field}%%` (select option label or stored value, shown as literal text like Wikidot's raw span; `wiki` fields as wikitext), `%%form_raw{field}%%` (stored value as wikitext), `%%title%%`, `%%name%%`, `%%fullname%%`; missing fields become empty and unknown tokens stay literal.
 - [x] Leave ListPages item templates inside the template untouched, so their tokens describe listed pages; module headers still receive this page's tokens (`tags="+%%name%%"`).
 - [x] Substitute before include expansion, so template includes receive filled arguments.
 - [x] Keep hidden pages (`_template`, `_public`) and pages in categories without a form template rendered from their own source.
