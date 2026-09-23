@@ -37,6 +37,7 @@ hex = { version = "0.4", features = ["serde"] }
 hostname = "0.4"
 intl-memoizer = "0.5"
 http = "1.4"
+httpdate = "1" # Honor HTTP-date Retry-After responses from Meilisearch.
 jsonrpsee = { version = "0.26", features = ["macros", "server"] }
 tower = "0.5"
 log = "0.4"
@@ -48,6 +49,7 @@ ref-map = "0.2"
 regex = "1"
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
 rsmq_async = "18"
+scraper = "0.24" # Parse compiled HTML into visible search text; regex cannot safely exclude hidden DOM subtrees.
 rust-s3 = { version = "0.37", features = ["with-tokio", "tokio-rustls-tls"], default-features = false }
 rust-otp = "3"
 sea-orm = { version = "2", features = ["sqlx-postgres", "runtime-tokio-rustls", "postgres-array", "stream", "macros", "with-json", "with-time"], default-features = false }
