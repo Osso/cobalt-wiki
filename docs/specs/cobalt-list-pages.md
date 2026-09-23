@@ -19,6 +19,8 @@ Expand archived `[[module ListPages]]` blocks into ordinary wikitext before FTML
 
 ## Data limits
 
+Each render loads the site's page metadata (id, category, name, dates, title, tags) once and evaluates every module in memory, so nested listings cost one query; this assumes a site of thousands, not millions, of pages.
+
 Imported pages carry import-time `created_at`/`updated_at`; original Wikidot creation dates were not acquired. Ordering and display by those fields ("New Characters", "New Writings", digests) is therefore wrong until original timestamps are imported.
 
 ## Tests asserting this spec

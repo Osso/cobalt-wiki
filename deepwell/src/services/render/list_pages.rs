@@ -388,7 +388,7 @@ fn parse_separate(value: Option<&String>) -> ParseResult<bool> {
     }
 }
 
-#[derive(Debug, FromQueryResult)]
+#[derive(Debug, Clone, FromQueryResult)]
 struct ListedPage {
     page_id: i64,
     page_category_id: i64,
@@ -397,6 +397,7 @@ struct ListedPage {
     created_at: OffsetDateTime,
     updated_at: Option<OffsetDateTime>,
     title: String,
+    tags: Vec<String>,
     wikitext_hash: Vec<u8>,
 }
 
@@ -412,9 +413,15 @@ pub(super) async fn expand_list_pages(
     mut source: String,
     page_info: &PageInfo<'_>,
 ) -> Result<String> {
+    if list_pages_blocks(&source).is_empty() {
+        return Ok(source);
+    }
+    let site =
+        SiteService::get(ctx, Reference::Slug(page_info.site.as_ref().into())).await?;
+    let mut listing = SiteListing::load(ctx, site.site_id).await?;
     // Items of an outer module may contain inner modules (nested listings).
     for _ in 0..MAX_NESTING {
-        match expand_list_pages_once(ctx, &source, page_info).await? {
+        match expand_list_pages_once(ctx, &source, page_info, &mut listing).await? {
             Some(expanded) => source = expanded,
             None => break,
         }
@@ -427,13 +434,13 @@ async fn expand_list_pages_once(
     ctx: &ServiceContext<'_>,
     source: &str,
     page_info: &PageInfo<'_>,
+    listing: &mut SiteListing,
 ) -> Result<Option<String>> {
     let blocks = list_pages_blocks(source);
     if blocks.is_empty() {
         return Ok(None);
     }
-    let site =
-        SiteService::get(ctx, Reference::Slug(page_info.site.as_ref().into())).await?;
+    let site_id = listing.site_id;
     let current_category = page_info.category.as_deref().unwrap_or("_default");
     let mut forms = FormCache::default();
     let mut output = String::with_capacity(source.len());
@@ -444,15 +451,14 @@ async fn expand_list_pages_once(
             .and_then(|attributes| parse_selection(&attributes, current_category));
         match (block.kind, selection) {
             (ModuleKind::ListPages, Ok(selection)) => {
-                let pages = select_pages(ctx, site.site_id, &selection).await?;
+                let pages = listing.select(ctx, &selection).await?;
                 let items =
-                    render_items(ctx, block.body, &pages, &mut forms, site.site_id)
-                        .await?;
+                    render_items(ctx, block.body, &pages, &mut forms, site_id).await?;
                 output.push_str(&layout_items(&selection, &items));
             }
             (ModuleKind::CountPages, Ok(mut selection)) => {
                 selection.limit = usize::MAX;
-                let total = select_pages(ctx, site.site_id, &selection).await?.len();
+                let total = listing.select(ctx, &selection).await?.len();
                 output.push_str(&layout_total(block.body, total));
             }
             (kind, Err(message)) => output.push_str(&error_block(kind, &message)),
@@ -467,109 +473,107 @@ fn error_block(kind: ModuleKind, message: &str) -> String {
     format!("[[div class=\"error-block\"]]\n{kind:?} module error: {message}.\n[[/div]]")
 }
 
-async fn select_pages(
-    ctx: &ServiceContext<'_>,
+/// Every page of the site, loaded once per render: nested listings run one
+/// selection per outer item, which as separate queries exceeded the render budget.
+struct SiteListing {
     site_id: i64,
-    selection: &Selection,
-) -> Result<Vec<ListedPage>> {
-    let mut pages = Page::find()
-        .from_raw_sql(build_selection_query(site_id, selection))
-        .into_model::<ListedPage>()
-        .all(ctx.transaction())
-        .await
-        .or_raise(|| Error::new("failed to select ListPages pages", ErrorType::Render))?;
-    pages.retain(|page| match selection.page_type {
-        PageType::Normal => !page.name().starts_with('_'),
-        PageType::Hidden => page.name().starts_with('_'),
-        PageType::All => true,
-    });
-    sort_pages(&mut pages, selection.order, selection.descending);
-    // Compiled HTML is shared, so only anonymously readable pages may be listed.
-    // Anonymous roles never depend on the page (page-author roles require a member),
-    // so one check per category decides every page in it.
-    let mut category_visible = HashMap::new();
-    let mut visible = Vec::new();
-    for page in pages {
-        if visible.len() == selection.limit {
-            break;
-        }
-        let can_view = match category_visible.get(&page.page_category_id) {
-            Some(&can_view) => can_view,
-            None => {
-                let can_view =
-                    can_view_shared(ctx, site_id, page.page_id, page.page_category_id)
-                        .await?;
-                category_visible.insert(page.page_category_id, can_view);
-                can_view
-            }
-        };
-        if can_view {
-            visible.push(page);
-        }
-    }
-    Ok(visible)
+    pages: Vec<ListedPage>,
+    category_visible: HashMap<i64, bool>,
 }
 
-/// Only the filters a module uses appear in the query. Parameters never switch a
-/// filter off, because a cached prepared statement may run with a generic plan
-/// that cannot simplify such switches (measured: 53 ms instead of 0.6 ms).
-fn build_selection_query(site_id: i64, selection: &Selection) -> Statement {
-    let mut query = SelectionQuery::new(site_id);
-    if !selection.all_categories {
-        query.filter("c.slug = ANY({}::text[])", &selection.categories);
-    }
-    query.filter("c.slug <> ALL({}::text[])", &selection.excluded_categories);
-    query.filter("r.tags && {}::text[]", &selection.any_tags);
-    query.filter("r.tags @> {}::text[]", &selection.all_tags);
-    query.filter("NOT (r.tags && {}::text[])", &selection.excluded_tags);
-    if selection.untagged {
-        query.sql.push_str(" AND cardinality(r.tags) = 0");
-    }
-    if let Some(days) = selection.created_within_days {
-        query.bind(
-            "p.created_at >= {}",
-            Value::from(OffsetDateTime::now_utc() - Duration::days(days)),
+impl SiteListing {
+    async fn load(ctx: &ServiceContext<'_>, site_id: i64) -> Result<Self> {
+        let statement = Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            "SELECT p.page_id, p.page_category_id, p.slug, c.slug AS category,
+                    p.created_at, p.updated_at, r.title, r.tags, r.wikitext_hash
+             FROM page p
+             JOIN page_category c ON c.category_id = p.page_category_id
+             JOIN page_revision r ON r.revision_id = p.latest_revision_id
+             WHERE p.site_id = $1 AND p.deleted_at IS NULL",
+            [Value::from(site_id)],
         );
+        let pages = Page::find()
+            .from_raw_sql(statement)
+            .into_model::<ListedPage>()
+            .all(ctx.transaction())
+            .await
+            .or_raise(|| {
+                Error::new("failed to load ListPages pages", ErrorType::Render)
+            })?;
+        Ok(SiteListing {
+            site_id,
+            pages,
+            category_visible: HashMap::new(),
+        })
     }
-    Statement::from_sql_and_values(DatabaseBackend::Postgres, query.sql, query.values)
-}
 
-struct SelectionQuery {
-    sql: String,
-    values: Vec<Value>,
-}
-
-impl SelectionQuery {
-    fn new(site_id: i64) -> Self {
-        SelectionQuery {
-            sql: "SELECT p.page_id, p.page_category_id, p.slug, c.slug AS category,
-                         p.created_at, p.updated_at, r.title, r.wikitext_hash
-                  FROM page p
-                  JOIN page_category c ON c.category_id = p.page_category_id
-                  JOIN page_revision r ON r.revision_id = p.latest_revision_id
-                  WHERE p.site_id = $1 AND p.deleted_at IS NULL"
-                .into(),
-            values: vec![Value::from(site_id)],
+    async fn select(
+        &mut self,
+        ctx: &ServiceContext<'_>,
+        selection: &Selection,
+    ) -> Result<Vec<ListedPage>> {
+        let created_after = selection
+            .created_within_days
+            .map(|days| OffsetDateTime::now_utc() - Duration::days(days));
+        let mut pages: Vec<&ListedPage> = self
+            .pages
+            .iter()
+            .filter(|page| selection.matches(page, created_after))
+            .collect();
+        sort_pages(&mut pages, selection.order, selection.descending);
+        // Compiled HTML is shared, so only anonymously readable pages may be listed.
+        // Anonymous roles never depend on the page (page-author roles require a member),
+        // so one check per category decides every page in it.
+        let mut visible = Vec::new();
+        for page in pages {
+            if visible.len() == selection.limit {
+                break;
+            }
+            let can_view = match self.category_visible.get(&page.page_category_id) {
+                Some(&can_view) => can_view,
+                None => {
+                    let can_view = can_view_shared(
+                        ctx,
+                        self.site_id,
+                        page.page_id,
+                        page.page_category_id,
+                    )
+                    .await?;
+                    self.category_visible
+                        .insert(page.page_category_id, can_view);
+                    can_view
+                }
+            };
+            if can_view {
+                visible.push(page.clone());
+            }
         }
-    }
-
-    /// Add a list filter unless the list is empty (an empty list filters nothing).
-    fn filter(&mut self, condition: &str, list: &[String]) {
-        if !list.is_empty() {
-            self.bind(condition, Value::from(list.to_vec()));
-        }
-    }
-
-    /// Append `AND condition`, replacing `{}` with the next parameter.
-    fn bind(&mut self, condition: &str, value: Value) {
-        self.values.push(value);
-        let parameter = format!("${}", self.values.len());
-        self.sql.push_str(" AND ");
-        self.sql.push_str(&condition.replace("{}", &parameter));
+        Ok(visible)
     }
 }
 
-fn sort_pages(pages: &mut [ListedPage], order: OrderField, descending: bool) {
+impl Selection {
+    fn matches(&self, page: &ListedPage, created_after: Option<OffsetDateTime>) -> bool {
+        let has = |tag: &String| page.tags.contains(tag);
+        let hidden = page.name().starts_with('_');
+        let page_type = match self.page_type {
+            PageType::Normal => !hidden,
+            PageType::Hidden => hidden,
+            PageType::All => true,
+        };
+        page_type
+            && (self.all_categories || self.categories.contains(&page.category))
+            && !self.excluded_categories.contains(&page.category)
+            && (self.any_tags.is_empty() || self.any_tags.iter().any(has))
+            && self.all_tags.iter().all(has)
+            && !self.excluded_tags.iter().any(has)
+            && (!self.untagged || page.tags.is_empty())
+            && created_after.is_none_or(|after| page.created_at >= after)
+    }
+}
+
+fn sort_pages(pages: &mut [&ListedPage], order: OrderField, descending: bool) {
     pages.sort_by(|a, b| {
         let ordering = match order {
             OrderField::Name => a.name().to_lowercase().cmp(&b.name().to_lowercase()),
