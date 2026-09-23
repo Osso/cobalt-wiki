@@ -84,8 +84,9 @@ function auditEditorRequests(context, unexpected) {
       request.method() === "GET" &&
       request.resourceType() === "stylesheet" &&
       url.hostname === "d3g0gp89917ko0.cloudfront.net"
-    if (!publicThemeRead)
+    if (!publicThemeRead) {
       unexpected.push(`${request.method()} ${url.origin}${url.pathname}`)
+    }
   })
 }
 
