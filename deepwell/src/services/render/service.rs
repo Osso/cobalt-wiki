@@ -18,6 +18,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+use super::list_pages::ListingFilter;
 use super::prelude::*;
 use crate::hash::TextHash;
 use crate::services::TextService;
@@ -186,6 +187,7 @@ impl RenderService {
         let RenderedHtml {
             html_output,
             errors,
+            listings,
             html_blocks,
             code_blocks,
         } = Self::render_html(ctx, wikitext, page_info, settings, page_id.map(|_| 1))
@@ -205,6 +207,10 @@ impl RenderService {
             // (e.g. blueprint pages), but all cases where text blocks
             // are done are pages.
             debug_assert_eq!(settings.mode, WikitextMode::Page);
+
+            super::listing_deps::replace(ctx, page_id, &listings)
+                .await
+                .or_raise(make_error)?;
 
             // [[html]]
             let html_blocks: Vec<TextBlock> = html_blocks
@@ -270,36 +276,43 @@ impl RenderService {
         // since we want to do the processing for non-ftml work
         // outside the timeout guards.
 
-        let (tokens, included_pages) = timeout(config.preprocess_timeout, async {
-            let mut source = std::mem::take(&mut wikitext);
-            if list_page.is_some() {
-                source =
-                    super::live_template::apply_live_template(ctx, source, page_info)
-                        .await?;
-            }
-            let source = super::show_to::strip_show_to_regions(source);
-            let (expanded, included_pages) =
-                super::includes::expand_includes(ctx, source, &page_info.site, settings)
-                    .await?;
-            wikitext = super::list_pages::expand_list_pages(
-                ctx,
-                expanded,
-                page_info,
-                list_page.unwrap_or(1),
-            )
-            .await?;
-            wikitext =
-                super::wikidot_comments::strip_comments(std::mem::take(&mut wikitext));
-            ftml::preprocess(&mut wikitext);
-            Ok::<_, ExnError>((ftml::tokenize(&wikitext), included_pages))
-        })
-        .await
-        .or_raise(|| {
-            Error::new(
-                "failed to preprocess and tokenize due to timeout",
-                ErrorType::RenderTimeout,
-            )
-        })??;
+        let (tokens, included_pages, listings) =
+            timeout(config.preprocess_timeout, async {
+                let mut source = std::mem::take(&mut wikitext);
+                if list_page.is_some() {
+                    source =
+                        super::live_template::apply_live_template(ctx, source, page_info)
+                            .await?;
+                }
+                let source = super::show_to::strip_show_to_regions(source);
+                let (expanded, included_pages) = super::includes::expand_includes(
+                    ctx,
+                    source,
+                    &page_info.site,
+                    settings,
+                )
+                .await?;
+                let (listed, listings) = super::list_pages::expand_list_pages(
+                    ctx,
+                    expanded,
+                    page_info,
+                    list_page.unwrap_or(1),
+                )
+                .await?;
+                wikitext = listed;
+                wikitext = super::wikidot_comments::strip_comments(std::mem::take(
+                    &mut wikitext,
+                ));
+                ftml::preprocess(&mut wikitext);
+                Ok::<_, ExnError>((ftml::tokenize(&wikitext), included_pages, listings))
+            })
+            .await
+            .or_raise(|| {
+                Error::new(
+                    "failed to preprocess and tokenize due to timeout",
+                    ErrorType::RenderTimeout,
+                )
+            })??;
 
         let (tree, mut html_output, errors) = timeout(config.render_timeout, async {
             let result = ftml::parse(&tokens, page_info, settings);
@@ -324,6 +337,7 @@ impl RenderService {
         Ok(RenderedHtml {
             html_output,
             errors,
+            listings,
             html_blocks: tree
                 .html_blocks
                 .iter()
@@ -338,6 +352,7 @@ impl RenderService {
 struct RenderedHtml {
     html_output: HtmlOutput,
     errors: Vec<ParseError>,
+    listings: Vec<ListingFilter>,
     html_blocks: Vec<String>,
     code_blocks: Vec<CodeBlock<'static>>,
 }

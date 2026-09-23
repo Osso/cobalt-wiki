@@ -192,7 +192,7 @@ pub(super) fn parse_attributes(header: &str) -> ParseResult<HashMap<String, Stri
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize)]
 enum PageType {
     Normal,
     Hidden,
@@ -415,23 +415,31 @@ pub(super) async fn expand_list_pages(
     mut source: String,
     page_info: &PageInfo<'_>,
     list_page: usize,
-) -> Result<String> {
+) -> Result<(String, Vec<ListingFilter>)> {
+    let mut filters = Vec::new();
     if list_pages_blocks(&source).is_empty() {
-        return Ok(source);
+        return Ok((source, filters));
     }
     let site =
         SiteService::get(ctx, Reference::Slug(page_info.site.as_ref().into())).await?;
     let mut listing = SiteListing::load(ctx, site.site_id).await?;
     // Items of an outer module may contain inner modules (nested listings).
     for _ in 0..MAX_NESTING {
-        match expand_list_pages_once(ctx, &source, page_info, &mut listing, list_page)
-            .await?
+        match expand_list_pages_once(
+            ctx,
+            &source,
+            page_info,
+            &mut listing,
+            list_page,
+            &mut filters,
+        )
+        .await?
         {
             Some(expanded) => source = expanded,
             None => break,
         }
     }
-    Ok(source)
+    Ok((source, filters))
 }
 
 /// Expand the outermost modules; `None` when there are none.
@@ -441,6 +449,7 @@ async fn expand_list_pages_once(
     page_info: &PageInfo<'_>,
     listing: &mut SiteListing,
     list_page: usize,
+    filters: &mut Vec<ListingFilter>,
 ) -> Result<Option<String>> {
     let blocks = list_pages_blocks(source);
     if blocks.is_empty() {
@@ -459,6 +468,9 @@ async fn expand_list_pages_once(
         output.push_str(&source[copied..block.range.start]);
         let selection = parse_attributes(block.header)
             .and_then(|attributes| parse_selection(&attributes, current_category));
+        if let Ok(selection) = &selection {
+            filters.push(selection.filter());
+        }
         match (block.kind, selection) {
             (ModuleKind::ListPages, Ok(selection)) => {
                 let pages = listing.select(ctx, &selection).await?;
@@ -571,21 +583,70 @@ impl SiteListing {
 
 impl Selection {
     fn matches(&self, page: &ListedPage, created_after: Option<OffsetDateTime>) -> bool {
+        let subject = ListingSubject {
+            category: &page.category,
+            name: page.name(),
+            tags: &page.tags,
+        };
+        self.filter().matches(&subject)
+            && created_after.is_none_or(|after| page.created_at >= after)
+    }
+
+    /// The part of the selection that decides whether a page can be listed.
+    pub(super) fn filter(&self) -> ListingFilter {
+        ListingFilter {
+            all_categories: self.all_categories,
+            categories: self.categories.clone(),
+            excluded_categories: self.excluded_categories.clone(),
+            any_tags: self.any_tags.clone(),
+            all_tags: self.all_tags.clone(),
+            excluded_tags: self.excluded_tags.clone(),
+            untagged: self.untagged,
+            page_type: self.page_type,
+        }
+    }
+}
+
+/// A page as a listing sees it.
+#[derive(Debug)]
+pub struct ListingSubject<'a> {
+    pub category: &'a str,
+    pub name: &'a str,
+    pub tags: &'a [String],
+}
+
+/// Which pages a rendered ListPages/CountPages module can show, stored per
+/// listing page so page changes rerender only the listings they affect.
+/// Date windows are not stored: a changed page inside any window matches.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ListingFilter {
+    all_categories: bool,
+    categories: Vec<String>,
+    excluded_categories: Vec<String>,
+    any_tags: Vec<String>,
+    all_tags: Vec<String>,
+    excluded_tags: Vec<String>,
+    untagged: bool,
+    page_type: PageType,
+}
+
+impl ListingFilter {
+    pub fn matches(&self, page: &ListingSubject) -> bool {
         let has = |tag: &String| page.tags.contains(tag);
-        let hidden = page.name().starts_with('_');
+        let hidden = page.name.starts_with('_');
         let page_type = match self.page_type {
             PageType::Normal => !hidden,
             PageType::Hidden => hidden,
             PageType::All => true,
         };
+        let category = page.category.to_owned();
         page_type
-            && (self.all_categories || self.categories.contains(&page.category))
-            && !self.excluded_categories.contains(&page.category)
+            && (self.all_categories || self.categories.contains(&category))
+            && !self.excluded_categories.contains(&category)
             && (self.any_tags.is_empty() || self.any_tags.iter().any(has))
             && self.all_tags.iter().all(has)
             && !self.excluded_tags.iter().any(has)
             && (!self.untagged || page.tags.is_empty())
-            && created_after.is_none_or(|after| page.created_at >= after)
     }
 }
 

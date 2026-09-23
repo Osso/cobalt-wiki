@@ -129,6 +129,9 @@ impl PageRevisionService {
             "Invalid revision type for standard revision creation",
         );
 
+        // Listings showed the page as it was before this revision.
+        let listed_before = (previous.slug.clone(), previous.tags.clone());
+
         // Fields to create in the revision
         let mut parser_errors = None;
         let mut old_slug = None;
@@ -265,7 +268,16 @@ impl PageRevisionService {
         }
 
         // Perform outdating based on changes made.
-        //
+        OutdateService::outdate_listings(
+            ctx,
+            site_id,
+            page_id,
+            &[(&listed_before.0, &listed_before.1), (&slug, &tags)],
+            RerenderDepth::default(),
+        )
+        .await
+        .or_raise(make_error)?;
+
         // Also, verify the revision type is correct.
         // If the slug changes it's "move", otherwise "regular".
         match old_slug {
@@ -463,6 +475,15 @@ impl PageRevisionService {
         )
         .await
         .or_raise(make_error)?;
+        OutdateService::outdate_listings(
+            ctx,
+            site_id,
+            page_id,
+            &[(&slug, &tags)],
+            RerenderDepth::default(),
+        )
+        .await
+        .or_raise(make_error)?;
 
         // Insert the first revision into the table
         let model = page_revision::ActiveModel {
@@ -546,6 +567,15 @@ impl PageRevisionService {
             site_id,
             page_id,
             &slug,
+            RerenderDepth::default(),
+        )
+        .await
+        .or_raise(make_error)?;
+        OutdateService::outdate_listings(
+            ctx,
+            site_id,
+            page_id,
+            &[(&slug, &tags)],
             RerenderDepth::default(),
         )
         .await
@@ -704,6 +734,15 @@ impl PageRevisionService {
             site_id,
             page_id,
             &new_slug,
+            RerenderDepth::default(),
+        )
+        .await
+        .or_raise(make_error)?;
+        OutdateService::outdate_listings(
+            ctx,
+            site_id,
+            page_id,
+            &[(&new_slug, &tags)],
             RerenderDepth::default(),
         )
         .await

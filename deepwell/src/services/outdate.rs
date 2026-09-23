@@ -22,6 +22,7 @@ use super::prelude::*;
 use crate::futures::StreamExt;
 use crate::models::page::{self, Entity as Page, Model as PageModel};
 use crate::models::page_category::{self, Entity as PageCategory};
+use crate::services::render::{ListingSubject, listing_pages_affected_by};
 use crate::services::{JobService, LinkService, PageService, SiteService};
 use crate::types::{ConnectionType, PageId, PageOrder, RerenderDepth};
 use crate::utils::split_category_name;
@@ -142,6 +143,45 @@ impl OutdateService {
             .await
             .or_raise(make_error)?;
 
+        Ok(())
+    }
+
+    /// Rerender the listing pages that could show `page_id` in any of the given
+    /// states (`(slug, tags)` before and after a change).
+    pub async fn outdate_listings(
+        ctx: &ServiceContext<'_>,
+        site_id: i64,
+        page_id: i64,
+        states: &[(&str, &[String])],
+        depth: RerenderDepth,
+    ) -> Result<()> {
+        let make_error = || {
+            Error::new(
+                format!(
+                    "failed to run outdater for listings of page ID {page_id} on site ID {site_id} (depth {depth})"
+                ),
+                ErrorType::PageOutdater,
+            )
+        };
+        let subjects: Vec<_> = states
+            .iter()
+            .map(|&(slug, tags)| {
+                let (category, name) = split_category_name(slug);
+                ListingSubject {
+                    category,
+                    name,
+                    tags,
+                }
+            })
+            .collect();
+        for id in listing_pages_affected_by(ctx, site_id, &subjects)
+            .await
+            .or_raise(make_error)?
+            .into_iter()
+            .filter(|&id| id != page_id)
+        {
+            Self::outdate(ctx, id, depth).await.or_raise(make_error)?;
+        }
         Ok(())
     }
 

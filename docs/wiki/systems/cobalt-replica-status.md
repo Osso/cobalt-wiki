@@ -22,7 +22,7 @@ Verified: 2026-09-23. This records evidence, not authorization to expose source-
 - Full rerender: `page_rerender` accepts `"rerender_type": "standalone"` (no dependent outdating). A `full` sweep fans out to every page through navigation outdating, and NavigationOnly jobs set `updated_at` without recompiling bodies, so `updated_at` does not prove a body rerender. Sweep script: `/tmp/cobalt-standalone-sweep.py` on the droplet.
 - Deploy time: Deepwell builds with crane; dependencies are cached from Cargo manifests only and the Nix build uses thin LTO. Sakuin's server builds from its Rust files only (pin commits no longer rebuild it) and also uses crane. A Deepwell code change deployed in 2m49s (previously over 10 minutes).
 - Renderer changes still need a standalone sweep, because stored HTML carries no renderer version; lazy per-view rerendering keyed on a build identity in `compiled_generator` would remove the sweeps.
-- Include expansion records no include connections, so editing an included page does not rerender its includers.
+- Includes and category `_template` pages already invalidate their dependents (12,347 include connections in production); listings invalidate through `page_listing`.
 - ListPages loads the site's page metadata once per render and filters in memory. Warm full rerenders (body, navigation, links) measured 0.09–0.42 s; nested `testlist` renders in 0.38 s instead of exceeding the 500 ms preprocess budget with 52 queries.
 
 ## Access boundary
