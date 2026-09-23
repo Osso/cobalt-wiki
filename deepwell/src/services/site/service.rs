@@ -280,6 +280,14 @@ impl SiteService {
             model.default_page = Set(default_page);
         }
 
+        if let Maybe::Set(top_bar_page) = input.top_bar_page {
+            model.top_bar_page = Set(top_bar_page);
+        }
+
+        if let Maybe::Set(side_bar_page) = input.side_bar_page {
+            model.side_bar_page = Set(side_bar_page);
+        }
+
         if let Maybe::Set(preferred_domain) = input.preferred_domain {
             // Disallow preferred domains for the default site (www)
             if site.slug == DEFAULT_SITE_SLUG && preferred_domain.is_some() {
