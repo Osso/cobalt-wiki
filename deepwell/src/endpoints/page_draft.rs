@@ -60,7 +60,7 @@ async fn authorize_target(ctx: &ServiceContext<'_>) -> Result<DraftTarget> {
         slug = page.slug.clone();
     }
     reject_mismatched_origin(ctx, site_id, &slug, page.as_ref()).await?;
-    if let Some(page) = &page {
+    if page.is_some() {
         for action in [Action::View, Action::Edit] {
             let allowed = PageService::check_user_permission(
                 ctx,
