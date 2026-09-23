@@ -175,7 +175,10 @@ async function publish(page) {
 
 /** @param {import("@playwright/test").Page} page @param {string} label */
 async function cancelWithChoice(page, label) {
-  await page.locator('#editor input[name="cancel"], #editor button.button-cancel').click()
+  await page
+    .locator("#editor")
+    .getByRole("button", { name: "Cancel", exact: true })
+    .click()
   const dialog = page.getByRole("dialog", { name: "Keep saved draft" })
   await expect(dialog).toBeVisible()
   await dialog.getByRole("button", { name: label, exact: true }).click()
