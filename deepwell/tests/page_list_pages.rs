@@ -224,6 +224,44 @@ async fn count_pages_fills_the_total_of_every_matching_page() {
 }
 
 #[tokio::test]
+async fn nested_list_pages_list_each_outer_page_with_its_own_inner_pages() {
+    let runner = TestRunner::setup().await;
+    let site_id = site_id(&runner).await;
+    import_characters(&runner, site_id).await;
+    for (slug, title, tags) in [
+        ("player:ann", "Ann", &["_completed"][..]),
+        ("player:bob", "Bob", &["_completed"][..]),
+    ] {
+        import_page(&runner, site_id, slug, "Player").await;
+        set_title_and_tags(&runner, site_id, slug, title, tags).await;
+    }
+    set_title_and_tags(&runner, site_id, "character:alpha", "Alpha", &["ann"]).await;
+    set_title_and_tags(&runner, site_id, "character:beta", "Beta", &["bob"]).await;
+    set_title_and_tags(&runner, site_id, "character:gamma", "Gamma", &["ann"]).await;
+    // As on Cobalt's testlist, the inner module arrives through an include.
+    import_page(
+        &runner,
+        site_id,
+        "characterlist",
+        "[[module ListPages category=\"character\" tags=\"{$tags}\" order=\"title\"]]\n* char %%title%%\n[[/module]]",
+    )
+    .await;
+    let players = "[[module ListPages category=\"player\" tags=\"_completed\" order=\"title\" prependLine=\"Players:\"]]\n+ %%title%%\n[[include characterlist | tags=+%%name%%]]\n[[/module]]\nEnd";
+    import_page(&runner, site_id, "testlist", players).await;
+    let html = compiled_body(&runner, site_id, "testlist").await;
+
+    let position =
+        |text: &str| html.find(text).unwrap_or_else(|| panic!("{text}: {html}"));
+    assert!(position("Ann") < position("char Alpha"));
+    assert!(position("char Alpha") < position("char Gamma"));
+    assert!(position("char Gamma") < position("Bob"));
+    assert!(position("Bob") < position("char Beta"));
+    assert!(position("char Beta") < position("End"));
+    assert_eq!(html.matches("char ").count(), 3, "{html}");
+    assert!(!html.contains("%%") && !html.contains("[[module"), "{html}");
+}
+
+#[tokio::test]
 async fn list_pages_never_lists_pages_denied_to_anonymous_readers() {
     let runner = TestRunner::setup().await;
     let site_id = site_id(&runner).await;

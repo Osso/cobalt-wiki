@@ -3,6 +3,26 @@
 
 use super::includes::can_view_shared;
 use super::page_tokens::{FormRecord, PageTokens, substitute_tokens};
+
+/// Substitute tokens everywhere except nested module item templates, whose
+/// tokens describe the pages those modules list.
+pub(super) fn substitute_outside_module_bodies(
+    text: &str,
+    tokens: &PageTokens,
+) -> String {
+    let mut output = String::with_capacity(text.len());
+    let mut copied = 0;
+    for block in list_pages_blocks(text) {
+        output.push_str(&substitute_tokens(
+            &text[copied..block.body_range.start],
+            tokens,
+        ));
+        output.push_str(block.body);
+        copied = block.body_range.end;
+    }
+    output.push_str(&substitute_tokens(&text[copied..], tokens));
+    output
+}
 use super::prelude::*;
 use crate::models::page::Entity as Page;
 use crate::models::text::{self, Entity as Text};
@@ -20,6 +40,8 @@ type ParseResult<T> = std::result::Result<T, String>;
 
 const DEFAULT_PER_PAGE: usize = 20;
 const MAX_PER_PAGE: usize = 250;
+/// Nested listing levels expanded; deeper modules stay as text.
+const MAX_NESTING: usize = 4;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub(super) enum ModuleKind {
@@ -59,27 +81,15 @@ fn next_block<'t>(
     loop {
         let start = search + lower[search..].find("[[module")?;
         let name_start = start + "[[module".len();
-        let name = lower[name_start..].trim_start();
-        let kind = [
-            ("listpages", ModuleKind::ListPages),
-            ("countpages", ModuleKind::CountPages),
-        ]
-        .into_iter()
-        .find(|(module, _)| {
-            name.starts_with(module)
-                && name[module.len()..]
-                    .starts_with(|c: char| c.is_whitespace() || c == ']')
-        });
-        let Some((module, kind)) =
-            kind.filter(|_| lower[name_start..].starts_with(char::is_whitespace))
-        else {
+        let Some((module, kind)) = module_at(lower, name_start) else {
             search = name_start;
             continue;
         };
+        let name = lower[name_start..].trim_start();
         let header_start = source.len() - name.len() + module.len();
         let header_end = header_start + find_header_end(&source[header_start..])?;
         let body_start = header_end + 2;
-        let body_end = body_start + lower[body_start..].find("[[/module]]")?;
+        let body_end = find_matching_close(lower, body_start)?;
         return Some(ListPagesBlock {
             kind,
             range: start..body_end + "[[/module]]".len(),
@@ -87,6 +97,48 @@ fn next_block<'t>(
             body: &source[body_start..body_end],
             body_range: body_start..body_end,
         });
+    }
+}
+
+/// The ListPages/CountPages module named after a `[[module` opening, if any.
+fn module_at(lower: &str, name_start: usize) -> Option<(&'static str, ModuleKind)> {
+    if !lower[name_start..].starts_with(char::is_whitespace) {
+        return None;
+    }
+    let name = lower[name_start..].trim_start();
+    [
+        ("listpages", ModuleKind::ListPages),
+        ("countpages", ModuleKind::CountPages),
+    ]
+    .into_iter()
+    .find(|(module, _)| {
+        name.starts_with(module)
+            && name[module.len()..].starts_with(|c: char| c.is_whitespace() || c == ']')
+    })
+}
+
+/// The `[[/module]]` closing a body starting at `body_start`, skipping the
+/// bodies of nested ListPages/CountPages modules.
+fn find_matching_close(lower: &str, body_start: usize) -> Option<usize> {
+    let mut depth = 0;
+    let mut offset = body_start;
+    loop {
+        let close = offset + lower[offset..].find("[[/module]]")?;
+        let open = lower[offset..close]
+            .match_indices("[[module")
+            .map(|(index, _)| offset + index)
+            .find(|&open| module_at(lower, open + "[[module".len()).is_some());
+        match open {
+            Some(open) => {
+                depth += 1;
+                offset = open + "[[module".len();
+            }
+            None if depth == 0 => return Some(close),
+            None => {
+                depth -= 1;
+                offset = close + "[[/module]]".len();
+            }
+        }
     }
 }
 
@@ -357,12 +409,28 @@ impl ListedPage {
 /// Replace every ListPages module in rendered wikitext with its generated items.
 pub(super) async fn expand_list_pages(
     ctx: &ServiceContext<'_>,
-    source: String,
+    mut source: String,
     page_info: &PageInfo<'_>,
 ) -> Result<String> {
-    let blocks = list_pages_blocks(&source);
+    // Items of an outer module may contain inner modules (nested listings).
+    for _ in 0..MAX_NESTING {
+        match expand_list_pages_once(ctx, &source, page_info).await? {
+            Some(expanded) => source = expanded,
+            None => break,
+        }
+    }
+    Ok(source)
+}
+
+/// Expand the outermost modules; `None` when there are none.
+async fn expand_list_pages_once(
+    ctx: &ServiceContext<'_>,
+    source: &str,
+    page_info: &PageInfo<'_>,
+) -> Result<Option<String>> {
+    let blocks = list_pages_blocks(source);
     if blocks.is_empty() {
-        return Ok(source);
+        return Ok(None);
     }
     let site =
         SiteService::get(ctx, Reference::Slug(page_info.site.as_ref().into())).await?;
@@ -392,7 +460,7 @@ pub(super) async fn expand_list_pages(
         copied = block.range.end;
     }
     output.push_str(&source[copied..]);
-    Ok(output)
+    Ok(Some(output))
 }
 
 fn error_block(kind: ModuleKind, message: &str) -> String {
@@ -545,7 +613,7 @@ async fn render_items(
             updated_at: page.updated_at.map(OffsetDateTime::unix_timestamp),
             form: form.as_ref(),
         };
-        items.push(substitute_tokens(body, &tokens));
+        items.push(substitute_outside_module_bodies(body, &tokens));
     }
     Ok(items)
 }
