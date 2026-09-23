@@ -1,9 +1,9 @@
 import assert from "node:assert/strict"
 import { after, test } from "node:test"
-import { createServer } from "vite"
+import { createSsrServer } from "./ssr-server.ts"
 
-const vite = await createServer({ server: { middlewareMode: true }, logLevel: "error" })
-after(() => vite.close())
+const { vite, close } = await createSsrServer()
+after(close)
 const { actions } = await vite.ssrLoadModule(
   "/src/routes/[slug]/[...extra]/+page.server.ts"
 )

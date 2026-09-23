@@ -4,14 +4,10 @@ import { readFile, unlink, writeFile } from "node:fs/promises"
 import { compile, preprocess } from "svelte/compiler"
 import { render } from "svelte/server"
 import ts from "typescript"
-import { createServer } from "vite"
+import { createSsrServer } from "./ssr-server.ts"
 
-const vite = await createServer({
-  server: { middlewareMode: true, ws: false },
-  optimizeDeps: { noDiscovery: true, include: [] },
-  logLevel: "error"
-})
-after(() => vite.close())
+const { vite, close } = await createSsrServer()
+after(close)
 const { load } = await vite.ssrLoadModule("/src/routes/search:site/+page.server.ts")
 async function loadComponent(path: string, name: string) {
   const source = await readFile(new URL(path, import.meta.url), "utf8")

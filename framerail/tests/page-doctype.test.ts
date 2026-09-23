@@ -1,11 +1,11 @@
 import assert from "node:assert/strict"
 import { after, test } from "node:test"
-import { createServer } from "vite"
+import { createSsrServer } from "./ssr-server.ts"
 
 import type { ResolveOptions } from "@sveltejs/kit"
 
-const vite = await createServer({ server: { middlewareMode: true }, logLevel: "error" })
-after(() => vite.close())
+const { vite, close } = await createSsrServer()
+after(close)
 const { handle } = await vite.ssrLoadModule("/src/hooks.server.ts")
 const root = await vite.ssrLoadModule("/src/routes/+page.server.ts")
 const slug = await vite.ssrLoadModule("/src/routes/[slug]/[...extra]/+page.server.ts")
