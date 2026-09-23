@@ -38,6 +38,27 @@ function imageUrl(uri: string): URL {
   return url
 }
 
+function bindImageCheckEvents(
+  popup: Window,
+  image: HTMLImageElement,
+  status: HTMLParagraphElement
+): void {
+  image.addEventListener("load", () => {
+    status.textContent = "Image loaded."
+    const bounds = imageCheckBounds(
+      image.naturalWidth,
+      image.naturalHeight,
+      screen.availWidth,
+      screen.availHeight
+    )
+    popup.resizeTo(bounds.width, bounds.height)
+    popup.moveTo(bounds.left, bounds.top)
+  })
+  image.addEventListener("error", () => {
+    status.textContent = "Image unavailable."
+  })
+}
+
 function addImageCheckContent(popup: Window, url: URL): void {
   const document = popup.document
   document.title = "Checking image..."
@@ -57,20 +78,7 @@ function addImageCheckContent(popup: Window, url: URL): void {
     event.preventDefault()
     popup.close()
   })
-  image.addEventListener("load", () => {
-    status.textContent = "Image loaded."
-    const bounds = imageCheckBounds(
-      image.naturalWidth,
-      image.naturalHeight,
-      screen.availWidth,
-      screen.availHeight
-    )
-    popup.resizeTo(bounds.width, bounds.height)
-    popup.moveTo(bounds.left, bounds.top)
-  })
-  image.addEventListener("error", () => {
-    status.textContent = "Image unavailable."
-  })
+  bindImageCheckEvents(popup, image, status)
   document.body.style.textAlign = "center"
   document.body.replaceChildren(message, image, status, close)
   image.src = url.href
@@ -87,8 +95,9 @@ export function openImageCheck(uri: string): void {
     "_blank",
     `location=no,menubar=no,titlebar=no,resizable=yes,scrollbars=yes,width=${width},height=${height},top=${top},left=${left}`
   )
-  if (!popup)
+  if (!popup) {
     throw new Error("Image check popup was blocked. Allow popups and try again.")
+  }
   popup.opener = null
   addImageCheckContent(popup, url)
 }
