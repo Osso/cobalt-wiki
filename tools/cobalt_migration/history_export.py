@@ -288,6 +288,8 @@ def export_history(
             now,
         )
         previous = True
+        acquired_at = now()
+        hashes = _record_response(directory, f"list-{page}", response)
         if response.status != 200:
             raise HistoryExportError(
                 f"history list unavailable: HTTP {response.status}"
@@ -300,8 +302,6 @@ def export_history(
                 raise PageHistoryError("history list pagination mismatch")
         except PageHistoryError as error:
             raise HistoryExportError("invalid or denied history list") from error
-        acquired_at = now()
-        hashes = _record_response(directory, f"list-{page}", response)
         state["list_pages"].append({**hashes, "acquired_at": acquired_at})
         state["next_page"] = parsed["next_page"]
         _save_checkpoint(directory / "checkpoint.json", state)
@@ -323,6 +323,8 @@ def export_history(
             now,
         )
         previous = True
+        acquired_at = now()
+        hashes = _record_response(directory, f"revision-{identity}", response)
         if response.status == 200:
             try:
                 decoded = decode_history_source(response.html)
@@ -332,8 +334,6 @@ def export_history(
                 ) from error
         else:
             decoded = {}
-        acquired_at = now()
-        hashes = _record_response(directory, f"revision-{identity}", response)
         state["bodies"][identity] = {
             "status": response.status,
             "hashes": hashes,

@@ -205,6 +205,7 @@ class HistoryExportTest(unittest.TestCase):
             self.export(denied)
         self.assertFalse((self.path / "checkpoint.json").exists())
         self.assertEqual(len(self.requests), 0)
+        self.assertEqual((self.path / "list-1.raw").read_text(), "denied-raw")
         self.path = Path(self.temp.name) / "other" / "history"
 
         def missing(request):
@@ -266,7 +267,7 @@ class HistoryExportTest(unittest.TestCase):
             self.export(denied)
         state = json.loads((self.path / "checkpoint.json").read_text())
         self.assertEqual(set(state["bodies"]), {"103"})
-        self.assertFalse((self.path / "revision-102.raw").exists())
+        self.assertEqual((self.path / "revision-102.raw").read_text(), "denied-raw")
 
     def test_checkpoint_identity_and_corrupt_archive_refuse_resume(self):
         self.export()
