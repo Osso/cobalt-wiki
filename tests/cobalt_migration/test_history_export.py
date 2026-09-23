@@ -259,6 +259,18 @@ class HistoryExportTest(unittest.TestCase):
         self.assertEqual(count, 4)
         self.assertFalse((self.path / "checkpoint.json").exists())
 
+    def test_explicit_module_denial_of_a_body_is_a_gap(self):
+        def private(request):
+            if request.get("revision_id") == 102:
+                self.requests.append(request)
+                return HistoryResponse(200, '{"status":"no_permission","message":"No"}', "")
+            return self.fetch(request)
+
+        state = self.export(private)
+        self.assertEqual(state["bodies"]["102"]["module_status"], "no_permission")
+        self.assertNotIn("wikitext", state["bodies"]["102"])
+        self.assertEqual(state["bodies"]["100"]["wikitext"], "zero")
+
     def test_html_denial_in_body_stops_without_advancing(self):
         def denied(request):
             if request.get("revision_id") == 102:

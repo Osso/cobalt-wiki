@@ -226,6 +226,15 @@ def _finish_inventory(directory, state):
     _save_checkpoint(directory / "checkpoint.json", state)
 
 
+def _module_status(raw):
+    """The `status` of a module connector JSON response, if it is one."""
+    try:
+        reply = json.loads(raw)
+    except ValueError:
+        return None
+    return reply.get("status") if isinstance(reply, dict) else None
+
+
 def export_history(
     source_origin,
     source_page_id,
@@ -325,7 +334,12 @@ def export_history(
         previous = True
         acquired_at = now()
         hashes = _record_response(directory, f"revision-{identity}", response)
-        if response.status == 200:
+        module_status = _module_status(response.raw)
+        if response.status == 200 and module_status not in (None, "ok"):
+            # Wikidot refused this source explicitly (e.g. a category whose
+            # sources are private): an explicit gap, not a transport failure.
+            decoded = {"module_status": module_status}
+        elif response.status == 200:
             try:
                 decoded = decode_history_source(response.html)
             except HistorySourceError as error:

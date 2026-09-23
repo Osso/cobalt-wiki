@@ -32,6 +32,10 @@ def _inventory(plan):
     return identities, unresolved, digest
 
 
+def _available(body):
+    return body["status"] == 200 and "module_status" not in body
+
+
 def _progress(state):
     return {
         **state,
@@ -68,9 +72,9 @@ def acquire_site_history(
             raise
         state["pages"][str(page_id)] = {
             "listed": len(page["revisions"]),
-            "bodies": sum(body["status"] == 200 for body in page["bodies"].values()),
+            "bodies": sum(_available(body) for body in page["bodies"].values()),
             "unavailable_bodies": sum(
-                body["status"] != 200 for body in page["bodies"].values()
+                not _available(body) for body in page["bodies"].values()
             ),
             "unobserved_ranges": page["unobserved_ranges"],
         }
