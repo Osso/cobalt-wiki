@@ -22,7 +22,7 @@ Cobalt history import must backfill authorized source revision history without p
 
 ### Proof and operational safety
 
-- [x] Acquire sampled revision-list metadata for one page and inspect three historical source-module representations through the authenticated read-only source UI.
+- [x] Acquire all 240 revision-list records (numbers 0–239) for one page and inspect three historical source-module representations through the authenticated read-only source UI.
 - [x] Confirm that the module returns HTML-wrapped, entity-decoded source rather than an independently verified byte-identical archive representation.
 - [ ] Complete a reversible local multi-revision backfill pilot before any production history write.
 - [ ] Prove imported final-body equality by an unambiguous source hash; DOM-decoded body hashes alone are insufficient.
@@ -54,7 +54,7 @@ No importer/backfill tests yet. Read-only one-page pilot artifacts are protected
 
 ## Known gaps (current cycle)
 
-- [x] Verify revision-list and source-module contracts on one page; sampled list pages 1, 2, and 12 returned revision numbers 239–220, 219–200, and 19–0. Intermediate pages and total count remain unverified.
+- [x] Verify revision-list pagination and IDs for one page: 12 pages of 20 rows cover each revision number 0–239 exactly once. This establishes only that page's listed history, not whole-site counts.
 - [ ] Acquire every required page's authorized revisions and establish complete counts/pagination.
 - [ ] Review a backfill design for pages whose technical import already occupies revision 0; straight append of source revision 0 conflicts with the native sequential requirement.
 - [ ] Build and prove a reversible local multi-revision backfill pilot, including unambiguous body equality and bounded queue impact.
