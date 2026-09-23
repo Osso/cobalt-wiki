@@ -380,6 +380,8 @@ impl PageRevisionService {
         let PageRevisionModel { revision_id, .. } =
             model.insert(txn).await.or_raise(make_error)?;
 
+        crate::services::search::outbox::enqueue(txn, page_id).await?;
+
         Ok(Some(CreatePageRevisionOutput {
             revision_id,
             revision_number,
@@ -511,6 +513,8 @@ impl PageRevisionService {
         let PageRevisionModel { revision_id, .. } =
             model.insert(txn).await.or_raise(make_error)?;
 
+        crate::services::search::outbox::enqueue(txn, page_id).await?;
+
         Ok(CreateFirstPageRevisionOutput {
             revision_id,
             parser_errors: errors,
@@ -611,6 +615,8 @@ impl PageRevisionService {
 
         let PageRevisionModel { revision_id, .. } =
             model.insert(txn).await.or_raise(make_error)?;
+
+        crate::services::search::outbox::enqueue(txn, page_id).await?;
 
         Ok(CreatePageRevisionOutput {
             revision_id,
@@ -773,6 +779,8 @@ impl PageRevisionService {
 
         let PageRevisionModel { revision_id, .. } =
             model.insert(txn).await.or_raise(make_error)?;
+
+        crate::services::search::outbox::enqueue(txn, page_id).await?;
 
         Ok(CreatePageRevisionOutput {
             revision_id,
@@ -989,6 +997,7 @@ impl PageRevisionService {
         };
 
         model.update(txn).await.or_raise(make_error)?;
+        crate::services::search::outbox::enqueue(txn, page_id).await?;
         Ok(())
     }
 
