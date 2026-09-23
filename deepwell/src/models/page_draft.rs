@@ -12,6 +12,7 @@ pub struct Model {
     #[sea_orm(column_type = "Text")]
     pub wikitext: String,
     pub saved_by_user_id: Option<i64>,
+    pub origin_page_id: Option<i64>,
     pub updated_at: TimeDateTimeWithTimeZone,
 }
 

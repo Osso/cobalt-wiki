@@ -417,6 +417,103 @@ async fn create_publishes_and_discards_target_draft() {
 }
 
 #[tokio::test]
+async fn create_only_actor_cannot_read_orphaned_existing_page_drafts_after_move_or_delete()
+ {
+    let (mut runner, site_id) = setup().await;
+    let role = RoleService::create(
+        runner.context(),
+        InternalCreateRoleInput {
+            site_id,
+            name: "Create-only draft test".into(),
+            description: None,
+            is_virtual: false,
+            parent_role_id: None,
+            creating_user_id: SYSTEM_USER_ID,
+            ip_address: common::IP_ADDRESS,
+        },
+    )
+    .await
+    .unwrap();
+    PermissionService::update_permissions_for_role(
+        runner.context(),
+        UpdateRolePermissionsInput {
+            site_id,
+            role_reference: Reference::Id(role.role_id),
+            new_permissions: vec![Permission {
+                resource_type: Resource::Page,
+                resource_category: None,
+                action: Action::Create,
+            }],
+            cascade_removals: false,
+            updating_user_id: SYSTEM_USER_ID,
+            ip_address: common::IP_ADDRESS,
+        },
+    )
+    .await
+    .unwrap();
+    RoleService::grant_role_to_user(
+        runner.context(),
+        GrantUserRoleInput {
+            site_id,
+            user_id: SAMPLE_USER_ID,
+            role_id: role.role_id,
+            assigning_user_id: SYSTEM_USER_ID,
+            expires_at: None,
+            ip_address: common::IP_ADDRESS,
+        },
+    )
+    .await
+    .unwrap();
+
+    for (slug, moved) in [("draft:moved", true), ("draft:deleted", false)] {
+        let revision_id = create(&mut runner, site_id, slug, "Published").await;
+        run_endpoint!(
+            runner,
+            page_draft_save,
+            json!({
+                "title": "Private", "wikitext": "Do not expose",
+                "last_revision_id": revision_id
+            })
+        );
+        if moved {
+            run_endpoint!(
+                runner,
+                page_move,
+                json!({
+                    "site_id": site_id, "page": slug, "new_slug": "draft:destination",
+                    "last_revision_id": revision_id, "revision_comments": "Move",
+                    "user_id": ADMIN_USER_ID, "ip_address": common::IP_ADDRESS
+                })
+            );
+        } else {
+            run_endpoint!(
+                runner,
+                page_delete,
+                json!({
+                    "site_id": site_id, "page": slug,
+                    "last_revision_id": revision_id, "revision_comments": "Delete",
+                    "user_id": ADMIN_USER_ID, "ip_address": common::IP_ADDRESS
+                })
+            );
+        }
+        target(&mut runner, site_id, slug, Some(SAMPLE_USER_ID));
+        let error = run_endpoint_err!(runner, page_draft_get);
+        assert_contains_error!(error, ErrorType::PermissionDenied);
+        let error = run_endpoint_err!(
+            runner,
+            page_draft_save,
+            json!({
+                "title": "Hijack", "wikitext": "Hijack source"
+            })
+        );
+        assert_contains_error!(error, ErrorType::PermissionDenied);
+        let error = run_endpoint_err!(runner, page_draft_delete);
+        assert_contains_error!(error, ErrorType::PermissionDenied);
+        target(&mut runner, site_id, slug, Some(ADMIN_USER_ID));
+    }
+}
+
+#[tokio::test]
 async fn import_does_not_discard_existing_missing_page_draft() {
     let (runner, site_id) = setup().await;
     run_endpoint!(

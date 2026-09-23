@@ -57,6 +57,10 @@ async fn authorize_target(ctx: &ServiceContext<'_>) -> Result<DraftTarget> {
     }
     let page = PageService::get_optional(ctx, site_id, reference.clone()).await?;
     if let Some(page) = &page {
+        slug = page.slug.clone();
+    }
+    reject_mismatched_origin(ctx, site_id, &slug, page.as_ref()).await?;
+    if let Some(page) = &page {
         for action in [Action::View, Action::Edit] {
             let allowed = PageService::check_user_permission(
                 ctx,
@@ -76,7 +80,6 @@ async fn authorize_target(ctx: &ServiceContext<'_>) -> Result<DraftTarget> {
                 .into());
             }
         }
-        slug = page.slug.clone();
     } else {
         let allowed = match (&reference, request.user_id) {
             (Reference::Slug(_), Some(user_id)) => {
@@ -97,6 +100,28 @@ async fn authorize_target(ctx: &ServiceContext<'_>) -> Result<DraftTarget> {
         slug,
         page,
     })
+}
+
+async fn reject_mismatched_origin(
+    ctx: &ServiceContext<'_>,
+    site_id: i64,
+    slug: &str,
+    page: Option<&PageModel>,
+) -> Result<()> {
+    let draft = PageDraft::find_by_id((site_id, slug.to_owned()))
+        .one(ctx.transaction())
+        .await
+        .or_raise(|| Error::new("failed to check page draft origin", ErrorType::Page))?;
+    if let Some(origin_page_id) = draft.and_then(|draft| draft.origin_page_id) {
+        if page.map(|page| page.page_id) != Some(origin_page_id) {
+            return Err(Error::new(
+                "page draft's original page is no longer at this slug",
+                ErrorType::PermissionDenied,
+            )
+            .into());
+        }
+    }
+    Ok(())
 }
 
 async fn read_draft(
@@ -176,6 +201,7 @@ pub async fn page_draft_save(
         title: Set(input.title),
         wikitext: Set(source),
         saved_by_user_id: Set(ctx.request().user_id),
+        origin_page_id: Set(target.page.as_ref().map(|page| page.page_id)),
         updated_at: Set(crate::utils::now()),
     };
     PageDraft::insert(model)
@@ -185,6 +211,7 @@ pub async fn page_draft_save(
                     page_draft::Column::Title,
                     page_draft::Column::Wikitext,
                     page_draft::Column::SavedByUserId,
+                    page_draft::Column::OriginPageId,
                     page_draft::Column::UpdatedAt,
                 ])
                 .to_owned(),
