@@ -40,15 +40,13 @@ impl ScoreService {
         Ok(score)
     }
 
-    /// Gets the correct `Scorer` implementation for this page.
-    ///
-    /// Currently stubbed, will be implemented when relevant settings are added.
+    /// Gets the correct `Scorer` implementation for this page: the vote sum,
+    /// Wikidot's rating (there are no per-site scoring settings yet).
     pub async fn get_scorer(
         _ctx: &ServiceContext<'_>,
         _page_id: i64,
     ) -> Result<impl Scorer> {
-        // TODO
-        Ok(TestScorer)
+        Ok(SumScorer)
     }
 
     /// Helper method for retrieving a `VoteMap` for a page.

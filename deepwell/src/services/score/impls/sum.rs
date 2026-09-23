@@ -41,7 +41,7 @@ impl Scorer for SumScorer {
     ) -> Result<ScoreValue> {
         #[derive(FromQueryResult, Debug)]
         struct SumRow {
-            sum: i64,
+            sum: Option<i64>,
         }
 
         // Query for sum of all votes.
@@ -56,6 +56,7 @@ impl Scorer for SumScorer {
         // GROUP BY value;
 
         let result = PageVote::find()
+            .select_only()
             .column_as(page_vote::Column::Value.sum(), "sum")
             .filter(condition)
             .into_model::<SumRow>()
@@ -64,6 +65,7 @@ impl Scorer for SumScorer {
             .or_raise(|| make_error("sum"))?
             .expect("No results in aggregate query");
 
-        Ok(ScoreValue::Integer(result.sum))
+        // SUM over no votes is NULL.
+        Ok(ScoreValue::Integer(result.sum.unwrap_or(0)))
     }
 }

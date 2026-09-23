@@ -59,6 +59,7 @@ impl Scorer for MeanScorer {
         // GROUP BY value;
 
         let MeanRow { sum, count } = PageVote::find()
+            .select_only()
             .column_as(page_vote::Column::Value.sum(), "sum")
             .column_as(page_vote::Column::Value.count(), "count")
             .filter(condition)
