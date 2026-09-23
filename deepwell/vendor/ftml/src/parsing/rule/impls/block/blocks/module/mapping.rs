@@ -23,11 +23,12 @@ use std::collections::HashMap;
 use std::sync::LazyLock;
 use unicase::UniCase;
 
-pub const MODULE_RULES: [ModuleRule; 6] = [
+pub const MODULE_RULES: [ModuleRule; 7] = [
     MODULE_BACKLINKS,
     MODULE_CATEGORIES,
     MODULE_CSS,
     MODULE_JOIN,
+    MODULE_NEW_PAGE,
     MODULE_PAGE_TREE,
     MODULE_RATE,
 ];

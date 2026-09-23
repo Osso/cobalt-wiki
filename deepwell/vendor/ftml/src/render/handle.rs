@@ -26,6 +26,7 @@ use crate::url::BuildSiteUrl;
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
+use wikidot_normalize::normalize;
 
 #[derive(Debug, Default)]
 pub struct Handle {
@@ -42,6 +43,41 @@ impl Handle {
                 buffer.push_str("<div class=\"join-box\"><a href=\"javascript:;\">");
                 escape(buffer, button_text.as_deref().unwrap_or("Join"));
                 buffer.push_str("</a></div>");
+            }
+            // Wikidot's markup; the site's own script handles the submit.
+            Module::NewPage {
+                category,
+                button_text,
+                size,
+                format,
+            } => {
+                buffer.push_str(
+                    "<div class=\"new-page-box\" style=\"text-align: center; margin: 1em 0;\">\
+                     <form action=\"dummy.html\" method=\"get\">\
+                     <input class=\"text\" name=\"pageName\" type=\"text\" size=\"",
+                );
+                escape(buffer, size.as_deref().unwrap_or("30"));
+                buffer.push_str(
+                    "\" maxlength=\"128\" style=\"margin: 1px\"/>\n\
+                     <input type=\"submit\" class=\"button\" value=\"",
+                );
+                escape(buffer, button_text.as_deref().unwrap_or("create page"));
+                buffer.push_str("\" style=\"margin: 1px;\"/>");
+                if let Some(category) = category {
+                    buffer.push_str(
+                        "<input type=\"hidden\" name=\"categoryName\" value=\"",
+                    );
+                    let mut category = category.to_string();
+                    normalize(&mut category);
+                    escape(buffer, &category);
+                    buffer.push_str("\"/>");
+                }
+                if let Some(format) = format {
+                    buffer.push_str("<input type=\"hidden\" name=\"format\" value=\"");
+                    escape(buffer, format);
+                    buffer.push_str("\"/>");
+                }
+                buffer.push_str("</form></div>");
             }
             _ => str_write!(buffer, "<p>TODO: module {}</p>", module.name()),
         }

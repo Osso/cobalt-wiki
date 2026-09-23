@@ -99,11 +99,25 @@ fn arb_module() -> impl Strategy<Value = Element<'static>> {
             depth,
         });
 
+    let new_page = (
+        arb_optional_str(),
+        arb_optional_str(),
+        arb_optional_str(),
+        arb_optional_str(),
+    )
+        .prop_map(|(category, button_text, size, format)| Module::NewPage {
+            category,
+            button_text,
+            size,
+            format,
+        });
+
     prop_oneof![
         Just(Module::Rate),
         arb_optional_str().prop_map(|page| Module::Backlinks { page }),
         any::<bool>().prop_map(|include_hidden| Module::Categories { include_hidden }),
         join,
+        new_page,
         page_tree,
     ]
     .prop_map(Element::Module)

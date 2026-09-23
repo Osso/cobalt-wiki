@@ -1,5 +1,5 @@
 /*
- * parsing/rule/impls/block/blocks/module/modules/mod.rs
+ * parsing/rule/impls/block/blocks/module/modules/new_page.rs
  *
  * ftml - Library to parse Wikidot text
  * Copyright (C) 2019-2026 Wikijump Team
@@ -17,29 +17,26 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+use super::prelude::*;
 
-mod prelude {
-    pub use super::super::{BLOCK_MODULE, ModuleParseOutput, ModuleRule, prelude::*};
-    pub use crate::tree::Module;
+pub const MODULE_NEW_PAGE: ModuleRule = ModuleRule {
+    name: "module-new-page",
+    accepts_names: &["NewPage"],
+    parse_fn,
+};
 
-    #[inline]
-    pub fn assert_module_name(module_rule: &ModuleRule, actual_name: &str) {
-        assert_generic_name(module_rule.accepts_names, actual_name, "module")
-    }
+fn parse_fn<'r, 't>(
+    _parser: &mut Parser<'r, 't>,
+    name: &'t str,
+    mut arguments: Arguments<'t>,
+) -> ParseResult<'r, 't, ModuleParseOutput<'t>> {
+    debug!("Parsing new page module");
+    assert_module_name(&MODULE_NEW_PAGE, name);
+
+    ok!(false; Module::NewPage {
+        category: arguments.get("category"),
+        button_text: arguments.get("button"),
+        size: arguments.get("size"),
+        format: arguments.get("format"),
+    })
 }
-
-mod backlinks;
-mod categories;
-mod css;
-mod join;
-mod new_page;
-mod page_tree;
-mod rate;
-
-pub use self::backlinks::MODULE_BACKLINKS;
-pub use self::categories::MODULE_CATEGORIES;
-pub use self::css::MODULE_CSS;
-pub use self::join::MODULE_JOIN;
-pub use self::new_page::MODULE_NEW_PAGE;
-pub use self::page_tree::MODULE_PAGE_TREE;
-pub use self::rate::MODULE_RATE;

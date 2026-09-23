@@ -1,0 +1,5 @@
+[[module NewPage size="50" button="Create Writing" category="writing" format="/^\([\d]{4}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])\) /"]]
+
+[[module NewPage size="20" button="Create Character Profile" category="character"]]
+
+[[module newpage category="Fan Art"]]

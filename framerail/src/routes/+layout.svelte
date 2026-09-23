@@ -11,6 +11,7 @@
   import { pageLayoutState, errorPopupState } from "$lib/stores.svelte"
   import { Layout } from "$lib/types"
   import { resolve } from "$app/paths"
+  import { submitNewPage } from "$lib/new-page"
 
   let { children } = $props()
 
@@ -34,7 +35,19 @@
   $effect(() => {
     setLayout()
   })
+
+  function onSubmit(event: SubmitEvent) {
+    submitNewPage(
+      event,
+      (path) => window.location.assign(path),
+      (message) => {
+        errorPopupState.current = { state: true, message, data: null }
+      }
+    )
+  }
 </script>
+
+<svelte:document onsubmit={onSubmit} />
 
 <div class="svg-defs hidden">
   {@html ui}

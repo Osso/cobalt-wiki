@@ -175,3 +175,14 @@ fn to_bool(value: ArgumentValue) -> bool {
         ArgumentValue::String(_) | ArgumentValue::Null => true,
     }
 }
+
+#[test]
+fn new_page_editor_path() {
+    // NewPage sends "/<page>/edit/true/title/<typed name>"; SvelteKit decodes it.
+    let options = PageOptions::parse("edit/true/title/(2024-03-13) Atley in a Nutshell");
+    assert!(options.edit);
+    assert_eq!(
+        options.title.as_deref(),
+        Some("(2024-03-13) Atley in a Nutshell"),
+    );
+}

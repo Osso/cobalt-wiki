@@ -67,14 +67,14 @@ import type { Optional, TranslateKeys } from "$lib/types"
 import type { Cookies, RequestEvent } from "@sveltejs/kit"
 import { getRequestContext } from "./request-ctx"
 
-export async function createPageErrorForms(request: Request) {
+export async function createPageErrorForms(request: Request, title = "") {
   return {
     pageEditForm: await superValidate(
       {
         pageId: 0,
         siteId: 0,
         lastRevisionId: 0,
-        title: "",
+        title,
         altTitle: "",
         wikitext: "",
         tags: "",
@@ -304,7 +304,8 @@ export async function loadPage(
     pageRestoreForm: await superValidate(request, valibot(pageRestoreSchema))
   }
 
-  const errorForms = await createPageErrorForms(request)
+  // The typed name from a NewPage form (".../edit/true/title/<name>").
+  const errorForms = await createPageErrorForms(request, responseData.options.title ?? "")
   const canCreate =
     responseType === "missing" && route?.slug
       ? (await pageCreatePermission({ sessionToken, siteId, page: route.slug }))

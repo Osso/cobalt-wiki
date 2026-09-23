@@ -45,6 +45,15 @@ pub enum Module<'t> {
         attributes: AttributeMap<'t>,
     },
 
+    /// A form to create a page in a category, named by the visitor.
+    #[serde(rename_all = "kebab-case")]
+    NewPage {
+        category: Option<Cow<'t, str>>,
+        button_text: Option<Cow<'t, str>>,
+        size: Option<Cow<'t, str>>,
+        format: Option<Cow<'t, str>>,
+    },
+
     /// Lists the structure of pages as connected by parenthood.
     ///
     /// Shows the hierarchy of parent relationships present on the given page.
@@ -80,6 +89,17 @@ impl Module<'_> {
             } => Module::Join {
                 button_text: option_string_to_owned(button_text),
                 attributes: attributes.to_owned(),
+            },
+            Module::NewPage {
+                category,
+                button_text,
+                size,
+                format,
+            } => Module::NewPage {
+                category: option_string_to_owned(category),
+                button_text: option_string_to_owned(button_text),
+                size: option_string_to_owned(size),
+                format: option_string_to_owned(format),
             },
             Module::PageTree {
                 root,
