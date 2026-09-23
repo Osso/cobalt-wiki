@@ -32,6 +32,8 @@ Local proof is not hosted-server proof. `/tmp/claude/cobalt-page-draft-browser-f
 
 Draft rows store inline `wikitext` and `title`; `form_values` is derived on read, not a separate stored map. Restoration returns unchanged raw bytes; changed source uses a valid JSON/YAML merge. The security boundary is the origin page: creation-only access cannot recover a draft from a private page after move/deletion. Such orphan rows remain inaccessible and are not automatically relocated.
 
+Independent bounded audit (agent 363) confirmed the browser assertions and one read-only SQL reconciliation: both fixture pages have matching persisted source hashes and no remaining draft rows. At `7445c2a`, Svelte checking reports zero errors/warnings and scoped ESLint, Stylelint, and Prettier pass (`/tmp/claude/cobalt-draft-final-main-*.log`). Independent Rust fmt/check proof is retained from agent 360. Post-SSR hydration passes (`/tmp/claude/cobalt-draft-final-hydration.log`); SSR servers now use isolated temporary caches. Pre-existing route/config/dependency deprecations remain outside these scoped results.
+
 ## Implementation inventory
 
 - `framerail/src/lib/form-editor.ts`: scalar transport types, draft/diff model and exclusive content payload.

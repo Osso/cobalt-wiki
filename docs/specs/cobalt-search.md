@@ -35,14 +35,14 @@ Cobalt provides a server-side Meilisearch-backed `search:site` result page for c
 
 - `deepwell/src/services/search/tests.rs`: four fake-HTTP tests passed at `ff0844b` / `712a009`, covering permission-before-paging/no restricted totals, authenticated upsert/delete tasks, repeatable index configuration, and hidden compiled-HTML exclusion. The `cf1cdec` RED regression for explicit searchable/filterable settings passed in the targeted 8/8 search suite after `b61806e` and `6c26c0d`.
 - Native lifecycle proof passed 2/2 at `c3ac4a1` (`/tmp/claude/cobalt-search-lifecycle-c3ac4a1-green.log`): create/edit/delete/restore/rerender changes commit their search-outbox work transactionally; import uses the same services.
-- Real-database plus fake-Meilisearch freshness proof passed 1/1 at `183b083` (`/tmp/claude/page-search-freshness-183b083.log`): a same-revision rerender updates the committed outbox document and prevents stale stored body text from being returned. This is not real-index proof.
+- Real-database plus fake-Meilisearch freshness proof passed 1/1 at `183b083` (`/tmp/claude/page-search-freshness-183b083.log`): a same-revision rerender changes the compiled body and prevents stale indexed body text from being returned. This is not real-index proof.
 - `framerail/tests/search.test.ts`: five tests passed at `d63fd97`, covering header-form selectors/submission, trusted request headers and bounded RPC parameters, two pages of navigation, invalid offsets/empty query handling, and distinct empty/unavailable messages. `d07869d` mounts that form in the source header; this is source wiring, not browser acceptance.
 - `76ba7bf` registers the backend RPCs consumed by the route; registration is not live-service proof.
-- Independent verifier 330 passed formatting, check, authenticated browser search 1/1, and Framerail search tests 5/5. Runtime 3989 observed `docs=3989`, `live pending=0`, an idle index, one matching search fixture result, and `401`/`noindex` protection. `b61806e` and `6c26c0d` fixed the remaining search style/readability findings; targeted search tests passed 8/8. Independent follow-up remains required.
+- Independent verifier 330 passed formatting, check, authenticated browser search 1/1, and Framerail search tests 5/5. Runtime 3989 observed `docs=3989`, `live pending=0`, an idle index, one matching search fixture result, and `401`/`noindex` protection. `b61806e` and `6c26c0d` fixed the remaining search style/readability findings; targeted search tests passed 8/8. The final bounded evidence audit confirmed 3,991 indexed documents matching 3,991 live local pages, zero pending updates, and an idle index (`/tmp/claude/cobalt-final-local-inventory.json`).
 
 ## Known gaps (current cycle)
 
-- [ ] A new independent verifier is running. The current target has 22 passes; three older doctype-fixture failures remain unresolved and are not search proof.
+- The SSR cache-isolation batch retained 22 passing tests; `20a3afc` corrected the three incomplete doctype fixtures, with their targeted group passing 4/4. Final scoped frontend checks and the bounded independent evidence audit passed.
 - [ ] Local proof has no production-deployment coverage. The freshness result uses a real database with fake Meilisearch.
 
 ## Out of scope
