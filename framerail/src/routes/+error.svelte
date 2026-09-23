@@ -10,8 +10,11 @@
   import { untrack } from "svelte"
   import EditorPreview from "$lib/component/EditorPreview.svelte"
   import EditorDraft from "$lib/component/EditorDraft.svelte"
-  import type { PageDraft } from "$lib/server/deepwell/page-draft"
+  import type { PageDraft, PageDraftRequest } from "$lib/server/deepwell/page-draft"
   import WikitextToolbar from "$lib/component/WikitextToolbar.svelte"
+  import DataFormFields from "$lib/component/DataFormFields.svelte"
+  import { changedFields, createDraft } from "$lib/form-editor"
+  import type { PageForm } from "$lib/form-editor"
 
   import type { PageData } from "./$types"
   import type { PageDeletedGet } from "$lib/server/deepwell/page"
@@ -21,6 +24,23 @@
   )
 
   let sourceTextarea = $state<HTMLTextAreaElement>()
+  // A new page in a data-form category is written through the category form.
+  const createForm = untrack(() => (errorData?.form as PageForm | null) ?? null)
+  let formDraft = $state(createForm ? createDraft(createForm) : {})
+
+  function createContent() {
+    return createForm
+      ? { wikitext: undefined, formUpdates: changedFields(createForm, formDraft) }
+      : { wikitext: $editForm.wikitext ?? "", formUpdates: undefined }
+  }
+
+  function draftPayload(): PageDraftRequest {
+    const content = createContent()
+    const title = $editForm.title ?? ""
+    return content.formUpdates
+      ? { title, form_updates: content.formUpdates }
+      : { title, wikitext: content.wikitext ?? "" }
+  }
   let draftControls = $state<{
     cancel: (proceed: () => void) => void
     canPublish: () => boolean
@@ -35,6 +55,9 @@
   function restoreDraft(saved: PageDraft) {
     $editForm.title = saved.title
     $editForm.wikitext = saved.wikitext
+    if (createForm && saved.form_values) {
+      formDraft = createDraft({ ...createForm, values: saved.form_values })
+    }
   }
 
   function leaveCreate() {
@@ -54,6 +77,7 @@
         }
         const submitForm = {
           ...$editForm,
+          ...createContent(),
           siteId: page.data.site.site_id,
           slug: page.params.slug ?? page.data.site.default_page
         }
@@ -166,12 +190,16 @@
         type="text"
         bind:value={$editForm.altTitle}
       />
-      <WikitextToolbar textarea={sourceTextarea} bind:value={$editForm.wikitext} />
-      <textarea
-        bind:this={sourceTextarea}
-        name="wikitext"
-        class="editor-wikitext"
-        bind:value={$editForm.wikitext}></textarea>
+      {#if createForm}
+        <DataFormFields form={createForm} bind:draft={formDraft} />
+      {:else}
+        <WikitextToolbar textarea={sourceTextarea} bind:value={$editForm.wikitext} />
+        <textarea
+          bind:this={sourceTextarea}
+          name="wikitext"
+          class="editor-wikitext"
+          bind:value={$editForm.wikitext}></textarea>
+      {/if}
       <input
         name="tags"
         class="editor-tags"
@@ -230,18 +258,14 @@
     </form>
     <EditorPreview
       getPayload={() => ({
-        title: $editForm.title,
+        ...draftPayload(),
         alt_title: $editForm.altTitle || null,
-        tags: ($editForm.tags ?? "").split(/\s+/).filter(Boolean),
-        wikitext: $editForm.wikitext ?? ""
+        tags: ($editForm.tags ?? "").split(/\s+/).filter(Boolean)
       })}
     />
     <EditorDraft
       bind:this={draftControls}
-      getPayload={() => ({
-        title: $editForm.title ?? "",
-        wikitext: $editForm.wikitext ?? ""
-      })}
+      getPayload={draftPayload}
       loadOnMount
       onRestore={restoreDraft}
     />

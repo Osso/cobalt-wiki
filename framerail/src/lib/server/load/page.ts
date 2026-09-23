@@ -306,16 +306,16 @@ export async function loadPage(
 
   // The typed name from a NewPage form (".../edit/true/title/<name>").
   const errorForms = await createPageErrorForms(request, responseData.options.title ?? "")
-  const canCreate =
+  // Creators of a page in a data-form category get the category form.
+  const createPermission =
     responseType === "missing" && route?.slug
-      ? (await pageCreatePermission({ sessionToken, siteId, page: route.slug }))
-          .can_create
-      : false
+      ? await pageCreatePermission({ sessionToken, siteId, page: route.slug })
+      : { can_create: false, form: null }
 
   const viewData = {
-    can_create: canCreate,
+    can_create: createPermission.can_create,
     ...responseData,
-    form: response.type === "found" ? response.data.form : undefined,
+    form: response.type === "found" ? response.data.form : createPermission.form,
     view: responseType,
     internationalization
   }

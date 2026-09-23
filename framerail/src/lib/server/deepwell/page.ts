@@ -37,7 +37,7 @@ export async function pageDelete(
   })
 }
 
-import { editContent, type FormValues } from "$lib/form-editor"
+import { editContent, type FormValues, type PageForm } from "$lib/form-editor"
 
 /* ----- Page Edit ----- */
 export interface CreatePageRevisionOutput {
@@ -72,6 +72,8 @@ export async function pageEdit(
       last_revision_id: lastRevisionId,
       revision_comments: revisionComments,
       ...editContent(wikitext ?? undefined, formUpdates),
+      // page_create requires a source field; the form record replaces it.
+      ...(pageId ? {} : createSource(formUpdates)),
       title,
       alt_title: altTitle,
       tags,
@@ -84,9 +86,13 @@ export async function pageEdit(
   )
 }
 
+function createSource(formUpdates?: FormValues) {
+  return formUpdates === undefined ? {} : { wikitext: "" }
+}
+
 export async function pageCreatePermission(
   requestContext: RequestContext
-): Promise<{ can_create: boolean }> {
+): Promise<{ can_create: boolean; form: Nullable<PageForm> }> {
   return client.request("page_create_permission", {}, requestContext)
 }
 
