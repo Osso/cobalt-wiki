@@ -31,6 +31,10 @@ import {
 } from "$lib/server/load/page"
 import { pagePreviewAction } from "$lib/server/load/page-preview"
 import {
+  editorPagesAction,
+  editorAttachmentsAction
+} from "$lib/server/load/editor-lookup"
+import {
   pageDraftGetAction,
   pageDraftSaveAction,
   pageDraftDeleteAction
@@ -48,6 +52,8 @@ export const actions = {
   delete: pageDeleteAction,
   edit: pageEditAction,
   preview: pagePreviewAction,
+  editorPages: editorPagesAction,
+  editorAttachments: editorAttachmentsAction,
   draftGet: pageDraftGetAction,
   draftSave: pageDraftSaveAction,
   draftDelete: pageDraftDeleteAction,

@@ -12,6 +12,7 @@
   import EditorDraft from "$lib/component/EditorDraft.svelte"
   import type { PageDraft, PageDraftRequest } from "$lib/server/deepwell/page-draft"
   import WikitextToolbar from "$lib/component/WikitextToolbar.svelte"
+  import { lookupEditorPages } from "$lib/editor-lookup"
   import DataFormFields from "$lib/component/DataFormFields.svelte"
   import { changedFields, createDraft } from "$lib/form-editor"
   import type { PageForm } from "$lib/form-editor"
@@ -193,7 +194,11 @@
       {#if createForm}
         <DataFormFields form={createForm} bind:draft={formDraft} />
       {:else}
-        <WikitextToolbar textarea={sourceTextarea} bind:value={$editForm.wikitext} />
+        <WikitextToolbar
+          textarea={sourceTextarea}
+          bind:value={$editForm.wikitext}
+          pageLookup={lookupEditorPages}
+        />
         <textarea
           bind:this={sourceTextarea}
           name="wikitext"
