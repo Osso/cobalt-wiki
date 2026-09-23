@@ -1,8 +1,8 @@
 //! Search returns only pages visible to the request actor in the requested site.
 
-mod common;
+#[path = "common/runner.rs"]
+mod runner;
 
-use common::TestRunner;
 use deepwell::constants::{ADMIN_USER_ID, SYSTEM_USER_ID};
 use deepwell::license::License;
 use deepwell::services::category::CategoryService;
@@ -17,9 +17,12 @@ use deepwell::services::site::{CreateSite, SiteService};
 use deepwell::services::user::{CreateUser, UserService};
 use deepwell::services::{RequestContext, ServiceContext, TextService};
 use deepwell::types::{Action, Permission, Reference, Resource, UserType};
+use runner::TestRunner;
 use serde_json::json;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
+
+const IP_ADDRESS: std::net::IpAddr = std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST);
 
 async fn import_document(
     ctx: &ServiceContext<'_>,
@@ -41,7 +44,7 @@ async fn import_document(
             tags: vec![],
             user_id: ADMIN_USER_ID,
             bypass_filter: true,
-            ip_address: common::IP_ADDRESS,
+            ip_address: IP_ADDRESS,
         },
     )
     .await
@@ -85,7 +88,7 @@ async fn grant_category_view(ctx: &ServiceContext<'_>, site_id: i64, user_id: i6
             is_virtual: false,
             parent_role_id: None,
             creating_user_id: SYSTEM_USER_ID,
-            ip_address: common::IP_ADDRESS,
+            ip_address: IP_ADDRESS,
         },
     )
     .await
@@ -103,7 +106,7 @@ async fn grant_category_view(ctx: &ServiceContext<'_>, site_id: i64, user_id: i6
             }],
             cascade_removals: false,
             updating_user_id: SYSTEM_USER_ID,
-            ip_address: common::IP_ADDRESS,
+            ip_address: IP_ADDRESS,
         },
     )
     .await
@@ -116,7 +119,7 @@ async fn grant_category_view(ctx: &ServiceContext<'_>, site_id: i64, user_id: i6
             role_id,
             assigning_user_id: SYSTEM_USER_ID,
             expires_at: None,
-            ip_address: common::IP_ADDRESS,
+            ip_address: IP_ADDRESS,
         },
     )
     .await
@@ -135,7 +138,7 @@ async fn create_actor(ctx: &ServiceContext<'_>, label: &str) -> i64 {
             bypass_filter: true,
             bypass_email_verification: true,
             override_user_id: None,
-            ip_address: common::IP_ADDRESS,
+            ip_address: IP_ADDRESS,
         },
     )
     .await
@@ -184,7 +187,7 @@ async fn page_search_excludes_denied_and_foreign_hits_from_visible_pagination() 
             layout: None,
             license: License::CcBySa40,
             locale: "en".into(),
-            ip_address: common::IP_ADDRESS,
+            ip_address: IP_ADDRESS,
         },
     )
     .await
@@ -201,7 +204,7 @@ async fn page_search_excludes_denied_and_foreign_hits_from_visible_pagination() 
             layout: None,
             license: License::CcBySa40,
             locale: "en".into(),
-            ip_address: common::IP_ADDRESS,
+            ip_address: IP_ADDRESS,
         },
     )
     .await

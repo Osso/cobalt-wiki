@@ -195,10 +195,12 @@ test("authenticated data-form edit persists typed values without dropping untouc
     const initial = await readPage(context.request, fixture, sessionToken)
     assertValues(initial.form.values, fixture.initialValues, "initial")
     const fieldNames = initial.form.schema.fields.map((field) => field.name)
-    for (const key of fixture.unknownKeys)
+    for (const key of fixture.unknownKeys) {
       assert.ok(!fieldNames.includes(key), "unknown key must be outside schema")
-    for (const field of Object.values(fixture.fields))
+    }
+    for (const field of Object.values(fixture.fields)) {
       assert.ok(fieldNames.includes(field.name))
+    }
     const initialRevision = initial.page_revision.revision_id
     assert.ok(initialRevision, "fixture revision required")
 
