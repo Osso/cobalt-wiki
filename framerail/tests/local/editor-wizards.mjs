@@ -463,6 +463,41 @@ test("six editor wizards insert and preview without saving local pages", async (
 })
 
 /** @param {import("@playwright/test").Page} page */
+async function checkExternalImageWindows(page) {
+  await openEditor(page, "images")
+  const original = "+ Image check proof\n\ntail"
+  await setSelection(page, original)
+  const dialog = await openWizard(page, "image wizard", "Image wizard")
+  for (const [url, status] of [
+    [sprite, "Image loaded."],
+    [`${origin}/cobalt-editor/missing-image.png`, "Image unavailable."]
+  ]) {
+    await dialog.getByLabel("Image URL:").fill(url)
+    const opened = page.waitForEvent("popup")
+    await dialog.getByRole("button", { name: "Check image", exact: true }).click()
+    const popup = await opened
+    await expect(popup).toHaveTitle("Checking image...")
+    await expect(popup.getByRole("status")).toHaveText(status)
+    if (url === sprite) await expectImageLoaded(popup.locator("#check-image"))
+    const closed = popup.waitForEvent("close")
+    await popup.getByRole("link", { name: "close this window" }).click()
+    await closed
+    await expect(page.locator(sourceSelector)).toHaveValue(original)
+  }
+  const pagesBefore = page.context().pages().length
+  await dialog.getByLabel("Image URL:").fill("javascript:alert(1)")
+  await dialog.getByRole("button", { name: "Check image", exact: true }).click()
+  await expect(dialog.getByRole("alert")).toBeVisible()
+  assert.equal(
+    page.context().pages().length,
+    pagesBefore,
+    "invalid URL must not open a window"
+  )
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click()
+  await expect(page.locator(sourceSelector)).toHaveValue(original)
+}
+
+/** @param {import("@playwright/test").Page} page */
 async function insertAttachedImage(page) {
   await openEditor(page, "images")
   await setSelection(page, "+ Attachment wizard proof\n\ntail")
@@ -537,6 +572,7 @@ test("attached image wizard selects and previews an authorized existing image wi
       const before = await readPage(context.request, fixture, "images", token)
       assert.equal(before.type, "found")
       try {
+        await checkExternalImageWindows(page)
         await insertAttachedImage(page)
         await insertFlickrSource(page)
       } finally {
