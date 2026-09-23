@@ -158,7 +158,10 @@ export function applyWikitextToolbar(
     (content ? wrapped.length - format.before.length : 0)
   const selectionEnd =
     content || format.insertOnly ? selectionStart : selectionStart + inserted.length
-  const cursor = format.insertOnly ? before.length + wrapped.length : selectionStart
+  const cursor =
+    format.insertOnly || control === "tab"
+      ? before.length + wrapped.length
+      : selectionStart
   return {
     value: before + wrapped + after,
     start: cursor,
