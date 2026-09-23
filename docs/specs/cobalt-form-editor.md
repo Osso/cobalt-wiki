@@ -11,8 +11,8 @@ Framerail edits the optional backend `Found.form` payload using ordered source-d
 - [x] Use form controls whenever a form exists; retain the raw editor only for nonform/template pages.
 - [x] Preserve existing title, alternate title, tags, comments, revision and authentication handling through the edit action.
 - [x] Preview raw or structured draft content through the SvelteKit action without publishing, creating a revision, or changing stored page/source/form data. The trusted request identity and access check precede submitted form validation; anonymous and spoofed requests are denied.
-- [x] Save one site/page-target draft shared by users for either current-page edit or creation. This target/ownership model is a documented source-based inference, not verified current-server behavior.
-- [x] Store draft `title` and raw `source` exactly, plus the complete typed form-value map, including unknown values. Restore original raw source bytes when unchanged; after source changes, merge valid JSON/YAML form data.
+- [x] Save one site/page-target draft shared by authorized editors for either current-page edit or creation. This target/ownership model is a documented source-based inference, not verified current-server behavior.
+- [x] Store draft `title` and `wikitext` exactly. Derive complete typed form values, including unknown keys, from stored source on read. Preserve unchanged restored source bytes; merge complete values when fields are edited.
 - [x] On a saved draft, offer Edit Original or Edit Draft before normal save; original publishing discards the draft. Cancel offers leave or delete.
 - [x] Authorize draft access against an existing origin page; creation-only permission must not expose a draft whose private source page was moved or deleted. Preserve inaccessible orphan rows without automatic relocation.
 
@@ -26,11 +26,11 @@ Framerail edits the optional backend `Found.form` payload using ordered source-d
 
 The user selected `sameasWikidot`; the contract therefore follows captured hosted-editor behavior where evidence exists and source-based inference where it does not. The public `gabrys/wikidot` snapshot 0.90 (July 2009; HEAD September 2009) has no page-draft storage or actions. Captured hosted JavaScript shows title/source saving through `synchronize`, **Edit Original**/**Edit Draft** restoration, Cancel **Leave**/**Delete**, and publishing the original discarding the draft. It does not establish current server ownership, visibility, or lifecycle behavior.
 
-The implemented contract infers one shared draft per site/page target, used by current-page **Edit** or **Create**. It is not a per-actor draft contract. The hosted read-only check returned `ok=true`, `draftExists=true`, and `publishedPagePresent=false`; it confirms an unpublished draft exists but captured no source Save/Cancel/Delete action or mutation.
+The implemented contract infers one shared draft per site/page target, gated by **View** and **Edit** for an existing page, or **Create** for a missing target. It is not a per-actor draft contract. The hosted read-only check returned `status="ok"`, `draftExists=true`, and `publishedPagePresent=false`; it confirms an unpublished draft exists but captured no source Save/Cancel/Delete action or mutation.
 
-Local proof is not hosted-server proof. `/tmp/claude/cobalt-page-draft-browser-fifth.log` passed 1/1: a missing target saves title/source without a published page or search hit; leave/reopen and **Edit Draft** restore it; publishing after **Edit Draft** or **Edit Original** clears it; **Cancel → Delete** explicitly deletes it; and a restored structured draft, then edit, preserves numeric, static, and unknown values. Anonymous get/save/delete RPCs and SvelteKit actions were denied. Native draft tests passed 13 at `835eaf7`; `9d20256` separately proved the delete-response RED (`null`) to GREEN (`{ deleted: true }`) and the local backend alone was deployed.
+Local proof is not hosted-server proof. `/tmp/claude/cobalt-page-draft-browser-fifth.log` passed 1/1: a missing target saves title/source without a published page or search hit; leave/reopen and **Edit Draft** restore it; publishing after **Edit Draft** or **Edit Original** clears it; **Cancel → Delete** explicitly deletes it; and a restored structured draft, then edit, preserves numeric and unknown values. Anonymous get/save/delete RPCs and SvelteKit actions were denied. Native draft tests passed 13 at `835eaf7`; `9d20256` separately proved the delete-response RED (`null`) to GREEN (`{ deleted: true }`) and the local backend alone was deployed.
 
-Draft rows retain exact inline source/title and complete typed form values, including unknown values. Restoration returns unchanged raw bytes; changed source uses a valid JSON/YAML merge. The security boundary is the origin page: creation-only access cannot recover a draft from a private page after move/deletion. Such orphan rows remain inaccessible and are not automatically relocated.
+Draft rows store inline `wikitext` and `title`; `form_values` is derived on read, not a separate stored map. Restoration returns unchanged raw bytes; changed source uses a valid JSON/YAML merge. The security boundary is the origin page: creation-only access cannot recover a draft from a private page after move/deletion. Such orphan rows remain inaccessible and are not automatically relocated.
 
 ## Implementation inventory
 
@@ -57,9 +57,8 @@ Draft rows retain exact inline source/title and complete typed form values, incl
 - [ ] Hosted-server ownership, visibility, and lifecycle parity remain unproven. The shared target/ownership model is authorized source-based inference; the captured source check has no Save/Cancel/Delete action.
 - [ ] Six source wizards (table, code, URL, page, image, equation), quick reference/snippets, and watcher-checkbox semantics are unimplemented.
 - [ ] Toolbar transformation behavior is source-backed and the bold path has browser proof, but full visual/editor parity is not established.
-- [ ] Backend unknown-value preservation is relied upon, not reimplemented by frontend tests.
-- [ ] Browser interaction with radio choices and typed save payload remains unproven; SSR/model checks do not establish hydrated behavior.
+- The retained `/tmp/claude/cobalt-forms-browser-fourth.log` covers text/wiki/radio/select edits and typed/unknown-value preservation. Restored-draft merge tests and the draft browser scenario add complete-value preservation coverage; they do not establish every field type's full source parity.
 
 ## Out of scope
 
-Backend changes beyond preview, rendering saved wiki content, source save/action behavior, migration, deployment, new validation requirements, and visual redesign are outside this frontend slice.
+Source-site writes, production deployment without approval, source ACL parity, and unrelated visual redesign are outside this local editor implementation.
