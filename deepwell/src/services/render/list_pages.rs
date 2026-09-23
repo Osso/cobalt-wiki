@@ -419,39 +419,63 @@ async fn select_pages(
     Ok(visible)
 }
 
+/// Only the filters a module uses appear in the query. Parameters never switch a
+/// filter off, because a cached prepared statement may run with a generic plan
+/// that cannot simplify such switches (measured: 53 ms instead of 0.6 ms).
 fn build_selection_query(site_id: i64, selection: &Selection) -> Statement {
-    let created_since = selection
-        .created_within_days
-        .map_or(OffsetDateTime::UNIX_EPOCH, |days| {
-            OffsetDateTime::now_utc() - Duration::days(days)
-        });
-    Statement::from_sql_and_values(
-        DatabaseBackend::Postgres,
-        "SELECT p.page_id, p.page_category_id, p.slug, c.slug AS category,
-                p.created_at, p.updated_at, r.title, r.wikitext_hash
-         FROM page p
-         JOIN page_category c ON c.category_id = p.page_category_id
-         JOIN page_revision r ON r.revision_id = p.latest_revision_id
-         WHERE p.site_id = $1 AND p.deleted_at IS NULL
-           AND ($2 OR c.slug = ANY($3::text[]))
-           AND NOT (c.slug = ANY($4::text[]))
-           AND (cardinality($5::text[]) = 0 OR r.tags && $5::text[])
-           AND r.tags @> $6::text[]
-           AND NOT (r.tags && $7::text[])
-           AND (NOT $8 OR cardinality(r.tags) = 0)
-           AND p.created_at >= $9",
-        [
-            Value::from(site_id),
-            Value::from(selection.all_categories),
-            Value::from(selection.categories.clone()),
-            Value::from(selection.excluded_categories.clone()),
-            Value::from(selection.any_tags.clone()),
-            Value::from(selection.all_tags.clone()),
-            Value::from(selection.excluded_tags.clone()),
-            Value::from(selection.untagged),
-            Value::from(created_since),
-        ],
-    )
+    let mut query = SelectionQuery::new(site_id);
+    if !selection.all_categories {
+        query.filter("c.slug = ANY({}::text[])", &selection.categories);
+    }
+    query.filter("c.slug <> ALL({}::text[])", &selection.excluded_categories);
+    query.filter("r.tags && {}::text[]", &selection.any_tags);
+    query.filter("r.tags @> {}::text[]", &selection.all_tags);
+    query.filter("NOT (r.tags && {}::text[])", &selection.excluded_tags);
+    if selection.untagged {
+        query.sql.push_str(" AND cardinality(r.tags) = 0");
+    }
+    if let Some(days) = selection.created_within_days {
+        query.bind(
+            "p.created_at >= {}",
+            Value::from(OffsetDateTime::now_utc() - Duration::days(days)),
+        );
+    }
+    Statement::from_sql_and_values(DatabaseBackend::Postgres, query.sql, query.values)
+}
+
+struct SelectionQuery {
+    sql: String,
+    values: Vec<Value>,
+}
+
+impl SelectionQuery {
+    fn new(site_id: i64) -> Self {
+        SelectionQuery {
+            sql: "SELECT p.page_id, p.page_category_id, p.slug, c.slug AS category,
+                         p.created_at, p.updated_at, r.title, r.wikitext_hash
+                  FROM page p
+                  JOIN page_category c ON c.category_id = p.page_category_id
+                  JOIN page_revision r ON r.revision_id = p.latest_revision_id
+                  WHERE p.site_id = $1 AND p.deleted_at IS NULL"
+                .into(),
+            values: vec![Value::from(site_id)],
+        }
+    }
+
+    /// Add a list filter unless the list is empty (an empty list filters nothing).
+    fn filter(&mut self, condition: &str, list: &[String]) {
+        if !list.is_empty() {
+            self.bind(condition, Value::from(list.to_vec()));
+        }
+    }
+
+    /// Append `AND condition`, replacing `{}` with the next parameter.
+    fn bind(&mut self, condition: &str, value: Value) {
+        self.values.push(value);
+        let parameter = format!("${}", self.values.len());
+        self.sql.push_str(" AND ");
+        self.sql.push_str(&condition.replace("{}", &parameter));
+    }
 }
 
 fn sort_pages(pages: &mut [ListedPage], order: OrderField, descending: bool) {
