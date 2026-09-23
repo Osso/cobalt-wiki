@@ -82,7 +82,11 @@ async function denyWritesAndExternalRequests(context, denied) {
       await route.continue()
       return
     }
-    denied.push(`${request.method()} ${url.origin}${url.pathname}`)
+    // Imported theme styles attempt read-only CDN fetches; block them without
+    // confusing a prevented stylesheet fetch with a forbidden write.
+    if (request.method() !== "GET" || request.resourceType() !== "stylesheet") {
+      denied.push(`${request.method()} ${url.origin}${url.pathname}`)
+    }
     await route.abort("blockedbyclient")
   })
 }
