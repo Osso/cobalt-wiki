@@ -123,7 +123,7 @@ async function clickPreview(page, slug) {
   const responsePromise = page.waitForResponse(
     (response) =>
       response.request().method() === "POST" &&
-      response.url().includes(`/${slug}?/preview`)
+      response.url().includes(`/${slug}/edit?/preview`)
   )
   await page.locator("#edit-preview-button").click()
   const response = await responsePromise
