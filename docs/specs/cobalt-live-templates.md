@@ -9,7 +9,7 @@ Render archived Wikidot form pages through their category `_template`, as Wikido
 - [x] Leave ListPages item templates inside the template untouched, so their tokens describe listed pages; module headers still receive this page's tokens (`tags="+%%name%%"`).
 - [x] Substitute before include expansion, so template includes receive filled arguments.
 - [x] Keep hidden pages (`_template`, `_public`) and pages in categories without a form template rendered from their own source.
-- [x] Fail the render explicitly for malformed form markers/definitions or a form page whose source is not a field record.
+- [x] Render an explicit diagnostic for malformed form markers/definitions or a form page whose source is not a field record, without exposing its raw source or changing stored source.
 - [ ] Rerender category pages when their `_template` changes.
 - [ ] Non-form live templates (`%%content%%`); none exist in the Cobalt archive.
 

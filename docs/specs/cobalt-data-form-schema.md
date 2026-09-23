@@ -1,6 +1,6 @@
 # Wikidot data-form schema compatibility
 
-`deepwell/wikidot-forms/` is a standalone pure Rust library for Cobalt form schemas and stored scalar values. Deepwell now consumes it for optional page-view payloads and authorized whole-record updates; it still does not provide a working frontend form editor or complete form workflow.
+`deepwell/wikidot-forms/` is a standalone pure Rust library for Cobalt form schemas and stored scalar values. Deepwell consumes it for optional page-view payloads and authorized whole-record updates; Framerail has a bounded hydrated save/reload flow. Source rich-editor parity remains unfinished.
 
 ## What it must do
 
@@ -11,6 +11,12 @@
 - [x] Normalize only bare `@@` block-mapping keys and whole scalar values before parsing, without altering quoted strings, comments, block text, or line endings.
 - [x] Parse and serialize ordered stored field mappings without dropping unknown fields or changing decoded scalar types/content, including Unicode and multiline wiki markup.
 - [x] Reject malformed YAML, duplicate mapping keys, unsupported types/shapes, and non-scalar stored values explicitly.
+
+## Missing-page creation
+
+`page_create_permission` derives `can_create` only from trusted request site, actor, and slug context. `page_create` requires the same context and persists submitted tags on its first revision; body `user_id`, site ID, or slug cannot substitute for it. `deepwell/tests/page_create_permission.rs` passed its two native DB cases: anonymous/forged actor, site, or slug requests are denied without creating a page; matching trusted context creates a page whose content, tags, and revision attribution round-trip.
+
+The missing-page frontend asks for that permission through the server request context, shows the create editor only when it is granted, and initializes the existing title, alt-title, source, tags, layout, and comment defaults. This is not source rich-editor parity.
 
 ## Standalone form view payload
 
@@ -36,7 +42,7 @@ No required/default rules, stringification, or empty-string-to-null coercion are
 
 The existing `Action::Edit` check runs before mode validation or form/source reads. Structured edits load the same-site page, reject a stale `last_revision_id` before loading source, and check the fetched latest revision again before reading its text. The same-site category template must contain a valid form; missing, invisible, ordinary, malformed, and self-template cases fail explicitly. Template lookup reuses page-view visibility with the request-context viewer, not the submitted attribution `user_id`.
 
-Updates apply to the entire stored YAML mapping using `apply_field_updates`. Only the service request's `wikitext` is populated; caller revision, attribution user, comments, IP, and other edits remain unchanged. `PageService::edit` retains its existing filter and optimistic revision check. No frontend or new ACL semantics are included.
+Updates apply to the entire stored YAML mapping using `apply_field_updates`. Only the service request's `wikitext` is populated; caller revision, attribution user, comments, IP, and other edits remain unchanged. `PageService::edit` retains its existing filter and optimistic revision check. No source rich-editor parity or new ACL semantics are included.
 
 - [x] Wire scalar updates preserve unknown stored values and decoded types; invalid fields/static changes/select codes/nested values fail.
 - [x] Raw and form modes conflict; absent updates preserve the raw request.
@@ -44,6 +50,12 @@ Updates apply to the entire stored YAML mapping using `apply_field_updates`. Onl
 - [x] The native DB harness proves authorization ordering, template self-exclusion, scalar update persistence, and stale-edit non-mutation for the three endpoint cases below.
 
 Six filtered backend library tests passed after behavioral RED. `deepwell/tests/page_form_edit.rs` contains three endpoint tests: scalar update followed by an intervening raw edit and stale submission preserves the newer source; invalid/conflicting/template updates create no revision; anonymous request-context denial occurs before malformed form validation and ignores an administrator attribution in the body. On September 22, 2026, an isolated local PostgreSQL 17, Valkey, and Silo environment ran all three tests successfully after migrations and the stock development seeder; protected log: `/home/osso/.local/share/cobalt-wiki/integration/page-form-edit-tests.log`. Four view-helper tests also passed; protected log: `/home/osso/.local/share/cobalt-wiki/integration/form-view-tests.log`. This proves those seeded local endpoint paths, not production data, concurrent interleavings beyond the stale-revision case, deployment, or source ACL parity.
+
+## Hydrated editor acceptance
+
+The local browser scenario at committed `4f407d0` passed `1/1` against runtime `bc6d5e2` (`/tmp/claude/cobalt-forms-browser-fourth.log`). A real UI login edited text, wiki, radio, and select controls; save/reload retained their typed values, three untouched schema values, and an unknown `true` field. An anonymous browser saw no editor and its direct action submission returned SvelteKit's failure protocol without creating a revision. Cookie percent-decoding and the action-failure protocol are part of that harness result, not application behavior guarantees.
+
+This is a bounded form workflow proof. Formatting toolbar, Preview, and Save Draft are not implemented.
 
 ## How it works
 
@@ -74,7 +86,8 @@ Dependencies: Serde supplies the transport serialization contract; maintained `s
 ## Known gaps (current cycle)
 
 - [ ] The legacy NPC definition's apparent `orc: Orc:` syntax remains an error, not an automatic repair. The source inventory contains no saved NPC records. No real template or private record is included in fixtures.
-- [ ] Frontend controls have seven SSR/model tests, but hydrated interaction and save/reload roundtrip remain unproven. Backend payload/edit wiring and local endpoint cases are not form-workflow parity.
+- [ ] Formatting toolbar, Preview, Save Draft, and source rich-editor parity are not implemented.
+- [ ] Independent or broader browser coverage remains open; the single local authenticated form roundtrip does not establish site-wide workflow parity.
 - [ ] Private attachment authorization is separate and missing: current WWS attachment routes do not enforce page-view authorization. Do not expose private attachments.
 - [ ] Independent verification, readability, and broader checks belong to the integration owner.
 
