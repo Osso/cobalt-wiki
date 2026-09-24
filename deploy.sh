@@ -4,7 +4,6 @@
 import subprocess
 from pathlib import Path
 
-
 root = Path(__file__).resolve().parent
 unit = "cobalt-local-full-deepwell"
 
