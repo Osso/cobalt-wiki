@@ -30,6 +30,7 @@
 
 use super::prelude::*;
 use crate::tree::{AnchorTarget, LinkLabel, LinkLocation};
+use std::borrow::Cow;
 
 pub const RULE_LINK_TRIPLE: Rule = Rule {
     name: "link-triple",
@@ -114,10 +115,7 @@ fn build_same<'r, 't>(
 
     // Remove category, if present.
     // If None, then the label is the original URL.
-    let label = match strip_category(url) {
-        Some(stripped) => cow!(stripped),
-        None => cow!(url),
-    };
+    let label = unwrap_raw(strip_category(url).unwrap_or(url));
 
     // Parse out link location
     let (link, ltype) =
@@ -169,7 +167,7 @@ fn build_separate<'r, 't>(
     let label = if label.is_empty() {
         LinkLabel::Page
     } else {
-        LinkLabel::Text(cow!(label))
+        LinkLabel::Text(unwrap_raw(label))
     };
 
     // Parse out link location
@@ -189,6 +187,39 @@ fn build_separate<'r, 't>(
 
     // Return result
     ok!(element)
+}
+
+/// Labels are shown as text, so raw spans (`@@x@@`, `@<x>@`) show their
+/// contents, as on Wikidot: a live template passing
+/// `%%form_data{author}%%` into `[[[player:{$author}|{$author}]]]` shows
+/// the bare name.
+fn unwrap_raw(label: &str) -> Cow<'_, str> {
+    if !label.contains("@@") && !label.contains("@<") {
+        return Cow::Borrowed(label);
+    }
+    let mut output = String::with_capacity(label.len());
+    let mut rest = label;
+    loop {
+        let next = [("@@", "@@"), ("@<", ">@")]
+            .into_iter()
+            .filter_map(|(open, close)| {
+                let start = rest.find(open)?;
+                let end = rest[start + 2..].find(close)?;
+                Some((start, start + 2 + end, close.len()))
+            })
+            .min_by_key(|(start, _, _)| *start);
+        match next {
+            Some((start, end, close)) => {
+                output.push_str(&rest[..start]);
+                output.push_str(&rest[start + 2..end]);
+                rest = &rest[end + close..];
+            }
+            None => {
+                output.push_str(rest);
+                return Cow::Owned(output);
+            }
+        }
+    }
 }
 
 /// Strip off the category for use in URL triple-bracket links.
