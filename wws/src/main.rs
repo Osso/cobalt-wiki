@@ -46,6 +46,7 @@ mod range;
 mod route;
 mod state;
 mod trace;
+mod visibility;
 
 use self::config::load_config;
 use self::route::build_router;

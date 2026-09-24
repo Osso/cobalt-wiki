@@ -20,7 +20,8 @@
 
 use super::prelude::*;
 use crate::services::view::{
-    GetAdminView, GetAdminViewOutput, GetPageView, GetPageViewOutput, GetPreloadView,
+    GetAdminView, GetAdminViewOutput, GetPageView, GetPageViewOutput,
+    GetPageViewPermission, GetPageViewPermissionOutput, GetPreloadView,
     GetPreloadViewOutput, GetUserView, GetUserViewOutput, ViewType,
 };
 
@@ -52,6 +53,25 @@ pub async fn page_view(
             ErrorType::GetView(ViewType::Page),
         )
     })
+}
+
+/// Returns whether the session's viewer, and an anonymous visitor, may view a page.
+/// WWS checks this before serving the page's files and text blocks.
+pub async fn page_view_permission(
+    ctx: &ServiceContext<'_>,
+    params: Params<'static>,
+) -> Result<GetPageViewPermissionOutput> {
+    let input: GetPageViewPermission =
+        parse!(params => ErrorType::GetView(ViewType::Page));
+
+    ViewService::page_view_permission(ctx, input)
+        .await
+        .or_raise(|| {
+            Error::new(
+                "failed to check page view permission",
+                ErrorType::GetView(ViewType::Page),
+            )
+        })
 }
 
 /// Returns relevant context for rendering a user profile from a processed web request.

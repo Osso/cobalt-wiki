@@ -54,6 +54,23 @@ pub struct GetPreloadView {
 
 /// Yield common preload data for any views
 ///
+/// Page/View check for serving a page's files and text blocks (used by WWS).
+#[derive(Deserialize, Debug, Clone)]
+pub struct GetPageViewPermission {
+    pub site_id: i64,
+    pub page_id: i64,
+    pub session_token: Option<String>,
+}
+
+/// See also wws src/deepwell.rs
+#[derive(Serialize, Debug, Clone)]
+pub struct GetPageViewPermissionOutput {
+    /// Whether the session's viewer (anonymous without a valid session) may view the page.
+    pub can_view: bool,
+    /// Whether an anonymous visitor may view the page, so its files may be cached publicly.
+    pub public: bool,
+}
+
 /// See also framerail src/lib/server/load/preload.ts
 #[derive(Serialize, Debug, Clone)]
 pub struct GetPreloadViewOutput {

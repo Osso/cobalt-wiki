@@ -114,6 +114,23 @@ impl Deepwell {
         Ok(file_data)
     }
 
+    pub async fn get_page_view_permission(
+        &self,
+        site_id: i64,
+        page_id: i64,
+        session_token: Option<&str>,
+    ) -> Result<PageViewPermission> {
+        let params = rpc_object! {
+            "site_id" => site_id,
+            "page_id" => page_id,
+            "session_token" => session_token,
+        };
+
+        let permission: PageViewPermission =
+            self.client.request("page_view_permission", params).await?;
+        Ok(permission)
+    }
+
     pub async fn get_user(&self, user_id: i64) -> Result<Option<UserData>> {
         let params = rpc_object! {
             "user" => user_id,
@@ -359,6 +376,13 @@ impl Deepwell {
 #[derive(Deserialize, Debug, Clone)]
 pub struct PageData {
     pub page_id: i64,
+}
+
+/// See DEEPWELL's `GetPageViewPermissionOutput`.
+#[derive(Deserialize, Debug, Copy, Clone)]
+pub struct PageViewPermission {
+    pub can_view: bool,
+    pub public: bool,
 }
 
 #[derive(Deserialize, Debug, Clone)]

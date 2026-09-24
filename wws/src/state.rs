@@ -24,6 +24,7 @@ use crate::deepwell::{Deepwell, FileData, PageData, UserData};
 use crate::error::{
     BasicError, FallbackError, ResponseResult, Result, build_basic_error_response,
 };
+use crate::visibility::{PageVisibility, forbidden_response, get_session_token};
 use axum::http::HeaderMap;
 use axum::response::IntoResponse;
 use s3::bucket::Bucket;
@@ -166,6 +167,51 @@ impl ServerStateInner {
                     site_id = site_id,
                     page_slug = page_slug,
                     "Cannot get page info: {error}",
+                );
+
+                let response = build_basic_error_response(
+                    self,
+                    headers,
+                    BasicError::PageFetch { site_id, page_slug },
+                )
+                .await;
+
+                Err(response)
+            }
+        }
+    }
+
+    /// Checks that the session's viewer may view the page before any of its
+    /// content is served. Not cached: the answer depends on the viewer.
+    pub async fn get_page_visibility_or_response(
+        &self,
+        headers: &HeaderMap,
+        site_id: i64,
+        page_id: i64,
+        page_slug: &str,
+    ) -> ResponseResult<PageVisibility> {
+        let session_token = get_session_token(headers);
+        match self
+            .deepwell
+            .get_page_view_permission(site_id, page_id, session_token.as_deref())
+            .await
+        {
+            Ok(permission) => match PageVisibility::for_viewer(permission) {
+                Some(visibility) => Ok(visibility),
+                None => {
+                    info!(
+                        site_id = site_id,
+                        page_slug = page_slug,
+                        "Viewer may not view page, refusing its content",
+                    );
+                    Err(forbidden_response())
+                }
+            },
+            Err(error) => {
+                error!(
+                    site_id = site_id,
+                    page_slug = page_slug,
+                    "Cannot check page view permission: {error}",
                 );
 
                 let response = build_basic_error_response(

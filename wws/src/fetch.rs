@@ -22,6 +22,7 @@ use crate::deepwell::FileData;
 use crate::error::{BasicError, ResponseResult, build_basic_error_response};
 use crate::range::ByteRange;
 use crate::state::ServerState;
+use crate::visibility::PageVisibility;
 use axum::body::Body;
 use axum::http::header::HeaderMap;
 use s3::request::request_trait::ResponseDataStream;
@@ -33,16 +34,23 @@ pub async fn fetch_file_info(
     site_id: i64,
     page_slug: &mut String,
     filename: &str,
-) -> ResponseResult<FileData> {
+) -> ResponseResult<(FileData, PageVisibility)> {
     normalize(page_slug);
 
     let page_id = state
         .get_page_or_response(headers, site_id, page_slug)
         .await?;
 
-    state
+    // Before the file lookup, so a private page's filenames stay hidden.
+    let visibility = state
+        .get_page_visibility_or_response(headers, site_id, page_id, page_slug)
+        .await?;
+
+    let file_info = state
         .get_file_or_response(headers, site_id, page_id, page_slug, filename)
-        .await
+        .await?;
+
+    Ok((file_info, visibility))
 }
 
 pub async fn fetch_full_body(

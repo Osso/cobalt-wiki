@@ -269,7 +269,7 @@ pub async fn handle_file_fetch(
     );
 
     let site_id = get_site_id(&headers);
-    let file_info =
+    let (file_info, _visibility) =
         match fetch_file_info(&state, &headers, site_id, &mut page_slug, &filename).await
         {
             Ok(info) => info,
@@ -295,7 +295,7 @@ pub async fn handle_file_download(
     );
 
     let site_id = get_site_id(&headers);
-    let file_info =
+    let (file_info, _visibility) =
         match fetch_file_info(&state, &headers, site_id, &mut page_slug, &filename).await
         {
             Ok(info) => info,

@@ -106,6 +106,44 @@ impl ViewService {
         Ok(GetPreloadViewOutput { viewer, site_admin })
     }
 
+    /// Runs the page view's Page/View check for the session's viewer and for
+    /// an anonymous visitor. A banned viewer can be denied a public page.
+    pub async fn page_view_permission(
+        ctx: &ServiceContext<'_>,
+        GetPageViewPermission {
+            site_id,
+            page_id,
+            session_token,
+        }: GetPageViewPermission,
+    ) -> Result<GetPageViewPermissionOutput> {
+        let page = PageService::get(ctx, site_id, Reference::Id(page_id)).await?;
+        let user_session = Self::get_session(ctx, session_token.as_deref()).await?;
+        let can_view_as = async |user_id| {
+            PermissionService::check_user_can(
+                ctx,
+                &CheckPermissionContext {
+                    user_id,
+                    site_id,
+                    page_reference: Some(Reference::Id(page_id)),
+                },
+                Permission {
+                    resource_type: Resource::Page,
+                    resource_category: Some(Reference::Id(page.page_category_id)),
+                    action: Action::View,
+                },
+            )
+            .await
+        };
+
+        let public = can_view_as(None).await?;
+        let can_view = match user_session {
+            Some(UserSession { user, .. }) => can_view_as(Some(user.user_id)).await?,
+            None => public,
+        };
+
+        Ok(GetPageViewPermissionOutput { can_view, public })
+    }
+
     pub async fn page(
         ctx: &ServiceContext<'_>,
         GetPageView {

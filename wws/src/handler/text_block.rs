@@ -84,6 +84,9 @@ async fn handle_text_block(
 ) -> Response {
     let site_id = get_site_id(headers);
     let page_id = try_response!(state.get_page_or_response(headers, site_id, page_slug));
+    let _visibility = try_response!(
+        state.get_page_visibility_or_response(headers, site_id, page_id, page_slug)
+    );
 
     let (index, s3_filename) = match block_id {
         // Parse the index value if numeric
