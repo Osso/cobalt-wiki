@@ -6,6 +6,7 @@
 mod common;
 
 use common::{TestRunner, fake_mailgun, form_field, wait_for_requests};
+use deepwell::config::Config;
 use deepwell::constants::ADMIN_USER_ID;
 use deepwell::error::prelude::*;
 use deepwell::models::session::Model as SessionModel;
@@ -411,4 +412,33 @@ async fn invite_of_a_new_account_needs_mailgun() {
         }),
     );
     assert_contains_error!(error, ErrorType::EmailSend);
+}
+
+#[tokio::test]
+async fn preload_tells_the_header_whether_the_session_user_is_a_site_admin() {
+    // The test configuration's 16-character tokens fail the session table's
+    // length check, so sign-in needs real-length tokens here.
+    let mut config = Config::integration_testing();
+    config.session_token_length = 64;
+    let runner = TestRunner::setup_with_config(config).await;
+    let site = Site::load(&runner).await;
+    add_member(&runner, &site, "MaHeaderAdmin", &["admin"]).await;
+    add_member(&runner, &site, "MaHeaderMod", &["moderator"]).await;
+
+    let preload = |session_token: Option<String>| json!({"site_id": site.site_id, "locales": ["en"], "session_token": session_token});
+    for (name, expected) in [("maheaderadmin", true), ("maheadermod", false)] {
+        let login = run_endpoint!(
+            runner,
+            auth_login,
+            json!({
+                "name_or_email": name, "password": "secret",
+                "ip_address": common::IP_ADDRESS, "user_agent": "test",
+            }),
+        );
+        let output =
+            run_endpoint!(runner, preload_view, preload(Some(login.session_token)));
+        assert_eq!(output.site_admin, expected, "{name}");
+    }
+    let anonymous = run_endpoint!(runner, preload_view, preload(None));
+    assert!(!anonymous.site_admin);
 }
