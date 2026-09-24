@@ -149,6 +149,7 @@ test("source-defined fields render accessible typed controls and readonly static
     assert.equal(draft["missing-static"], undefined)
     assert.deepEqual(changedFields(form, { ...draft, "summary-label": "changed" }), {})
     assert.match(body, /<label for="data-form-field-1">Name<\/label>/)
+    assert.match(body, /<label for="data-form-field-9">Summary<\/label>/)
     assert.match(body, /<input[^>]*type="text"/)
     assert.match(body, /<input[^>]*size="40"/)
     assert.match(body, /<input[^>]*value="7"/)
@@ -186,12 +187,14 @@ test("source-defined fields render accessible typed controls and readonly static
     )
     assert.match(body, /<input[^>]*id="data-form-field-11"[^>]*type="text"/)
     assert.doesNotMatch(body, /Unsupported alias|data-form-field-11-hint/)
-    assert.match(body, /<legend[^>]*>Rank<\/legend>/)
+    assert.match(body, /<span id="data-form-field-3-label">Rank<\/span>/)
+    assert.match(body, /<fieldset[^>]*aria-labelledby="data-form-field-3-label"/)
     assert.match(
       body,
       /<input[^>]*type="radio"[^>]*checked[^>]*\/>\s*String one<\/label>/
     )
-    assert.match(body, /<legend[^>]*>Sex<\/legend>/)
+    assert.match(body, /<span id="data-form-field-4-label">Sex<\/span>/)
+    assert.match(body, /<fieldset[^>]*aria-labelledby="data-form-field-4-label"/)
     assert.match(body, /<input[^>]*type="radio"[^>]*checked[^>]*\/>\s*Female<\/label>/)
     assert.match(body, /<select[^>]*id="data-form-field-5"/)
     assert.match(body, /<option[^>]*selected[^>]*>Orc<\/option>/)
@@ -343,6 +346,7 @@ test("source-defined fields render accessible typed controls and readonly static
     const radioTag = /<fieldset\b[^>]*>/.exec(unlabeledBody)?.[0]
     assert.ok(radioTag, "unlabeled radio group must render")
     assert.match(radioTag, /aria-label="null-radio-unique"/)
+    assert.doesNotMatch(radioTag, /aria-labelledby=/)
     assert.match(radioTag, /aria-describedby="data-form-field-3-after"/)
     assert.match(
       unlabeledBody,

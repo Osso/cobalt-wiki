@@ -94,9 +94,7 @@ async function assertStaticField(wrapper, field, value) {
  * @param {string} visibleLabel
  */
 async function assertRadioField(wrapper, field, value, visibleLabel) {
-  const legend = wrapper.locator("legend")
-  await expect(legend).toHaveCount(visibleLabel ? 1 : 0)
-  if (visibleLabel) await expect(legend).toHaveText(visibleLabel)
+  await expect(wrapper.locator(".form-labels")).toHaveText(visibleLabel)
   await expect(wrapper.locator("fieldset")).toHaveAccessibleName(
     visibleLabel || field.name
   )

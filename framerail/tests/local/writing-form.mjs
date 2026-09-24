@@ -129,9 +129,8 @@ async function assertStaticLabel(wrapper, label) {
  * @param {string} visibleLabel
  */
 async function assertRadioControl(wrapper, field, value, visibleLabel) {
-  const legend = wrapper.locator("legend")
-  await expect(legend).toHaveCount(visibleLabel ? 1 : 0)
-  if (visibleLabel) await expect(legend).toHaveText(visibleLabel)
+  const caption = wrapper.locator(".form-labels")
+  await expect(caption).toHaveText(visibleLabel)
   await expect(wrapper.locator("fieldset")).toHaveAccessibleName(
     visibleLabel || field.name
   )
@@ -392,9 +391,9 @@ async function assertWritingLayout(page, fields) {
     row("image").locator('input[type="text"]'),
     "Image input"
   )
-  for (const [name, label, control] of [
-    ["Author", authorLabel, authorInput],
-    ["Image", imageLabel, imageInput]
+  for (const { name, label, control } of [
+    { name: "Author", label: authorLabel, control: authorInput },
+    { name: "Image", label: imageLabel, control: imageInput }
   ]) {
     assertNear(control.x - label.x, 106, `${name} label-to-control offset`)
     assert.ok(
@@ -409,15 +408,18 @@ async function assertWritingLayout(page, fields) {
 
   const summary = await visibleBox(row("summary").locator("textarea"), "Summary")
   const content = await visibleBox(row("content").locator("textarea"), "Content")
-  for (const [name, control] of [
-    ["Image", imageInput],
-    ["Summary", summary],
-    ["Content", content]
+  for (const { name, control } of [
+    { name: "Image", control: imageInput },
+    { name: "Summary", control: summary },
+    { name: "Content", control: content }
   ]) {
     assertNear(control.x, authorInput.x, `${name} control-column alignment`)
   }
 
-  const formatLabel = await visibleBox(row("format").locator("legend"), "Format label")
+  const formatLabel = await visibleBox(
+    row("format").locator(".form-labels span"),
+    "Format label"
+  )
   assertNear(formatLabel.x, authorLabel.x, "Format label-column alignment")
   const radios = await row("format").locator('input[type="radio"]').all()
   assert.equal(radios.length, 4, "Format has four visible radio options")
