@@ -32,6 +32,9 @@ test("account pages use the site's layout; other special pages use Wikijump's", 
     pageLayout({ route: { id: "/[x+2d]/settings" }, data: wikidotSite }),
     "wikidot"
   )
+  for (const id of ["/[x+2d]/forgot-password", "/[x+2d]/set-password/[token]"]) {
+    assert.equal(pageLayout({ route: { id }, data: wikidotSite }), "wikidot")
+  }
   assert.equal(
     pageLayout({ route: { id: "/[x+2d]/admin" }, data: wikidotSite }),
     "wikijump"

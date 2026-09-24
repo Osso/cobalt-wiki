@@ -67,6 +67,9 @@
     />
     <button class="btn btn-primary" type="submit">Sign in</button>
     <p>
+      <a href={resolve("/-/forgot-password", {})}>Forgotten your password?</a>
+    </p>
+    <p>
       No account yet? <a href={resolve("/-/register", {})}>Create account</a>
     </p>
   </form>
