@@ -104,7 +104,15 @@ let
   wws = pkgs.rustPlatform.buildRustPackage {
     pname = "cobalt-wws";
     inherit version;
-    src = root + /wws;
+    # wws patches wikidot-normalize with Deepwell's vendored copy (../deepwell/vendor).
+    src = lib.fileset.toSource {
+      inherit root;
+      fileset = lib.fileset.unions [
+        (root + /wws)
+        (root + /deepwell/vendor/wikidot-normalize)
+      ];
+    };
+    sourceRoot = "source/wws";
     cargoLock.lockFile = root + /wws/Cargo.lock;
     doCheck = false;
     meta = {

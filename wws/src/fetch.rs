@@ -169,3 +169,31 @@ pub async fn fetch_range_bytes(
 
     Ok(resp.to_vec())
 }
+
+#[cfg(test)]
+mod tests {
+    use wikidot_normalize::normalize;
+
+    fn normalized(slug: &str) -> String {
+        let mut slug = slug.to_owned();
+        normalize(&mut slug);
+        slug
+    }
+
+    #[test]
+    fn page_slug_keeps_later_colons() {
+        // Stored Wikidot slug of the page holding chessset.jpg.
+        assert_eq!(
+            normalized("writing:2021-10-21-to-paint-a-picture:the-game"),
+            "writing:2021-10-21-to-paint-a-picture:the-game",
+        );
+    }
+
+    #[test]
+    fn page_slug_still_normalizes_case_and_spaces() {
+        assert_eq!(
+            normalized("Writing:To Paint A Picture:The Game"),
+            "writing:to-paint-a-picture:the-game",
+        );
+    }
+}
