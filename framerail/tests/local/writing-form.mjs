@@ -426,7 +426,13 @@ async function assertWritingLayout(page, fields) {
   const radioBoxes = await Promise.all(
     radios.map((radio, index) => visibleBox(radio, `Format radio ${index + 1}`))
   )
+  const hostedRadioOffsets = [0, 61.116, 185.646, 252.504]
   for (const [index, radio] of radioBoxes.entries()) {
+    assertNear(
+      radio.x - radioBoxes[0].x,
+      hostedRadioOffsets[index],
+      `Format radio ${index + 1} source spacing`
+    )
     assertNear(radio.y, radioBoxes[0].y, `Format radio ${index + 1} horizontal alignment`)
     if (index > 0) {
       assert.ok(radio.x > radioBoxes[index - 1].x, "Format radios advance left to right")
