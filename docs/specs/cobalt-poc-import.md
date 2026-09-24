@@ -12,11 +12,11 @@
 - [x] Write plans as owner-only files; reject changed archives before target calls.
 - [x] Reconcile the full protected 6,092-source/1,471-attachment archive against a real provisioned Deepwell instance.
 - [x] Prove actual `page_import` exact-name readback, attachment upload/readback, technical-principal authorization and metadata retention in the native runtime. Source ACL parity remains separate.
-- [ ] For the approved **local missing-only** slice, retain the immutable 6,092-page/1,471-file plan unchanged and select only plan entries absent from a fresh, complete inventory bound to that plan, target site, and RPC endpoint.
-- [ ] Treat every current, historical, and deleted page/file identity as present for selection. Do not compare its bytes, tags, metadata, attribution, or importer ownership, and do not edit, replace, adopt, restore, or otherwise mutate it.
-- [ ] Reject inventories with orphan audit page IDs. Skip an attachment whose current owner cannot be determined uniquely; do not infer an owner from historical identities.
-- [ ] Create only the selected bounded page/file set. Create every selected page with its native `page_import` tags in the same atomic creation operation; do not issue a follow-up edit for tags.
-- [ ] Before every mutation run, obtain a new complete site inventory and validate it against the immutable plan and actual RPC endpoint. On any mutation failure, stop; restart only from a newly acquired and validated inventory, never by blindly retrying a mutation.
+- [x] For the approved **local missing-only** slice, retain the immutable 6,092-page/1,471-file plan unchanged and select only plan entries absent from a fresh, complete inventory bound to that plan, target site, and RPC endpoint.
+- [x] Treat every current, historical, and deleted page/file identity as present for selection. Do not compare its bytes, tags, metadata, attribution, or importer ownership, and do not edit, replace, adopt, restore, or otherwise mutate it.
+- [x] Reject inventories with orphan audit page IDs. Skip an attachment whose current owner cannot be determined uniquely; do not infer an owner from historical identities.
+- [x] Create only the selected bounded page/file set. Create every selected page with its native `page_import` tags in the same atomic creation operation; do not issue a follow-up edit for tags.
+- [x] Before every mutation run, obtain a new complete site inventory and validate it against the immutable plan and actual RPC endpoint. On any mutation failure, stop; restart only from a newly acquired and validated inventory, never by blindly retrying a mutation.
 
 ## How it works
 
@@ -34,15 +34,30 @@
 
 - `tests/cobalt_migration/test_poc_import.py`: synthetic archives and a persistent in-memory RPC datastore; exact multi-colon identity/content, collision refusal, restart after lost response without duplicate pages or attachments, non-import conflict, changed archive/content.
 
+## Completed local missing-only import
+
+Verified: 2026-09-24. The immutable plan remained 6,092 pages and 1,471 files. The completed local run added 2,108 absent pages and 966 absent files; each added raw page/file hash read back unchanged. The target now has 6,101 active pages (6,092 planned plus nine pre-existing fixtures) and 1,471 files, with no plan entries remaining.
+
+- Original page/file rows, file revisions, and nine imported-history rows remained unchanged.
+- A fresh inventory after injected lost native page-creation and file-creation responses excluded the already committed identity, proving restart does not duplicate either kind.
+- Search is idle with 6,101 documents and zero pending updates; queue depth is the four baseline periodic jobs. GC containers remain stopped.
+- Only local SQL migration `20260923000005` ran, changing an existing table so backend rendering could run.
+- Unit proof passed 44 tests at `da8a05a`; at `af26ce5`, 12 targeted type-error tests plus Ruff and formatting checks passed. Aggregate gate: `/tmp/cobalt-company-wiki-missing-only-gate-af26ce5.log`.
+
+### Preservation limitation
+
+Do **not** claim every original native revision is byte-identical. The initial native-revision fingerprint intentionally excluded compiled outputs but mistakenly included `updated_at`, which native rerendering mutates. Of 61 early changed fingerprints, 18 reconstruct exactly when `updated_at` is normalized to null; the other 43 original full hashes cannot be reconstructed. Original page/file rows remain identical, and normalized snapshots of source content and metadata from the 4,055-page checkpoint onward match. Later original timestamp changes are acceptable only while that final normalized baseline remains stable.
+
+This completes the bounded local missing-page/file operation, not blanket full-replica readiness. Source ACL parity, author/history parity, rendering/visual parity, deployment, and other status boundaries remain separate. See [current proof](../wiki/systems/cobalt-replica-status.md).
+
 ## Known gaps (current cycle)
 
-- [x] Full archive apply completed with 6,092 pages and 1,471 attachments (verified: 2026-09-22). SQL reconciliation independently matches every page's name/title/tags/source size/SHA-256 and migration attribution. Attachment ownership/name/size inventory matches; apply verified all attachment bytes. See [current proof](../wiki/systems/cobalt-replica-status.md).
 - [x] Unmatched `))` is accepted through corrected FTML token dispatch. The exact archive fixture, native DB/rendering regression and complete 6,092-source parser corpus pass. Ordinary `page_create` normalization remains unchanged; logging suppression and blind mutation retries were reverted.
 - [ ] Provisioning must supply an existing positive-ID target site and a dedicated technical import principal with an authenticated session authorized to edit/import that site. The principal may be the seeded administrator (ID −1) or a positive user ID; the session identity must match the immutable plan. Runtime must allow the source archive's largest pages/attachments.
 - [ ] Deepwell and presigned S3 endpoints must be loopback IPv4/IPv6 literals (run on target or forward both ports). Session file and plan must be `0600` in an owner-only directory.
 - [ ] Host owner must protect every POC route before import. No source ACL parity is claimed.
 - [ ] Run the local missing-only slice only against a local target with one exclusive writer. Concurrent human edits, another importer, production targets, service administration, and database operations are excluded.
-- [ ] Before each bounded run, use a fresh complete inventory from the exact target site and endpoint. Any mutation failure aborts the run; a later run starts from a new inventory and never blindly retries the failed mutation.
+- [x] The completed local run used fresh inventories from the exact target site and endpoint; injected lost responses were resolved only by a later fresh inventory, never by blindly retrying a mutation.
 - [ ] A failed upload may leave an unfinalized pending blob; this importer never deletes target objects.
 
 ## Out of scope

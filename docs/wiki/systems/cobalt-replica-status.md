@@ -1,12 +1,12 @@
 # Cobalt replica status
 
-Verified: 2026-09-23. This records evidence, not authorization to expose source-private content.
+Verified: 2026-09-24. This records evidence, not authorization to expose source-private content or a blanket full-replica readiness claim.
 
 ## Coverage
 
 | Capability | Proven | Remaining |
 |---|---|---|
-| [Full POC import](../../specs/cobalt-poc-import.md) | 6,092 active pages and 1,471 attachments; importer exited successfully after byte/hash readback. Independent SQL comparison found no page name/title/tag/size/SHA-256 mismatches, missing/extra records, or wrong migration attribution. Attachment ownership/name/size inventory also matches. | Source authorship, creation dates, full revision/forum history and account mapping |
+| [Local missing-only POC import](../../specs/cobalt-poc-import.md) | Immutable 6,092-page/1,471-file plan unchanged. Added 2,108 absent pages and 966 absent files with unchanged raw page/file hash readback; target totals are 6,101 active pages (plan plus nine fixtures) and 1,471 files. Original page/file rows, file revisions, and nine imported-history rows remained unchanged. Fresh inventories after injected lost page/file creation responses excluded the committed identities; search has 6,101 documents, zero pending work, and is idle; queue depth is four baseline periodic jobs; GC containers remain stopped. Local migration `20260923000005` changed an existing table for backend rendering. | This completes only the local missing-page/file slice. It does not establish source ACL, author, full history/forum, rendering/visual, deployment, or blanket replica readiness. Original native revision byte identity has a known proof gap: rerendering changed `updated_at`; 18 of 61 early changed fingerprints reconstruct when normalized, but 43 original full hashes cannot be reconstructed. Content/metadata normalized snapshots from the 4,055-page checkpoint onward match. |
 | [Source theme](../../specs/cobalt-poc-theme.md) | Archived CSS/font served behind authentication; source-image URLs resolve locally and three theme images match archive hashes over public HTTPS. Browser confirms source body/title fonts, black background and 1,000px container. | Full visual/layout parity and dynamic content rendering |
 | [Native runtime](../../specs/cobalt-native-runtime.md) and [gateway](../../specs/cobalt-poc-gateway.md) | Native NixOS deployment, public HTTPS, loopback services, protected runtime secrets, Basic authentication, no-index headers, successful Sakuin readiness checks | Full source page/file ACL parity; forged invalid application-session cookies still cause an error |
 | [Metadata acquisition](../../specs/cobalt-page-metadata.md) | Listing completed 277/277 pages; metadata finished with 6,090 accepted records, one denied and one redirect | Complete ACL/history/creator acquisition; neither unresolved record is fabricated |
@@ -54,7 +54,7 @@ Verified 2026-09-23 by sanitized authoritative browser evidence at `/home/osso/.
 
 The local nginx configuration now mirrors the production file-route regex from `install/nixos/poc-gateway.nix`, retains Basic authentication, no-index, and trusted-site headers, and routes to WWS at `127.0.0.1:3470`. WWS started with its actual `S3_FILES_BUCKET` and `S3_TEXT_BLOCKS_BUCKET` contract; `.env.example`'s old `S3_BUCKET` and `ADDRESS` names are not the runtime contract. The source was unchanged; `priority-images-proof.json` established rerender proof. The correction verifier passed: authenticated `home:_public` loaded `2/2` visible images and `2/2` CSS backgrounds, with `4/4` same-origin assets returning `200`, correct MIME, decodable bytes, and matching manifest SHA-256; `home:start` loaded `19/19`, `3/3`, and `22/22` respectively. It found no failed image or asset URLs; unauthenticated access remained `401` and no-index remained present.
 
-This is not full visual parity. The full import remains incomplete; do not infer full counts, start another importer, or deploy. See [same-site media routing](../../specs/cobalt-media-routing.md) for the rendering contract.
+This is not full visual parity or blanket replica readiness. The local missing-page/file import is complete; do not start another importer or infer rendering, source-ACL, or deployment proof. See [same-site media routing](../../specs/cobalt-media-routing.md) for the rendering contract.
 
 ## Local navigation/sidebar correction
 
@@ -80,7 +80,7 @@ Verified 2026-09-23: Meilisearch `1.43.1` is active only at `127.0.0.1:27700`, w
 
 The source API remains disabled with its original settings. No API key is required or requested. Canonical names were independently enumerated; colon-to-underscore forward mapping matches archive keys without gaps or collisions. Never invert underscore substitution to infer names.
 
-Private evidence lives under `/home/osso/.local/share/cobalt-wiki/`: immutable import plan, complete importer log, `page-db-reconciliation.jsonl`, `file-db-reconciliation.jsonl`, parser corpus results, browser capture, and sanitized local-full media verification. Credentials and original source content are not tracked.
+Private evidence lives under `/home/osso/.local/share/cobalt-wiki/`: immutable import plan, aggregate missing-import proofs, complete importer log, `page-db-reconciliation.jsonl`, `file-db-reconciliation.jsonl`, parser corpus results, browser capture, and sanitized local-full media verification. The aggregate proof records 2,108 added pages, 966 added files, 6,101 indexed documents, no remaining plan entries, and the normalized-revision preservation result; its rerender-drift companion records the unreconstructable 43 original full hashes. Credentials and original source content are not tracked.
 
 The FTML failure was reproduced with both the exact archive member and a public unmatched-`))` fixture. Correcting closing-token dispatch resolved it; logging suppression and blind mutation retries were reverted. Native DB regression, Rust fmt/check, and the 6,092-source parser corpus passed. Original bytes were not rewritten.
 
