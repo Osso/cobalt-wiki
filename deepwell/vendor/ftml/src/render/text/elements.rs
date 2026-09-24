@@ -158,8 +158,8 @@ pub fn render_element(ctx: &mut TextContext, element: &Element) {
         Element::Audio { .. } => {
             // Text cannot render audio, so we don't add anything
         }
-        Element::Video { .. } => {
-            // Text cannot render video, so we don't add anything
+        Element::Video { .. } | Element::Gallery { .. } => {
+            // Text cannot render video or images, so we don't add anything
         }
         Element::List { items, .. } => {
             if !ctx.ends_with_newline() {

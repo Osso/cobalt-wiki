@@ -43,6 +43,11 @@ struct CategorySlug {
 }
 
 #[derive(Debug, FromQueryResult)]
+struct FileName {
+    name: String,
+}
+
+#[derive(Debug, FromQueryResult)]
 struct TaggedPage {
     slug: String,
     title: String,
@@ -55,11 +60,13 @@ struct Wanted {
     tag_cloud: bool,
     pages_by_tag: bool,
     site_changes: bool,
+    page_images: bool,
 }
 
 /// Fetch the data FTML renders from: titles of linked pages, plus site tags
 /// for TagCloud, the pages carrying the URL's `tag` for PagesByTag and a page
-/// of Wikidot's revision list for SiteChanges. The flag is set when the
+/// of Wikidot's revision list for SiteChanges and the page's image attachments
+/// for a bare Gallery. The flag is set when the
 /// output depends on every page's tags (TagCloud).
 pub(super) async fn fetch_render_data(
     ctx: &ServiceContext<'_>,
@@ -81,12 +88,16 @@ pub(super) async fn fetch_render_data(
         }
         _ => None,
     };
+    let fullname = match &page_info.category {
+        Some(category) => format!("{category}:{}", page_info.page),
+        None => page_info.page.to_string(),
+    };
+    let page_images = match wanted.page_images {
+        true => fetch_page_images(ctx, site, &fullname).await?,
+        false => Vec::new(),
+    };
     let site_changes = match wanted.site_changes {
         true => {
-            let fullname = match &page_info.category {
-                Some(category) => format!("{category}:{}", page_info.page),
-                None => page_info.page.to_string(),
-            };
             let default = BodyArguments::default();
             let body = body.unwrap_or(&default);
             Some(
@@ -101,6 +112,7 @@ pub(super) async fn fetch_render_data(
         tag_weights,
         tagged_pages,
         site_changes,
+        page_images,
     };
     Ok((handle, wanted.tag_cloud))
 }
@@ -179,6 +191,37 @@ async fn fetch_tagged_pages(
         .await
         .or_raise(|| Error::new("failed to fetch tagged pages", ErrorType::Render))?;
     Ok(rows.into_iter().map(|row| (row.slug, row.title)).collect())
+}
+
+/// Wikidot's bare gallery: the page's live attachments whose current revision
+/// is an image, in the glibc en_US order Wikidot's database sorts by.
+async fn fetch_page_images(
+    ctx: &ServiceContext<'_>,
+    site: &str,
+    page: &str,
+) -> Result<Vec<String>> {
+    let query = Statement::from_sql_and_values(
+        DatabaseBackend::Postgres,
+        "SELECT f.name
+         FROM site s
+         JOIN page p ON p.site_id = s.site_id AND p.slug = $2 AND p.deleted_at IS NULL
+         JOIN file f ON f.page_id = p.page_id AND f.deleted_at IS NULL
+         JOIN LATERAL (
+             SELECT mime FROM file_revision
+             WHERE file_id = f.file_id
+             ORDER BY revision_number DESC LIMIT 1
+         ) r ON r.mime LIKE 'image/%'
+         WHERE s.slug = $1 AND s.deleted_at IS NULL
+         ORDER BY f.name COLLATE \"en_US.utf8\"",
+        [Value::from(site), Value::from(page)],
+    );
+    let rows = Page::find()
+        .from_raw_sql(query)
+        .into_model::<FileName>()
+        .all(ctx.transaction())
+        .await
+        .or_raise(|| Error::new("failed to fetch page images", ErrorType::Render))?;
+    Ok(rows.into_iter().map(|row| row.name).collect())
 }
 
 /// One page of Wikidot's revision list, newest first, with the category names
@@ -324,6 +367,7 @@ fn collect_element(element: &Element<'_>, site: &str, references: &mut Wanted) {
         Element::Module(Module::TagCloud { .. }) => references.tag_cloud = true,
         Element::Module(Module::PagesByTag) => references.pages_by_tag = true,
         Element::Module(Module::SiteChanges) => references.site_changes = true,
+        Element::Gallery { sources: None, .. } => references.page_images = true,
         Element::Container(container) => {
             collect_elements(container.elements(), site, references)
         }

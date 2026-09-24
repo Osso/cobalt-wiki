@@ -139,6 +139,15 @@ pub enum Element<'t> {
         attributes: AttributeMap<'t>,
     },
 
+    /// A Wikidot image gallery, with its thumbnail size.
+    ///
+    /// The "sources" field lists the files of a `: file` list. Without it,
+    /// the gallery shows the page's image attachments, from the render handle.
+    Gallery {
+        size: Cow<'t, str>,
+        sources: Option<Vec<Cow<'t, str>>>,
+    },
+
     /// An ordered or unordered list.
     List {
         #[serde(rename = "type")]
@@ -352,6 +361,7 @@ impl Element<'_> {
             Element::Image { .. } => "Image",
             Element::Audio { .. } => "Audio",
             Element::Video { .. } => "Video",
+            Element::Gallery { .. } => "Gallery",
             Element::List { .. } => "List",
             Element::DefinitionList(_) => "DefinitionList",
             Element::RadioButton { .. } => "RadioButton",
@@ -407,6 +417,7 @@ impl Element<'_> {
             Element::Image { .. } => true,
             Element::Audio { .. } => true,
             Element::Video { .. } => true,
+            Element::Gallery { .. } => false,
             Element::List { .. } => false,
             Element::DefinitionList(_) => false,
             Element::RadioButton { .. } | Element::CheckBox { .. } => true,
@@ -511,6 +522,15 @@ impl Element<'_> {
                 source: source.to_owned(),
                 alignment: *alignment,
                 attributes: attributes.to_owned(),
+            },
+            Element::Gallery { size, sources } => Element::Gallery {
+                size: string_to_owned(size),
+                sources: sources.ref_map(|sources| {
+                    sources
+                        .iter()
+                        .map(|source| string_to_owned(source))
+                        .collect()
+                }),
             },
             Element::DefinitionList(items) => Element::DefinitionList(
                 items.iter().map(|item| item.to_owned()).collect(),

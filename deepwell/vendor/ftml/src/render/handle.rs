@@ -41,6 +41,9 @@ pub struct Handle {
 
     /// One page of the site's revision list (SiteChanges).
     pub site_changes: Option<SiteChanges>,
+
+    /// The rendered page's image attachments, in Wikidot's file order (Gallery).
+    pub page_images: Vec<String>,
 }
 
 /// A page of Wikidot's site-wide revision list.

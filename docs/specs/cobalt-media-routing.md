@@ -8,6 +8,7 @@ FTML must render same-site attachment references through the deployed site's pro
 - [x] Preserve explicit external URLs and unrelated cross-site references.
 - [x] Preserve source bytes and revision identity while refreshing derived HTML.
 - [x] Serve actual imported image bytes behind authentication and no-index controls.
+- [x] Render Wikidot `[[gallery]]` markup: bare galleries list the page's image attachments in Wikidot's en_US name order, `: file` lists keep source order; originals are shown at Wikidot's thumbnail sizes because there is no resizer.
 
 ## How it works
 
@@ -20,6 +21,7 @@ FTML must render same-site attachment references through the deployed site's pro
 ## Tests asserting this spec
 
 - `deepwell/tests/page_media_urls.rs`: native rendering of local, explicit same-site, external and cross-site image references.
+- `deepwell/tests/page_gallery.rs` and FTML `render::html::element::gallery` tests: gallery markup, sizes, order and image filtering.
 - FTML AST fixtures: image/audio/video output contracts.
 
 ## Known gaps (current cycle)
@@ -27,6 +29,8 @@ FTML must render same-site attachment references through the deployed site's pro
 - [x] Native routing test and all 121 FTML AST fixtures pass; fmt/check pass. Deployed and refreshed 28 affected pages, preserving source hashes and revision identity. Browser loads both homepage images backed by imported attachments, with matching hashes through public authenticated HTTPS.
 - [ ] Two homepage images still depend on unresolved template variables; routing must not pretend their requested assets exist.
 - [x] Local full-preview image correction browser proof passed: authenticated `home:_public` (`2/2` visible images, `2/2` CSS backgrounds, `4/4` verified assets) and `home:start` (`19/19`, `3/3`, `22/22`) have no failures; unauthenticated access remains `401` and no-index remains present. The [replica-status SSOT](../wiki/systems/cobalt-replica-status.md#local-full-preview-media-routing) records causes and evidence scope.
+
+- [ ] Gallery pages rendered before gallery support (`icons`, `badges`, `images`, `pet-icons`, `membersonly:player-icons`) need a refresh after deployment.
 
 ## Out of scope
 
