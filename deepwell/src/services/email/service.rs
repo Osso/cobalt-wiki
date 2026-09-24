@@ -273,9 +273,8 @@ impl EmailService {
         })
     }
 
-    // TODO (WJ-1384) add email sending helper method
+    // Sending: see MailgunSender. Password reset: see PasswordTokenService.
 
     // TODO (WJ-1388) email verification (checking an email belongs to you)
-    // TODO (WJ-1389) password reset (verification link to begin password reset process)
     // TODO (WJ-1390) one-time code (used as substitute second factor when logging in)
 }

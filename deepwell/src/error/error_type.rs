@@ -68,6 +68,7 @@ pub enum ErrorType {
     Fluent(Vec<FluentError>),
     FluentParser(Vec<FluentParserError>),
     Cryptography(String),
+    EmailSend,
 
     // 1300
     Text,
@@ -153,6 +154,9 @@ pub enum ErrorType {
     },
     EmptyPassword,
     InvalidAuthorizationToken,
+    PasswordTokenInvalid,
+    PasswordTokenExpired,
+    PasswordTokenUsed,
 
     // 3100
     Permission,
@@ -370,6 +374,7 @@ impl ErrorType {
             ErrorType::Fluent(_) => 1207,
             ErrorType::FluentParser(_) => 1208,
             ErrorType::Cryptography(_) => 1209,
+            ErrorType::EmailSend => 1210,
 
             // 1300 - Other / Uncommon
             ErrorType::Text => 1300,
@@ -455,6 +460,9 @@ impl ErrorType {
             ErrorType::SessionUserId { .. } => 3004,
             ErrorType::EmptyPassword => 3005,
             ErrorType::InvalidAuthorizationToken => 3006,
+            ErrorType::PasswordTokenInvalid => 3007,
+            ErrorType::PasswordTokenExpired => 3008,
+            ErrorType::PasswordTokenUsed => 3009,
 
             // 3100 - Permissions
             ErrorType::AddRolePermission => 3100,
@@ -626,6 +634,7 @@ impl ErrorType {
             ErrorType::Fluent(_) => "Fluent bundle error",
             ErrorType::FluentParser(_) => "Fluent parser error",
             ErrorType::Cryptography(_) => "Cryptographic operation failed",
+            ErrorType::EmailSend => "Sending an email failed",
 
             // 1300
             ErrorType::Text => "Failed to act on a text entry",
@@ -715,6 +724,9 @@ impl ErrorType {
             ErrorType::InvalidAuthorizationToken => {
                 "Provided authorization token was invalid"
             }
+            ErrorType::PasswordTokenInvalid => "This password link is not valid",
+            ErrorType::PasswordTokenExpired => "This password link has expired",
+            ErrorType::PasswordTokenUsed => "This password link has already been used",
 
             // 3100
             ErrorType::AddRolePermission => "Failed to add a permission to a role",

@@ -1174,6 +1174,7 @@ dependencies = [
  "filemagic",
  "fluent",
  "fluent-syntax",
+ "form_urlencoded",
  "ftml",
  "futures",
  "hex",

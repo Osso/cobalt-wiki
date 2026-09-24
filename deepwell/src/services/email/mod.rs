@@ -24,8 +24,10 @@ mod prelude {
     pub use super::structs::*;
 }
 
+mod mailgun;
 mod service;
 mod structs;
 
+pub use mailgun::{MailgunSender, OutgoingEmail};
 pub use service::EmailService;
 pub use structs::*;
