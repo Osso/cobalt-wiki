@@ -83,6 +83,9 @@ fn process_pairs(mut pairs: Pairs<Rule>) -> Result<IncludeRef, IncludeParseError
     let mut var_reference = String::new();
 
     for pair in pairs {
+        if pair.as_rule() == Rule::ignored {
+            continue;
+        }
         debug_assert_eq!(pair.as_rule(), Rule::argument);
 
         let (key, value) = {

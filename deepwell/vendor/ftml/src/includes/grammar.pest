@@ -40,13 +40,22 @@ include = {
     "[[" ~ space? ~ ^"include" ~ space ~
     page_ref ~ space? ~
     (separator ~ space?)? ~
-    (argument ~ space? ~ separator ~ space?)* ~
-    (argument ~ space? ~ separator?)? ~
+    (segment ~ space? ~ separator ~ space?)* ~
+    (segment ~ space? ~ separator?)? ~
     space? ~ include_end
 }
 
 include_end = _{
     "]]" ~ &(NEWLINE | EOI)
+}
+
+segment = _{
+    argument | ignored
+}
+
+// Wikidot skips pipe segments without "=".
+ignored = {
+    (!("]]" | "|" | "=") ~ ANY)+
 }
 
 argument = {

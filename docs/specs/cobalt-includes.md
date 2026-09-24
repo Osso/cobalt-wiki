@@ -5,6 +5,7 @@ Expand archived Wikidot includes before FTML rendering without rewriting stored 
 ## What it must do
 
 - [x] Expand nested same-site includes, including empty values, and substitute supplied variables while preserving stored source bytes.
+- [x] Ignore pipe segments without `=` (as Wikidot does) instead of dropping the whole directive.
 - [x] Apply expansion to page body and both navigation regions.
 - [x] Never insert missing, deleted, foreign-site, or anonymously unreadable target content into shared compiled HTML.
 - [x] Record only resolved same-site included-page dependencies; unavailable and foreign directives create none.
@@ -27,7 +28,7 @@ Expand archived Wikidot includes before FTML rendering without rewriting stored 
 ## Tests asserting this spec
 
 - `deepwell/tests/page_includes.rs`: six native cases for nested body substitution, both navigation regions, empty values, unavailable/denied/foreign isolation, foreign dependency exclusion, and cycle/depth preservation.
-- `deepwell/vendor/ftml/src/includes/test.rs`: five focused scanner/substitution cases including empty values.
+- `deepwell/vendor/ftml/src/includes/test.rs`: six focused scanner/substitution cases including empty values and ignored segments without `=`.
 
 ## Known gaps (current cycle)
 

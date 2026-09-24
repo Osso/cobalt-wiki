@@ -109,6 +109,20 @@ fn argument_values_exclude_whitespace_before_the_next_separator() {
 }
 
 #[test]
+fn segments_without_equals_are_ignored_like_wikidot() {
+    // arc:season-5: an instruction segment sits between real arguments.
+    let input = "[[include card\n| leading=Left\n| Place a hyphen in either IC or OOC (not both) to indicate the status of the event: | empty= \n| trailing=Right\n]]";
+    let directives = parse_includes(input);
+    assert_eq!(directives.len(), 1);
+    assert_eq!(directives[0].0, 0..input.len());
+    assert_eq!(directives[0].1.variables().len(), 3);
+
+    let settings = WikitextSettings::from_mode(WikitextMode::Page, Layout::Wikidot);
+    let (output, _) = include(input, &settings, CardIncluder, || panic!()).unwrap();
+    assert_eq!(output, "Left||Right");
+}
+
+#[test]
 fn scans_directive_ranges_references_and_arguments() {
     let input =
         "Before\n[[include component:card | label=Hello]]\n[[include :other:theme:test]]";
