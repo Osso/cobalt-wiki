@@ -190,6 +190,7 @@
 
   #container #footer,
   #container #license-area {
+    box-sizing: border-box;
     color: $chrome-text;
     background: $chrome-panel;
 
