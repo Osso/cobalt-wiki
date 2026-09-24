@@ -41,7 +41,9 @@ def wanted_roles(member):
 
 def fetch_profile(slug):
     with urllib.request.urlopen(f"https://www.wikidot.com/user:info/{slug}", timeout=60) as response:
-        return parse_profile(response.read().decode())
+        html = response.read().decode()
+    time.sleep(1)
+    return parse_profile(html)
 
 
 def import_wikidot_record(rpc, member, importer, fetch):
@@ -109,6 +111,9 @@ def main(argv):
     rpc = LoopbackRpc(endpoint, login["session_token"], site_id)
     importer = rpc.rpc("session_get", [login["session_token"]])["user_id"]
     role_ids = {role["name"]: role["role_id"] for role in rpc.rpc("role_list", {"site_id": site_id})}
+    missing = {"root", "admin", "moderator", "member"} - role_ids.keys()
+    if missing:
+        raise ValueError(f"site {site_id} lacks roles {sorted(missing)}")
     for member in sorted(json.load(open(members_path))["members"], key=lambda m: m["user_id"]):
         outcome = import_member(rpc, member, site_id, role_ids, importer)
         print(f"{member['user_id']} {member['slug']}: {outcome}")
