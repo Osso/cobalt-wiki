@@ -227,6 +227,10 @@ async function previewName(page, slug, name) {
   await page.locator("#edit-preview-button").click()
   const response = await responsePromise
   assert.equal(response.status(), 200, `${slug} preview status`)
+  assert.ok(
+    (await response.text()).includes(name),
+    "preview response contains edited Name"
+  )
   const region = page.locator('section[aria-label="Page preview"]')
   await expect(region).toHaveAttribute("aria-busy", "false")
   await expect

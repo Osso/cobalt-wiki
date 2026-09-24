@@ -391,7 +391,12 @@ for (const category of categories) {
               response.url().endsWith("?/preview")
           )
           await page.locator("#edit-preview-button").click()
-          assert.equal((await previewResponse).status(), 200, "preview HTTP status")
+          const response = await previewResponse
+          assert.equal(response.status(), 200, "preview HTTP status")
+          assert.ok(
+            (await response.text()).includes(marker),
+            "preview response contains edited field"
+          )
           const region = page.locator('section[aria-label="Page preview"]')
           await expect(region).toHaveAttribute("aria-busy", "false")
           await expect
