@@ -217,7 +217,7 @@ in
       };
       interval = lib.mkOption {
         type = lib.types.str;
-        default = "*:0/15";
+        default = "hourly";
         description = "systemd OnCalendar schedule.";
       };
     };
@@ -319,6 +319,7 @@ in
         serviceConfig = common // {
           Type = "oneshot";
           RuntimeDirectory = "cobalt-wiki-wikidot-sync";
+          StateDirectory = "cobalt-wiki-wikidot-sync";
           ExecStart = lib.escapeShellArgs [
             python
             "${./wikidot_sync.py}"
