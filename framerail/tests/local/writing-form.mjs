@@ -217,7 +217,7 @@ function controlSelector(field) {
  */
 async function assertAfterGuidance(wrapper, field, control) {
   const after = text(field.properties.after)
-  const help = wrapper.locator(".field-control > small")
+  const help = wrapper.locator('[id$="-after"]')
   await expect(help).toHaveCount(after ? 1 : 0)
   if (after) {
     await expect(help).toHaveText(after)
