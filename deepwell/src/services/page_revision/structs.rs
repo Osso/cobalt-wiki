@@ -224,3 +224,11 @@ pub struct RerenderPage {
     #[serde(default)]
     pub rerender_type: RerenderType,
 }
+
+/// A page's body and navigation HTML rendered for one viewer's show-to regions;
+/// `None` keeps the shared stored HTML.
+#[derive(Debug, Default)]
+pub struct ShowToHtml {
+    pub body: Option<String>,
+    pub navigation: crate::services::render::ShowToNavigation,
+}

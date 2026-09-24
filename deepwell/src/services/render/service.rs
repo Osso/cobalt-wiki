@@ -223,6 +223,63 @@ impl RenderService {
         Ok(rendered.html_output.body)
     }
 
+    /// Render a page body (`body` is `Some`) or navigation fragment for a
+    /// signed-in viewer (a user slug), keeping the show-to regions that list them.
+    /// `None` when no region does, so the shared stored HTML applies. Nothing is
+    /// stored.
+    pub async fn render_show_to(
+        ctx: &ServiceContext<'_>,
+        wikitext: &str,
+        page_info: &PageInfo<'_>,
+        settings: &WikitextSettings,
+        body: Option<&BodyArguments>,
+        viewer: &str,
+    ) -> Result<Option<String>> {
+        let Some(wikitext) = super::show_to::reveal_show_to_regions(wikitext, viewer)
+        else {
+            return Ok(None);
+        };
+        let rendered =
+            Self::render_html(ctx, wikitext, page_info, settings, body).await?;
+        Ok(Some(rendered.html_output.body))
+    }
+
+    /// Top and side bar HTML for a signed-in viewer (a user slug) listed by
+    /// show-to regions in the navigation pages; `None` keeps the stored HTML.
+    pub async fn render_show_to_nav(
+        ctx: &ServiceContext<'_>,
+        site_id: i64,
+        category_id: Option<i64>,
+        page_info: &PageInfo<'_>,
+        layout: Layout,
+        viewer: &str,
+    ) -> Result<ShowToNavigation> {
+        let settings = WikitextSettings::from_mode(WikitextMode::PageNav, layout);
+        let NavigationPageWikitext {
+            top_bar_page_wikitext,
+            side_bar_page_wikitext,
+        } = SettingsService::get_nav_page_wikitext(ctx, site_id, category_id).await?;
+        let render = |wikitext: Option<String>| {
+            let settings = &settings;
+            async move {
+                match wikitext {
+                    Some(wikitext) => {
+                        Self::render_show_to(
+                            ctx, &wikitext, page_info, settings, None, viewer,
+                        )
+                        .await
+                    }
+                    None => Ok(None),
+                }
+            }
+        };
+        let (top_bar, side_bar) = try_join!(
+            render(top_bar_page_wikitext),
+            render(side_bar_page_wikitext),
+        )?;
+        Ok(ShowToNavigation { top_bar, side_bar })
+    }
+
     /// Render and store the output: compiled HTML always, text blocks for pages.
     async fn render_inner(
         ctx: &ServiceContext<'_>,

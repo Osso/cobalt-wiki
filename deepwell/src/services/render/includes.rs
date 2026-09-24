@@ -180,9 +180,10 @@ pub(super) async fn fetch_shared_source(
     }
     let revision =
         PageRevisionService::get_latest(ctx, page.site_id, page.page_id).await?;
+    // Show-to regions are revealed only in the rendered page's own source.
     TextService::get(ctx, &revision.wikitext_hash)
         .await
-        .map(Some)
+        .map(|source| Some(super::show_to::strip_show_to_regions(source)))
 }
 
 /// Latest source of a same-site page that anonymous readers may view.

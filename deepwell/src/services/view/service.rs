@@ -35,7 +35,7 @@ use crate::models::page::Model as PageModel;
 use crate::models::page_revision::Model as PageRevisionModel;
 use crate::models::site::Model as SiteModel;
 use crate::services::blueprint::{BlueprintPageType, GetBlueprintPageOutput};
-use crate::services::page_revision::RerenderType;
+use crate::services::page_revision::{RerenderType, ShowToHtml};
 use crate::services::permission::{CheckPermissionContext, PermissionService};
 use crate::services::relation::{
     GetPageAttributions, GetSiteBan, PageAttribution, RelationService,
@@ -46,7 +46,7 @@ use crate::services::user::User;
 use crate::services::view::ViewType;
 use crate::services::{
     BlueprintPageService, CategoryService, DomainService, PageRevisionService,
-    PageService, SessionService, SiteService, TextService, UserService,
+    PageService, RenderService, SessionService, SiteService, TextService, UserService,
 };
 use crate::types::{Action, PageId, Permission, RerenderDepth, Resource};
 use crate::utils::{parse_locales, split_category};
@@ -162,6 +162,12 @@ impl ViewService {
             language: cow!(&site.locale),
         };
 
+        let body = BodyArguments {
+            list_page: options.list_page.unwrap_or(1),
+            tag: options.tag.clone(),
+            changes: options.changes.clone(),
+        };
+
         // Helper structures to designate which variant of GetPageViewOutput to return.
 
         #[derive(Debug)]
@@ -179,6 +185,7 @@ impl ViewService {
         #[derive(Debug)]
         struct PageReturn {
             page_status: PageStatus,
+            page_id: Option<PageId>,
             wikitext: String,
             compiled_body_html: String,
             compiled_top_bar_html: Option<String>,
@@ -188,6 +195,7 @@ impl ViewService {
         // Get wikitext and HTML to return for this page.
         let PageReturn {
             page_status,
+            page_id,
             wikitext,
             compiled_body_html,
             compiled_top_bar_html,
@@ -303,11 +311,6 @@ impl ViewService {
                     ) = raise_multiple!(wikitext_result, compiled_body_result, compiled_top_bar_result, compiled_side_bar_result; make_error);
 
                     // Stored HTML uses the default URL arguments; others render on demand.
-                    let body = BodyArguments {
-                        list_page: options.list_page.unwrap_or(1),
-                        tag: options.tag.clone(),
-                        changes: options.changes.clone(),
-                    };
                     if body != BodyArguments::default() {
                         compiled_body_html = PageRevisionService::render_body_view(
                             ctx,
@@ -330,6 +333,7 @@ impl ViewService {
                     .or_raise(make_error)?;
 
                     PageReturn {
+                        page_id: Some(PageId::from_page_model(&page)),
                         page_status: PageStatus::Found {
                             page,
                             page_revision,
@@ -374,7 +378,7 @@ impl ViewService {
                         page_type,
                         &locales,
                         config.default_page_layout,
-                        page_info,
+                        page_info.clone(),
                     )
                     .await
                     .or_raise(make_error)?;
@@ -405,6 +409,7 @@ impl ViewService {
 
                     PageReturn {
                         page_status,
+                        page_id: Some(PageId::from_page_model(&page)),
                         wikitext,
                         compiled_body_html,
                         compiled_top_bar_html,
@@ -423,7 +428,7 @@ impl ViewService {
                     BlueprintPageType::Missing,
                     &locales,
                     config.default_page_layout,
-                    page_info,
+                    page_info.clone(),
                 )
                 .await
                 .or_raise(make_error)?;
@@ -446,6 +451,7 @@ impl ViewService {
 
                 PageReturn {
                     page_status: PageStatus::Missing,
+                    page_id: None,
                     wikitext,
                     compiled_body_html,
                     compiled_top_bar_html,
@@ -453,6 +459,46 @@ impl ViewService {
                 }
             }
         };
+
+        // Content that show-to regions reserve for listed users is rendered for
+        // them here, never stored or sent to anyone else.
+        let (compiled_body_html, compiled_top_bar_html, compiled_side_bar_html) =
+            match &user_session {
+                None => (
+                    compiled_body_html,
+                    compiled_top_bar_html,
+                    compiled_side_bar_html,
+                ),
+                Some(session) => {
+                    let viewer = &session.user.slug;
+                    let ShowToHtml { body, navigation } = match page_id {
+                        Some(page_id) => {
+                            let with_body =
+                                matches!(page_status, PageStatus::Found { .. });
+                            PageRevisionService::render_show_to_view(
+                                ctx, page_id, &body, with_body, viewer,
+                            )
+                            .await
+                        }
+                        None => {
+                            Self::render_missing_page_show_to(
+                                ctx,
+                                site_id,
+                                category_id,
+                                &page_info,
+                                viewer,
+                            )
+                            .await
+                        }
+                    }
+                    .or_raise(make_error)?;
+                    (
+                        body.unwrap_or(compiled_body_html),
+                        navigation.top_bar.or(compiled_top_bar_html),
+                        navigation.side_bar.or(compiled_side_bar_html),
+                    )
+                }
+            };
 
         // TODO Check if user-agent and IP match?
 
@@ -751,6 +797,31 @@ impl ViewService {
             license_name,
             license_url,
             user_session,
+        })
+    }
+
+    /// A missing page shows the site navigation, rendered for `viewer` when its
+    /// show-to regions list them.
+    async fn render_missing_page_show_to(
+        ctx: &ServiceContext<'_>,
+        site_id: i64,
+        category_id: Option<i64>,
+        page_info: &PageInfo<'_>,
+        viewer: &str,
+    ) -> Result<ShowToHtml> {
+        let layout = SettingsService::get_layout(ctx, site_id, None).await?;
+        let navigation = RenderService::render_show_to_nav(
+            ctx,
+            site_id,
+            category_id,
+            page_info,
+            layout,
+            viewer,
+        )
+        .await?;
+        Ok(ShowToHtml {
+            body: None,
+            navigation,
         })
     }
 

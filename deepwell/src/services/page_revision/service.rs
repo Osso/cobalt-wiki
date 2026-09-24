@@ -22,6 +22,7 @@ use super::prelude::*;
 use crate::models::page_revision::{
     self, Entity as PageRevision, Model as PageRevisionModel,
 };
+use crate::models::site::Model as SiteModel;
 use crate::models::text::{self, Entity as Text, Model as TextModel};
 use crate::services::render::{BodyArguments, COMPILED_GENERATOR, RenderPageOutput};
 use crate::services::score::ScoreValue;
@@ -36,6 +37,7 @@ use ftml::layout::Layout;
 use ftml::settings::{WikitextMode, WikitextSettings};
 use ref_map::*;
 use sea_query::{Order, Query};
+use std::borrow::Cow;
 use std::num::NonZeroI32;
 use std::sync::LazyLock;
 
@@ -1026,30 +1028,94 @@ impl PageRevisionService {
                 ErrorType::PageRevision,
             )
         };
-        let revision = Self::get_latest(ctx, site_id, page_id)
+        let view = Self::load_render_view(ctx, site_id, page_id)
             .await
             .or_raise(make_error)?;
+        RenderService::render_page_view(
+            ctx,
+            view.wikitext.clone(),
+            &view.page_info(),
+            view.layout,
+            body,
+        )
+        .await
+        .or_raise(make_error)
+    }
+
+    /// The latest revision's body and navigation HTML for a signed-in viewer (a
+    /// user slug) listed by show-to regions in their sources, rendered without
+    /// storing; a `None` field keeps the shared stored HTML. `with_body` is false
+    /// when the viewer may not view the page and sees its permission page.
+    pub async fn render_show_to_view(
+        ctx: &ServiceContext<'_>,
+        page: PageId,
+        body: &BodyArguments,
+        with_body: bool,
+        viewer: &str,
+    ) -> Result<ShowToHtml> {
+        let PageId {
+            site_id,
+            category_id,
+            page_id,
+        } = page;
+        let make_error = || {
+            Error::new(
+                format!(
+                    "failed to render show-to regions of page ID {page_id} on site ID {site_id}"
+                ),
+                ErrorType::PageRevision,
+            )
+        };
+        let view = Self::load_render_view(ctx, site_id, page_id)
+            .await
+            .or_raise(make_error)?;
+        let page_info = view.page_info();
+        let settings = WikitextSettings::from_mode(WikitextMode::Page, view.layout);
+        let body_html = async {
+            if !with_body {
+                return Ok(None);
+            }
+            RenderService::render_show_to(
+                ctx,
+                &view.wikitext,
+                &page_info,
+                &settings,
+                Some(body),
+                viewer,
+            )
+            .await
+        };
+        let navigation = RenderService::render_show_to_nav(
+            ctx,
+            site_id,
+            Some(category_id),
+            &page_info,
+            view.layout,
+            viewer,
+        );
+        let (body, navigation) = try_join!(body_html, navigation).or_raise(make_error)?;
+        Ok(ShowToHtml { body, navigation })
+    }
+
+    async fn load_render_view(
+        ctx: &ServiceContext<'_>,
+        site_id: i64,
+        page_id: i64,
+    ) -> Result<RenderView> {
+        let revision = Self::get_latest(ctx, site_id, page_id).await?;
         let (wikitext, score, layout, site) = try_join!(
             TextService::get(ctx, &revision.wikitext_hash),
             ScoreService::score(ctx, page_id),
             SettingsService::get_layout(ctx, site_id, Some(page_id)),
             SiteService::get(ctx, Reference::from(site_id)),
-        )
-        .or_raise(make_error)?;
-        let (category_slug, page_slug) = split_category(&revision.slug);
-        let page_info = PageInfo {
-            page: cow!(page_slug),
-            category: cow_opt!(category_slug),
-            site: cow!(&site.slug),
-            title: cow!(&revision.title),
-            alt_title: cow_opt!(revision.alt_title),
+        )?;
+        Ok(RenderView {
+            revision,
+            wikitext,
             score,
-            tags: revision.tags.iter().map(|s| cow!(s)).collect(),
-            language: cow!(&site.locale),
-        };
-        RenderService::render_page_view(ctx, wikitext, &page_info, layout, body)
-            .await
-            .or_raise(make_error)
+            layout,
+            site,
+        })
     }
 
     /// Modifies an existing revision.
@@ -1550,4 +1616,29 @@ fn test_replace_hash_opt() {
     test!(None, Some(b"bar") => Some(b"bar"));
     test!(Some(b"foo"), None => None);
     test!(Some(b"foo"), Some(b"bar") => Some(b"bar"));
+}
+
+/// What rendering the latest revision outside a stored render needs.
+struct RenderView {
+    revision: PageRevisionModel,
+    wikitext: String,
+    score: ScoreValue,
+    layout: Layout,
+    site: SiteModel,
+}
+
+impl RenderView {
+    fn page_info(&self) -> PageInfo<'_> {
+        let (category_slug, page_slug) = split_category(&self.revision.slug);
+        PageInfo {
+            page: cow!(page_slug),
+            category: category_slug.map(Cow::Borrowed),
+            site: cow!(&self.site.slug),
+            title: cow!(&self.revision.title),
+            alt_title: cow_opt!(self.revision.alt_title),
+            score: self.score.clone(),
+            tags: self.revision.tags.iter().map(|s| cow!(s)).collect(),
+            language: cow!(&self.site.locale),
+        }
+    }
 }

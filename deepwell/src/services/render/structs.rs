@@ -45,3 +45,10 @@ pub struct RenderPageOutput {
     pub compiled_at: OffsetDateTime,
     pub compiled_generator: String,
 }
+
+/// Navigation HTML rendered for one viewer; `None` keeps the shared stored HTML.
+#[derive(Debug, Default)]
+pub struct ShowToNavigation {
+    pub top_bar: Option<String>,
+    pub side_bar: Option<String>,
+}
