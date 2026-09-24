@@ -22,7 +22,7 @@
 
 <table class="form-table">
   <tbody>
-    <tr class="form-field">
+    <tr>
       <td class="form-labels"><label for="data-form-title">{titleLabel}</label></td>
       <td class="form-values">
         <input
