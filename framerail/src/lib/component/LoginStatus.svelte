@@ -4,6 +4,7 @@
 
   // Wikidot's header account links (#login-status), pointing at this site's pages.
   const user = $derived(page.data?.user_session?.user)
+  const siteAdmin = $derived(page.data?.site_admin === true)
   const here = $derived(page.url.pathname + page.url.search)
   let optionsOpen = $state(false)
 </script>
@@ -22,6 +23,9 @@
     <div id="account-options" style:display={optionsOpen ? "block" : "none"}>
       <ul>
         <li><a href={resolve("/-/settings", {})}>My account</a></li>
+        {#if siteAdmin}
+          <li><a href={resolve("/-/admin/members", {})}>Site members</a></li>
+        {/if}
         <li><a href={resolve("/-/logout", {})}>Sign out</a></li>
       </ul>
     </div>

@@ -22,13 +22,17 @@ export interface Viewer {
   user_session: Nullable<UserSession>
 }
 
+export interface PreloadView extends Viewer {
+  site_admin: boolean
+}
+
 /* ----- Preload ----- */
 
 export async function preloadView(
   siteId: number,
   locales: string[],
   sessionToken: Optional<string>
-): Promise<Viewer> {
+): Promise<PreloadView> {
   return client.request("preload_view", {
     site_id: siteId,
     locales,
@@ -37,7 +41,7 @@ export async function preloadView(
 }
 
 export type PreloadDataAsync = () => Promise<
-  Omit<Viewer, "user_session"> & {
+  Omit<PreloadView, "user_session"> & {
     locales: string[]
     user_session: Nullable<Omit<UserSession, "user"> & { user: OwnUserData }>
   }

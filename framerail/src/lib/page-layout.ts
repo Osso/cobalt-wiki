@@ -2,6 +2,7 @@ import { Layout } from "$lib/types"
 
 // Account pages a Wikidot site's visitors reach from its header use the site's theme.
 const SITE_THEMED_ROUTES = new Set([
+  "/[x+2d]/admin/members",
   "/[x+2d]/forgot-password",
   "/[x+2d]/login",
   "/[x+2d]/logout",

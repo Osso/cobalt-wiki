@@ -69,6 +69,8 @@ declare global {
           user_page: string | null
         }
       } | null
+      /** Whether the session user is an admin (or root) of this site. */
+      site_admin: boolean
       /**
        * Locale fallback list, includes user locale, site locale and
        * browser locale.
