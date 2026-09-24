@@ -48,9 +48,10 @@ let
     REDIS_URL = "redis://127.0.0.1:6381";
     S3_FILES_BUCKET = "cobalt-wiki-files";
     S3_TEXT_BLOCKS_BUCKET = "cobalt-wiki-text-blocks";
-    S3_REGION_NAME = "local";
+    S3_REGION_NAME = if cfg.externalStorage == null then "local" else cfg.externalStorage.region;
     S3_PATH_STYLE = "true";
-    S3_CUSTOM_ENDPOINT = "http://127.0.0.1:9000";
+    S3_CUSTOM_ENDPOINT =
+      if cfg.externalStorage == null then "http://127.0.0.1:9000" else cfg.externalStorage.endpoint;
   };
   common = {
     User = account;
@@ -149,8 +150,8 @@ let
   dependencies = [
     "cobalt-wiki-postgresql.service"
     "cobalt-wiki-cache.service"
-    "cobalt-wiki-buckets.service"
-  ];
+  ]
+  ++ lib.optional (cfg.externalStorage == null) "cobalt-wiki-buckets.service";
 in
 {
   imports = [ ./poc-gateway.nix ];
@@ -173,6 +174,25 @@ in
     filesDomain = lib.mkOption {
       type = lib.types.str;
       description = "Wikijump file-domain configuration supplied by routing integration.";
+    };
+    externalStorage = lib.mkOption {
+      type = lib.types.nullOr (
+        lib.types.submodule {
+          options = {
+            endpoint = lib.mkOption {
+              type = lib.types.str;
+              description = "S3 endpoint URL, e.g. https://<account>.r2.cloudflarestorage.com.";
+            };
+            region = lib.mkOption {
+              type = lib.types.str;
+              default = "auto";
+              description = "S3 region name (R2 uses auto).";
+            };
+          };
+        }
+      );
+      default = null;
+      description = "Use an external S3 service instead of the local Silo storage units. Buckets cobalt-wiki-files and cobalt-wiki-text-blocks must exist, and S3_ACCESS_KEY_ID/S3_SECRET_ACCESS_KEY in environmentFile must be its keys.";
     };
     appDirectory = lib.mkOption {
       type = lib.types.nullOr lib.types.str;
@@ -261,7 +281,35 @@ in
         MemoryMax = "2G";
       };
     };
-    systemd.services = {
+    systemd.services =
+      lib.optionalAttrs (cfg.externalStorage == null) {
+      cobalt-wiki-storage = {
+        description = "Cobalt private S3 storage";
+        wantedBy = [ "multi-user.target" ];
+        environment.MINIO_REGION_NAME = "local";
+        serviceConfig = daemon // {
+          StateDirectory = [
+            "cobalt-wiki-s3"
+            "cobalt-wiki-s3-config"
+          ];
+          EnvironmentFile = cfg.environmentFile;
+          ExecStart = "${python} ${startStorage}";
+        };
+      };
+      cobalt-wiki-buckets = {
+        description = "Initialize Cobalt S3 buckets";
+        requires = [ "cobalt-wiki-storage.service" ];
+        after = [ "cobalt-wiki-storage.service" ];
+        serviceConfig = common // {
+          Type = "oneshot";
+          RemainAfterExit = true;
+          RuntimeDirectory = "cobalt-wiki-buckets";
+          EnvironmentFile = cfg.environmentFile;
+          ExecStart = "${python} ${prepareBuckets}";
+        };
+      };
+      }
+      // {
       cobalt-wiki-wikidot-sync = lib.mkIf cfg.wikidotSync.enable {
         description = "Sync pages changed on Wikidot into the Cobalt replica";
         requires = [ "cobalt-wiki-deepwell.service" ];
@@ -300,31 +348,6 @@ in
         serviceConfig = daemon // {
           StateDirectory = "cobalt-wiki-cache";
           ExecStart = "${pkgs.valkey}/bin/valkey-server --bind 127.0.0.1 --port 6381 --protected-mode yes --dir /var/lib/cobalt-wiki-cache --appendonly yes --daemonize no";
-        };
-      };
-      cobalt-wiki-storage = {
-        description = "Cobalt private S3 storage";
-        wantedBy = [ "multi-user.target" ];
-        environment.MINIO_REGION_NAME = "local";
-        serviceConfig = daemon // {
-          StateDirectory = [
-            "cobalt-wiki-s3"
-            "cobalt-wiki-s3-config"
-          ];
-          EnvironmentFile = cfg.environmentFile;
-          ExecStart = "${python} ${startStorage}";
-        };
-      };
-      cobalt-wiki-buckets = {
-        description = "Initialize Cobalt S3 buckets";
-        requires = [ "cobalt-wiki-storage.service" ];
-        after = [ "cobalt-wiki-storage.service" ];
-        serviceConfig = common // {
-          Type = "oneshot";
-          RemainAfterExit = true;
-          RuntimeDirectory = "cobalt-wiki-buckets";
-          EnvironmentFile = cfg.environmentFile;
-          ExecStart = "${python} ${prepareBuckets}";
         };
       };
       cobalt-wiki-deepwell = {
