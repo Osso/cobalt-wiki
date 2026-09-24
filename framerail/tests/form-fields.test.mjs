@@ -41,19 +41,31 @@ test("source-defined fields render accessible typed controls and readonly static
           {
             name: "name",
             kind: "text",
-            properties: { label: "Name", hint: "Use a name", width: 40 },
+            properties: {
+              label: "Name",
+              hint: "Your player name",
+              width: 40,
+              after: 'Optional "cover" image. Leave blank for no image. <unsafe>'
+            },
             options: []
           },
           {
             name: "bio",
             kind: "wiki",
-            properties: { label: "Biography", default: "**hello**", height: 8 },
+            properties: {
+              label: "Biography",
+              hint: "Enter wiki source",
+              default: "**hello**",
+              width: 80,
+              height: 8,
+              after: "Plain source only"
+            },
             options: []
           },
           {
             name: "rank",
             kind: "select",
-            properties: { label: "Rank", hint: "Choose rank" },
+            properties: { label: "Rank", hint: "Choose rank", after: "Choose one" },
             options: [
               { code: 1, label: "One" },
               { code: "1", label: "String one" },
@@ -99,6 +111,24 @@ test("source-defined fields render accessible typed controls and readonly static
             kind: "static",
             properties: { value: "Missing-label value" },
             options: []
+          },
+          {
+            name: "summary",
+            kind: "text",
+            properties: { label: "Summary", width: 80, height: 3, default: "A summary" },
+            options: []
+          },
+          {
+            name: "single",
+            kind: "text",
+            properties: { label: "Single", height: 1, after: "" },
+            options: []
+          },
+          {
+            name: "legacy-hint",
+            kind: "text",
+            properties: { label: "Legacy hint", Hint: "Unsupported alias" },
+            options: []
           }
         ]
       },
@@ -122,9 +152,40 @@ test("source-defined fields render accessible typed controls and readonly static
     assert.match(body, /<input[^>]*type="text"/)
     assert.match(body, /<input[^>]*size="40"/)
     assert.match(body, /<input[^>]*value="7"/)
-    assert.match(body, /aria-describedby="data-form-field-1-hint"/)
-    assert.match(body, /<textarea[^>]*rows="8"[^>]*>\*\*hello\*\*<\/textarea>/)
-    assert.match(body, /<fieldset[^>]*aria-describedby="data-form-field-3-hint"/)
+    assert.match(body, /<input[^>]*placeholder="Your player name"[^>]*value="7"/)
+    assert.match(body, /<input[^>]*aria-describedby="data-form-field-1-after"/)
+    const html = body.replace(/<!--.*?-->/g, "")
+    assert.match(
+      html,
+      /<input[^>]*value="7"[^>]*\/>\s*<small id="data-form-field-1-after">Optional "cover" image\. Leave blank for no image\. &lt;unsafe(?:&gt;|>)<\/small>/
+    )
+    assert.doesNotMatch(
+      body,
+      /data-form-field-1-hint|<unsafe>|<small[^>]*>Your player name<\/small>/
+    )
+    assert.match(
+      body,
+      /<textarea[^>]*cols="80"[^>]*placeholder="Enter wiki source"[^>]*rows="8"[^>]*>\*\*hello\*\*<\/textarea>/
+    )
+    assert.match(body, /<textarea[^>]*aria-describedby="data-form-field-2-after"/)
+    assert.match(
+      html,
+      /<textarea[^>]*>\*\*hello\*\*<\/textarea>\s*<small id="data-form-field-2-after">Plain source only<\/small>/
+    )
+    assert.match(body, /<fieldset[^>]*aria-describedby="data-form-field-3-after"/)
+    assert.match(
+      html,
+      /<\/fieldset>\s*<small id="data-form-field-3-after">Choose one<\/small>/
+    )
+    assert.doesNotMatch(body, /data-form-field-3-hint|<small[^>]*>Choose rank<\/small>/)
+    assert.match(body, /<textarea[^>]*cols="80"[^>]*rows="3"[^>]*>A summary<\/textarea>/)
+    assert.match(body, /<input[^>]*id="data-form-field-10"[^>]*type="text"/)
+    assert.doesNotMatch(
+      body,
+      /<textarea[^>]*id="data-form-field-10"|data-form-field-10-after/
+    )
+    assert.match(body, /<input[^>]*id="data-form-field-11"[^>]*type="text"/)
+    assert.doesNotMatch(body, /Unsupported alias|data-form-field-11-hint/)
     assert.match(body, /<legend[^>]*>Rank<\/legend>/)
     assert.match(
       body,

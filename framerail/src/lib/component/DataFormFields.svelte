@@ -12,7 +12,8 @@
 
 {#each form.schema.fields as field, index (field.name)}
   {@const id = `data-form-field-${index}`}
-  {@const hint = scalarText(field.properties.hint ?? field.properties.Hint)}
+  {@const hint = scalarText(field.properties.hint)}
+  {@const after = scalarText(field.properties.after)}
   <div class="form-field">
     {#if field.kind === "static"}
       {#if scalarText(field.properties.label)}
@@ -20,59 +21,66 @@
       {/if}
       <div class="static-field">{fieldText(field, form.values)}</div>
     {:else if field.kind === "select" && field.options.length >= 2 && field.options.length <= 4}
-      <fieldset aria-describedby={hint ? `${id}-hint` : undefined}>
-        <legend>{scalarText(field.properties.label) || field.name}</legend>
-        {#if draft[field.name] !== undefined && !field.options.some((option) => option.code === draft[field.name])}
-          <output>Current value: {String(draft[field.name])}</output>
-        {/if}
-        {#each field.options as option, optionIndex (optionIndex)}
-          <label class="radio-option" for={`${id}-${optionIndex}`}>
-            <input
-              id={`${id}-${optionIndex}`}
-              name={id}
-              type="radio"
-              value={option.code}
-              bind:group={draft[field.name]}
-            />
-            {scalarText(option.label)}
-          </label>
-        {/each}
-      </fieldset>
-    {:else}
-      <label for={id}>{scalarText(field.properties.label) || field.name}</label>
-      {#if field.kind === "select"}
-        <select
-          {id}
-          aria-describedby={hint ? `${id}-hint` : undefined}
-          bind:value={draft[field.name]}
-        >
-          {#if !field.options.some((option) => option.code === draft[field.name])}
-            <option value={draft[field.name]}>{scalarText(draft[field.name])}</option>
+      <div class="field-control">
+        <fieldset aria-describedby={after ? `${id}-after` : undefined}>
+          <legend>{scalarText(field.properties.label) || field.name}</legend>
+          {#if draft[field.name] !== undefined && !field.options.some((option) => option.code === draft[field.name])}
+            <output>Current value: {String(draft[field.name])}</output>
           {/if}
           {#each field.options as option, optionIndex (optionIndex)}
-            <option value={option.code}>{scalarText(option.label)}</option>
+            <label class="radio-option" for={`${id}-${optionIndex}`}>
+              <input
+                id={`${id}-${optionIndex}`}
+                name={id}
+                type="radio"
+                value={option.code}
+                bind:group={draft[field.name]}
+              />
+              {scalarText(option.label)}
+            </label>
           {/each}
-        </select>
-      {:else if field.kind === "wiki"}
-        <textarea
-          {id}
-          aria-describedby={hint ? `${id}-hint` : undefined}
-          cols={dimension(field.properties.width)}
-          oninput={(event) => (draft[field.name] = event.currentTarget.value)}
-          rows={dimension(field.properties.height)}
-          value={scalarText(draft[field.name])}></textarea>
-      {:else}
-        <input
-          {id}
-          aria-describedby={hint ? `${id}-hint` : undefined}
-          oninput={(event) => (draft[field.name] = event.currentTarget.value)}
-          size={dimension(field.properties.width)}
-          type="text"
-          value={scalarText(draft[field.name])}
-        />
-      {/if}
+        </fieldset>
+        {#if after}<small id={`${id}-after`}>{after}</small>{/if}
+      </div>
+    {:else}
+      <label for={id}>{scalarText(field.properties.label) || field.name}</label>
+      <div class="field-control">
+        {#if field.kind === "select"}
+          <select
+            {id}
+            aria-describedby={after ? `${id}-after` : undefined}
+            bind:value={draft[field.name]}
+          >
+            {#if !field.options.some((option) => option.code === draft[field.name])}
+              <option value={draft[field.name]}>{scalarText(draft[field.name])}</option>
+            {/if}
+            {#each field.options as option, optionIndex (optionIndex)}
+              <option value={option.code}>{scalarText(option.label)}</option>
+            {/each}
+          </select>
+        {:else if field.kind === "wiki" || (dimension(field.properties.height) ?? 0) >= 2}
+          <textarea
+            {id}
+            aria-describedby={after ? `${id}-after` : undefined}
+            cols={dimension(field.properties.width)}
+            oninput={(event) => (draft[field.name] = event.currentTarget.value)}
+            placeholder={hint || undefined}
+            rows={dimension(field.properties.height)}
+            value={scalarText(draft[field.name])}></textarea>
+        {:else}
+          <input
+            {id}
+            aria-describedby={after ? `${id}-after` : undefined}
+            oninput={(event) => (draft[field.name] = event.currentTarget.value)}
+            placeholder={hint || undefined}
+            size={dimension(field.properties.width)}
+            type="text"
+            value={scalarText(draft[field.name])}
+          />
+        {/if}
+        {#if after}<small id={`${id}-after`}>{after}</small>{/if}
+      </div>
     {/if}
-    {#if hint}<small id={`${id}-hint`}>{hint}</small>{/if}
   </div>
 {/each}
 
@@ -80,6 +88,12 @@
   .form-field {
     display: flex;
     flex-direction: column;
+    gap: 0.25em;
+  }
+  .field-control {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
     gap: 0.25em;
   }
   input,
