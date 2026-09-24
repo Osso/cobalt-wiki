@@ -11,7 +11,6 @@
 mod common;
 
 use common::TestRunner;
-use deepwell::config::Config;
 use deepwell::constants::{ADMIN_USER_ID, SYSTEM_USER_ID};
 use deepwell::models::page_revision;
 use deepwell::services::job::{
@@ -21,7 +20,7 @@ use deepwell::services::job::{
 use deepwell::services::page::{CreatePage, EditPage, EditPageBody};
 use deepwell::services::page_revision::RerenderType;
 use deepwell::services::{PageRevisionService, PageService, RequestContext, TextService};
-use deepwell::types::{Maybe, PageId, PageOrder, Reference, RerenderDepth};
+use deepwell::types::{Maybe, PageId, PageOrder, Reference};
 use redis::AsyncCommands;
 use redis::aio::MultiplexedConnection;
 use rsmq_async::{Rsmq, RsmqConnection};
@@ -34,7 +33,6 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 struct QueuedRerender {
     page_id: i64,
     kind: String,
-    depth: u32,
 }
 
 impl QueuedRerender {
@@ -47,23 +45,9 @@ impl QueuedRerender {
         let queued = QueuedRerender {
             page_id: id.page_id,
             kind: data.get("type")?.as_str()?.to_owned(),
-            depth: u32::try_from(data.get("depth")?.as_u64()?).ok()?,
         };
         Some((queued, id, rerender_type))
     }
-}
-
-/// Production's `rerender-skip` rules (`config.example.toml`).
-fn production_like_config() -> Config {
-    let mut config = Config::integration_testing();
-    config.job_min_poll_delay = std::time::Duration::from_secs(3600);
-    config.job_max_poll_delay = std::time::Duration::from_secs(3600);
-    config.rerender_skip = vec![
-        (3, Some(time::Duration::milliseconds(100))),
-        (10, Some(time::Duration::milliseconds(1500))),
-        (50, None),
-    ];
-    config
 }
 
 async fn fresh_queue() -> (MultiplexedConnection, Rsmq) {
@@ -129,14 +113,9 @@ async fn drain(runner: &TestRunner, rsmq: &mut Rsmq) -> Vec<QueuedRerender> {
         JobService::start_rerender_job(runner.context(), id, rerender_type)
             .await
             .unwrap();
-        PageRevisionService::rerender(
-            runner.context(),
-            id,
-            RerenderDepth(job.depth),
-            rerender_type,
-        )
-        .await
-        .unwrap();
+        PageRevisionService::rerender(runner.context(), id, rerender_type)
+            .await
+            .unwrap();
         rsmq.delete_message(JOB_QUEUE_NAME, &message.id)
             .await
             .unwrap();
@@ -301,7 +280,7 @@ async fn age_renderer_build(runner: &TestRunner, fixture: &Fixture) {
 #[tokio::test]
 #[ignore = "requires a dedicated Redis database; run explicitly with --ignored"]
 async fn renderer_version_sweep_queues_no_dependents() {
-    let mut runner = TestRunner::setup_with_config(production_like_config()).await;
+    let mut runner = TestRunner::setup_with_idle_job_workers().await;
     let fixture = setup_fixture(&mut runner).await;
     let (mut connection, mut rsmq) = fresh_queue().await;
     age_renderer_build(&runner, &fixture).await;
@@ -325,20 +304,20 @@ async fn renderer_version_sweep_queues_no_dependents() {
     let after_sweep = queued(&mut connection).await;
     let drained = drain(&runner, &mut rsmq).await;
     eprintln!(
-        "sweep of {} pages: {} jobs queued by the sweep, {} jobs run in total, by depth {:?}",
+        "sweep of {} pages: {} jobs queued by the sweep, {} jobs run in total, by type {:?}",
         fixture.live_pages.len(),
         after_sweep.len(),
         drained.len(),
-        depth_histogram(&drained),
+        kind_histogram(&drained),
     );
     assert_eq!(after_sweep, vec![], "sweep queued dependents");
     assert_eq!(drained, vec![], "sweep jobs queued further jobs");
 }
 
-fn depth_histogram(jobs: &[QueuedRerender]) -> BTreeMap<(u32, String), usize> {
+fn kind_histogram(jobs: &[QueuedRerender]) -> BTreeMap<String, usize> {
     let mut counts = BTreeMap::new();
     for job in jobs {
-        *counts.entry((job.depth, job.kind.clone())).or_default() += 1;
+        *counts.entry(job.kind.clone()).or_default() += 1;
     }
     counts
 }
@@ -390,7 +369,7 @@ fn assert_inner_change_jobs(jobs: &[QueuedRerender], fixture: &Fixture) {
 #[tokio::test]
 #[ignore = "requires a dedicated Redis database; run explicitly with --ignored"]
 async fn source_change_queues_each_dependent_once_and_jobs_queue_nothing() {
-    let mut runner = TestRunner::setup_with_config(production_like_config()).await;
+    let mut runner = TestRunner::setup_with_idle_job_workers().await;
     let fixture = setup_fixture(&mut runner).await;
     let (mut connection, mut rsmq) = fresh_queue().await;
 
@@ -399,10 +378,10 @@ async fn source_change_queues_each_dependent_once_and_jobs_queue_nothing() {
     let sent_after_edit = sent_count(&mut connection).await;
     let drained = drain(&runner, &mut rsmq).await;
     eprintln!(
-        "edit of component:inner: {} jobs queued by the edit, {} jobs run in total, by depth {:?}",
+        "edit of component:inner: {} jobs queued by the edit, {} jobs run in total, by type {:?}",
         after_edit.len(),
         drained.len(),
-        depth_histogram(&drained),
+        kind_histogram(&drained),
     );
     assert_inner_change_jobs(&after_edit, &fixture);
     assert_eq!(
@@ -447,7 +426,7 @@ async fn source_change_queues_each_dependent_once_and_jobs_queue_nothing() {
 #[tokio::test]
 #[ignore = "requires a dedicated Redis database; run explicitly with --ignored"]
 async fn pending_rerenders_collapse_until_a_worker_starts_them() {
-    let mut runner = TestRunner::setup_with_config(production_like_config()).await;
+    let mut runner = TestRunner::setup_with_idle_job_workers().await;
     let fixture = setup_fixture(&mut runner).await;
     let (mut connection, mut rsmq) = fresh_queue().await;
 
@@ -465,7 +444,7 @@ async fn pending_rerenders_collapse_until_a_worker_starts_them() {
 #[tokio::test]
 #[ignore = "requires a dedicated Redis database; run explicitly with --ignored"]
 async fn edited_navigation_page_renders_its_latest_revision_into_bars() {
-    let mut runner = TestRunner::setup_with_config(production_like_config()).await;
+    let mut runner = TestRunner::setup_with_idle_job_workers().await;
     let site_id = run_endpoint!(runner, site_get, json!({"site": "test"}))
         .unwrap()
         .site

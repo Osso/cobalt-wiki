@@ -24,7 +24,7 @@ use crate::models::page::{self, Entity as Page, Model as PageModel};
 use crate::models::page_category::{self, Entity as PageCategory};
 use crate::services::render::{ListingSubject, listing_pages_affected_by};
 use crate::services::{JobService, LinkService, PageService, SiteService};
-use crate::types::{ConnectionType, PageId, PageOrder, RerenderDepth};
+use crate::types::{ConnectionType, PageId, PageOrder};
 use crate::utils::split_category_name;
 use ref_map::*;
 use sea_orm::FromQueryResult;
@@ -39,13 +39,12 @@ impl OutdateService {
         site_id: i64,
         page_id: i64,
         slug: &str,
-        depth: RerenderDepth,
     ) -> Result<()> {
         let make_error = || {
             Error::new(
                 format!(
-                    "failed to run outdater for edit of page '{}' (ID {}) on site ID {} (depth {})",
-                    slug, page_id, site_id, depth,
+                    "failed to run outdater for edit of page '{}' (ID {}) on site ID {}",
+                    slug, page_id, site_id,
                 ),
                 ErrorType::PageOutdater,
             )
@@ -53,9 +52,9 @@ impl OutdateService {
 
         let (category_slug, page_slug) = split_category_name(slug);
         let (result1, result2, result3) = join!(
-            Self::outdate_outgoing_includes(ctx, site_id, page_id, depth),
-            Self::outdate_templates(ctx, site_id, category_slug, page_slug, depth),
-            Self::outdate_nav_pages(ctx, site_id, slug, depth),
+            Self::outdate_outgoing_includes(ctx, site_id, page_id),
+            Self::outdate_templates(ctx, site_id, category_slug, page_slug),
+            Self::outdate_nav_pages(ctx, site_id, slug),
         );
         raise_multiple!(result1, result2, result3; make_error);
 
@@ -68,21 +67,20 @@ impl OutdateService {
         site_id: i64,
         page_id: i64,
         slug: &str,
-        depth: RerenderDepth,
     ) -> Result<()> {
         let make_error = || {
             Error::new(
                 format!(
-                    "failed to run outdater for displacement of page '{}' (ID {}) on site ID {} (depth {})",
-                    slug, page_id, site_id, depth,
+                    "failed to run outdater for displacement of page '{}' (ID {}) on site ID {}",
+                    slug, page_id, site_id,
                 ),
                 ErrorType::PageOutdater,
             )
         };
 
         let (result1, result2) = join!(
-            Self::process_page_edit(ctx, site_id, page_id, slug, depth),
-            Self::outdate_incoming_links(ctx, site_id, page_id, depth),
+            Self::process_page_edit(ctx, site_id, page_id, slug),
+            Self::outdate_incoming_links(ctx, site_id, page_id),
         );
         raise_multiple!(result1, result2; make_error);
 
@@ -95,13 +93,12 @@ impl OutdateService {
         page_id: i64,
         old_slug: &str,
         new_slug: &str,
-        depth: RerenderDepth,
     ) -> Result<()> {
         let make_error = || {
             Error::new(
                 format!(
-                    "failed to run outdater for move of page ID {} from '{}' to '{}' on site ID {} (depth {})",
-                    page_id, old_slug, new_slug, site_id, depth,
+                    "failed to run outdater for move of page ID {} from '{}' to '{}' on site ID {}",
+                    page_id, old_slug, new_slug, site_id,
                 ),
                 ErrorType::PageOutdater,
             )
@@ -111,8 +108,8 @@ impl OutdateService {
         // deleting at the old page location and
         // creating at the new page location.
         let (result1, result2) = join!(
-            Self::process_page_displace(ctx, site_id, page_id, new_slug, depth),
-            Self::process_page_displace(ctx, site_id, page_id, old_slug, depth),
+            Self::process_page_displace(ctx, site_id, page_id, new_slug),
+            Self::process_page_displace(ctx, site_id, page_id, old_slug),
         );
         raise_multiple!(result1, result2; make_error);
 
@@ -131,7 +128,6 @@ impl OutdateService {
         ctx: &ServiceContext<'_>,
         site_id: i64,
         page_ids: BTreeSet<i64>,
-        depth: RerenderDepth,
     ) -> Result<()> {
         if page_ids.is_empty() {
             return Ok(());
@@ -140,7 +136,7 @@ impl OutdateService {
         let make_error = || {
             Error::new(
                 format!(
-                    "failed to run outdater on {} pages on site ID {site_id} (depth {depth})",
+                    "failed to run outdater on {} pages on site ID {site_id}",
                     page_ids.len(),
                 ),
                 ErrorType::PageOutdater,
@@ -157,12 +153,12 @@ impl OutdateService {
                 .or_raise(make_error)?;
 
             let id = PageId::from_page_model(&page);
-            JobService::queue_rerender_page(ctx, id, depth.plus_one())
+            JobService::queue_rerender_page(ctx, id)
                 .await
                 .or_raise(make_error)?;
 
             if nav_slugs.contains(&page.slug) {
-                Self::outdate_nav_pages(ctx, site_id, &page.slug, depth)
+                Self::outdate_nav_pages(ctx, site_id, &page.slug)
                     .await
                     .or_raise(make_error)?;
             }
@@ -214,12 +210,11 @@ impl OutdateService {
         site_id: i64,
         page_id: i64,
         states: &[(&str, &[String])],
-        depth: RerenderDepth,
     ) -> Result<()> {
         let make_error = || {
             Error::new(
                 format!(
-                    "failed to run outdater for listings of page ID {page_id} on site ID {site_id} (depth {depth})"
+                    "failed to run outdater for listings of page ID {page_id} on site ID {site_id}"
                 ),
                 ErrorType::PageOutdater,
             )
@@ -241,7 +236,7 @@ impl OutdateService {
             .into_iter()
             .filter(|&id| id != page_id)
             .collect();
-        Self::outdate_pages(ctx, site_id, ids, depth)
+        Self::outdate_pages(ctx, site_id, ids)
             .await
             .or_raise(make_error)
     }
@@ -250,15 +245,14 @@ impl OutdateService {
         ctx: &ServiceContext<'_>,
         site_id: i64,
         page_id: i64,
-        depth: RerenderDepth,
     ) -> Result<()> {
         const CONNECTION_TYPES: &[ConnectionType] = &[ConnectionType::Link];
 
         let make_error = || {
             Error::new(
                 format!(
-                    "failed to run outdater for all pages that link to page ID {} (depth {})",
-                    page_id, depth,
+                    "failed to run outdater for all pages that link to page ID {}",
+                    page_id,
                 ),
                 ErrorType::PageOutdater,
             )
@@ -272,7 +266,7 @@ impl OutdateService {
             .map(|connection| connection.from_page_id)
             .filter(|id| *id != page_id)
             .collect();
-        Self::outdate_pages(ctx, site_id, ids, depth)
+        Self::outdate_pages(ctx, site_id, ids)
             .await
             .or_raise(make_error)?;
 
@@ -283,7 +277,6 @@ impl OutdateService {
         ctx: &ServiceContext<'_>,
         site_id: i64,
         page_id: i64,
-        depth: RerenderDepth,
     ) -> Result<()> {
         const CONNECTION_TYPES: &[ConnectionType] = &[
             ConnectionType::IncludeMessy,
@@ -294,8 +287,8 @@ impl OutdateService {
         let make_error = || {
             Error::new(
                 format!(
-                    "failed to run outdater for all pages which include page ID {} (depth {})",
-                    page_id, depth,
+                    "failed to run outdater for all pages which include page ID {}",
+                    page_id,
                 ),
                 ErrorType::PageOutdater,
             )
@@ -309,7 +302,7 @@ impl OutdateService {
             .map(|connection| connection.from_page_id)
             .filter(|id| *id != page_id)
             .collect();
-        Self::outdate_pages(ctx, site_id, ids, depth)
+        Self::outdate_pages(ctx, site_id, ids)
             .await
             .or_raise(make_error)?;
         Ok(())
@@ -320,15 +313,14 @@ impl OutdateService {
         site_id: i64,
         category_slug: &str,
         page_slug: &str,
-        depth: RerenderDepth,
     ) -> Result<()> {
         let config = ctx.config();
 
         let make_error = || {
             Error::new(
                 format!(
-                    "failed to run outdater for all pages in category '{}' on site ID {} using page '{}' as a template (depth {})",
-                    category_slug, site_id, page_slug, depth,
+                    "failed to run outdater for all pages in category '{}' on site ID {} using page '{}' as a template",
+                    category_slug, site_id, page_slug,
                 ),
                 ErrorType::PageOutdater,
             )
@@ -359,7 +351,7 @@ impl OutdateService {
             .or_raise(make_error)?;
 
             let ids = pages.into_iter().map(|page| page.page_id).collect();
-            Self::outdate_pages(ctx, site_id, ids, depth)
+            Self::outdate_pages(ctx, site_id, ids)
                 .await
                 .or_raise(make_error)?;
         }
@@ -373,13 +365,12 @@ impl OutdateService {
         ctx: &ServiceContext<'_>,
         site_id: i64,
         slug: &str,
-        depth: RerenderDepth,
     ) -> Result<()> {
         let make_error = || {
             Error::new(
                 format!(
-                    "failed to run nav-only outdater for all pages using page '{}' on site ID {} as a nav page (depth {})",
-                    slug, site_id, depth,
+                    "failed to run nav-only outdater for all pages using page '{}' on site ID {} as a nav page",
+                    slug, site_id,
                 ),
                 ErrorType::PageOutdater,
             )
@@ -392,7 +383,7 @@ impl OutdateService {
             .or_raise(make_error)?;
 
         if site.top_bar_page == slug || site.side_bar_page == slug {
-            Self::outdate_nav_site(ctx, site_id, depth)
+            Self::outdate_nav_site(ctx, site_id)
                 .await
                 .or_raise(make_error)?;
             return Ok(());
@@ -416,7 +407,7 @@ impl OutdateService {
             .or_raise(make_error)?;
 
         for category_id in category_ids {
-            Self::outdate_nav_category(ctx, site_id, category_id, depth)
+            Self::outdate_nav_category(ctx, site_id, category_id)
                 .await
                 .or_raise(make_error)?;
         }
@@ -425,18 +416,14 @@ impl OutdateService {
     }
 
     /// Outdates the nav pages of every page on the site.
-    pub async fn outdate_nav_site(
-        ctx: &ServiceContext<'_>,
-        site_id: i64,
-        depth: RerenderDepth,
-    ) -> Result<()> {
+    pub async fn outdate_nav_site(ctx: &ServiceContext<'_>, site_id: i64) -> Result<()> {
         info!("Outdating all pages on site ID {site_id}");
 
         let make_error = || {
             Error::new(
                 format!(
-                    "failed to run nav-only outdater for all pages on site ID {} (depth {})",
-                    site_id, depth,
+                    "failed to run nav-only outdater for all pages on site ID {}",
+                    site_id,
                 ),
                 ErrorType::PageOutdater,
             )
@@ -479,7 +466,6 @@ impl OutdateService {
                     category_id,
                     page_id,
                 },
-                depth.plus_one(),
             )
             .await
             .or_raise(make_error)?;
@@ -493,13 +479,12 @@ impl OutdateService {
         ctx: &ServiceContext<'_>,
         site_id: i64,
         category_id: i64,
-        depth: RerenderDepth,
     ) -> Result<()> {
         let make_error = || {
             Error::new(
                 format!(
-                    "failed to run nav-only outdater for all pages in category ID {} on site ID {} (depth {})",
-                    category_id, site_id, depth,
+                    "failed to run nav-only outdater for all pages in category ID {} on site ID {}",
+                    category_id, site_id,
                 ),
                 ErrorType::PageOutdater,
             )
@@ -530,7 +515,6 @@ impl OutdateService {
                     category_id,
                     page_id,
                 },
-                depth.plus_one(),
             )
             .await
             .or_raise(make_error)?;

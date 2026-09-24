@@ -237,7 +237,6 @@ impl JobWorker {
                         category_id,
                         page_id,
                     },
-                depth,
                 r#type: rerender_type,
             } => {
                 let extra = match rerender_type {
@@ -247,8 +246,8 @@ impl JobWorker {
                 };
 
                 debug!(
-                    "Rerendering page ID {} in site ID {} (category ID {}, depth {}) ({})",
-                    page_id, site_id, category_id, depth, extra,
+                    "Rerendering page ID {} in site ID {} (category ID {}) ({})",
+                    page_id, site_id, category_id, extra,
                 );
 
                 let id = PageId {
@@ -259,7 +258,7 @@ impl JobWorker {
                 JobService::start_rerender_job(ctx, id, rerender_type)
                     .await
                     .or_raise(make_error)?;
-                PageRevisionService::rerender(ctx, id, depth, rerender_type)
+                PageRevisionService::rerender(ctx, id, rerender_type)
                     .await
                     .or_raise(make_error)?;
 

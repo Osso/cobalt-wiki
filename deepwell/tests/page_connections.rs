@@ -9,7 +9,7 @@ use deepwell::models::{page_connection, page_revision};
 use deepwell::services::page::CreatePage;
 use deepwell::services::page_revision::RerenderType;
 use deepwell::services::{PageRevisionService, PageService, TextService};
-use deepwell::types::{PageId, Reference, RerenderDepth};
+use deepwell::types::{PageId, Reference};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set,
 };
@@ -90,7 +90,6 @@ async fn rerender_replaces_links_when_the_oldest_hundred_disappear() {
     PageRevisionService::rerender(
         runner.context(),
         PageId::from_page_model(&hub),
-        RerenderDepth::default(),
         RerenderType::Full,
     )
     .await

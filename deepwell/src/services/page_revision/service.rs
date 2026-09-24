@@ -29,7 +29,7 @@ use crate::services::{
     LinkService, OutdateService, PageService, ParentService, RenderService, ScoreService,
     SettingsService, SiteService, TextService,
 };
-use crate::types::{FetchDirection, PageId, PageRevisionType, RerenderDepth};
+use crate::types::{FetchDirection, PageId, PageRevisionType};
 use crate::utils::{split_category, split_category_name};
 use ftml::data::PageInfo;
 use ftml::layout::Layout;
@@ -213,7 +213,7 @@ impl PageRevisionService {
         // If nothing has changed, then don't create a new revision
         if changes.is_empty() {
             debug!("No changes in edit, only rerendering the page");
-            Self::rerender(ctx, id, RerenderDepth::default(), RerenderType::Full)
+            Self::rerender(ctx, id, RerenderType::Full)
                 .await
                 .or_raise(make_error)?;
 
@@ -273,7 +273,6 @@ impl PageRevisionService {
             site_id,
             page_id,
             &[(&listed_before.0, &listed_before.1), (&slug, &tags)],
-            RerenderDepth::default(),
         )
         .await
         .or_raise(make_error)?;
@@ -290,16 +289,9 @@ impl PageRevisionService {
                 // the source and destination slugs, which is why we don't
                 // also run those again.
 
-                OutdateService::process_page_move(
-                    ctx,
-                    site_id,
-                    page_id,
-                    old_slug,
-                    &slug,
-                    RerenderDepth::default(),
-                )
-                .await
-                .or_raise(make_error)?;
+                OutdateService::process_page_move(ctx, site_id, page_id, old_slug, &slug)
+                    .await
+                    .or_raise(make_error)?;
 
                 assert_eq!(
                     revision_type,
@@ -317,31 +309,16 @@ impl PageRevisionService {
                 try_join!(
                     conditional_future!(
                         tasks.rerender_incoming_links,
-                        OutdateService::outdate_incoming_links(
-                            ctx,
-                            site_id,
-                            page_id,
-                            RerenderDepth::default()
-                        ),
+                        OutdateService::outdate_incoming_links(ctx, site_id, page_id,),
                     ),
                     conditional_future!(
                         tasks.rerender_outgoing_includes,
-                        OutdateService::outdate_outgoing_includes(
-                            ctx,
-                            site_id,
-                            page_id,
-                            RerenderDepth::default()
-                        ),
+                        OutdateService::outdate_outgoing_includes(ctx, site_id, page_id,),
                     ),
                     // Pages using this page as a bar compile it like an include.
                     conditional_future!(
                         tasks.rerender_outgoing_includes,
-                        OutdateService::outdate_nav_pages(
-                            ctx,
-                            site_id,
-                            slug,
-                            RerenderDepth::default()
-                        ),
+                        OutdateService::outdate_nav_pages(ctx, site_id, slug,),
                     ),
                     conditional_future!(
                         tasks.rerender_templates,
@@ -350,7 +327,6 @@ impl PageRevisionService {
                             site_id,
                             category_slug,
                             page_slug,
-                            RerenderDepth::default(),
                         ),
                     ),
                 )?;
@@ -481,24 +457,12 @@ impl PageRevisionService {
             .or_raise(make_error)?;
 
         // Run outdater
-        OutdateService::process_page_displace(
-            ctx,
-            site_id,
-            page_id,
-            &slug,
-            RerenderDepth::default(),
-        )
-        .await
-        .or_raise(make_error)?;
-        OutdateService::outdate_listings(
-            ctx,
-            site_id,
-            page_id,
-            &[(&slug, &tags)],
-            RerenderDepth::default(),
-        )
-        .await
-        .or_raise(make_error)?;
+        OutdateService::process_page_displace(ctx, site_id, page_id, &slug)
+            .await
+            .or_raise(make_error)?;
+        OutdateService::outdate_listings(ctx, site_id, page_id, &[(&slug, &tags)])
+            .await
+            .or_raise(make_error)?;
 
         // Insert the first revision into the table
         let model = page_revision::ActiveModel {
@@ -579,24 +543,12 @@ impl PageRevisionService {
         } = previous;
 
         // Run outdater
-        OutdateService::process_page_displace(
-            ctx,
-            site_id,
-            page_id,
-            &slug,
-            RerenderDepth::default(),
-        )
-        .await
-        .or_raise(make_error)?;
-        OutdateService::outdate_listings(
-            ctx,
-            site_id,
-            page_id,
-            &[(&slug, &tags)],
-            RerenderDepth::default(),
-        )
-        .await
-        .or_raise(make_error)?;
+        OutdateService::process_page_displace(ctx, site_id, page_id, &slug)
+            .await
+            .or_raise(make_error)?;
+        OutdateService::outdate_listings(ctx, site_id, page_id, &[(&slug, &tags)])
+            .await
+            .or_raise(make_error)?;
 
         // Delete parent-child relationships, if any
         ParentService::remove_all(ctx, page_id)
@@ -748,24 +700,12 @@ impl PageRevisionService {
         replace_hash_opt(&mut compiled_side_bar_html_hash, new_side_bar_html_hash);
 
         // Run outdater
-        OutdateService::process_page_displace(
-            ctx,
-            site_id,
-            page_id,
-            &new_slug,
-            RerenderDepth::default(),
-        )
-        .await
-        .or_raise(make_error)?;
-        OutdateService::outdate_listings(
-            ctx,
-            site_id,
-            page_id,
-            &[(&new_slug, &tags)],
-            RerenderDepth::default(),
-        )
-        .await
-        .or_raise(make_error)?;
+        OutdateService::process_page_displace(ctx, site_id, page_id, &new_slug)
+            .await
+            .or_raise(make_error)?;
+        OutdateService::outdate_listings(ctx, site_id, page_id, &[(&new_slug, &tags)])
+            .await
+            .or_raise(make_error)?;
 
         // Insert the resurrection revision into the table
         let model = page_revision::ActiveModel {
@@ -870,14 +810,9 @@ impl PageRevisionService {
     /// Re-renders a page.
     ///
     /// This fetches the latest revision for a page, and re-renders it.
-    ///
-    /// The `depth` parameter describes the number of layers of prior rerendering
-    /// automatically leading to other updates. For a manual rerender this value
-    /// should be 0.
     pub async fn rerender(
         ctx: &ServiceContext<'_>,
         id: PageId,
-        depth: RerenderDepth,
         rerender_type: RerenderType,
     ) -> Result<()> {
         let txn = ctx.transaction();
@@ -902,35 +837,9 @@ impl PageRevisionService {
             .or_raise(make_error)?;
 
         info!(
-            "Re-rendering revision: site ID {} page ID {} revision ID {} (depth {})",
-            site_id, page_id, revision.revision_id, depth,
+            "Re-rendering revision: site ID {} page ID {} revision ID {}",
+            site_id, page_id, revision.revision_id,
         );
-
-        // Check that this rerender request / job is not blocked by the
-        // specified anti-loop/excessive rerender rules.
-        macro_rules! updated_recently {
-            ($offset:expr) => {
-                match ($offset, revision.updated_at) {
-                    (None, _) => true, // no update offset, skip check
-                    (_, None) => true, // revision has never been updated before, check is irrelevant
-
-                    // check that at least [duration] time since [updated_at] has elapsed
-                    (Some(duration), Some(updated_at)) => {
-                        now() > updated_at + duration
-                    }
-                }
-            };
-        }
-
-        for &(check_depth, update_offset) in &ctx.config().rerender_skip {
-            debug!(
-                "Checking rerender-skip rule: depth {check_depth}, updated offset {update_offset:?}"
-            );
-            if depth.0 >= check_depth && updated_recently!(update_offset) {
-                warn!("Skipping rerender job, too deep and updated too recently");
-                return Ok(());
-            }
-        }
 
         // Get data for page
         let (wikitext, score, layout) = try_join!(
@@ -979,7 +888,6 @@ impl PageRevisionService {
                         site_id,
                         page_id,
                         &revision.slug,
-                        depth,
                     )
                     .await
                     .or_raise(make_error)?;

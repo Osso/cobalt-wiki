@@ -157,18 +157,6 @@ pub struct Config {
 
     /// In what circumstances a page rerender should be skipped.
     ///
-    /// A list of rerender job depths and durations. If any item in this
-    /// list matches, then the rerender is skipped and subsequent rerender
-    /// jobs are not proliferated.
-    ///
-    /// The condition means that the current job depth is equal or greater
-    /// than the specified depth value, _and_ that the page revision was
-    /// last updated in the duration value specified.
-    ///
-    /// If the duration value is `None`, then that check is skipped. This
-    /// is specified in the configuration by placing a "0".
-    pub rerender_skip: Vec<(u32, Option<TimeDuration>)>,
-
     /// The layout used when rendering direct messages.
     pub message_layout: Layout,
 
@@ -317,11 +305,6 @@ impl Config {
             job_lift_expired_punishments: StdDuration::from_secs(60),
             preprocess_timeout: StdDuration::from_millis(500),
             render_timeout: StdDuration::from_millis(1000),
-            rerender_skip: vec![
-                (1, Some(time::Duration::milliseconds(100))),
-                (5, Some(time::Duration::milliseconds(500))),
-                (10, None),
-            ],
             message_layout: Layout::Wikijump,
             default_page_layout: Layout::Wikidot,
             blueprint_page_prefix: str!("_"),

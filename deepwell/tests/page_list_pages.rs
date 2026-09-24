@@ -10,7 +10,7 @@ use deepwell::services::page::CreatePage;
 use deepwell::services::page_revision::RerenderType;
 use deepwell::services::render::BodyArguments;
 use deepwell::services::{PageRevisionService, PageService, TextService};
-use deepwell::types::{Action, PageId, Reference, RerenderDepth, Resource};
+use deepwell::types::{Action, PageId, Reference, Resource};
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use serde_json::json;
 
@@ -87,7 +87,6 @@ async fn rerender(runner: &TestRunner, site_id: i64, slug: &str) {
     PageRevisionService::rerender(
         runner.context(),
         PageId::from_page_model(&page),
-        RerenderDepth::default(),
         RerenderType::Full,
     )
     .await

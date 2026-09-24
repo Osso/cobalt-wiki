@@ -12,7 +12,7 @@ use deepwell::services::page_revision::RerenderType;
 use deepwell::services::{
     PageRevisionService, PageService, RequestContext, ServiceContext,
 };
-use deepwell::types::{PageId, Reference, RerenderDepth};
+use deepwell::types::{PageId, Reference};
 use sea_orm::{EntityTrait, TransactionTrait};
 use serde_json::json;
 
@@ -153,7 +153,6 @@ async fn create_edit_delete_restore_and_rerender_advance_pending_generation() {
     PageRevisionService::rerender(
         &ctx,
         PageId::from_page_model(&page),
-        RerenderDepth::default(),
         RerenderType::Standalone,
     )
     .await

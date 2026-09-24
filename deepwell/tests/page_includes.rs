@@ -9,9 +9,7 @@ use deepwell::models::{page, page_revision, role_permission, site};
 use deepwell::services::page::CreatePage;
 use deepwell::services::page_revision::RerenderType;
 use deepwell::services::{LinkService, PageRevisionService, PageService, TextService};
-use deepwell::types::{
-    Action, ConnectionType, PageId, Reference, RerenderDepth, Resource,
-};
+use deepwell::types::{Action, ConnectionType, PageId, Reference, Resource};
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use serde_json::json;
 
@@ -277,7 +275,6 @@ async fn cyclic_includes_fail_without_replacing_the_stored_revision() {
     let error = PageRevisionService::rerender(
         runner.context(),
         PageId::from_page_model(&page),
-        RerenderDepth::default(),
         RerenderType::Full,
     )
     .await
@@ -347,7 +344,6 @@ async fn a_chain_at_the_nesting_limit_renders_its_terminal_source() {
     PageRevisionService::rerender(
         runner.context(),
         PageId::from_page_model(&page),
-        RerenderDepth::default(),
         RerenderType::Full,
     )
     .await

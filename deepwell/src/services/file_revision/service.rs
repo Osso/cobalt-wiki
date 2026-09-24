@@ -26,7 +26,7 @@ use crate::models::file_revision::{
 use crate::models::{file, page, site};
 use crate::services::blob::{EMPTY_BLOB_HASH, EMPTY_BLOB_MIME, FinalizeBlobUploadOutput};
 use crate::services::{BlobService, OutdateService, PageService};
-use crate::types::{Bytes, FetchDirection, RerenderDepth};
+use crate::types::{Bytes, FetchDirection};
 use sea_orm::FromQueryResult;
 use sea_orm::prelude::*;
 use std::num::NonZeroI32;
@@ -151,15 +151,9 @@ impl FileRevisionService {
             .await
             .or_raise(make_error)?;
 
-        OutdateService::process_page_edit(
-            ctx,
-            site_id,
-            page_id,
-            &page_slug,
-            RerenderDepth::default(),
-        )
-        .await
-        .or_raise(make_error)?;
+        OutdateService::process_page_edit(ctx, site_id, page_id, &page_slug)
+            .await
+            .or_raise(make_error)?;
 
         // Insert the new revision into the table
         let model = file_revision::ActiveModel {
@@ -223,15 +217,9 @@ impl FileRevisionService {
             .await
             .or_raise(make_error)?;
 
-        OutdateService::process_page_edit(
-            ctx,
-            site_id,
-            page_id,
-            &page_slug,
-            RerenderDepth::default(),
-        )
-        .await
-        .or_raise(make_error)?;
+        OutdateService::process_page_edit(ctx, site_id, page_id, &page_slug)
+            .await
+            .or_raise(make_error)?;
 
         // Insert the first revision into the table
         let model = file_revision::ActiveModel {
@@ -317,15 +305,9 @@ impl FileRevisionService {
             .await
             .or_raise(make_error)?;
 
-        OutdateService::process_page_edit(
-            ctx,
-            site_id,
-            page_id,
-            &page_slug,
-            RerenderDepth::default(),
-        )
-        .await
-        .or_raise(make_error)?;
+        OutdateService::process_page_edit(ctx, site_id, page_id, &page_slug)
+            .await
+            .or_raise(make_error)?;
 
         // Insert the tombstone revision into the table
         let model = file_revision::ActiveModel {
@@ -425,15 +407,9 @@ impl FileRevisionService {
             .await
             .or_raise(make_error)?;
 
-        OutdateService::process_page_edit(
-            ctx,
-            site_id,
-            new_page_id,
-            &new_page_slug,
-            RerenderDepth::default(),
-        )
-        .await
-        .or_raise(make_error)?;
+        OutdateService::process_page_edit(ctx, site_id, new_page_id, &new_page_slug)
+            .await
+            .or_raise(make_error)?;
 
         // Insert the resurrection revision into the table
         let model = file_revision::ActiveModel {

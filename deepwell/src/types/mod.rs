@@ -33,7 +33,6 @@ mod page_id;
 mod page_order;
 mod permissions;
 mod reference;
-mod rerender_depth;
 
 pub use self::array::ArrayLength;
 pub use self::bytes::Bytes;
@@ -48,4 +47,3 @@ pub use self::page_id::PageId;
 pub use self::page_order::PageOrder;
 pub use self::permissions::Permission;
 pub use self::reference::Reference;
-pub use self::rerender_depth::RerenderDepth;

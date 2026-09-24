@@ -19,19 +19,33 @@
  */
 
 use crate::services::page_revision::RerenderType;
-use crate::types::{PageId, RerenderDepth};
+use crate::types::PageId;
 
+/// Jobs queued before the `depth` field was removed still carry it;
+/// serde ignores it.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "snake_case", tag = "job", content = "data")]
 pub enum Job {
-    RerenderPage {
-        id: PageId,
-        depth: RerenderDepth,
-        r#type: RerenderType,
-    },
+    RerenderPage { id: PageId, r#type: RerenderType },
     PruneSessions,
     PrunePendingUploads,
     PruneText,
     NameChangeRefill,
     LiftExpiredPunishments,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rerender_job_queued_with_depth_still_deserializes() {
+        let queued = r#"{"job":"rerender_page","data":{"id":{"site_id":6,"category_id":7,"page_id":8},"depth":3,"type":"nav"}}"#;
+        let job: Job = serde_json::from_str(queued).expect("old rerender job payload");
+        let Job::RerenderPage { id, r#type } = job else {
+            panic!("not a rerender job: {job:?}");
+        };
+        assert_eq!((id.site_id, id.category_id, id.page_id), (6, 7, 8));
+        assert_eq!(r#type, RerenderType::NavigationOnly);
+    }
 }

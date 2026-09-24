@@ -37,7 +37,7 @@ use crate::services::page::{
 };
 use crate::services::page_revision::RerenderPage;
 use crate::services::permission::CheckPermissionContext;
-use crate::types::{Action, Bytes, FileOrder, PageDetails, Reference, RerenderDepth};
+use crate::types::{Action, Bytes, FileOrder, PageDetails, Reference};
 use futures::future::try_join_all;
 use serde::Serialize;
 
@@ -339,7 +339,7 @@ pub async fn page_rerender(
         "Re-rendering page ID {} in site ID {} ({:?})",
         id.page_id, id.site_id, rerender_type,
     );
-    PageRevisionService::rerender(ctx, id, RerenderDepth::default(), rerender_type)
+    PageRevisionService::rerender(ctx, id, rerender_type)
         .await
         .or_raise(|| Error::new("failed to rerender page", ErrorType::Page))
 }

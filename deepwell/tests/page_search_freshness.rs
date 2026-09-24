@@ -10,7 +10,7 @@ use deepwell::services::page::CreatePage;
 use deepwell::services::page_revision::RerenderType;
 use deepwell::services::search::{SearchDocument, SearchRequest, SearchService};
 use deepwell::services::{PageRevisionService, PageService, RequestContext, TextService};
-use deepwell::types::{PageId, Reference, RerenderDepth};
+use deepwell::types::{PageId, Reference};
 use sea_orm::{ActiveModelTrait, Set};
 use serde_json::json;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -138,7 +138,6 @@ async fn same_revision_rerender_filters_stale_hit_before_visible_pagination() {
     PageRevisionService::rerender(
         runner.context(),
         PageId::from_page_model(&page),
-        RerenderDepth::default(),
         RerenderType::Standalone,
     )
     .await

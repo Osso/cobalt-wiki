@@ -20,7 +20,7 @@
 
 use super::prelude::*;
 use crate::services::page_revision::RerenderType;
-use crate::types::{PageId, RerenderDepth};
+use crate::types::PageId;
 use redis::AsyncCommands;
 use rsmq_async::{Rsmq, RsmqConnection};
 use std::time::Duration;
@@ -99,13 +99,8 @@ impl JobService {
     /// | Argument  | Description |
     /// |-----------|-------------|
     /// | `id` | The page to rerender. |
-    /// | `depth` | Recorded on the job; the rerender-skip rules check it. |
-    pub async fn queue_rerender_page(
-        ctx: &ServiceContext<'_>,
-        id: PageId,
-        depth: RerenderDepth,
-    ) -> Result<()> {
-        Self::queue_rerender(ctx, id, depth, RerenderType::Standalone).await
+    pub async fn queue_rerender_page(ctx: &ServiceContext<'_>, id: PageId) -> Result<()> {
+        Self::queue_rerender(ctx, id, RerenderType::Standalone).await
     }
 
     /// Queues a page's navigation page data for rerendering soon.
@@ -115,9 +110,8 @@ impl JobService {
     pub async fn queue_rerender_nav_page(
         ctx: &ServiceContext<'_>,
         id: PageId,
-        depth: RerenderDepth,
     ) -> Result<()> {
-        Self::queue_rerender(ctx, id, depth, RerenderType::NavigationOnly).await
+        Self::queue_rerender(ctx, id, RerenderType::NavigationOnly).await
     }
 
     /// Queues a rerender job unless the same one is already pending.
@@ -127,7 +121,6 @@ impl JobService {
     async fn queue_rerender(
         ctx: &ServiceContext<'_>,
         id: PageId,
-        depth: RerenderDepth,
         rerender_type: RerenderType,
     ) -> Result<()> {
         let key = pending_rerender_key(id, rerender_type);
@@ -159,7 +152,6 @@ impl JobService {
         );
         let job = Job::RerenderPage {
             id,
-            depth,
             r#type: rerender_type,
         };
         if let Err(error) = Self::queue_job(ctx, &job, None).await {

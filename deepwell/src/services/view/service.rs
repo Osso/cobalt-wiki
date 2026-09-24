@@ -49,7 +49,7 @@ use crate::services::{
     PageRevisionService, PageService, RenderService, SessionService, SiteService,
     TextService, UserService,
 };
-use crate::types::{Action, PageId, Permission, RerenderDepth, Resource};
+use crate::types::{Action, PageId, Permission, Resource};
 use crate::utils::{parse_locales, split_category};
 use ftml::prelude::*;
 use ftml::render::html::HtmlOutput;
@@ -260,15 +260,13 @@ impl ViewService {
                     debug!("User has page access, return text data");
 
                     if options.rerender && user_can_edit_page {
-                        let depth = RerenderDepth::default();
                         info!(
-                            "Re-rendering revision: site ID {} page ID {} revision ID {} (depth {})",
-                            page.site_id, page.page_id, page_revision.revision_id, depth,
+                            "Re-rendering revision: site ID {} page ID {} revision ID {}",
+                            page.site_id, page.page_id, page_revision.revision_id,
                         );
                         PageRevisionService::rerender(
                             ctx,
                             PageId::from_page_model(&page),
-                            depth,
                             RerenderType::Full,
                         )
                         .await
@@ -283,7 +281,6 @@ impl ViewService {
                         PageRevisionService::rerender(
                             ctx,
                             PageId::from_page_model(&page),
-                            RerenderDepth::default(),
                             RerenderType::Standalone,
                         )
                         .await
