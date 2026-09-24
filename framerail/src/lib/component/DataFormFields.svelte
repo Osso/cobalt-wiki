@@ -47,8 +47,7 @@
                     type="radio"
                     value={option.code}
                     bind:group={draft[field.name]}
-                  />
-                  {scalarText(option.label)}
+                  />{scalarText(option.label)}
                 </label>
               {/each}
             </fieldset>
@@ -132,6 +131,5 @@
   }
   .radio-option {
     display: inline;
-    margin-right: 0.25em;
   }
 </style>

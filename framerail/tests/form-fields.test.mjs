@@ -354,7 +354,7 @@ test("source-defined fields render accessible typed controls and readonly static
     )
     assert.match(
       unlabeledBody,
-      /<label class="radio-option(?:\s[^"]*)?"[^>]*><input[^>]*\/> Yes<\/label>/
+      /<label class="radio-option(?:\s[^"]*)?"[^>]*><input[^>]*\/>Yes<\/label>/
     )
     assert.match(unlabeledBody, /aria-label="unsafe&lt;&amp;&quot;-unique"/)
     assert.doesNotMatch(unlabeledBody, /<label for="data-form-field-4">|<unsafe/)
