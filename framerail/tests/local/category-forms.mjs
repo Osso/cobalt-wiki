@@ -166,11 +166,18 @@ async function assertStaticField(wrapper, field, label) {
  * @param {import("../../src/lib/form-editor").FormField} field
  * @param {string} label
  */
-async function assertRadioField(wrapper, field, label) {
-  assert.equal(
-    digest(await wrapper.locator("legend").textContent()),
-    digest(label),
-    `${field.name} legend digest`
+async function assertRadioField(wrapper, field, visibleLabel) {
+  const legend = wrapper.locator("legend")
+  await expect(legend).toHaveCount(visibleLabel ? 1 : 0)
+  if (visibleLabel) {
+    assert.equal(
+      digest(await legend.textContent()),
+      digest(visibleLabel),
+      `${field.name} legend digest`
+    )
+  }
+  await expect(wrapper.locator("fieldset")).toHaveAccessibleName(
+    visibleLabel || field.name
   )
   const radios = await wrapper.locator('input[type="radio"]').evaluateAll((inputs) =>
     inputs.map((input) => {
@@ -295,19 +302,24 @@ async function assertTextField(control, field) {
 async function assertField(wrapper, field) {
   const label = text(field.properties.label)
   if (field.kind === "static") return assertStaticField(wrapper, field, label)
-  const displayLabel = label || field.name
+  const accessibleName = label || field.name
   if (field.kind === "select" && field.options.length >= 2 && field.options.length <= 4) {
-    await assertRadioField(wrapper, field, displayLabel)
+    await assertRadioField(wrapper, field, label)
     await assertGuidance(wrapper, field, wrapper.locator("fieldset"))
     return
   }
-  assert.equal(
-    digest(await wrapper.locator("label").first().textContent()),
-    digest(displayLabel),
-    `${field.name} label digest`
-  )
+  const visibleLabel = wrapper.locator("label")
+  await expect(visibleLabel).toHaveCount(label ? 1 : 0)
+  if (label) {
+    assert.equal(
+      digest(await visibleLabel.textContent()),
+      digest(label),
+      `${field.name} label digest`
+    )
+  }
   const control = wrapper.locator(controlSelector(field))
   await expect(control).toHaveCount(1)
+  await expect(control).toHaveAccessibleName(accessibleName)
   if (field.kind === "select") await assertSelectField(control, field)
   else await assertTextField(control, field)
   await assertGuidance(wrapper, field, control)

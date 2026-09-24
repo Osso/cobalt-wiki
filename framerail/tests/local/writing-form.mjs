@@ -97,6 +97,19 @@ function assertWritingSchema(fields) {
       `${label} must be an archived static-field label`
     )
   }
+  for (const name of [
+    "summary",
+    "additionalCW",
+    "digest",
+    "characters",
+    "references",
+    "content"
+  ]) {
+    const field = fields.find((candidate) => candidate.name === name)
+    assert.ok(field, `${name} archived field required`)
+    assert.notEqual(field.kind, "static", `${name} editable field required`)
+    assert.equal(field.properties.label, null, `${name} archived null label`)
+  }
 }
 
 /**
@@ -113,10 +126,15 @@ async function assertStaticLabel(wrapper, label) {
  * @param {import("@playwright/test").Locator} wrapper
  * @param {import("../../src/lib/form-editor").FormField} field
  * @param {unknown} value
- * @param {string} label
+ * @param {string} visibleLabel
  */
-async function assertRadioControl(wrapper, field, value, label) {
-  await expect(wrapper.locator("legend")).toHaveText(label)
+async function assertRadioControl(wrapper, field, value, visibleLabel) {
+  const legend = wrapper.locator("legend")
+  await expect(legend).toHaveCount(visibleLabel ? 1 : 0)
+  if (visibleLabel) await expect(legend).toHaveText(visibleLabel)
+  await expect(wrapper.locator("fieldset")).toHaveAccessibleName(
+    visibleLabel || field.name
+  )
   const radios = await wrapper.locator('input[type="radio"]').evaluateAll((inputs) =>
     inputs.map((input) => {
       if (!(input instanceof HTMLInputElement)) {
@@ -259,10 +277,12 @@ async function assertGuidance(wrapper, field, control) {
  * @param {import("../../src/lib/form-editor").FormField} field
  */
 async function assertDefaultControl(wrapper, field) {
-  const label = text(field.properties.label) || field.name
+  const visibleLabel = text(field.properties.label)
+  const accessibleName = visibleLabel || field.name
   const value = field.properties.default
   if (field.kind === "static") {
-    if (text(field.properties.label)) await assertStaticLabel(wrapper, label)
+    await expect(wrapper.locator(".static-label")).toHaveCount(visibleLabel ? 1 : 0)
+    if (visibleLabel) await assertStaticLabel(wrapper, visibleLabel)
     assert.equal(
       digest(await wrapper.locator(".static-field").textContent()),
       digest(text(field.properties.value ?? value)),
@@ -271,13 +291,16 @@ async function assertDefaultControl(wrapper, field) {
     return
   }
   if (field.kind === "select" && field.options.length >= 2 && field.options.length <= 4) {
-    await assertRadioControl(wrapper, field, value, label)
+    await assertRadioControl(wrapper, field, value, visibleLabel)
     await assertGuidance(wrapper, field, wrapper.locator("fieldset"))
     return
   }
-  await expect(wrapper.locator("label").first()).toHaveText(label)
+  const label = wrapper.locator("label")
+  await expect(label).toHaveCount(visibleLabel ? 1 : 0)
+  if (visibleLabel) await expect(label).toHaveText(visibleLabel)
   const control = wrapper.locator(controlSelector(field))
   await expect(control).toHaveCount(1)
+  await expect(control).toHaveAccessibleName(accessibleName)
   if (field.kind === "select") await assertSelectControl(control, field, value)
   else {
     assert.equal(

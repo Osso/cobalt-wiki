@@ -93,8 +93,13 @@ async function assertStaticField(wrapper, field, value) {
  * @param {unknown} value
  * @param {string} label
  */
-async function assertRadioField(wrapper, field, value, label) {
-  await expect(wrapper.locator("legend")).toHaveText(label)
+async function assertRadioField(wrapper, field, value, visibleLabel) {
+  const legend = wrapper.locator("legend")
+  await expect(legend).toHaveCount(visibleLabel ? 1 : 0)
+  if (visibleLabel) await expect(legend).toHaveText(visibleLabel)
+  await expect(wrapper.locator("fieldset")).toHaveAccessibleName(
+    visibleLabel || field.name
+  )
   const radios = await wrapper.locator('input[type="radio"]').evaluateAll((inputs) =>
     inputs.map((input) => {
       if (!(input instanceof HTMLInputElement)) {
@@ -215,17 +220,21 @@ async function assertDimensions(control, field) {
  * @param {import("../../src/lib/form-editor").FormValues} values
  */
 async function assertFieldControl(wrapper, field, values) {
-  const label = text(field.properties.label) || field.name
+  const visibleLabel = text(field.properties.label)
+  const accessibleName = visibleLabel || field.name
   const value = initialValue(field, values)
   if (field.kind === "static") return assertStaticField(wrapper, field, value)
   if (field.kind === "select" && field.options.length >= 2 && field.options.length <= 4) {
-    await assertRadioField(wrapper, field, value, label)
+    await assertRadioField(wrapper, field, value, visibleLabel)
     await assertGuidance(wrapper, field, wrapper.locator("fieldset"))
     return
   }
-  await expect(wrapper.locator("label").first()).toHaveText(label)
+  const label = wrapper.locator("label")
+  await expect(label).toHaveCount(visibleLabel ? 1 : 0)
+  if (visibleLabel) await expect(label).toHaveText(visibleLabel)
   const control = wrapper.locator(controlSelector(field))
   await expect(control).toHaveCount(1)
+  await expect(control).toHaveAccessibleName(accessibleName)
   if (field.kind === "select") await assertSelectField(control, field, value)
   else {
     assert.equal(
