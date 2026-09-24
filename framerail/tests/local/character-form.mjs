@@ -112,18 +112,23 @@ async function assertFormControls(page, form) {
           checked: input.checked
         }))
       )
-      assert.deepEqual(
-        radios.map(({ code, label: optionLabel }) => ({ code, label: optionLabel })),
-        field.options.map((option) => ({
-          code: text(option.code),
-          label: text(option.label)
-        })),
-        `${field.name} radio options in source order`
+      const declared = field.options.map((option) => ({
+        code: text(option.code),
+        label: text(option.label)
+      }))
+      assert.equal(
+        digest(
+          radios.map(({ code, label: optionLabel }) => ({ code, label: optionLabel }))
+        ),
+        digest(declared),
+        `${field.name} radio option digest in source order`
       )
-      assert.deepEqual(
-        radios.filter((radio) => radio.checked).map((radio) => radio.code),
-        field.options.some((option) => option.code === value) ? [text(value)] : [],
-        `${field.name} selected option`
+      assert.equal(
+        digest(radios.filter((radio) => radio.checked).map((radio) => radio.code)),
+        digest(
+          field.options.some((option) => option.code === value) ? [text(value)] : []
+        ),
+        `${field.name} selected option digest`
       )
       continue
     }
@@ -140,10 +145,12 @@ async function assertFormControls(page, form) {
         label: text(option.label)
       }))
       const unknown = !field.options.some((option) => option.code === value)
-      assert.deepEqual(
-        options,
-        unknown ? [{ code: text(value), label: text(value) }, ...declared] : declared,
-        `${field.name} select options in source order`
+      assert.equal(
+        digest(options),
+        digest(
+          unknown ? [{ code: text(value), label: text(value) }, ...declared] : declared
+        ),
+        `${field.name} select option digest in source order`
       )
       assert.equal(
         digest(await control.inputValue()),
