@@ -11,6 +11,7 @@
   import { page } from "$app/state"
   import { pageLayoutState, errorPopupState } from "$lib/stores.svelte"
   import { Layout } from "$lib/types"
+  import { pageLayout } from "$lib/page-layout"
   import { resolve } from "$app/paths"
   import { submitNewPage } from "$lib/new-page"
   import { clickSiteChanges } from "$lib/site-changes"
@@ -26,25 +27,11 @@
     }
   }
 
-  // Account pages a Wikidot site's visitors reach from its header use the site's theme.
-  const SITE_THEMED_ROUTES = new Set([
-    "/[x+2d]/login",
-    "/[x+2d]/logout",
-    "/[x+2d]/register",
-    "/[x+2d]/settings"
-  ])
-
-  function setLayout() {
-    if (page.route.id?.startsWith("/[x+2d]/") && !SITE_THEMED_ROUTES.has(page.route.id)) {
-      // this is a special page, use Wikijump layout
-      pageLayoutState.current = Layout.WIKIJUMP
-    } else {
-      pageLayoutState.current =
-        page.data?.page?.layout ?? page.data?.site?.layout ?? Layout.WIKIJUMP
-    }
-  }
+  // Derived, so server rendering already uses the site's layout; the store
+  // mirrors it for components such as the error popup.
+  const layout = $derived(pageLayout(page))
   $effect(() => {
-    setLayout()
+    pageLayoutState.current = layout
   })
 
   // Capture phase: SvelteKit's router takes same-origin GET form submits
@@ -91,7 +78,7 @@
   {/if}
 </svelte:head>
 
-{#if pageLayoutState.current === Layout.WIKIDOT}
+{#if layout === Layout.WIKIDOT}
   <link
     href="https://d3g0gp89917ko0.cloudfront.net/v--7690939296dc/common--theme/base/css/style.css"
     rel="stylesheet"
