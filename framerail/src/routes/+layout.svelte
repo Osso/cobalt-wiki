@@ -12,7 +12,7 @@
   import { pageLayoutState, errorPopupState } from "$lib/stores.svelte"
   import { Layout } from "$lib/types"
   import { pageLayout } from "$lib/page-layout"
-  import { resolve } from "$app/paths"
+  import { asset, resolve } from "$app/paths"
   import { submitNewPage } from "$lib/new-page"
   import { clickSiteChanges } from "$lib/site-changes"
   import { clickCollapsible } from "$lib/collapsible"
@@ -72,9 +72,12 @@
 
 <svelte:head>
   <title>{page.data.site?.name}</title>
+  <!-- One icon per site, rendered on the server so no other icon shows first. -->
   {#if page.data.site?.slug === "cobalt-company"}
     <!-- Cobalt's Wikidot favicon (local--favicon/favicon.gif, a PNG) -->
     <link href="/cobalt-favicon.png" rel="icon" type="image/png" />
+  {:else}
+    <link href={asset("/favicon.png")} rel="icon" />
   {/if}
 </svelte:head>
 
