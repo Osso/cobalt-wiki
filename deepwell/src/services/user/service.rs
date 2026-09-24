@@ -504,6 +504,7 @@ impl UserService {
 
                 // miscellaneous
                 bypass_filter,
+                bypass_email_verification: false,
             },
         )
         .await
@@ -789,18 +790,22 @@ impl UserService {
                 .or_raise(make_error)?;
             }
 
-            // Validate email
-            let email_validation_output = EmailService::validate(ctx, &email)
-                .await
-                .or_raise(make_error)?;
-
-            let email_validation_json =
-                check_email_validation(&user.slug, &email_validation_output)
+            if input.bypass_email_verification {
+                model.email_validation_info = Set(None);
+                model.email_validation_at = Set(None);
+            } else {
+                let email_validation_output = EmailService::validate(ctx, &email)
+                    .await
                     .or_raise(make_error)?;
 
+                let email_validation_json =
+                    check_email_validation(&user.slug, &email_validation_output)
+                        .or_raise(make_error)?;
+
+                model.email_validation_info = Set(Some(email_validation_json));
+                model.email_validation_at = Set(Some(now()));
+            }
             model.email = Set(email);
-            model.email_validation_info = Set(Some(email_validation_json));
-            model.email_validation_at = Set(Some(now()))
         }
 
         if let Maybe::Set(email_verified) = input.email_verified {

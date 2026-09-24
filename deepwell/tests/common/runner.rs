@@ -22,6 +22,7 @@
 
 use deepwell::api::{ServerState, build_server_state};
 use deepwell::config::{Config, Secrets};
+use deepwell::services::email::MailgunSender;
 use deepwell::services::{RequestContext, ServiceContext};
 use sea_orm::{DatabaseTransaction, TransactionTrait};
 use self_cell::self_cell;
@@ -35,8 +36,13 @@ pub struct TestRunnerRequestContext {
 }
 
 impl TestRunnerRequestContext {
-    pub async fn new(config: Config) -> Self {
-        let secrets = Secrets::load();
+    /// Tests never send through the environment's Mailgun: only through
+    /// `mailgun`, a sender pointed at a fake server, when one is given.
+    pub async fn new(config: Config, mailgun: Option<MailgunSender>) -> Self {
+        let secrets = Secrets {
+            mailgun,
+            ..Secrets::load()
+        };
 
         let state = build_server_state(config, secrets)
             .await
@@ -116,8 +122,16 @@ impl TestRunner {
         Self::setup_with_config(config).await
     }
 
+    #[allow(unused)]
+    pub async fn setup_with_mailgun(mailgun: MailgunSender) -> Self {
+        let request_ctx =
+            TestRunnerRequestContext::new(Config::integration_testing(), Some(mailgun))
+                .await;
+        Self::new(request_ctx, TestRunnerRequestContext::build_service_context)
+    }
+
     pub async fn setup_with_config(config: Config) -> Self {
-        let request_ctx = TestRunnerRequestContext::new(config).await;
+        let request_ctx = TestRunnerRequestContext::new(config, None).await;
         Self::new(request_ctx, TestRunnerRequestContext::build_service_context)
     }
 

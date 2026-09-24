@@ -34,6 +34,7 @@ pub mod page_lock;
 pub mod page_parent;
 pub mod page_revision;
 pub mod page_vote;
+pub mod password_token;
 pub mod relation;
 pub mod role;
 pub mod role_permission;

@@ -18,6 +18,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+use crate::services::email::MailgunSender;
 use dotenvy::dotenv;
 use ref_map::*;
 use s3::creds::Credentials;
@@ -76,6 +77,12 @@ pub struct Secrets {
     /// * No API key: 5 requests / hour
     /// * Free tier: 1000 requests / month
     pub mailcheck_api_key: Option<String>,
+
+    /// Mailgun sender for outgoing email, `None` if email sending is off.
+    ///
+    /// Set using environment variables `MAILGUN_API_KEY`, `MAILGUN_DOMAIN`
+    /// and `MAILGUN_FROM`: all three, or none.
+    pub mailgun: Option<MailgunSender>,
 }
 
 impl Secrets {
@@ -173,6 +180,14 @@ impl Secrets {
             }
         };
 
+        let mailgun = match MailgunSender::from_env() {
+            Ok(mailgun) => mailgun,
+            Err(error) => {
+                eprintln!("Unable to configure Mailgun: {error}");
+                process::exit(1);
+            }
+        };
+
         // Build and return
         Secrets {
             database_url,
@@ -183,6 +198,7 @@ impl Secrets {
             s3_path_style,
             s3_credentials,
             mailcheck_api_key,
+            mailgun,
         }
     }
 }

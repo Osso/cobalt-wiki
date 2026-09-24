@@ -1,8 +1,9 @@
 //! Outgoing email through Mailgun's HTTP API.
 //!
-//! Configured by `MAILGUN_API_KEY` (a sending key), `MAILGUN_DOMAIN` (the
-//! verified sending domain) and `MAILGUN_FROM` (the From header). Without them
-//! nothing can be sent and every send fails.
+//! Configured at startup by `MAILGUN_API_KEY` (a sending key), `MAILGUN_DOMAIN`
+//! (the verified sending domain) and `MAILGUN_FROM` (the From header). With
+//! none set, the server runs but every send fails; with only some set, it
+//! refuses to start.
 
 use crate::error::prelude::*;
 use reqwest::{Client, StatusCode};
@@ -40,25 +41,37 @@ impl std::fmt::Debug for MailgunSender {
 }
 
 impl MailgunSender {
-    pub fn from_env() -> Result<Self> {
+    pub fn from_env() -> Result<Option<Self>> {
         Self::from_vars(|name| std::env::var(name).ok())
     }
 
-    fn from_vars(get: impl Fn(&str) -> Option<String>) -> Result<Self> {
-        let require = |name: &str| {
-            get(name)
-                .filter(|value| !value.trim().is_empty())
-                .ok_or_else(|| {
-                    Error::new(
-                        format!("email sending is not configured: {name} is not set"),
-                        ErrorType::EmailSend,
-                    )
-                })
-        };
-        let api_key = require("MAILGUN_API_KEY")?;
-        let domain = require("MAILGUN_DOMAIN")?;
-        let from = require("MAILGUN_FROM")?;
-        Ok(Self::new(str!(MAILGUN_API_URL), domain, api_key, from))
+    fn from_vars(get: impl Fn(&str) -> Option<String>) -> Result<Option<Self>> {
+        const NAMES: [&str; 3] = ["MAILGUN_API_KEY", "MAILGUN_DOMAIN", "MAILGUN_FROM"];
+        let values = NAMES.map(|name| get(name).filter(|value| !value.trim().is_empty()));
+        match values {
+            [None, None, None] => Ok(None),
+            [Some(api_key), Some(domain), Some(from)] => Ok(Some(Self::new(
+                str!(MAILGUN_API_URL),
+                domain,
+                api_key,
+                from,
+            ))),
+            _ => {
+                let missing: Vec<_> = NAMES
+                    .iter()
+                    .zip(&values)
+                    .filter(|(_, value)| value.is_none())
+                    .map(|(name, _)| *name)
+                    .collect();
+                bail!(Error::new(
+                    format!(
+                        "email sending is half configured, missing {}",
+                        missing.join(", ")
+                    ),
+                    ErrorType::ConfigSetup,
+                ))
+            }
+        }
     }
 
     pub fn new(api_url: String, domain: String, api_key: String, from: String) -> Self {
@@ -291,32 +304,32 @@ mod tests {
     }
 
     #[test]
-    fn unconfigured_sender_fails_naming_the_missing_variable() {
+    fn configuration_needs_all_three_variables_or_none() {
         let vars: HashMap<&str, &str> = [
             ("MAILGUN_API_KEY", "key-secret"),
             ("MAILGUN_DOMAIN", "mg.example.org"),
-            ("MAILGUN_FROM", ""),
+            ("MAILGUN_FROM", "Cobalt <noreply@mg.example.org>"),
         ]
         .into();
-        let error =
-            MailgunSender::from_vars(|name| vars.get(name).map(|v| str!(v))).unwrap_err();
-        assert_eq!(error.error_type, ErrorType::EmailSend);
-        assert!(error.message.contains("MAILGUN_FROM"), "{}", error.message);
 
-        let error = MailgunSender::from_vars(|_| None).unwrap_err();
+        let configured = MailgunSender::from_vars(|name| vars.get(name).map(|v| str!(v)))
+            .unwrap()
+            .expect("all three set");
+        assert_eq!(configured.api_url, MAILGUN_API_URL);
+        assert_eq!(configured.domain, "mg.example.org");
+        assert!(!format!("{configured:?}").contains("key-secret"));
+
+        assert!(MailgunSender::from_vars(|_| None).unwrap().is_none());
+
+        let error = MailgunSender::from_vars(|name| {
+            (name != "MAILGUN_FROM").then(|| str!(vars[name]))
+        })
+        .unwrap_err();
+        assert_eq!(error.error_type, ErrorType::ConfigSetup);
         assert!(
-            error.message.contains("MAILGUN_API_KEY"),
+            error.message.ends_with("missing MAILGUN_FROM"),
             "{}",
             error.message
         );
-
-        let configured = MailgunSender::from_vars(|name| {
-            vars.get(name)
-                .map(|v| if v.is_empty() { "Cobalt <a@b.c>" } else { v })
-                .map(|v| str!(v))
-        })
-        .unwrap();
-        assert_eq!(configured.api_url, MAILGUN_API_URL);
-        assert!(!format!("{configured:?}").contains("key-secret"));
     }
 }

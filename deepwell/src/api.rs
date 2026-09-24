@@ -35,6 +35,7 @@ use crate::error::prelude::*;
 use crate::locales::Localizations;
 use crate::middleware::{RequestContextHeaders, RequestContextLayer};
 use crate::services::blob::MimeAnalyzer;
+use crate::services::email::MailgunSender;
 use crate::services::job::JobWorker;
 use crate::services::{RequestContext, ServiceContext, SessionService};
 use crate::utils::debug_pointer;
@@ -63,6 +64,7 @@ pub struct ServerStateInner {
     pub s3_files_bucket: Box<Bucket>,
     pub s3_tblocks_bucket: Box<Bucket>,
     pub mailcheck_api_client: ReqwestClient,
+    pub mailgun: Option<MailgunSender>,
 }
 
 impl Debug for ServerStateInner {
@@ -77,6 +79,7 @@ impl Debug for ServerStateInner {
             .field("s3_files_bucket", &self.s3_files_bucket)
             .field("s3_tblocks_bucket", &self.s3_tblocks_bucket)
             .field("mailcheck_api_client", &self.mailcheck_api_client)
+            .field("mailgun", &self.mailgun)
             .finish()
     }
 }
@@ -92,6 +95,7 @@ pub async fn build_server_state(
         s3_path_style,
         s3_credentials,
         mailcheck_api_key,
+        mailgun,
     }: Secrets,
 ) -> Result<ServerState> {
     let make_error =
@@ -176,6 +180,7 @@ pub async fn build_server_state(
         s3_files_bucket,
         s3_tblocks_bucket,
         mailcheck_api_client,
+        mailgun,
     });
 
     // Start workers listening to the job queue (requires ServerState)
@@ -322,6 +327,12 @@ async fn build_module(app_state: ServerState) -> Result<RpcModule<ServerState>> 
     register!("mfa_disable", auth_mfa_disable);
     register!("mfa_reset_recovery", auth_mfa_reset_recovery);
     register!("authorization_token_issue", auth_token_issue);
+
+    // Password links (create/status: trusted callers only, never proxied)
+    register!("password_token_create", password_token_create);
+    register!("password_token_status", password_token_status);
+    register!("password_token_redeem", password_token_redeem);
+    register!("password_reset_request", password_reset_request);
 
     // Site
     register!("site_create", site_create);

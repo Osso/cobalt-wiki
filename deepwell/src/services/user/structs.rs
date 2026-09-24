@@ -236,6 +236,9 @@ pub struct UpdateUserBody {
 
     #[serde(default)]
     pub bypass_filter: bool,
+
+    #[serde(default)]
+    pub bypass_email_verification: bool,
 }
 
 #[test]
