@@ -75,6 +75,7 @@ async function readStored(request, slug) {
  * @param {import("@playwright/test").APIRequestContext} request
  * @param {string} slug
  * @param {string} token
+ * @returns {Promise<import("../../src/lib/form-editor").PageForm>}
  */
 async function readCreationForm(request, slug, token) {
   const permission = await rpc(
@@ -114,103 +115,102 @@ function assertSchema(fields, counts) {
 /**
  * @param {import("@playwright/test").Locator} wrapper
  * @param {import("../../src/lib/form-editor").FormField} field
+ * @param {string} label
  */
-async function assertField(wrapper, field) {
-  const label = text(field.properties.label)
-  const value = field.properties.default
-  if (field.kind === "static") {
-    await expect(wrapper.locator(".static-label")).toHaveCount(label ? 1 : 0)
-    if (label) {
-      assert.equal(
-        digest(await wrapper.locator(".static-label").textContent()),
-        digest(label),
-        `${field.name} static label digest`
-      )
-    }
-    const content = wrapper.locator(".static-field")
-    await expect(content).toHaveCount(1)
+async function assertStaticField(wrapper, field, label) {
+  await expect(wrapper.locator(".static-label")).toHaveCount(label ? 1 : 0)
+  if (label) {
     assert.equal(
-      digest(await content.textContent()),
-      digest(text(field.properties.value ?? value)),
-      `${field.name} static text digest`
+      digest(await wrapper.locator(".static-label").textContent()),
+      digest(label),
+      `${field.name} static label digest`
     )
-    assert.equal(
-      await content.locator("*").count(),
-      0,
-      `${field.name} static text escaped`
-    )
-    return
   }
+  const content = wrapper.locator(".static-field")
+  await expect(content).toHaveCount(1)
+  assert.equal(
+    digest(await content.textContent()),
+    digest(text(field.properties.value ?? field.properties.default)),
+    `${field.name} static text digest`
+  )
+  assert.equal(await content.locator("*").count(), 0, `${field.name} static text escaped`)
+}
 
-  const displayLabel = label || field.name
-  if (field.kind === "select" && field.options.length >= 2 && field.options.length <= 4) {
-    assert.equal(
-      digest(await wrapper.locator("legend").textContent()),
-      digest(displayLabel),
-      `${field.name} legend digest`
-    )
-    const radios = await wrapper.locator('input[type="radio"]').evaluateAll((inputs) =>
-      inputs.map((input) => ({
+/**
+ * @param {import("@playwright/test").Locator} wrapper
+ * @param {import("../../src/lib/form-editor").FormField} field
+ * @param {string} label
+ */
+async function assertRadioField(wrapper, field, label) {
+  assert.equal(
+    digest(await wrapper.locator("legend").textContent()),
+    digest(label),
+    `${field.name} legend digest`
+  )
+  const radios = await wrapper.locator('input[type="radio"]').evaluateAll((inputs) =>
+    inputs.map((input) => {
+      if (!(input instanceof HTMLInputElement)) {
+        throw new TypeError("Expected radio input")
+      }
+      return {
         code: input.value,
         label: input.closest("label")?.textContent?.trim(),
         checked: input.checked
-      }))
-    )
-    assert.equal(
-      digest(
-        radios.map(({ code, label: optionLabel }) => ({ code, label: optionLabel }))
-      ),
-      digest(
-        field.options.map((option) => ({
-          code: text(option.code),
-          label: text(option.label)
-        }))
-      ),
-      `${field.name} radio options in schema order`
-    )
-    assert.equal(
-      digest(radios.filter((radio) => radio.checked).map((radio) => radio.code)),
-      digest(field.options.some((option) => option.code === value) ? [text(value)] : []),
-      `${field.name} selected radio`
-    )
-    return
-  }
-
-  assert.equal(
-    digest(await wrapper.locator("label").first().textContent()),
-    digest(displayLabel),
-    `${field.name} label digest`
+      }
+    })
   )
-  const selector =
-    field.kind === "wiki"
-      ? "textarea"
-      : field.kind === "select"
-        ? "select"
-        : 'input[type="text"]'
-  const control = wrapper.locator(selector)
-  await expect(control).toHaveCount(1)
-  if (field.kind === "select") {
-    const options = await control
-      .locator("option")
-      .evaluateAll((nodes) =>
-        nodes.map((node) => ({ code: node.value, label: node.textContent?.trim() }))
-      )
-    const declared = field.options.map((option) => ({
-      code: text(option.code),
-      label: text(option.label)
-    }))
-    const unknown = !field.options.some((option) => option.code === value)
-    assert.equal(
-      digest(options),
-      digest(
-        unknown ? [{ code: text(value), label: text(value) }, ...declared] : declared
-      ),
-      `${field.name} options in schema order`
-    )
-  }
+  assert.equal(
+    digest(radios.map(({ code, label: optionLabel }) => ({ code, label: optionLabel }))),
+    digest(
+      field.options.map((option) => ({
+        code: text(option.code),
+        label: text(option.label)
+      }))
+    ),
+    `${field.name} radio options in schema order`
+  )
+  const value = field.properties.default
+  assert.equal(
+    digest(radios.filter((radio) => radio.checked).map((radio) => radio.code)),
+    digest(field.options.some((option) => option.code === value) ? [text(value)] : []),
+    `${field.name} selected radio`
+  )
+}
+
+/**
+ * @param {import("@playwright/test").Locator} control
+ * @param {import("../../src/lib/form-editor").FormField} field
+ */
+async function assertSelectField(control, field) {
+  const options = await control.locator("option").evaluateAll((nodes) =>
+    nodes.map((node) => {
+      if (!(node instanceof HTMLOptionElement)) {
+        throw new TypeError("Expected option")
+      }
+      return { code: node.value, label: node.textContent?.trim() }
+    })
+  )
+  const declared = field.options.map((option) => ({
+    code: text(option.code),
+    label: text(option.label)
+  }))
+  const value = field.properties.default
+  const unknown = !field.options.some((option) => option.code === value)
+  assert.equal(
+    digest(options),
+    digest(unknown ? [{ code: text(value), label: text(value) }, ...declared] : declared),
+    `${field.name} options in schema order`
+  )
+}
+
+/**
+ * @param {import("@playwright/test").Locator} control
+ * @param {import("../../src/lib/form-editor").FormField} field
+ */
+async function assertTextField(control, field) {
   assert.equal(
     digest(await control.inputValue()),
-    digest(text(value)),
+    digest(text(field.properties.default)),
     `${field.name} default`
   )
   const width = Number(field.properties.width)
@@ -224,6 +224,34 @@ async function assertField(wrapper, field) {
   if (field.kind === "wiki" && Number.isInteger(height) && height > 0) {
     await expect(control).toHaveAttribute("rows", String(height))
   }
+}
+
+/**
+ * @param {import("@playwright/test").Locator} wrapper
+ * @param {import("../../src/lib/form-editor").FormField} field
+ */
+async function assertField(wrapper, field) {
+  const label = text(field.properties.label)
+  if (field.kind === "static") return assertStaticField(wrapper, field, label)
+  const displayLabel = label || field.name
+  if (field.kind === "select" && field.options.length >= 2 && field.options.length <= 4) {
+    return assertRadioField(wrapper, field, displayLabel)
+  }
+  assert.equal(
+    digest(await wrapper.locator("label").first().textContent()),
+    digest(displayLabel),
+    `${field.name} label digest`
+  )
+  const selector =
+    field.kind === "wiki"
+      ? "textarea"
+      : field.kind === "select"
+        ? "select"
+        : 'input[type="text"]'
+  const control = wrapper.locator(selector)
+  await expect(control).toHaveCount(1)
+  if (field.kind === "select") await assertSelectField(control, field)
+  await assertTextField(control, field)
 }
 
 /**
@@ -326,40 +354,45 @@ for (const category of categories) {
         assert.ok(field, "editable preview field required")
         await assertNoWrites(request, token, slug, templateSlug, template)
 
-        const path = `/${slug}/edit/true/title/${encodeURIComponent(title)}`
-        const navigation = await page.goto(`${preview}${path}`, {
-          waitUntil: "networkidle"
-        })
-        assert.equal(
-          navigation?.status(),
-          404,
-          `${category.name} missing-page HTTP status`
-        )
-        await expect(page.locator('#editor [name="title"]')).toHaveValue(title)
-        await assertForm(page, fields)
+        try {
+          const path = `/${slug}/edit/true/title/${encodeURIComponent(title)}`
+          const navigation = await page.goto(`${preview}${path}`, {
+            waitUntil: "networkidle"
+          })
+          assert.equal(
+            navigation?.status(),
+            404,
+            `${category.name} missing-page HTTP status`
+          )
+          await expect(page.locator('#editor [name="title"]')).toHaveValue(title)
+          await assertForm(page, fields)
 
-        const marker = `Local ${category.name} preview ${randomBytes(8).toString("hex")}`
-        const control = page.locator("#editor .form-field").nth(fields.indexOf(field))
-        await control
-          .locator(field.kind === "wiki" ? "textarea" : 'input[type="text"]')
-          .fill(marker)
-        const previewResponse = page.waitForResponse(
-          (response) =>
-            response.request().method() === "POST" &&
-            response.url().includes(`/${slug}/edit`) &&
-            response.url().endsWith("?/preview")
-        )
-        await page.locator("#edit-preview-button").click()
-        assert.equal((await previewResponse).status(), 200, "preview HTTP status")
-        const region = page.locator('section[aria-label="Page preview"]')
-        await expect(region).toHaveAttribute("aria-busy", "false")
-        if (referencedField) await expect(region).toContainText(marker)
-        await assertNoWrites(request, token, slug, templateSlug, template)
-
-        await page.reload({ waitUntil: "networkidle" })
-        await expect(page.locator('#editor [name="title"]')).toHaveValue(title)
-        await assertForm(page, fields)
-        await assertNoWrites(request, token, slug, templateSlug, template)
+          const marker = `Local ${category.name} preview ${randomBytes(8).toString("hex")}`
+          const control = page.locator("#editor .form-field").nth(fields.indexOf(field))
+          await control
+            .locator(field.kind === "wiki" ? "textarea" : 'input[type="text"]')
+            .fill(marker)
+          const previewResponse = page.waitForResponse(
+            (response) =>
+              response.request().method() === "POST" &&
+              response.url().includes(`/${slug}/edit`) &&
+              response.url().endsWith("?/preview")
+          )
+          await page.locator("#edit-preview-button").click()
+          assert.equal((await previewResponse).status(), 200, "preview HTTP status")
+          const region = page.locator('section[aria-label="Page preview"]')
+          await expect(region).toHaveAttribute("aria-busy", "false")
+          if (referencedField) {
+            await expect
+              .poll(async () => (await region.textContent())?.includes(marker) ?? false)
+              .toBe(true)
+          }
+          await page.reload({ waitUntil: "networkidle" })
+          await expect(page.locator('#editor [name="title"]')).toHaveValue(title)
+          await assertForm(page, fields)
+        } finally {
+          await assertNoWrites(request, token, slug, templateSlug, template)
+        }
       } finally {
         await context.close()
       }
