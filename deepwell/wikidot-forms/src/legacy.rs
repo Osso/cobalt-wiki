@@ -18,7 +18,7 @@ struct LineScan<'a> {
     node_start: bool,
     after_quote: bool,
     mapping_value: bool,
-    replacements: Vec<usize>,
+    replacements: Vec<(usize, usize, String)>,
 }
 
 impl LexicalState {
@@ -47,7 +47,7 @@ impl<'a> LineScan<'a> {
         }
     }
 
-    fn scan(mut self, state: &mut LexicalState) -> Vec<usize> {
+    fn scan(mut self, state: &mut LexicalState) -> Vec<(usize, usize, String)> {
         while self.offset < self.line.len() {
             if let Some(quote) = state.quote {
                 self.skip_quoted(state, quote);
@@ -81,9 +81,14 @@ impl<'a> LineScan<'a> {
         if current == b'#' && self.starts_comment() {
             self.offset = self.line.len();
         } else if self.is_legacy_scalar(state) {
-            self.replacements.push(self.offset);
+            self.replacements
+                .push((self.offset, self.offset + 2, "'@@'".into()));
             self.node_start = false;
             self.offset += 2;
+        } else if let Some((end, quoted)) = self.trailing_colon_value(state) {
+            self.replacements.push((self.offset, end, quoted));
+            self.node_start = false;
+            self.offset = end;
         } else if self.is_block_header(state) {
             state.block_indent = Some(self.indent);
             self.offset = self.line.len();
@@ -146,6 +151,29 @@ impl<'a> LineScan<'a> {
         is_key || is_value
     }
 
+    fn trailing_colon_value(&self, state: &LexicalState) -> Option<(usize, String)> {
+        if !self.node_start || !self.mapping_value || state.flow_depth != 0 {
+            return None;
+        }
+        let tail = &self.line[self.offset..];
+        if !tail.chars().next()?.is_alphanumeric() {
+            return None;
+        }
+        let comment = tail
+            .as_bytes()
+            .windows(2)
+            .position(|pair| pair[0].is_ascii_whitespace() && pair[1] == b'#')
+            .map_or(tail.len(), |offset| offset + 1);
+        let value = tail[..comment].trim_end_matches([' ', '\t']);
+        if !value.ends_with(':') || value[..value.len() - 1].contains(':') {
+            return None;
+        }
+        Some((
+            self.offset + value.len(),
+            format!("'{}'", value.replace('\'', "''")),
+        ))
+    }
+
     fn is_block_header(&self, state: &LexicalState) -> bool {
         let at_block_value = self.node_start && state.flow_depth == 0;
         if !at_block_value || !matches!(self.line.as_bytes()[self.offset], b'|' | b'>') {
@@ -184,17 +212,21 @@ fn valid_block_suffix(suffix: &str) -> bool {
     valid_modifiers && scalar_tail(&suffix[modifiers.len()..])
 }
 
-fn append_quoted_tokens(output: &mut String, line: &str, offsets: &[usize]) {
+fn append_quoted_tokens(
+    output: &mut String,
+    line: &str,
+    replacements: &[(usize, usize, String)],
+) {
     let mut copied_until = 0;
-    for &offset in offsets {
-        output.push_str(&line[copied_until..offset]);
-        output.push_str("'@@'");
-        copied_until = offset + 2;
+    for (start, end, quoted) in replacements {
+        output.push_str(&line[copied_until..*start]);
+        output.push_str(quoted);
+        copied_until = *end;
     }
     output.push_str(&line[copied_until..]);
 }
 
-/// Quote exactly bare `@@` block-mapping keys and whole scalar values.
+/// Quote bare `@@` block-mapping tokens and plain trailing-colon values.
 ///
 /// This always runs before YAML parsing, never as a parse-error fallback. Quoted
 /// strings, comments, block content and their line endings are left byte-identical.

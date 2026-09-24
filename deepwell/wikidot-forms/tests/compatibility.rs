@@ -176,6 +176,32 @@ fn scalar_select_codes_and_labels_keep_their_yaml_types() {
 }
 
 #[test]
+fn historical_npc_race_option_preserves_trailing_colon_label() {
+    let schema = parse_schema(
+        "fields:\n  race:\n    type: select\n    values:\n      human: Human\n      orc: Orc: # historical label\n      dwarf: Dwarf\n",
+    )
+    .unwrap();
+    let options = &schema.fields[0].options;
+    assert_eq!(options.len(), 3);
+    assert_eq!(options[1].code, Value::String("orc".into()));
+    assert_eq!(options[1].label, Value::String("Orc:".into()));
+    assert_eq!(options[2].label, Value::String("Dwarf".into()));
+}
+
+#[test]
+fn trailing_colon_value_preserves_quoted_comments_blocks_and_line_endings() {
+    let source = "# note: unchanged\r\nrace: Orc:  # original label\r\nquoted: 'Orc:'\r\ndescription: |\r\n  race: Orc:\r\nname: Soldier's Guild:\r\n";
+    let normalized = "# note: unchanged\r\nrace: 'Orc:'  # original label\r\nquoted: 'Orc:'\r\ndescription: |\r\n  race: Orc:\r\nname: 'Soldier''s Guild:'\r\n";
+    assert_eq!(normalize_legacy_yaml(source), normalized);
+    assert_eq!(normalize_legacy_yaml(normalized), normalized);
+    let values = parse_values(source).unwrap();
+    assert_eq!(values["race"], Value::String("Orc:".into()));
+    assert_eq!(values["quoted"], Value::String("Orc:".into()));
+    assert_eq!(values["description"], Value::String("race: Orc:\n".into()));
+    assert_eq!(values["name"], Value::String("Soldier's Guild:".into()));
+}
+
+#[test]
 fn rejects_malformed_or_unsupported_schema_instead_of_discarding_it() {
     for source in [
         "[]",
@@ -194,7 +220,8 @@ fn rejects_malformed_or_unsupported_schema_instead_of_discarding_it() {
         "fields: {bad: {type: text, label: [wrong, shape]}}",
         "fields:\n  same: {type: text}\n  same: {type: wiki}\n",
         "fields: {bad: {type: select, values: {x: one, x: two}}}",
-        "fields:\n  race:\n    type: select\n    values:\n      orc: Orc:\n",
+        "fields:\n  race:\n    type: select\n    values:\n      orc: Orc: extra\n",
+        "fields:\n  race:\n    type: select\n    values:\n      orc: Orc: extra:\n",
     ] {
         assert!(parse_schema(source).is_err(), "accepted {source:?}");
     }
