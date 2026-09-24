@@ -76,13 +76,10 @@ pub fn render_collapsible(ctx: &mut HtmlContext, collapsible: Collapsible) {
         show_bottom,
     );
 
-    let show_text = show_text
-        .unwrap_or_else(|| ctx.handle().get_message(ctx.language(), "collapsible-open"));
-
-    let hide_text = hide_text
-        .unwrap_or_else(|| ctx.handle().get_message(ctx.language(), "collapsible-hide"));
-
     if ctx.layout() == Layout::Wikidot {
+        // Wikidot's own defaults, as served by wikidot.com.
+        let show_text = show_text.unwrap_or("+ show block");
+        let hide_text = hide_text.unwrap_or("\u{2013} hide block");
         render_wikidot_collapsible(
             ctx,
             elements,
@@ -94,6 +91,12 @@ pub fn render_collapsible(ctx: &mut HtmlContext, collapsible: Collapsible) {
         );
         return;
     }
+
+    let show_text = show_text
+        .unwrap_or_else(|| ctx.handle().get_message(ctx.language(), "collapsible-open"));
+
+    let hide_text = hide_text
+        .unwrap_or_else(|| ctx.handle().get_message(ctx.language(), "collapsible-hide"));
 
     ctx.html()
         .details()

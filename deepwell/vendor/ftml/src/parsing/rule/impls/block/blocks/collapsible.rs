@@ -42,7 +42,7 @@ fn parse_fn<'r, 't>(
     assert!(!flag_score, "Collapsible doesn't allow score flag");
     assert_block_name(&BLOCK_COLLAPSIBLE, name);
 
-    let mut arguments = parser.get_head_map(&BLOCK_COLLAPSIBLE, in_head)?;
+    let mut arguments = parser.get_head_lenient_map(&BLOCK_COLLAPSIBLE, in_head)?;
 
     // Get display arguments
     let show_text = arguments.get("show");
@@ -94,4 +94,41 @@ fn parse_hide_location(s: &str, parser: &Parser) -> Result<(bool, bool), ParseEr
 
     warn!("Unknown hideLocation argument '{s}'");
     Err(parser.make_err(ParseErrorKind::BlockMalformedArguments))
+}
+
+#[cfg(test)]
+mod test {
+    use crate::data::PageInfo;
+    use crate::layout::Layout;
+    use crate::render::{Render, html::HtmlRender};
+    use crate::settings::{WikitextMode, WikitextSettings};
+
+    fn render(text: &str) -> String {
+        let settings = WikitextSettings::from_mode(WikitextMode::Page, Layout::Wikidot);
+        let tokens = crate::tokenize(text);
+        let page_info = PageInfo::dummy();
+        let (tree, _) = crate::parse(&tokens, &page_info, &settings).into();
+        HtmlRender.render(&tree, &page_info, &settings).body
+    }
+
+    #[test]
+    fn unreadable_arguments_keep_the_collapsible_with_wikidot_default_labels() {
+        // character:annibeth: the head has no key="value" pairs at all.
+        let html = render(
+            "[[collapsible +\"Expand Romance Section -\"Collapse Romance Section]]\nsecret\n[[/collapsible]]",
+        );
+        assert!(!html.contains("[[collapsible"), "{html}");
+        assert!(html.contains(">+&nbsp;show&nbsp;block<"), "{html}");
+        assert!(html.contains(">\u{2013}&nbsp;hide&nbsp;block<"), "{html}");
+        assert!(html.contains("secret"), "{html}");
+    }
+
+    #[test]
+    fn readable_arguments_still_set_the_labels() {
+        let html = render(
+            "[[collapsible show=\"+ Spoilers\" hide=\"- Hide\"]]\nsecret\n[[/collapsible]]",
+        );
+        assert!(html.contains(">+&nbsp;Spoilers<"), "{html}");
+        assert!(html.contains(">-&nbsp;Hide<"), "{html}");
+    }
 }
