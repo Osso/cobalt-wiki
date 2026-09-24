@@ -40,12 +40,30 @@ async function rpc(request, method, params) {
  * @param {string} token
  */
 async function readView(request, slug, token) {
-  return rpc(request, "page_view", {
-    site_id: siteId,
-    locales: ["en"],
-    session_token: token,
-    route: { slug, extra: "" }
+  const response = await request.post(backend, {
+    data: {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "page_view",
+      params: {
+        site_id: siteId,
+        locales: ["en"],
+        session_token: token,
+        route: { slug, extra: "" }
+      }
+    }
   })
+  assert.equal(response.status(), 200, `page_view status for ${slug}`)
+  /**
+   * @type {{
+   *   error?: { code?: string }
+   *   result?: import("../../src/lib/server/deepwell/views").PageView
+   * }}
+   */
+  const payload = await response.json()
+  assert.ok(!payload.error, `page_view error code ${payload.error?.code ?? "?"}`)
+  assert.ok(payload.result, `page_view result required for ${slug}`)
+  return payload.result
 }
 
 /**
@@ -68,14 +86,10 @@ async function readStored(request, slug) {
 function assertWritingSchema(fields) {
   assert.equal(fields.length, 28, "archived writing field count")
   const kinds = Object.groupBy(fields, (field) => field.kind)
-  for (const [kind, count] of Object.entries({
-    static: 12,
-    text: 8,
-    select: 7,
-    wiki: 1
-  })) {
-    assert.equal(kinds[kind]?.length, count, `${kind} field count`)
-  }
+  assert.equal(kinds.static?.length, 12, "static field count")
+  assert.equal(kinds.text?.length, 8, "text field count")
+  assert.equal(kinds.select?.length, 7, "select field count")
+  assert.equal(kinds.wiki?.length, 1, "wiki field count")
   assert.equal(new Set(fields.map((field) => field.name)).size, 28, "unique fields")
   for (const label of ["Summary", "Additional Content Warnings", "Digest?"]) {
     assert.ok(
@@ -98,6 +112,79 @@ async function assertStaticLabel(wrapper, label) {
 /**
  * @param {import("@playwright/test").Locator} wrapper
  * @param {import("../../src/lib/form-editor").FormField} field
+ * @param {unknown} value
+ * @param {string} label
+ */
+async function assertRadioControl(wrapper, field, value, label) {
+  await expect(wrapper.locator("legend")).toHaveText(label)
+  const radios = await wrapper.locator('input[type="radio"]').evaluateAll((inputs) =>
+    inputs.map((input) => {
+      if (!(input instanceof HTMLInputElement)) {
+        throw new TypeError("Expected radio input")
+      }
+      return {
+        value: input.value,
+        label: input.closest("label")?.textContent?.trim(),
+        checked: input.checked
+      }
+    })
+  )
+  assert.equal(
+    digest(
+      radios.map(({ value: code, label: optionLabel }) => ({
+        code,
+        label: optionLabel
+      }))
+    ),
+    digest(
+      field.options.map((option) => ({
+        code: text(option.code),
+        label: text(option.label)
+      }))
+    ),
+    `${field.name} radio options digest`
+  )
+  assert.equal(
+    digest(radios.filter((radio) => radio.checked).map((radio) => radio.value)),
+    digest(field.options.some((option) => option.code === value) ? [text(value)] : []),
+    `${field.name} selected radio digest`
+  )
+}
+
+/**
+ * @param {import("@playwright/test").Locator} control
+ * @param {import("../../src/lib/form-editor").FormField} field
+ * @param {unknown} value
+ */
+async function assertSelectControl(control, field, value) {
+  const options = await control.locator("option").evaluateAll((nodes) =>
+    nodes.map((node) => {
+      if (!(node instanceof HTMLOptionElement)) {
+        throw new TypeError("Expected option")
+      }
+      return { code: node.value, label: node.textContent?.trim() }
+    })
+  )
+  const declared = field.options.map((option) => ({
+    code: text(option.code),
+    label: text(option.label)
+  }))
+  const unknown = !field.options.some((option) => option.code === value)
+  assert.equal(
+    digest(options),
+    digest(unknown ? [{ code: text(value), label: text(value) }, ...declared] : declared),
+    `${field.name} options digest`
+  )
+  assert.equal(
+    digest(await control.inputValue()),
+    digest(text(value)),
+    `${field.name} default digest`
+  )
+}
+
+/**
+ * @param {import("@playwright/test").Locator} wrapper
+ * @param {import("../../src/lib/form-editor").FormField} field
  */
 async function assertDefaultControl(wrapper, field) {
   const label = text(field.properties.label) || field.name
@@ -112,57 +199,11 @@ async function assertDefaultControl(wrapper, field) {
     return
   }
   if (field.kind === "select" && field.options.length >= 2 && field.options.length <= 4) {
-    await expect(wrapper.locator("legend")).toHaveText(label)
-    const radios = await wrapper.locator('input[type="radio"]').evaluateAll((inputs) =>
-      inputs.map((input) => ({
-        value: input.value,
-        label: input.closest("label")?.textContent?.trim(),
-        checked: input.checked
-      }))
-    )
-    assert.equal(
-      digest(
-        radios.map(({ value: code, label: optionLabel }) => ({
-          code,
-          label: optionLabel
-        }))
-      ),
-      digest(
-        field.options.map((option) => ({
-          code: text(option.code),
-          label: text(option.label)
-        }))
-      ),
-      `${field.name} radio options digest`
-    )
-    assert.equal(
-      digest(radios.filter((radio) => radio.checked).map((radio) => radio.value)),
-      digest(field.options.some((option) => option.code === value) ? [text(value)] : []),
-      `${field.name} selected radio digest`
-    )
-    return
+    return assertRadioControl(wrapper, field, value, label)
   }
   await expect(wrapper.locator("label").first()).toHaveText(label)
   const control = wrapper.locator("input, textarea, select").first()
-  if (field.kind === "select") {
-    const options = await control
-      .locator("option")
-      .evaluateAll((nodes) =>
-        nodes.map((node) => ({ code: node.value, label: node.textContent?.trim() }))
-      )
-    const declared = field.options.map((option) => ({
-      code: text(option.code),
-      label: text(option.label)
-    }))
-    const unknown = !field.options.some((option) => option.code === value)
-    assert.equal(
-      digest(options),
-      digest(
-        unknown ? [{ code: text(value), label: text(value) }, ...declared] : declared
-      ),
-      `${field.name} options digest`
-    )
-  }
+  if (field.kind === "select") return assertSelectControl(control, field, value)
   assert.equal(
     digest(await control.inputValue()),
     digest(text(value)),
@@ -237,7 +278,7 @@ test("NewPage writing form labels, defaults and preview do not write", async () 
       const token = decodeURIComponent(cookie.value)
       const request = context.request
       const existing = await readView(request, existingSlug, token)
-      assert.equal(existing?.type, "found", "real writing page required")
+      assert.ok(existing.type === "found", "real writing page required")
       assert.ok(existing.data.form, "real writing form required")
       const fields = existing.data.form.schema.fields
       assertWritingSchema(fields)
