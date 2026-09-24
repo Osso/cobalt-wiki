@@ -1,6 +1,7 @@
-"""Run one Wikidot -> replica sync: pages changed since the newest known
-revision, then their dates and revision-list rows, then rerender the pages
-that show SiteChanges. Invoked by cobalt-wiki-wikidot-sync.service."""
+"""Run one Wikidot -> replica sync: renames, pages and files changed since the
+newest known revision and pages deleted on Wikidot, then their dates and
+revision-list rows, then rerender the pages that show SiteChanges. Invoked by
+cobalt-wiki-wikidot-sync.service."""
 
 import json
 import os
@@ -37,14 +38,18 @@ def rpc(method, params):
     "SELECT COALESCE(EXTRACT(EPOCH FROM max(changed_at))::bigint, 0) "
     f"FROM wikidot_site_change WHERE site_id = {int(site_id)}"
 )
+replica_pages = runtime / "replica-pages.json"
+replica_pages.write_text(json.dumps([slug for [slug] in query(
+    f"SELECT slug FROM page WHERE site_id = {int(site_id)} AND deleted_at IS NULL"
+)]))
 subprocess.run(
     [sys.executable, "-m", "tools.cobalt_migration.wikidot_sync",
-     origin, deepwell, site_id, password_file, since, str(runtime)],
+     origin, deepwell, site_id, password_file, since, str(runtime), str(replica_pages)],
     check=True,
 )
 subprocess.run([*psql.split(), "--set=ON_ERROR_STOP=1", "--quiet", "--file", str(runtime / "sync-apply.sql")], check=True)
 
-if json.loads((runtime / "sync-report.json").read_text()):
+if json.loads((runtime / "sync-report.json").read_text())["changed"]:
     pages = query(
         "SELECT p.site_id, p.page_category_id, p.page_id FROM page p "
         "JOIN LATERAL (SELECT wikitext_hash FROM page_revision r WHERE r.page_id = p.page_id "
