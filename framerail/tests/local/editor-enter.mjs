@@ -298,7 +298,6 @@ async function assertEditorFields(page, form, label) {
 
 /**
  * @param {import("@playwright/test").BrowserContext} context
- * @param {import("@playwright/test").Page} page
  * @param {string} slug
  * @param {{ url: string; edit: boolean }[]} blocked
  */
