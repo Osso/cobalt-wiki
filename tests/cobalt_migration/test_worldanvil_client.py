@@ -58,7 +58,10 @@ class WorldAnvilClientTests(unittest.TestCase):
                     start, limit = body["offset"], body["limit"]
                     status, payload, headers = (
                         200,
-                        owner.articles[start : start + limit],
+                        {
+                            "success": True,
+                            "entities": owner.articles[start : start + limit],
+                        },
                         {},
                     )
                 elif self.command == "GET" and path.path.endswith("/article"):
@@ -181,13 +184,24 @@ class WorldAnvilClientTests(unittest.TestCase):
 
     def test_invalid_pagination_rejects_duplicates(self):
         duplicate = [{"id": self.articles[0]["id"], "title": "Duplicate"}]
-        self.responses.extend([(200, self.articles[:50], {}), (200, duplicate, {})])
+        self.responses.extend(
+            [
+                (200, {"success": True, "entities": self.articles[:50]}, {}),
+                (200, {"success": True, "entities": duplicate}, {}),
+            ]
+        )
         with self.assertRaises(WorldAnvilError):
             self.client.list_articles(WORLD)
         self.assertEqual(len(self.requests), 2)
 
     def test_rejects_bad_article_page(self):
-        self.responses.append((200, [{"id": "bad", "title": "Invalid"}], {}))
+        self.responses.append(
+            (
+                200,
+                {"success": True, "entities": [{"id": "bad", "title": "Invalid"}]},
+                {},
+            )
+        )
         with self.assertRaises(WorldAnvilError):
             self.client.list_articles(WORLD)
         self.assertEqual(len(self.requests), 1)

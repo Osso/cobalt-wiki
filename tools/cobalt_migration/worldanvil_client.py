@@ -164,6 +164,9 @@ class WorldAnvilClient:
                 query={"id": world_id},
                 body={"offset": len(articles), "limit": 50},
             )
+            if not isinstance(page, dict) or page.get("success") is not True:
+                raise WorldAnvilError("invalid World Anvil article page envelope")
+            page = page.get("entities")
             if not isinstance(page, list) or len(page) > 50:
                 raise WorldAnvilError("invalid World Anvil article page")
             for article in page:
