@@ -287,6 +287,11 @@ pub enum Element<'t> {
     /// An embedded piece of media or content from elsewhere.
     Embed(Embed<'t>),
 
+    /// A video iframe from `[[embedvideo]]`, reduced to safe attributes.
+    ///
+    /// The "attributes" field always has a `src` on an allow-listed video host.
+    EmbedVideo { attributes: AttributeMap<'t> },
+
     /// Element containing a sandboxed HTML block.
     Html {
         contents: Cow<'t, str>,
@@ -392,6 +397,7 @@ impl Element<'_> {
             Element::MathInline { .. } => "MathInline",
             Element::EquationReference(_) => "EquationReference",
             Element::Embed(_) => "Embed",
+            Element::EmbedVideo { .. } => "EmbedVideo",
             Element::Html { .. } => "HTML",
             Element::Iframe { .. } => "Iframe",
             Element::Include { .. } => "Include",
@@ -448,6 +454,7 @@ impl Element<'_> {
             Element::MathInline { .. } => true,
             Element::EquationReference(_) => true,
             Element::Embed(_) => false,
+            Element::EmbedVideo { .. } => true,
             Element::Html { .. } | Element::Iframe { .. } => false,
             Element::Include { paragraph_safe, .. } => *paragraph_safe,
             Element::Style(_) => false,
@@ -639,6 +646,9 @@ impl Element<'_> {
                 Element::EquationReference(string_to_owned(name))
             }
             Element::Embed(embed) => Element::Embed(embed.to_owned()),
+            Element::EmbedVideo { attributes } => Element::EmbedVideo {
+                attributes: attributes.to_owned(),
+            },
             Element::Html {
                 contents,
                 attributes,

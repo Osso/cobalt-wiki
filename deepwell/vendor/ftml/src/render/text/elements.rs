@@ -233,7 +233,10 @@ pub fn render_element(ctx: &mut TextContext, element: &Element) {
         Element::EquationReference(name) => {
             str_write!(ctx, "[{name}]");
         }
-        Element::Embed(_) | Element::Html { .. } | Element::Iframe { .. } => {
+        Element::Embed(_)
+        | Element::EmbedVideo { .. }
+        | Element::Html { .. }
+        | Element::Iframe { .. } => {
             // Interactive or HTML elements like this don't make sense in
             // text mode, so we skip them.
         }

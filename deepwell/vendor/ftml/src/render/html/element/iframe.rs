@@ -31,6 +31,14 @@ pub fn render_iframe(ctx: &mut HtmlContext, url: &str, attributes: &AttributeMap
     ));
 }
 
+/// An `[[embedvideo]]` iframe, as Wikidot outputs it, with only the
+/// attributes the parser kept. No `crossorigin`, unlike `[[iframe]]`.
+pub fn render_embed_video(ctx: &mut HtmlContext, attributes: &AttributeMap) {
+    debug!("Rendering embedvideo iframe");
+
+    ctx.html().iframe().attr(attr!(;; attributes));
+}
+
 pub fn render_html(ctx: &mut HtmlContext, contents: &str, attributes: &AttributeMap) {
     debug!("Rendering html block (submitting to remote for iframe)");
 

@@ -66,7 +66,7 @@ use self::definition_list::render_definition_list;
 use self::embed::render_embed;
 use self::footnotes::{render_footnote, render_footnote_block};
 use self::gallery::render_gallery;
-use self::iframe::{render_html, render_iframe};
+use self::iframe::{render_embed_video, render_html, render_iframe};
 use self::image::render_image;
 use self::include::{render_include, render_variable};
 use self::input::{render_checkbox, render_radio_button};
@@ -219,6 +219,7 @@ pub fn render_element(ctx: &mut HtmlContext, element: &Element) {
         Element::MathInline { latex_source } => render_math_inline(ctx, latex_source),
         Element::EquationReference(name) => render_equation_reference(ctx, name),
         Element::Embed(embed) => render_embed(ctx, embed),
+        Element::EmbedVideo { attributes } => render_embed_video(ctx, attributes),
         Element::Html {
             contents,
             attributes,
