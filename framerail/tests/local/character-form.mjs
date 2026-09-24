@@ -229,13 +229,11 @@ async function previewName(page, slug, name) {
   assert.equal(response.status(), 200, `${slug} preview status`)
   const region = page.locator('section[aria-label="Page preview"]')
   await expect(region).toHaveAttribute("aria-busy", "false")
-  assert.ok(
-    await region.evaluate(
-      (element, marker) => element.textContent?.includes(marker),
-      name
-    ),
-    "preview must render edited Name"
-  )
+  await expect
+    .poll(() =>
+      region.evaluate((element, marker) => element.textContent?.includes(marker), name)
+    )
+    .toBe(true)
   await expect(page.locator("#editor").getByLabel("Name", { exact: true })).toHaveValue(
     name
   )
