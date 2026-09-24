@@ -1,0 +1,10 @@
+[[collapsible show="+ A" hide="- A"]]
+* one
+* two[[/collapsible]]
+
+[[div]]
+* three
+* four[[/div]]
+
+* [[span]]five[[/span]] six
+* seven [[span]]eight[[/span]]

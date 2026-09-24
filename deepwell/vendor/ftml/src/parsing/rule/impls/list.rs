@@ -109,18 +109,7 @@ fn try_consume_fn<'r, 't>(
         parser.step()?;
 
         // Parse elements until we hit the end of the line
-        let elements = collect_consume(
-            parser,
-            RULE_LIST,
-            &[
-                ParseCondition::current(Token::LineBreak),
-                ParseCondition::current(Token::ParagraphBreak),
-                ParseCondition::current(Token::InputEnd),
-            ],
-            &[],
-            None,
-        )?
-        .chain(&mut errors, &mut paragraph_safe);
+        let elements = collect_list_item(parser)?.chain(&mut errors, &mut paragraph_safe);
 
         // Empty list lines are ignored
         if elements.is_empty() {
@@ -142,6 +131,40 @@ fn try_consume_fn<'r, 't>(
         .into_iter()
         .map(|(ltype, depth_list)| build_list_element(ltype, depth_list))
         .collect();
+
+    ok!(paragraph_safe; elements, errors)
+}
+
+/// Consumes one list item's elements, up to the end of its line.
+///
+/// A block close (`[[/`) the item itself did not open also ends the item,
+/// but is left unconsumed so the enclosing block can match it, as in
+/// `[[collapsible]]\n* item[[/collapsible]]`. Inline blocks within the item
+/// consume their own close tags, so they never reach this check.
+fn collect_list_item<'r, 't>(
+    parser: &mut Parser<'r, 't>,
+) -> ParseResult<'r, 't, Vec<Element<'t>>> {
+    let mut elements = Vec::new();
+    let mut errors = Vec::new();
+    let mut paragraph_safe = true;
+
+    loop {
+        match parser.current().token {
+            Token::LineBreak | Token::ParagraphBreak => {
+                parser.step()?;
+                break;
+            }
+            Token::InputEnd | Token::LeftBlockEnd => break,
+            _ => {}
+        }
+
+        let old_remaining = parser.remaining();
+        elements.extend(consume(parser)?.chain(&mut errors, &mut paragraph_safe));
+
+        if parser.same_pointer(old_remaining) {
+            parser.step()?;
+        }
+    }
 
     ok!(paragraph_safe; elements, errors)
 }
