@@ -6,6 +6,7 @@ Render archived Wikidot form pages through their category `_template`, as Wikido
 
 - [x] When a page's category `_template` (or `_template` for the default category) is anonymously readable and contains one `[[form]]` definition, render the template text before its first `====` line instead of the page source.
 - [x] Substitute `%%form_data{field}%%` (select option label or stored value, shown as literal text like Wikidot's raw span; `wiki` fields as wikitext), `%%form_raw{field}%%` (stored value as wikitext), `%%title%%`, `%%name%%`, `%%fullname%%`; missing fields become empty and unknown tokens stay literal.
+- [x] A `form_data` raw span used as a triple-link label shows its text (`[[[player:{$author}|{$author}]]]` → `Alli`, as on Wikidot); in a table cell it stays literal (Wikidot's `pre-wrap` span, checked on writing:2025-08-20-time-for-questions). Fixture `deepwell/vendor/ftml/test/link/triple-raw` (`c370654`).
 - [x] Leave ListPages item templates inside the template untouched, so their tokens describe listed pages; module headers still receive this page's tokens (`tags="+%%name%%"`).
 - [x] Substitute before include expansion, so template includes receive filled arguments.
 - [x] Keep hidden pages (`_template`, `_public`) and pages in categories without a form template rendered from their own source.
