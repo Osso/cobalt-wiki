@@ -107,6 +107,7 @@ self_cell!(
 );
 
 impl TestRunner {
+    #[allow(unused)] // shared by every test binary; not all of them call it
     pub async fn setup() -> Self {
         Self::setup_with_config(Config::integration_testing()).await
     }
