@@ -116,7 +116,7 @@ impl TestRunner {
         Self::setup_with_config(config).await
     }
 
-    async fn setup_with_config(config: Config) -> Self {
+    pub async fn setup_with_config(config: Config) -> Self {
         let request_ctx = TestRunnerRequestContext::new(config).await;
         Self::new(request_ctx, TestRunnerRequestContext::build_service_context)
     }

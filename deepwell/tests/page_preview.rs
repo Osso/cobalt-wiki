@@ -3,6 +3,7 @@
 mod common;
 
 use common::TestRunner;
+use deepwell::config::Config;
 use deepwell::constants::ADMIN_USER_ID;
 use deepwell::error::ErrorType;
 use deepwell::services::RequestContext;
@@ -10,10 +11,16 @@ use deepwell::services::page::{CreatePageOutput, GetPageOutput};
 use deepwell::types::Reference;
 use sea_orm::{ConnectionTrait, DbBackend, Statement};
 use serde_json::json;
+use std::time::Duration;
+use tokio::time::timeout;
 
 const SLUG: &str = "preview:example";
 const TEMPLATE: &str = "[[form]]\nfields:\n  name:\n    type: text\n  count:\n    type: text\n[[/form]]\n+ %%title%%: %%form_data{name}%% (%%form_data{count}%%)";
 const SOURCE: &str = "name: Before\ncount: 3\nunknown: true\n";
+
+const PREPROCESS_BUDGET: Duration = Duration::from_millis(150);
+const RENDER_BUDGET: Duration = Duration::from_millis(1000);
+const INCLUDED_MARKER: &str = "INCLUDED_PREVIEW_DEPENDENCY_MARKER";
 
 async fn setup() -> (TestRunner, i64) {
     let mut runner = TestRunner::setup().await;
@@ -42,6 +49,57 @@ fn target(
         user_id: user,
         ..Default::default()
     });
+}
+
+async fn setup_with_short_preprocess_budget() -> (TestRunner, i64) {
+    let mut config = Config::integration_testing();
+    config.preprocess_timeout = PREPROCESS_BUDGET;
+    config.render_timeout = RENDER_BUDGET;
+    let mut runner = TestRunner::setup_with_config(config).await;
+    let site_id = run_endpoint!(runner, site_get, json!({"site": "test"}))
+        .unwrap()
+        .site
+        .site_id;
+    target(
+        &mut runner,
+        site_id,
+        Reference::Slug(SLUG.into()),
+        Some(ADMIN_USER_ID),
+    );
+    (runner, site_id)
+}
+
+async fn delay_included_source_read(
+    runner: &TestRunner,
+    revision_id: i64,
+    delay: Duration,
+) {
+    let db = runner.context().transaction();
+    let revision = db
+        .query_one_raw(Statement::from_string(
+            DbBackend::Postgres,
+            format!("SELECT wikitext_hash FROM page_revision WHERE revision_id = {revision_id}"),
+        ))
+        .await
+        .unwrap()
+        .unwrap();
+    let hash: Vec<u8> = revision.try_get("", "wikitext_hash").unwrap();
+    db.execute_unprepared(
+        "CREATE FUNCTION pg_temp.delay_preview_text(value text, seconds double precision)
+         RETURNS text LANGUAGE plpgsql AS $$
+         BEGIN PERFORM pg_sleep(seconds); RETURN value; END $$",
+    )
+    .await
+    .unwrap();
+    let view = format!(
+        "CREATE TEMP VIEW text AS SELECT hash,
+         CASE WHEN hash = decode('{}', 'hex')
+              THEN pg_temp.delay_preview_text(contents, {})
+              ELSE contents END AS contents FROM public.text",
+        hex::encode(hash),
+        delay.as_secs_f64(),
+    );
+    db.execute_unprepared(&view).await.unwrap();
 }
 
 async fn create(
@@ -100,6 +158,86 @@ async fn counts(runner: &TestRunner) -> Vec<i64> {
         values.push(result.try_get("", "n").unwrap());
     }
     values
+}
+
+#[tokio::test]
+async fn preview_renders_included_source_after_preprocess_budget_without_writes() {
+    let (mut runner, site_id) = setup_with_short_preprocess_budget().await;
+    let included =
+        create(&mut runner, site_id, "preview:included", INCLUDED_MARKER).await;
+    let page = create(&mut runner, site_id, SLUG, "Stored body").await;
+    delay_included_source_read(&runner, included.revision_id, Duration::from_millis(500))
+        .await;
+    target(
+        &mut runner,
+        site_id,
+        Reference::Id(page.page_id),
+        Some(ADMIN_USER_ID),
+    );
+    let before = counts(&runner).await;
+    let html = run_endpoint!(
+        runner,
+        page_preview,
+        json!({
+            "wikitext": "Submitted before\n[[include preview:included]]\nSubmitted after",
+            "last_revision_id": page.revision_id
+        })
+    )
+    .html;
+    assert!(html.contains(INCLUDED_MARKER), "{html}");
+    assert!(html.contains("Submitted after"), "{html}");
+    assert!(!html.contains("Stored body"), "{html}");
+    let saved = stored(&runner, site_id, page.page_id).await;
+    assert_eq!(saved.revision_id, page.revision_id);
+    assert_eq!(saved.wikitext.as_deref(), Some("Stored body"));
+    assert_eq!(counts(&runner).await, before);
+}
+
+#[tokio::test]
+async fn preview_over_aggregate_budget_fails_and_releases_database_transaction() {
+    let (mut runner, site_id) = setup_with_short_preprocess_budget().await;
+    let included =
+        create(&mut runner, site_id, "preview:included", INCLUDED_MARKER).await;
+    let page = create(&mut runner, site_id, SLUG, "Stored body").await;
+    delay_included_source_read(
+        &runner,
+        included.revision_id,
+        Duration::from_millis(1600),
+    )
+    .await;
+    target(
+        &mut runner,
+        site_id,
+        Reference::Id(page.page_id),
+        Some(ADMIN_USER_ID),
+    );
+    let before = counts(&runner).await;
+    let error = timeout(
+        Duration::from_secs(4),
+        deepwell::endpoints::all::page_preview(
+            runner.context(),
+            common::make_params(json!({
+                "wikitext": "[[include preview:included]]",
+                "last_revision_id": page.revision_id
+            })),
+        ),
+    )
+    .await
+    .expect("preview must finish within a bounded interval")
+    .expect_err("overbudget dependency read must fail");
+    assert_contains_error!(error, ErrorType::RenderTimeout);
+    let saved = timeout(
+        Duration::from_secs(4),
+        stored(&runner, site_id, page.page_id),
+    )
+    .await
+    .expect("transaction must serve another page read after timeout");
+    assert_eq!(saved.revision_id, page.revision_id);
+    assert_eq!(saved.wikitext.as_deref(), Some("Stored body"));
+    let after = timeout(Duration::from_secs(4), counts(&runner))
+        .await
+        .expect("transaction must serve another query after timeout");
+    assert_eq!(after, before);
 }
 
 #[tokio::test]
