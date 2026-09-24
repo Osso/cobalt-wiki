@@ -40,9 +40,9 @@ Verified: 2026-09-24. The immutable plan remained 6,092 pages and 1,471 files. T
 
 - Original page/file rows, file revisions, and nine imported-history rows remained unchanged.
 - A fresh inventory after injected lost native page-creation and file-creation responses excluded the already committed identity, proving restart does not duplicate either kind.
-- Search is idle with 6,101 documents and zero pending updates; queue depth is the four baseline periodic jobs. GC containers remain stopped.
+- Search is idle with 6,101 documents and zero pending updates; queue depth is the four baseline periodic jobs. GC containers remain stopped. Protected HTTP smoke proof records `/new-writing` returning `200` and native `page_search` returning the exact `new-writing` slug among 20 results.
 - Only local SQL migration `20260923000005` ran, changing an existing table so backend rendering could run.
-- Unit proof passed 44 tests at `da8a05a`; at `af26ce5`, 12 targeted type-error tests plus Ruff and formatting checks passed. Aggregate gate: `/tmp/cobalt-company-wiki-missing-only-gate-af26ce5.log`.
+- The earlier `da8a05a` gate executed 44 test cases, but that count includes duplicated global discovery of the imported `ImportTests` fixture and is not a unique-test count. Test-only `f8a4d71` removes that discovery duplication through a module alias; importer code remains `af26ce5`. At `af26ce5`, 12 targeted type-error tests plus Ruff and formatting checks passed. Aggregate gate: `/tmp/cobalt-company-wiki-missing-only-gate-af26ce5.log`. Follow-up verification is limited to five new scoped tests, Ruff, and discovery-count confirmation; do not rerun a broad suite.
 
 ### Preservation limitation
 
