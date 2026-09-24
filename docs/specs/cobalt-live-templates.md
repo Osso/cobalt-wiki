@@ -11,7 +11,7 @@ Render archived Wikidot form pages through their category `_template`, as Wikido
 - [x] Keep hidden pages (`_template`, `_public`) and pages in categories without a form template rendered from their own source.
 - [x] Render an explicit diagnostic for malformed form markers/definitions or a form page whose source is not a field record, without exposing its raw source or changing stored source.
 - [x] Queue only the affected category's pages for rerender when its `_template` changes, through the normal edit path without changing their records.
-- [ ] Deliver the queued rerenders through the worker and refresh their compiled bodies.
+- [x] Deliver queued rerenders through the local worker and refresh their compiled bodies within five seconds after a normal UI template edit.
 - [ ] Non-form live templates (`%%content%%`); none exist in the Cobalt archive.
 
 ## How it works
@@ -26,8 +26,8 @@ Archive check (2026-09-22): 5,969 of 5,970 pages in the eight form categories pa
 - `deepwell/src/services/render/page_tokens.rs`, `live_template.rs`: token substitution, `====` split and ListPages exclusion.
 - `deepwell/vendor/ftml/src/includes/test.rs`: `argument_values_exclude_whitespace_before_the_next_separator`.
 - `deepwell/tests/page_listing_invalidation.rs`: `editing_a_form_template_queues_only_its_category_without_changing_records` proves category-scoped queueing through a normal template edit; it passed against the dedicated empty Redis 15/test database at `72743dc` (`/tmp/claude/cobalt-template-edit-native.log`). The worker cannot observe this rollback-isolated fixture's private transaction, so compiled-body refresh remains unproven.
-- `framerail/tests/local/template-refresh.mjs` is the local browser acceptance test: revision `7d379f5` requires dependent compiled HTML to refresh within five seconds. Its earlier 30-second run failed at revision `476b5c0` (`/tmp/claude/cobalt-template-refresh-browser.log`), before the polling change, and is insufficient to judge the revised local runtime.
-- Revision `0aa9975` caps empty-queue exponential backoff with saturating doubling. The existing local preview runtime is configured for two workers and a one-to-two-second empty-queue poll (`/home/osso/.local/share/cobalt-wiki/local-full/deepwell.toml`); production configuration is unchanged. Runtime worker delivery still requires a fresh local browser proof.
+- `framerail/tests/local/template-refresh.mjs` is the local browser acceptance test: revision `7d379f5` requires dependent compiled HTML to refresh within five seconds. Its earlier 30-second run failed at revision `476b5c0` (`/tmp/claude/cobalt-template-refresh-browser.log`), before the polling change, and is insufficient to judge the revised local runtime. The revised local runtime passed 1/1 at `cc5da0a` after local deploy of `0aa9975` (`/tmp/claude/cobalt-template-refresh-browser-fast.log`): a normal UI template edit produced the dependent stored compiled `After` marker through the background worker in 1,865 ms. The dependent YAML/current revision and an unrelated page's source, revision, and compiled body remained unchanged; a UI reload displayed `After`.
+- Revision `0aa9975` caps empty-queue exponential backoff with saturating doubling. The existing local preview runtime is configured for two workers and a one-to-two-second empty-queue poll (`/home/osso/.local/share/cobalt-wiki/local-full/deepwell.toml`); production configuration is unchanged. Synthetic fixtures remain in use. This proves local worker refresh, not full replica readiness or source-parity behavior.
 
 ## Out of scope
 
