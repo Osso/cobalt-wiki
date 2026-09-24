@@ -122,6 +122,7 @@
     max-width: 100%;
   }
   .static-field {
+    margin-bottom: 0.75em;
     white-space: pre-wrap;
   }
   fieldset {
