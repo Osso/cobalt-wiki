@@ -124,7 +124,7 @@ mod test {
         // writing:_template, step 2.
         assert_eq!(
             render("[[button tags text=\"Click here to open the Tags editor\"]]"),
-            "<p><a class=\"wiki-standalone-button\" data-button-type=\"tags\">Click here to open the Tags editor</a></p>",
+            "<p><a href=\"javascript:;\" class=\"wiki-standalone-button\" data-button-type=\"tags\">Click here to open the Tags editor</a></p>",
         );
     }
 
@@ -133,7 +133,7 @@ mod test {
         // writing:_template: two spaces before text, and "@@" is not raw text.
         assert_eq!(
             render("[[button set-tags +_completed -@@  text=\"Publish\"]]"),
-            "<p><a class=\"wiki-standalone-button\" data-button-type=\"set-tags\" data-tags=\"+_completed -@@\">Publish</a></p>",
+            "<p><a href=\"javascript:;\" class=\"wiki-standalone-button\" data-button-type=\"set-tags\" data-tags=\"+_completed -@@\">Publish</a></p>",
         );
     }
 
@@ -141,7 +141,7 @@ mod test {
     fn omitted_text_uses_wikidot_default_label() {
         assert_eq!(
             render("[[button edit_sections]]"),
-            "<p><a class=\"wiki-standalone-button\" data-button-type=\"edit-sections\">edit sections</a></p>",
+            "<p><a href=\"javascript:;\" class=\"wiki-standalone-button\" data-button-type=\"edit-sections\">edit sections</a></p>",
         );
     }
 

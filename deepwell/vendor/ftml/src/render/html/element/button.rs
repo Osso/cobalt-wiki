@@ -20,15 +20,17 @@
 
 use super::prelude::*;
 
-/// Wikidot's `<a class="wiki-standalone-button">`, without its
-/// `href="javascript:;"` and `onclick` handler. The frontend wires the
-/// action from `data-button-type` (and `data-tags` for `set-tags`).
+/// Wikidot's `<a href="javascript:;" class="wiki-standalone-button">`,
+/// without its `onclick` handler. The href keeps it focusable and
+/// keyboard-activatable; the frontend wires the action from
+/// `data-button-type` (and `data-tags` for `set-tags`).
 pub fn render_button(ctx: &mut HtmlContext, button_type: &str, text: &str, tags: &str) {
     debug!("Rendering button (type '{button_type}', tags '{tags}')");
 
     ctx.html()
         .a()
         .attr(attr!(
+            "href" => "javascript:;",
             "class" => "wiki-standalone-button",
             "data-button-type" => button_type,
             "data-tags" => tags; if !tags.is_empty(),
