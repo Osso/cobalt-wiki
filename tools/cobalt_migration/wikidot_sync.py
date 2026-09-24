@@ -17,11 +17,13 @@ From Wikidot's revision list newer than ``SINCE`` (epoch), in this order:
    whose displayed size differs) are downloaded and replaced when the bytes
    differ; replica files absent from Wikidot are deleted only when a revision
    says the file was deleted, renamed or moved away.
-4. Deletions, when ``REPLICA_PAGES`` (JSON list of the replica's slugs) is
-   given. A permanent Wikidot delete removes the page and all its revisions,
-   so SiteChanges never shows it. Replica pages missing from Wikidot's full
-   ListPages listing are deleted (page_delete) only when the import principal
-   created them and Wikidot answers 404 "does not exist" for the page.
+4. Deletions, when ``REPLICA_PAGES`` is given: a JSON list of live replica
+   slugs that have rows in the replica's copy of Wikidot's revision list
+   (``wikidot_site_change``), so pages that only ever existed on the replica
+   are never candidates. A permanent Wikidot delete removes the page and all
+   its revisions, so SiteChanges never shows it. Listed pages missing from
+   Wikidot's full ListPages listing are deleted (page_delete) only when the
+   import principal created them and Wikidot answers 404 "does not exist".
 
 Writes ``sync-report.json`` (everything done or skipped, with reasons) and
 ``sync-apply.sql`` (page dates, new revision-list rows, revision-list rows

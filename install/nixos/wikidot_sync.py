@@ -38,9 +38,13 @@ def rpc(method, params):
     "SELECT COALESCE(EXTRACT(EPOCH FROM max(changed_at))::bigint, 0) "
     f"FROM wikidot_site_change WHERE site_id = {int(site_id)}"
 )
+# Deletion candidates: live replica pages Wikidot's revision list knows, so
+# replica-only pages (fixtures, pages made on the replica) are never compared.
 replica_pages = runtime / "replica-pages.json"
 replica_pages.write_text(json.dumps([slug for [slug] in query(
-    f"SELECT slug FROM page WHERE site_id = {int(site_id)} AND deleted_at IS NULL"
+    f"SELECT p.slug FROM page p WHERE p.site_id = {int(site_id)} AND p.deleted_at IS NULL "
+    "AND EXISTS (SELECT 1 FROM wikidot_site_change c "
+    "WHERE c.site_id = p.site_id AND c.page_slug = p.slug)"
 )]))
 subprocess.run(
     [sys.executable, "-m", "tools.cobalt_migration.wikidot_sync",
