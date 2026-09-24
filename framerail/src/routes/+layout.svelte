@@ -13,6 +13,7 @@
   import { resolve } from "$app/paths"
   import { submitNewPage } from "$lib/new-page"
   import { clickSiteChanges } from "$lib/site-changes"
+  import { clickCollapsible } from "$lib/collapsible"
 
   let { children } = $props()
 
@@ -48,8 +49,10 @@
           errorPopupState.current = { state: true, message, data: null }
         }
       )
-    const onClick = (event: MouseEvent) =>
+    const onClick = (event: MouseEvent) => {
       clickSiteChanges(event, (path) => window.location.assign(path))
+      clickCollapsible(event)
+    }
     window.addEventListener("submit", onSubmit, true)
     window.addEventListener("click", onClick, true)
     return () => {

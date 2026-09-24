@@ -1,0 +1,11 @@
+[[collapsible show="+ Show more" hide="- Hide more"]]
+Apple
+[[/collapsible]]
+
+[[collapsible show="+ Open" hide="- Close" folded="no" hideLocation="both"]]
+Mango
+[[/collapsible]]
+
+[[collapsible show="+ A & B" hide="- Close" hideLocation="bottom"]]
+Kiwi
+[[/collapsible]]

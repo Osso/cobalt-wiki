@@ -82,6 +82,19 @@ pub fn render_collapsible(ctx: &mut HtmlContext, collapsible: Collapsible) {
     let hide_text = hide_text
         .unwrap_or_else(|| ctx.handle().get_message(ctx.language(), "collapsible-hide"));
 
+    if ctx.layout() == Layout::Wikidot {
+        render_wikidot_collapsible(
+            ctx,
+            elements,
+            start_open,
+            show_text,
+            hide_text,
+            show_top,
+            show_bottom,
+        );
+        return;
+    }
+
     ctx.html()
         .details()
         .attr(attr!(
@@ -133,5 +146,75 @@ pub fn render_collapsible(ctx: &mut HtmlContext, collapsible: Collapsible) {
                             .contents(hide_text);
                     });
             }
+        });
+}
+
+/// Wikidot's markup: a folded link, and an unfolded part holding the hide
+/// link(s) and the content. Labels use `&nbsp;` for spaces, and Wikidot
+/// ignores attributes on collapsibles. Framerail's `clickCollapsible`
+/// swaps the two parts.
+fn render_wikidot_collapsible(
+    ctx: &mut HtmlContext,
+    elements: &[Element],
+    start_open: bool,
+    show_text: &str,
+    hide_text: &str,
+    show_top: bool,
+    show_bottom: bool,
+) {
+    fn link(ctx: &mut HtmlContext, text: &str) {
+        ctx.html()
+            .a()
+            .attr(attr!(
+                "class" => "collapsible-block-link",
+                "href" => "javascript:;",
+            ))
+            .inner(|ctx| {
+                for (index, word) in text.split(' ').enumerate() {
+                    if index > 0 {
+                        ctx.push_raw_str("&nbsp;");
+                    }
+                    ctx.push_escaped(word);
+                }
+            });
+    }
+
+    fn hide_link(ctx: &mut HtmlContext, text: &str) {
+        ctx.html()
+            .div()
+            .attr(attr!("class" => "collapsible-block-unfolded-link"))
+            .inner(|ctx| link(ctx, text));
+    }
+
+    ctx.html()
+        .div()
+        .attr(attr!("class" => "collapsible-block"))
+        .inner(|ctx| {
+            ctx.html()
+                .div()
+                .attr(attr!(
+                    "class" => "collapsible-block-folded",
+                    "style" => "display:none"; if start_open,
+                ))
+                .inner(|ctx| link(ctx, show_text));
+
+            ctx.html()
+                .div()
+                .attr(attr!(
+                    "class" => "collapsible-block-unfolded",
+                    "style" => "display:none"; if !start_open,
+                ))
+                .inner(|ctx| {
+                    if show_top {
+                        hide_link(ctx, hide_text);
+                    }
+                    ctx.html()
+                        .div()
+                        .attr(attr!("class" => "collapsible-block-content"))
+                        .contents(elements);
+                    if show_bottom {
+                        hide_link(ctx, hide_text);
+                    }
+                });
         });
 }
