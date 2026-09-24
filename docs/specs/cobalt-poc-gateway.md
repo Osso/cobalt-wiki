@@ -10,6 +10,10 @@
 - [ ] Replace client-supplied site headers with the provisioned site ID and `cobalt-company` slug; remove the user-ID and gateway Authorization headers before proxying.
 - [ ] Preserve cookies and the external HTTPS origin so same-origin sessions and SvelteKit CSRF validation continue to work.
 
+## Approved local-only exception
+
+The unmanaged full-preview gateway at `127.0.0.1:3090` has no nginx Basic Auth as of 2026-09-24. This approved localhost-only development exception removed only `auth_basic` and `auth_basic_user_file` from `/home/osso/.local/share/cobalt-wiki/local-full/nginx/nginx.conf`; it retains loopback binding, trusted headers, application authentication, and every other setting. It does not modify this production gateway contract, including the `127.0.0.1:3088` Basic Auth requirement.
+
 ## How it works
 
 - [Native runtime integration](../wiki/systems/cobalt-native-runtime.md)
