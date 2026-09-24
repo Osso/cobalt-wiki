@@ -128,6 +128,8 @@
 {/if}
 
 <style lang="scss">
+  @use "../../../lib/css/account-form" as *;
+
   .settings-account {
     display: grid;
     grid-template-columns: max-content 1fr;
@@ -157,15 +159,7 @@
       gap: 0.25em;
     }
 
-    input,
-    textarea {
-      padding: 0.4em;
-      font-size: 1.1em;
-    }
-
-    button {
-      align-self: flex-start;
-    }
+    @include account-form-controls("input, textarea");
   }
 
   .settings-result {

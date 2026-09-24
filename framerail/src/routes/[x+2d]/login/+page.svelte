@@ -73,6 +73,8 @@
 {/if}
 
 <style lang="scss">
+  @use "../../../lib/css/account-form" as *;
+
   .login-form {
     display: flex;
     flex-direction: column;
@@ -80,14 +82,7 @@
     max-width: 24em;
     margin: 1em auto;
 
-    input {
-      padding: 0.4em;
-      font-size: 1.1em;
-    }
-
-    button {
-      align-self: flex-start;
-    }
+    @include account-form-controls;
   }
 
   #login-title {
