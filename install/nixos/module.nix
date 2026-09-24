@@ -175,6 +175,23 @@ in
       type = lib.types.str;
       description = "Wikijump file-domain configuration supplied by routing integration.";
     };
+    databaseBackup = {
+      enable = lib.mkEnableOption "daily pg_dump of the Cobalt database to S3";
+      endpoint = lib.mkOption {
+        type = lib.types.str;
+        description = "S3 endpoint URL for the backup bucket, e.g. https://<account>.r2.cloudflarestorage.com.";
+      };
+      bucket = lib.mkOption {
+        type = lib.types.str;
+        default = "cobalt-wiki-backups";
+        description = "Backup bucket; its lifecycle rule expires old dumps. BACKUP_S3_ACCESS_KEY_ID/BACKUP_S3_SECRET_ACCESS_KEY in environmentFile are its keys.";
+      };
+      schedule = lib.mkOption {
+        type = lib.types.str;
+        default = "daily";
+        description = "systemd OnCalendar schedule.";
+      };
+    };
     externalStorage = lib.mkOption {
       type = lib.types.nullOr (
         lib.types.submodule {
@@ -267,6 +284,14 @@ in
       isSystemUser = true;
       group = account;
     };
+    systemd.timers.cobalt-wiki-database-backup = lib.mkIf cfg.databaseBackup.enable {
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnCalendar = cfg.databaseBackup.schedule;
+        Persistent = true;
+        RandomizedDelaySec = "15m";
+      };
+    };
     systemd.timers.cobalt-wiki-wikidot-sync = lib.mkIf cfg.wikidotSync.enable {
       wantedBy = [ "timers.target" ];
       timerConfig = {
@@ -310,6 +335,32 @@ in
       };
       }
       // {
+      cobalt-wiki-database-backup = lib.mkIf cfg.databaseBackup.enable {
+        description = "Back up the Cobalt database to S3";
+        requires = [ "cobalt-wiki-postgresql.service" ];
+        after = [
+          "cobalt-wiki-postgresql.service"
+          "network-online.target"
+        ];
+        wants = [ "network-online.target" ];
+        environment = {
+          PGHOST = socket;
+          PGUSER = account;
+        };
+        serviceConfig = common // {
+          Type = "oneshot";
+          RuntimeDirectory = "cobalt-wiki-database-backup";
+          EnvironmentFile = cfg.environmentFile;
+          ExecStart = lib.escapeShellArgs [
+            python
+            "${./database_backup.py}"
+            "${postgres}/bin/pg_dump"
+            "${pkgs.minio-client}/bin/mc"
+            cfg.databaseBackup.endpoint
+            cfg.databaseBackup.bucket
+          ];
+        };
+      };
       cobalt-wiki-wikidot-sync = lib.mkIf cfg.wikidotSync.enable {
         description = "Sync pages changed on Wikidot into the Cobalt replica";
         requires = [ "cobalt-wiki-deepwell.service" ];
