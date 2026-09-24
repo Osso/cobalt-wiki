@@ -270,7 +270,8 @@ async function observeSubmits(page) {
   await page.locator("#editor").evaluate((element) => {
     element.addEventListener(
       "submit",
-      () => {
+      (event) => {
+        if (event.target !== element) return
         element.dataset.enterSubmitCount = String(
           Number(element.dataset.enterSubmitCount ?? 0) + 1
         )
@@ -351,6 +352,46 @@ async function assertInputEnter(page, form, label, editCount) {
     : editor.locator('[name="wikitext"]')
   await assertTextareaEnter(page, textarea, marker, editCount)
   await assertCompositionNotPrevented(page, title)
+}
+
+/**
+ * @param {import("@playwright/test").Page} page
+ * @param {() => number} editCount
+ */
+async function assertUrlWizardEnter(page, editCount) {
+  const editor = page.locator("#editor")
+  const source = editor.locator('[name="wikitext"]')
+  const prefix = "Wizard Enter proof "
+  const uri = `${origin}/cobalt-editor/icons1.png`
+  const anchor = "Synthetic anchor"
+  await source.fill(prefix)
+  await page
+    .getByRole("toolbar", { name: "Wikitext formatting" })
+    .getByRole("button", { name: "URL link wizard", exact: true })
+    .click()
+  const dialog = page.getByRole("dialog", { name: "URL link wizard" })
+  await expect(dialog).toBeVisible()
+  await dialog.getByLabel("URL:").fill(uri)
+  const anchorInput = dialog.getByLabel("Anchor text:")
+  await anchorInput.fill(anchor)
+  const ownsWizardForm = await anchorInput.evaluate((element) => {
+    if (!(element instanceof HTMLInputElement)) throw new Error("anchor input required")
+    const editorForm = document.querySelector("#editor")
+    if (!(editorForm instanceof HTMLFormElement)) throw new Error("editor form required")
+    return (
+      element.form instanceof HTMLFormElement &&
+      element.form !== editorForm &&
+      element.form.closest("dialog") === element.closest("dialog")
+    )
+  })
+  assert.ok(ownsWizardForm, "anchor input must belong to wizard form, not editor")
+  const submits = await countSubmits(page)
+  const requests = editCount()
+  await anchorInput.press("Enter")
+  await expect(dialog).toHaveCount(0)
+  await expect(source).toHaveValue(`${prefix}[${uri} ${anchor}]`)
+  assert.equal(await countSubmits(page), submits, "wizard Enter must not submit editor")
+  assert.equal(editCount(), requests, "wizard Enter must not request edit action")
 }
 
 /**
@@ -463,6 +504,7 @@ async function checkTarget(context, fixture, token, target) {
     await observeSubmits(page)
     const editCount = () => blocked.filter((entry) => entry.edit).length
     await assertInputEnter(page, form, label, editCount)
+    if (!form) await assertUrlWizardEnter(page, editCount)
     assertOnlySavePost(blocked, 0, slug)
     await assertSaveEnter(page, slug, editCount)
     expectedSaves = 1
