@@ -30,6 +30,7 @@ mod endpoint;
 mod error;
 
 mod audit;
+mod mailgun;
 mod params;
 mod runner;
 
@@ -38,6 +39,9 @@ pub use self::audit::*;
 
 #[allow(unused_imports)]
 pub use self::error::extract_error;
+
+#[allow(unused_imports)]
+pub use self::mailgun::*;
 
 pub use self::params::*;
 pub use self::runner::TestRunner;
