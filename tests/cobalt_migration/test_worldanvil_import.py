@@ -1,9 +1,9 @@
 """Behavioral tests for additive World Anvil import decisions and checkpoints."""
 
 import json
-from pathlib import Path
 import tempfile
 import unittest
+from pathlib import Path
 
 from tools.cobalt_migration.worldanvil_import import (
     ImportBlocked,

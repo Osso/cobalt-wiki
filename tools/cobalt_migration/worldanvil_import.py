@@ -2,9 +2,9 @@
 
 import hashlib
 import json
-from pathlib import Path
 import re
 import unicodedata
+from pathlib import Path
 
 from .archive import write_manifest
 
@@ -36,7 +36,9 @@ def _text(value):
 
 def _plain(value):
     value = _text(value)
-    if re.search(r"\[|\]|\*\*|//|__|\|\||@@|^\s*[+*>#]|^\s*[-=]{3,}", value, re.M):
+    if re.search(
+        r"\[|\]|\*\*|//|__|\|\||@@|^\s*[+*>#]|^\s*[-=]{3,}", value, re.MULTILINE
+    ):
         raise ImportBlocked("wiki formatting needs conversion before import")
     return value
 

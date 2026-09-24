@@ -16,12 +16,15 @@
 | Unknown nonempty player fields | Blocked | Conversion fails rather than dropping data. |
 | Characters, background characters, writings, reference pages, templates, dynamic pages, and all other categories | Missing | No converter is implemented. |
 | Cross-page links and attachment preservation | Missing | No conversion or upload/link workflow is implemented. |
-| Destination-wide identity reconciliation and baseline comparison | Missing | No implementation or live destination audit has established this. |
+| Destination-wide identity reconciliation | Partial | Title/slug and archive-ID audits exist; manual profile-name review found additional aliases. Remaining candidates are not proven absent. |
+| Pre-existing article preservation | Observed for first four additions | All 175 baseline article records retained identical article-owned fields; only nested world/category update timestamps changed. |
 
 ## Source and execution status
 
 - Audit inventory: 6,092 source pages across 18 namespaces and 1,471 media files.
-- No production World Anvil write has occurred as of this audit.
+- Verified September 24, 2026: created four private player articles—Anakin, Barry, E, Sharksu—in the existing Players category. Live inventory increased from 175 to 179; readbacks matched submitted content, sidebar, tags, privacy, and category.
+- Operation evidence: `/home/osso/.local/share/cobalt-wiki/worldanvil/import-20260924/` contains the creation journal, payload plan, before/after inventories and article details, and `preservation-proof.json`. Eight remaining player candidates have portraits and were not created.
+- Independent slice verification passed 16 focused tests and checked all four created readbacks plus 175 pre-existing records. Full migration is not complete.
 - The full all-missing-pages migration remains open; this module is not an importer for the full source inventory.
 
 ## How it works
