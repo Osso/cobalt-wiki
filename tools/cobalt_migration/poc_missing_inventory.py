@@ -16,10 +16,10 @@ def _valid_field(field, value):
 def _records(inventory, key, fields):
     records = inventory.get(key)
     if not isinstance(records, list):
-        raise ValueError(f"inventory {key} must be a complete array")
+        raise TypeError(f"inventory {key} must be a complete array")
     for record in records:
         if not isinstance(record, dict):
-            raise ValueError(f"inventory {key} contains a malformed record")
+            raise TypeError(f"inventory {key} contains a malformed record")
         for field in fields:
             value = record.get(field)
             if not _valid_field(field, value):

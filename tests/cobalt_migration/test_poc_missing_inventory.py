@@ -214,7 +214,12 @@ class MissingInventoryTests(unittest.TestCase):
             with self.subTest(key=key, value=value):
                 target = inventory()
                 target[key] = value
-                with self.assertRaises(ValueError):
+                error_type = (
+                    TypeError
+                    if key in ("page_revisions", "files") and value is None
+                    else ValueError
+                )
+                with self.assertRaises(error_type):
                     select_missing(source, target)
 
     def test_conflicting_revision_ids_fail_closed(self):
@@ -235,6 +240,12 @@ class MissingInventoryTests(unittest.TestCase):
                 target[key] = [first, second]
                 with self.assertRaises(ValueError):
                     select_missing(plan([page("one")], []), target)
+
+    def test_non_mapping_records_raise_type_error(self):
+        target = inventory()
+        target["pages"] = [None]
+        with self.assertRaises(TypeError):
+            select_missing(plan([page("x")], []), target)
 
     def test_malformed_records_fail_instead_of_appearing_absent(self):
         for key, record in [

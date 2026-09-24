@@ -16,29 +16,29 @@ class TaggedStore(Store):
 
 def inventory(plan, store):
     pages = [
-        dict(
-            page_id=p["page_id"],
-            slug=p["slug"],
-            deleted=False,
-            latest_revision_id=p["revision_id"],
-        )
+        {
+            "page_id": p["page_id"],
+            "slug": p["slug"],
+            "deleted": False,
+            "latest_revision_id": p["revision_id"],
+        }
         for p in store.pages.values()
     ]
     files = [
-        dict(file_id=i + 1, page_id=p, name=n, deleted=False)
+        {"file_id": i + 1, "page_id": p, "name": n, "deleted": False}
         for i, (p, n) in enumerate(store.files)
     ]
-    return dict(
-        schema=1,
-        site_id=plan["site_id"],
-        plan_sha256=plan["plan_sha256"],
-        rpc_endpoint="http://127.0.0.1:2749/jsonrpc",
-        pages=pages,
-        page_revisions=[],
-        files=files,
-        file_revisions=[],
-        orphan_audit_page_ids=[],
-    )
+    return {
+        "schema": 1,
+        "site_id": plan["site_id"],
+        "plan_sha256": plan["plan_sha256"],
+        "rpc_endpoint": "http://127.0.0.1:2749/jsonrpc",
+        "pages": pages,
+        "page_revisions": [],
+        "files": files,
+        "file_revisions": [],
+        "orphan_audit_page_ids": [],
+    }
 
 
 class MissingApplyTests(unittest.TestCase):
