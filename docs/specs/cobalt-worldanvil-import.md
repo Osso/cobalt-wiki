@@ -1,28 +1,38 @@
 # Additive World Anvil import
 
-`tools/cobalt_migration/worldanvil_import.py` provides create-only import primitives. The requested migration covers **all missing Cobalt wiki pages**, while preserving every existing destination article, including manually edited player and character profiles. These primitives do not yet implement that full conversion scope.
+`tools/cobalt_migration/worldanvil_import.py` provides create-only primitives. The requested migration remains **all missing Cobalt wiki pages**, preserving every existing destination article. Only text-only player conversion is implemented.
 
-## What it must do
+## Current capability matrix
 
-- [x] Preserve existing same-name articles without issuing a creation request.
-- [x] Record a pending attempt before creation; an uncertain result cannot trigger an automatic second creation.
-- [x] Record the returned ID before readback; mismatched content remains unverified rather than being declared imported.
-- [x] Preserve text-only player biography, RP/contact preferences, and sidebar fields in private articles.
-- [x] Block unsupported player markup, portraits, and unknown nonempty fields rather than silently discarding content.
-- [ ] Cover every source category, including character/background-character forms, writings, reference pages, templates, and dynamic pages; report unrepresentable cases explicitly.
-- [ ] Resolve source aliases against destination identity evidence before selecting additions. User-confirmed `player:ozmaasimov` refers to the existing Ozma article, not a missing profile.
-- [ ] Preserve media and links; API limitations are blockers, not permission to omit attachments.
-- [ ] Verify all additions by live readback and compare pre-existing destination pages against a saved baseline.
+| Source capability | Status | Proof / boundary |
+| --- | --- | --- |
+| Existing destination articles | Supported | A matching normalized title, slug, or `cobalt-source:<fullname>` tag records `existing`; no create request follows. Local behavioral test. |
+| Player `whoAmI`, `rpPrefs`, `contactPrefs` text | Supported | Converts plain text to Plutarch section headings and paragraphs in a private article. Local behavioral test. |
+| Player `nicknames`, `pronouns`, `battleTag`, `discordUsername`, `timezone` text | Supported | Converts plain text to sidebar definitions. Local behavioral test. |
+| Player source tags | Supported | Retains source tags and adds `player` plus `cobalt-source:<fullname>`. Local behavioral test. |
+| Create journal and readback | Supported | Writes pending before create; uncertain responses block another create; a readback mismatch remains `created_unverified`. Local behavioral test. |
+| Player portraits and other image/media content | Blocked | A nonempty `portrait` blocks conversion. Upload and destination media linking are not implemented. |
+| Wikidot-style markup in supported player text | Blocked | Detected formatting blocks conversion rather than being transformed or discarded. |
+| Unknown nonempty player fields | Blocked | Conversion fails rather than dropping data. |
+| Characters, background characters, writings, reference pages, templates, dynamic pages, and all other categories | Missing | No converter is implemented. |
+| Cross-page links and attachment preservation | Missing | No conversion or upload/link workflow is implemented. |
+| Destination-wide identity reconciliation and baseline comparison | Missing | No implementation or live destination audit has established this. |
+
+## Source and execution status
+
+- Audit inventory: 6,092 source pages across 18 namespaces and 1,471 media files.
+- No production World Anvil write has occurred as of this audit.
+- The full all-missing-pages migration remains open; this module is not an importer for the full source inventory.
 
 ## How it works
 
 - [Create-only transport contract](cobalt-worldanvil-client.md)
-- Source identities come from [page metadata](cobalt-page-metadata.md) and the [listing export](cobalt-listing-export.md); page content comes from the native backup.
-- Journal files are atomically written with owner-only permissions outside the repository. A pending or unverified creation requires reconciliation, not another create request.
+- The caller supplies source identity, converted payload, and journal path.
+- A pending or unverified creation requires reconciliation, not another create request.
 
 ## Implementation inventory
 
-- `tools/cobalt_migration/worldanvil_import.py`: text-only player payload conversion, last-moment identity check, creation journal, readback checks.
+- `tools/cobalt_migration/worldanvil_import.py`: text-only player payload conversion, destination identity check, creation journal, readback checks.
 - `tools/cobalt_migration/worldanvil_client.py`: read and create transport; no update/delete operation.
 
 ## Tests asserting this spec
@@ -32,8 +42,10 @@
 
 ## Known gaps (current cycle)
 
-- [ ] Character, writing, and other page conversions are not implemented here.
-- [ ] Image upload is documented as unavailable through Boromir; authenticated web access is needed to establish an alternative supported workflow.
+- [ ] All non-player page-category conversions are unimplemented.
+- [ ] Media upload and destination media linking are unimplemented.
+- [ ] Wikidot markup conversion is unimplemented.
+- [ ] Unknown player fields need explicit mappings before import.
 - [ ] No ongoing synchronization is implemented.
 
 ## Out of scope

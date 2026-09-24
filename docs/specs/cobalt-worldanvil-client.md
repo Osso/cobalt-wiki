@@ -13,4 +13,4 @@
 
 ## Proof and boundaries
 
-`tests/cobalt_migration/test_worldanvil_client.py` exercises a local HTTP server: 75 article refs across two pages, exact-50 terminal pagination, GET granularity and credential headers, create-only effect preserving an existing article, failed PUT attempted once, read retries and Retry-After, malformed responses and duplicate IDs. No production API mutations, importer/conversion behavior or source acquisition are covered here.
+`tests/cobalt_migration/test_worldanvil_client.py` exercises a local HTTP server: 75 article refs across two pages, exact-50 terminal pagination, the observed `{"success": true, "entities": [...]}` listing envelope, GET granularity and credential headers, create-only effect preserving an existing article, failed PUT attempted once, read retries and Retry-After, malformed responses and duplicate IDs. No production World Anvil write has occurred as of this audit. Importer/conversion behavior and source acquisition are not covered here.
