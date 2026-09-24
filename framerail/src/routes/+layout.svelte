@@ -85,6 +85,10 @@
 
 <svelte:head>
   <title>{page.data.site?.name}</title>
+  {#if page.data.site?.slug === "cobalt-company"}
+    <!-- Cobalt's Wikidot favicon (local--favicon/favicon.gif, a PNG) -->
+    <link href="/cobalt-favicon.png" rel="icon" type="image/png" />
+  {/if}
 </svelte:head>
 
 {#if pageLayoutState.current === Layout.WIKIDOT}
