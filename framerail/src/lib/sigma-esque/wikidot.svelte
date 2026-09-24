@@ -97,6 +97,118 @@
     }
   }
 
+  /*
+   * Replica chrome over the site theme's dark background image: the account
+   * links, search box and footer sit on translucent dark panels so their
+   * text stays readable (Wikidot's own styling is not required here).
+   */
+  $chrome-panel: rgb(8 12 36 / 72%);
+  $chrome-text: #e6eaff;
+  $chrome-link: #9fd4ff;
+
+  #header #login-status {
+    padding: 0.25em 0.75em;
+    color: $chrome-text;
+    background: $chrome-panel;
+    border-radius: 6px;
+
+    a,
+    a:visited {
+      color: $chrome-link;
+      text-decoration: none;
+      background: none;
+      border: 0;
+      box-shadow: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .printuser {
+      font-weight: bold;
+      color: $chrome-text;
+    }
+
+    #account-topbutton {
+      padding: 0 0.25em;
+      font-size: 0.8em;
+    }
+
+    #account-options {
+      position: absolute;
+      right: 0;
+      z-index: 20;
+      margin-top: 0.25em;
+      background: $chrome-panel;
+      border-radius: 6px;
+
+      ul {
+        padding: 0.4em 0.9em;
+        margin: 0;
+        list-style: none;
+      }
+    }
+  }
+
+  #header #search-top-box {
+    form {
+      display: flex;
+      gap: 0.35em;
+      align-items: stretch;
+      padding: 0.3em;
+      background: $chrome-panel;
+      border-radius: 6px;
+    }
+
+    input#search-top-box-input {
+      box-sizing: border-box;
+      height: 2em;
+      padding: 0 0.6em;
+      font-size: 0.95em;
+      color: #111;
+      background: #fff;
+      border: 1px solid #7d8fc4;
+      border-radius: 4px;
+    }
+
+    input.button {
+      height: 2em;
+      padding: 0 0.9em;
+      font-size: 0.95em;
+      color: #fff;
+      cursor: pointer;
+      background: #1f5fa8;
+      border: 1px solid #3f7fcf;
+      border-radius: 4px;
+    }
+
+    input.button:hover {
+      background: #2a72c4;
+    }
+  }
+
+  #container #footer,
+  #container #license-area {
+    color: $chrome-text;
+    background: $chrome-panel;
+
+    a,
+    a:visited {
+      color: $chrome-link;
+    }
+  }
+
+  #container #footer {
+    padding: 0.5em 1em;
+    border-radius: 6px 6px 0 0;
+  }
+
+  #container #license-area {
+    padding: 0.4em 1em 0.6em;
+    border-radius: 0 0 6px 6px;
+  }
+
   @media (max-width: $tablet-max-width) {
     .header {
       height: initial;
