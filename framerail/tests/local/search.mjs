@@ -4,11 +4,8 @@ import { readFile } from "node:fs/promises"
 import { test } from "node:test"
 import { chromium, expect, request } from "@playwright/test"
 
-// COBALT_SEARCH_URL          replica origin, e.g. http://127.0.0.1:3090
-// COBALT_POC_HTPASSWD        gateway htpasswd (user name is read from it)
-// COBALT_LOCAL_PASSWORD_FILE gateway password
-const preview = process.env.COBALT_SEARCH_URL
-const htpasswd = process.env.COBALT_POC_HTPASSWD
+// COBALT_SEARCH_FIXTURE: prepared sacrificial search fixture JSON
+const preview = "http://127.0.0.1:3090"
 const searchPath = "/search:site"
 const pageSize = 20
 
@@ -45,7 +42,7 @@ function assertNoindex(response) {
   assert.match(
     response.headers()["x-robots-tag"] ?? "",
     /(?:^|,)\s*noindex(?:\s*,|$)/i,
-    "search gateway must prohibit indexing"
+    "local search response must prohibit indexing"
   )
 }
 
@@ -138,21 +135,22 @@ async function assertPagination(page, fixture) {
   assert.deepEqual(await readResultSlugs(page), firstPage, "Previous restores first page")
 }
 
-test("protected hydrated search returns a prepared result and distinct pagination", async () => {
+test("loopback hydrated search returns a prepared result and distinct pagination", async () => {
   const fixturePath = process.env.COBALT_SEARCH_FIXTURE
-  const passwordPath = process.env.COBALT_LOCAL_PASSWORD_FILE
-  assert.ok(
-    preview && htpasswd && fixturePath && passwordPath,
-    "replica origin, search fixture and gateway files required"
-  )
+  assert.ok(fixturePath, "prepared sacrificial search fixture required")
   const fixture = await readFixture(fixturePath)
   const unauthenticated = await request.newContext()
   try {
-    const denied = await unauthenticated.get(`${preview}${searchPath}`, {
+    const search = await unauthenticated.get(`${preview}${searchPath}`, {
       maxRedirects: 0
     })
-    assert.equal(denied.status(), 401, "search route must require BasicAuth")
-    assertNoindex(denied)
+    assert.equal(search.status(), 200, "public search route must be accessible")
+    assert.equal(
+      search.headers()["www-authenticate"],
+      undefined,
+      "no BasicAuth challenge"
+    )
+    assertNoindex(search)
   } finally {
     await unauthenticated.dispose()
   }
@@ -162,13 +160,7 @@ test("protected hydrated search returns a prepared result and distinct paginatio
     headless: true
   })
   try {
-    const context = await browser.newContext({
-      httpCredentials: {
-        username: (await readFile(htpasswd, "utf8")).split(":")[0].trim(),
-        password: (await readFile(passwordPath, "utf8")).trim(),
-        origin: preview
-      }
-    })
+    const context = await browser.newContext()
     try {
       const page = await context.newPage()
       /** @type {string[]} */
@@ -182,10 +174,20 @@ test("protected hydrated search returns a prepared result and distinct paginatio
       })
       assert.ok(initial)
       assert.equal(initial.status(), 200, "fixture page must be accessible")
+      assert.equal(
+        initial.headers()["www-authenticate"],
+        undefined,
+        "no BasicAuth challenge"
+      )
       assertNoindex(initial)
       await submitHeaderSearch(page, fixture.query)
       const searchResponse = await context.request.get(page.url())
       assert.equal(searchResponse.status(), 200, "search route must be accessible")
+      assert.equal(
+        searchResponse.headers()["www-authenticate"],
+        undefined,
+        "no BasicAuth challenge"
+      )
       assertNoindex(searchResponse)
       await assertPlainTextResults(page)
       await assertExpectedResult(page, fixture)
