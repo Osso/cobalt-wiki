@@ -144,7 +144,7 @@
   action="?/edit"
   method="POST"
   use:enhance
-  onkeydown={preventEditorImplicitSubmit}
+  use:preventEditorImplicitSubmit
 >
   <input
     name="title"

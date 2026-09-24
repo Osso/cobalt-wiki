@@ -284,7 +284,7 @@ async function observeSubmits(page) {
 /**
  * @param {import("@playwright/test").Page} page
  * @param {boolean} form
- * @param {(name: string) => string | undefined} label
+ * @param {(name: string) => string} label
  */
 async function assertEditorFields(page, form, label) {
   const editor = page.locator("#editor")
@@ -318,7 +318,11 @@ async function trapPagePosts(context, slug, blocked) {
   })
 }
 
-/** @param {{ url: string; edit: boolean }[]} blocked */
+/**
+ * @param {{ url: string; edit: boolean }[]} blocked
+ * @param {number} expected
+ * @param {string} slug
+ */
 function assertOnlySavePost(blocked, expected, slug) {
   assert.deepEqual(
     blocked.filter((entry) => !entry.edit),
