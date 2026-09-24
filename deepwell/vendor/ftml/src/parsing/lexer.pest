@@ -121,12 +121,12 @@ token = _{
 
 identifier = @{ (ASCII_ALPHANUMERIC | ASCII_DIGIT)+ }
 
+// Address shape only, so markup such as "[[cell]]@<" is not an email.
 email = @{
-    (!(" " | "\t" | "@" | NEWLINE) ~ ANY)+ ~
+    (ASCII_ALPHANUMERIC | "." | "_" | "%" | "+" | "-")+ ~
     "@" ~
-    (!(" " | "\t" | "." | NEWLINE) ~ ANY)+ ~
-    "." ~
-    (!(" " | "\t" | NEWLINE) ~ ANY)+
+    (ASCII_ALPHANUMERIC | "-")+ ~
+    ("." ~ (ASCII_ALPHANUMERIC | "-")+)+
 }
 
 url = @{

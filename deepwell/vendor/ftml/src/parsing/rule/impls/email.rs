@@ -32,3 +32,42 @@ fn try_consume_fn<'r, 't>(
     debug!("Consuming token as an email");
     ok!(Element::Email(cow!(parser.current().slice)))
 }
+
+#[cfg(test)]
+mod test {
+    use crate::data::PageInfo;
+    use crate::layout::Layout;
+    use crate::render::{Render, html::HtmlRender};
+    use crate::settings::{WikitextMode, WikitextSettings};
+
+    fn render(text: &str) -> String {
+        let settings = WikitextSettings::from_mode(WikitextMode::Page, Layout::Wikidot);
+        let tokens = crate::tokenize(text);
+        let page_info = PageInfo::dummy();
+        let (tree, _) = crate::parse(&tokens, &page_info, &settings).into();
+        HtmlRender.render(&tree, &page_info, &settings).body
+    }
+
+    #[test]
+    fn raw_span_after_block_is_not_an_email() {
+        // bgc:pennings: form_data values arrive as @<...>@ raw spans in cells.
+        let html = render(
+            "[[table]]\n[[row]]\n[[cell]]@<J.C. Pennings>@[[/cell]]\n[[/row]]\n[[/table]]",
+        );
+        assert!(!html.contains("[[cell]]"), "{html}");
+        assert!(!html.contains("mailto:"), "{html}");
+        assert!(html.starts_with("<table>"), "{html}");
+        assert!(html.contains(">J.C. Pennings</span></td>"), "{html}");
+    }
+
+    #[test]
+    fn real_address_still_links() {
+        let html = render("Contact: j.c.pennings+cobalt@mail.example.org now");
+        assert!(
+            html.contains(
+                "<a href=\"mailto:j.c.pennings+cobalt@mail.example.org\">j.c.pennings+cobalt@mail.example.org</a>"
+            ),
+            "{html}"
+        );
+    }
+}
