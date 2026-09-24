@@ -42,7 +42,7 @@ fn parse_fn<'r, 't>(
     assert!(!flag_score, "iframe doesn't allow score flag");
     assert_block_name(&BLOCK_IFRAME, name);
 
-    let (url, arguments) = parser.get_head_name_map(&BLOCK_IFRAME, in_head)?;
+    let (url, arguments) = parser.get_head_name_lenient_map(&BLOCK_IFRAME, in_head)?;
     if !is_url(url) {
         warn!("Iframe block references non-URL: {url}");
         return Err(parser.make_err(ParseErrorKind::BlockMalformedArguments));
@@ -54,4 +54,37 @@ fn parse_fn<'r, 't>(
     };
 
     ok!(element)
+}
+
+#[cfg(test)]
+mod test {
+    use crate::data::PageInfo;
+    use crate::layout::Layout;
+    use crate::render::{Render, html::HtmlRender};
+    use crate::settings::{WikitextMode, WikitextSettings};
+
+    fn render(text: &str) -> String {
+        let settings = WikitextSettings::from_mode(WikitextMode::Page, Layout::Wikidot);
+        let tokens = crate::tokenize(text);
+        let page_info = PageInfo::dummy();
+        let (tree, _) = crate::parse(&tokens, &page_info, &settings).into();
+        HtmlRender.render(&tree, &page_info, &settings).body
+    }
+
+    #[test]
+    fn unquoted_argument_is_dropped_and_the_iframe_kept_like_wikidot() {
+        // herbalists-compendium: frameborder=0 has no quotes.
+        let html = render(
+            "[[iframe https://docs.google.com/document/d/x/ frameborder=0 width=\"100%\" height=\"500px\" scrolling=\"yes\"]]",
+        );
+        assert!(!html.contains("[[iframe"), "{html}");
+        assert!(html.contains("<iframe"), "{html}");
+        assert!(
+            html.contains("src=\"https://docs.google.com/document/d/x/\""),
+            "{html}"
+        );
+        assert!(html.contains("width=\"100%\""), "{html}");
+        assert!(html.contains("height=\"500px\""), "{html}");
+        assert!(!html.contains("frameborder=\"0\""), "{html}");
+    }
 }
