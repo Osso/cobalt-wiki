@@ -30,7 +30,8 @@
   const SITE_THEMED_ROUTES = new Set([
     "/[x+2d]/login",
     "/[x+2d]/logout",
-    "/[x+2d]/register"
+    "/[x+2d]/register",
+    "/[x+2d]/settings"
   ])
 
   function setLayout() {

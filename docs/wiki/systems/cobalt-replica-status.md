@@ -91,6 +91,7 @@ At current code, `/tmp/claude/cobalt-who-we-are-browser-green.log` is green: `wh
 - Sign in opens a Cobalt Company login page in the site theme ("Sign in to Cobalt Company", site navigation and footer) and returns to the page it came from (`5036436`, `210a527`). Wikidot's own login screen is Wikidot-branded on www.wikidot.com and is deliberately not copied.
 - The account links, search box and footer sit on translucent dark panels so their text is readable over the theme background; this deviates from Wikidot by user choice (`05480b7`).
 - Browser test `framerail/tests/local/login.mjs` passes on production: header link, login page with navigation and license text, sign in, back on the page with the name shown.
+- My account (`/-/settings`, site theme) shows name, profile link and email and edits the session user's profile fields (real name, gender, birthday, location, website, user page, biography), email and password. Email and password changes check the current password by a Deepwell `login` whose session is logged out at once, as Deepwell has no password-check endpoint. Not offered: rename (uses name changes), avatar and locales (profile page `/-/user`). Visitors who are not signed in get a sign-in link that returns to settings. Unit tests `framerail/tests/settings.test.ts`; not yet deployed.
 
 ## Production Meilisearch search
 

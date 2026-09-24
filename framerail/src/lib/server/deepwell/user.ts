@@ -51,12 +51,15 @@ export async function userEdit(
   userIpAddr: string,
   params: UserEditParams
 ): Promise<UserModel> {
-  const data: Record<string, any> = {}
+  const data: Record<string, unknown> = {}
   if (params.name !== undefined && typeof params.name === "string") {
     data.name = params.name
   }
   if (params.email !== undefined && typeof params.email === "string") {
     data.email = params.email
+  }
+  if (typeof params.password === "string" && params.password) {
+    data.password = params.password
   }
   if (params.realName !== undefined && typeof params.realName === "string") {
     if (params.realName) data.real_name = params.realName
