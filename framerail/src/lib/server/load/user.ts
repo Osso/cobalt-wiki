@@ -167,7 +167,8 @@ export async function userEditAction({
       bypassFilter: false
     })
 
-    return withFiles({ form, res })
+    // user_edit returns the full record, including the password hash and MFA secret.
+    return withFiles({ form, res: sanitizeUserData(res, false) })
   } catch (caught) {
     const error = requireDeepwellError(caught)
     return fail(500, {
