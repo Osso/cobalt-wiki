@@ -182,6 +182,42 @@ async function assertSelectControl(control, field, value) {
   )
 }
 
+/** @param {import("../../src/lib/form-editor").FormField} field */
+function controlSelector(field) {
+  if (
+    field.kind === "wiki" ||
+    (field.kind === "text" && Number(field.properties.height) >= 2)
+  )
+    return "textarea"
+  return field.kind === "select" ? "select" : 'input[type="text"]'
+}
+
+/**
+ * @param {import("@playwright/test").Locator} wrapper
+ * @param {import("../../src/lib/form-editor").FormField} field
+ * @param {import("@playwright/test").Locator} control
+ */
+async function assertGuidance(wrapper, field, control) {
+  const after = text(field.properties.after)
+  const help = wrapper.locator(".field-control > small")
+  await expect(help).toHaveCount(after ? 1 : 0)
+  if (after) {
+    await expect(help).toHaveText(after)
+    await expect(help.locator("*")).toHaveCount(0)
+    const id = await help.getAttribute("id")
+    assert.ok(id, `${field.name} help id required`)
+    await expect(control).toHaveAttribute("aria-describedby", id)
+    await expect(wrapper.page().locator(`[id="${id}"]`)).toHaveCount(1)
+  } else {
+    await expect(control).not.toHaveAttribute("aria-describedby")
+  }
+  if (field.kind === "text" || field.kind === "wiki") {
+    const hint = text(field.properties.hint)
+    if (hint) await expect(control).toHaveAttribute("placeholder", hint)
+    else await expect(control).not.toHaveAttribute("placeholder")
+  }
+}
+
 /**
  * @param {import("@playwright/test").Locator} wrapper
  * @param {import("../../src/lib/form-editor").FormField} field
@@ -199,16 +235,33 @@ async function assertDefaultControl(wrapper, field) {
     return
   }
   if (field.kind === "select" && field.options.length >= 2 && field.options.length <= 4) {
-    return assertRadioControl(wrapper, field, value, label)
+    await assertRadioControl(wrapper, field, value, label)
+    await assertGuidance(wrapper, field, wrapper.locator("fieldset"))
+    return
   }
   await expect(wrapper.locator("label").first()).toHaveText(label)
-  const control = wrapper.locator("input, textarea, select").first()
-  if (field.kind === "select") return assertSelectControl(control, field, value)
-  assert.equal(
-    digest(await control.inputValue()),
-    digest(text(value)),
-    `${field.name} default digest`
-  )
+  const control = wrapper.locator(controlSelector(field))
+  await expect(control).toHaveCount(1)
+  if (field.kind === "select") await assertSelectControl(control, field, value)
+  else {
+    assert.equal(
+      digest(await control.inputValue()),
+      digest(text(value)),
+      `${field.name} default digest`
+    )
+    const width = Number(field.properties.width)
+    if (Number.isInteger(width) && width > 0) {
+      await expect(control).toHaveAttribute(
+        controlSelector(field) === "textarea" ? "cols" : "size",
+        String(width)
+      )
+    }
+    const height = Number(field.properties.height)
+    if (controlSelector(field) === "textarea" && Number.isInteger(height) && height > 0) {
+      await expect(control).toHaveAttribute("rows", String(height))
+    }
+  }
+  await assertGuidance(wrapper, field, control)
 }
 
 /**
@@ -310,6 +363,39 @@ test("NewPage writing form labels, defaults and preview do not write", async () 
       })
       await expect(page.locator('#editor [name="title"]')).toHaveValue(title)
       await assertNewForm(page, fields)
+      const author = fields.find((field) => field.name === "author")
+      const summary = fields.find((field) => field.name === "summary")
+      assert.ok(author && summary, "archived author and summary required")
+      await expect(
+        page
+          .locator("#editor .form-field")
+          .nth(fields.indexOf(author))
+          .locator('input[type="text"]')
+      ).toHaveAttribute("placeholder", "Your player name")
+      const summaryControl = page
+        .locator("#editor .form-field")
+        .nth(fields.indexOf(summary))
+        .locator("textarea")
+      await expect(summaryControl).toHaveAttribute("rows", "3")
+      await expect(summaryControl).toHaveAttribute("cols", "80")
+      for (const [name, after] of Object.entries({
+        image: 'Optional "cover" image. Leave blank for no image.',
+        additionalCW: 'Leave as "@@" if no additional content warnings',
+        arc: 'Leave as "@@" if no Arc',
+        chain: 'Leave as "@@" if no Chain'
+      })) {
+        const field = fields.find((candidate) => candidate.name === name)
+        assert.ok(field, `${name} archived field required`)
+        assert.equal(field.properties.after, after, `${name} archived help`)
+        await assertGuidance(
+          page.locator("#editor .form-field").nth(fields.indexOf(field)),
+          field,
+          page
+            .locator("#editor .form-field")
+            .nth(fields.indexOf(field))
+            .locator(controlSelector(field))
+        )
+      }
 
       const wiki = fields.find((field) => field.kind === "wiki")
       assert.ok(wiki, "archived writing wiki field required")
@@ -318,16 +404,22 @@ test("NewPage writing form labels, defaults and preview do not write", async () 
         .locator("#editor .form-field")
         .nth(fields.indexOf(wiki))
         .locator("textarea")
+      const summaryMarker = `Summary line one ${randomBytes(6).toString("hex")}\nSummary line two`
+      await summaryControl.fill(summaryMarker)
       await wikiControl.fill(marker)
       const previewResponse = page.waitForResponse(
         (response) =>
           response.request().method() === "POST" && response.url().endsWith("?/preview")
       )
       await page.locator("#edit-preview-button").click()
-      assert.equal((await previewResponse).status(), 200, "writing preview HTTP status")
+      const response = await previewResponse
+      assert.equal(response.status(), 200, "writing preview HTTP status")
+      const previewBody = await response.text()
+      assert.ok(previewBody.includes(marker), "preview response contains wiki marker")
       const region = page.locator('section[aria-label="Page preview"]')
       await expect(region).toHaveAttribute("aria-busy", "false")
       await expect(region).toContainText(marker)
+      await expect(summaryControl).toHaveValue(summaryMarker)
       await assertNoWrites(request, token, slug, baseline)
 
       await page.reload({ waitUntil: "networkidle" })

@@ -152,6 +152,42 @@ async function assertSelectField(control, field, value) {
   )
 }
 
+/** @param {import("../../src/lib/form-editor").FormField} field */
+function controlSelector(field) {
+  if (
+    field.kind === "wiki" ||
+    (field.kind === "text" && Number(field.properties.height) >= 2)
+  )
+    return "textarea"
+  return field.kind === "select" ? "select" : 'input[type="text"]'
+}
+
+/**
+ * @param {import("@playwright/test").Locator} wrapper
+ * @param {import("../../src/lib/form-editor").FormField} field
+ * @param {import("@playwright/test").Locator} control
+ */
+async function assertGuidance(wrapper, field, control) {
+  const after = text(field.properties.after)
+  const help = wrapper.locator(".field-control > small")
+  await expect(help).toHaveCount(after ? 1 : 0)
+  if (after) {
+    await expect(help).toHaveText(after)
+    await expect(help.locator("*")).toHaveCount(0)
+    const id = await help.getAttribute("id")
+    assert.ok(id, `${field.name} help id required`)
+    await expect(control).toHaveAttribute("aria-describedby", id)
+    await expect(wrapper.page().locator(`[id="${id}"]`)).toHaveCount(1)
+  } else {
+    await expect(control).not.toHaveAttribute("aria-describedby")
+  }
+  if (field.kind === "text" || field.kind === "wiki") {
+    const hint = text(field.properties.hint)
+    if (hint) await expect(control).toHaveAttribute("placeholder", hint)
+    else await expect(control).not.toHaveAttribute("placeholder")
+  }
+}
+
 /**
  * @param {import("@playwright/test").Locator} control
  * @param {import("../../src/lib/form-editor").FormField} field
@@ -160,11 +196,11 @@ async function assertDimensions(control, field) {
   const width = Number(field.properties.width)
   if (Number.isInteger(width) && width > 0) {
     await expect(control).toHaveAttribute(
-      field.kind === "wiki" ? "cols" : "size",
+      controlSelector(field) === "textarea" ? "cols" : "size",
       String(width)
     )
   }
-  if (field.kind === "wiki") {
+  if (controlSelector(field) === "textarea") {
     const height = Number(field.properties.height)
     if (Number.isInteger(height) && height > 0) {
       await expect(control).toHaveAttribute("rows", String(height))
@@ -182,17 +218,23 @@ async function assertFieldControl(wrapper, field, values) {
   const value = initialValue(field, values)
   if (field.kind === "static") return assertStaticField(wrapper, field, value)
   if (field.kind === "select" && field.options.length >= 2 && field.options.length <= 4) {
-    return assertRadioField(wrapper, field, value, label)
+    await assertRadioField(wrapper, field, value, label)
+    await assertGuidance(wrapper, field, wrapper.locator("fieldset"))
+    return
   }
   await expect(wrapper.locator("label").first()).toHaveText(label)
-  const control = wrapper.locator("input, textarea, select").first()
-  if (field.kind === "select") return assertSelectField(control, field, value)
-  assert.equal(
-    digest(await control.inputValue()),
-    digest(text(value)),
-    `${field.name} value digest`
-  )
-  await assertDimensions(control, field)
+  const control = wrapper.locator(controlSelector(field))
+  await expect(control).toHaveCount(1)
+  if (field.kind === "select") await assertSelectField(control, field, value)
+  else {
+    assert.equal(
+      digest(await control.inputValue()),
+      digest(text(value)),
+      `${field.name} value digest`
+    )
+    await assertDimensions(control, field)
+  }
+  await assertGuidance(wrapper, field, control)
 }
 
 /**

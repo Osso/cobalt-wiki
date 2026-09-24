@@ -228,6 +228,42 @@ async function assertSelectField(control, field) {
   )
 }
 
+/** @param {import("../../src/lib/form-editor").FormField} field */
+function controlSelector(field) {
+  if (
+    field.kind === "wiki" ||
+    (field.kind === "text" && Number(field.properties.height) >= 2)
+  )
+    return "textarea"
+  return field.kind === "select" ? "select" : 'input[type="text"]'
+}
+
+/**
+ * @param {import("@playwright/test").Locator} wrapper
+ * @param {import("../../src/lib/form-editor").FormField} field
+ * @param {import("@playwright/test").Locator} control
+ */
+async function assertGuidance(wrapper, field, control) {
+  const after = text(field.properties.after)
+  const help = wrapper.locator(".field-control > small")
+  await expect(help).toHaveCount(after ? 1 : 0)
+  if (after) {
+    await expect(help).toHaveText(after)
+    await expect(help.locator("*")).toHaveCount(0)
+    const id = await help.getAttribute("id")
+    assert.ok(id, `${field.name} help id required`)
+    await expect(control).toHaveAttribute("aria-describedby", id)
+    await expect(wrapper.page().locator(`[id="${id}"]`)).toHaveCount(1)
+  } else {
+    await expect(control).not.toHaveAttribute("aria-describedby")
+  }
+  if (field.kind === "text" || field.kind === "wiki") {
+    const hint = text(field.properties.hint)
+    if (hint) await expect(control).toHaveAttribute("placeholder", hint)
+    else await expect(control).not.toHaveAttribute("placeholder")
+  }
+}
+
 /**
  * @param {import("@playwright/test").Locator} control
  * @param {import("../../src/lib/form-editor").FormField} field
@@ -241,12 +277,12 @@ async function assertTextField(control, field) {
   const width = Number(field.properties.width)
   if (Number.isInteger(width) && width > 0) {
     await expect(control).toHaveAttribute(
-      field.kind === "wiki" ? "cols" : "size",
+      controlSelector(field) === "textarea" ? "cols" : "size",
       String(width)
     )
   }
   const height = Number(field.properties.height)
-  if (field.kind === "wiki" && Number.isInteger(height) && height > 0) {
+  if (controlSelector(field) === "textarea" && Number.isInteger(height) && height > 0) {
     await expect(control).toHaveAttribute("rows", String(height))
   }
 }
@@ -260,23 +296,20 @@ async function assertField(wrapper, field) {
   if (field.kind === "static") return assertStaticField(wrapper, field, label)
   const displayLabel = label || field.name
   if (field.kind === "select" && field.options.length >= 2 && field.options.length <= 4) {
-    return assertRadioField(wrapper, field, displayLabel)
+    await assertRadioField(wrapper, field, displayLabel)
+    await assertGuidance(wrapper, field, wrapper.locator("fieldset"))
+    return
   }
   assert.equal(
     digest(await wrapper.locator("label").first().textContent()),
     digest(displayLabel),
     `${field.name} label digest`
   )
-  const selector =
-    field.kind === "wiki"
-      ? "textarea"
-      : field.kind === "select"
-        ? "select"
-        : 'input[type="text"]'
-  const control = wrapper.locator(selector)
+  const control = wrapper.locator(controlSelector(field))
   await expect(control).toHaveCount(1)
   if (field.kind === "select") await assertSelectField(control, field)
-  await assertTextField(control, field)
+  else await assertTextField(control, field)
+  await assertGuidance(wrapper, field, control)
 }
 
 /**
@@ -348,6 +381,17 @@ for (const category of categories) {
         const form = await readCreationForm(request, slug, token)
         const fields = form.schema.fields
         assertSchema(fields, category.counts)
+        if (category.name === "chain" || category.name === "arc") {
+          const summaryName = category.name === "chain" ? "summary" : "arcSummary"
+          const summary = fields.find((candidate) => candidate.name === summaryName)
+          assert.ok(summary, `${category.name} ${summaryName} required`)
+          assert.equal(summary.kind, "text", `${summaryName} text kind`)
+          assert.equal(
+            Number(summary.properties.height),
+            3,
+            `${summaryName} archived height`
+          )
+        }
         if (category.name === "npc") {
           const race = fields.find((candidate) => candidate.name === "race")
           assert.ok(race, "npc race field required")
@@ -381,9 +425,7 @@ for (const category of categories) {
 
           const marker = `Local ${category.name} preview ${randomBytes(8).toString("hex")}`
           const control = page.locator("#editor .form-field").nth(fields.indexOf(field))
-          await control
-            .locator(field.kind === "wiki" ? "textarea" : 'input[type="text"]')
-            .fill(marker)
+          await control.locator(controlSelector(field)).fill(marker)
           const previewResponse = page.waitForResponse(
             (response) =>
               response.request().method() === "POST" &&
@@ -402,6 +444,7 @@ for (const category of categories) {
           await expect
             .poll(async () => (await region.textContent())?.includes(marker) ?? false)
             .toBe(true)
+          await expect(control.locator(controlSelector(field))).toHaveValue(marker)
           await page.reload({ waitUntil: "networkidle" })
           await expect(page.locator('#editor [name="title"]')).toHaveValue(title)
           await assertForm(page, fields)
