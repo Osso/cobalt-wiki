@@ -8,11 +8,31 @@ const preview = "http://127.0.0.1:3090"
 const backend = "http://127.0.0.1:2749/jsonrpc"
 const siteId = 6000000
 const categories = [
-  { name: "player", counts: { static: 2, text: 6, wiki: 3, select: 0 } },
-  { name: "chain", counts: { static: 2, text: 3, wiki: 0, select: 0 } },
-  { name: "arc", counts: { static: 4, text: 5, wiki: 1, select: 0 } },
-  { name: "bgc", counts: { static: 8, text: 9, wiki: 2, select: 5 } },
-  { name: "application", counts: { static: 23, text: 0, wiki: 12, select: 0 } }
+  {
+    name: "player",
+    markerField: "pronouns",
+    counts: { static: 2, text: 6, wiki: 3, select: 0 }
+  },
+  {
+    name: "chain",
+    markerField: "summary",
+    counts: { static: 2, text: 3, wiki: 0, select: 0 }
+  },
+  {
+    name: "arc",
+    markerField: "arcSummary",
+    counts: { static: 4, text: 5, wiki: 1, select: 0 }
+  },
+  {
+    name: "bgc",
+    markerField: "name",
+    counts: { static: 8, text: 9, wiki: 2, select: 5 }
+  },
+  {
+    name: "application",
+    markerField: "pronouns",
+    counts: { static: 23, text: 0, wiki: 12, select: 0 }
+  }
 ]
 
 /** @param {unknown} value */
@@ -272,27 +292,6 @@ async function assertForm(page, fields) {
 }
 
 /**
- * @param {string} source
- * @param {import("../../src/lib/form-editor").FormField[]} fields
- */
-function previewField(source, fields) {
-  const renderedSource = source
-    .split(/^====\s*$/m)[0]
-    .replace(/\[\[module ListPages\b[\s\S]*?\[\[\/module\]\]/gi, "")
-    .replace(/\[\[form\]\][\s\S]*?\[\[\/form\]\]/gi, "")
-  const referenced = new Set(
-    [...renderedSource.matchAll(/%%form_(?:data|raw)\{([^}]+)\}%%/g)].map(
-      (match) => match[1]
-    )
-  )
-  return fields.find(
-    (candidate) =>
-      (candidate.kind === "wiki" || candidate.kind === "text") &&
-      referenced.has(candidate.name)
-  )
-}
-
-/**
  * @param {import("@playwright/test").APIRequestContext} request
  * @param {string} token
  * @param {string} slug
@@ -345,13 +344,12 @@ for (const category of categories) {
         const fields = form.schema.fields
         assertSchema(fields, category.counts)
         assert.deepEqual(form.values, {}, "missing-page form values must be empty")
-        const referencedField = previewField(template.source, fields)
-        const field =
-          referencedField ??
-          fields.find(
-            (candidate) => candidate.kind === "wiki" || candidate.kind === "text"
-          )
-        assert.ok(field, "editable preview field required")
+        const field = fields.find((candidate) => candidate.name === category.markerField)
+        assert.ok(field, `${category.name} ${category.markerField} marker field required`)
+        assert.ok(
+          field.kind === "wiki" || field.kind === "text",
+          `${category.name} ${category.markerField} marker field must be editable text`
+        )
         await assertNoWrites(request, token, slug, templateSlug, template)
 
         try {
@@ -382,11 +380,9 @@ for (const category of categories) {
           assert.equal((await previewResponse).status(), 200, "preview HTTP status")
           const region = page.locator('section[aria-label="Page preview"]')
           await expect(region).toHaveAttribute("aria-busy", "false")
-          if (referencedField) {
-            await expect
-              .poll(async () => (await region.textContent())?.includes(marker) ?? false)
-              .toBe(true)
-          }
+          await expect
+            .poll(async () => (await region.textContent())?.includes(marker) ?? false)
+            .toBe(true)
           await page.reload({ waitUntil: "networkidle" })
           await expect(page.locator('#editor [name="title"]')).toHaveValue(title)
           await assertForm(page, fields)
