@@ -34,7 +34,7 @@ deploy_deepwell() {
 }
 
 deploy_framerail() {
-	(cd "$ROOT/framerail" && shell pnpm run build)
+	(cd "$ROOT/framerail" && shell pnpm --config.verify-deps-before-run=false run build)
 	ssh "$HOST" "install -d -o cobalt-wiki -g cobalt-wiki -m 0700 $APP $APP/framerail"
 	# Dependencies change rarely; resend them only when the lockfile does.
 	local lock
