@@ -254,6 +254,110 @@ test("source-defined fields render accessible typed controls and readonly static
       props: { form: missing, draft: createDraft(missing) }
     }).body
     assert.doesNotMatch(missingBody, /<input[^>]*type="radio"[^>]*checked/)
+
+    const unlabeled = {
+      schema: {
+        properties: {},
+        fields: [
+          {
+            name: "null-text-unique",
+            kind: "text",
+            properties: { label: null },
+            options: []
+          },
+          {
+            name: "empty-wiki-unique",
+            kind: "wiki",
+            properties: { label: "" },
+            options: []
+          },
+          {
+            name: "missing-select-unique",
+            kind: "select",
+            properties: {},
+            options: [
+              { code: "a", label: "Alpha" },
+              { code: "b", label: "Beta" },
+              { code: "c", label: "Gamma" },
+              { code: "d", label: "Delta" },
+              { code: "e", label: "Epsilon" }
+            ]
+          },
+          {
+            name: "null-radio-unique",
+            kind: "select",
+            properties: { label: null, after: "Radio description" },
+            options: [
+              { code: "yes", label: "Yes" },
+              { code: "no", label: "No" }
+            ]
+          },
+          {
+            name: 'unsafe<&"-unique',
+            kind: "text",
+            properties: { label: null },
+            options: []
+          },
+          {
+            name: "explicit-unique",
+            kind: "text",
+            properties: { label: "Visible <& label" },
+            options: []
+          }
+        ]
+      },
+      values: {}
+    }
+    const unlabeledBody = render(Component, {
+      props: { form: unlabeled, draft: createDraft(unlabeled) }
+    }).body
+    for (const name of [
+      "null-text-unique",
+      "empty-wiki-unique",
+      "missing-select-unique",
+      "null-radio-unique"
+    ]) {
+      assert.doesNotMatch(
+        unlabeledBody,
+        new RegExp(`<label[^>]*>${name}<\\/label>|<legend[^>]*>${name}<\\/legend>`)
+      )
+      assert.match(unlabeledBody, new RegExp(`aria-label="${name}"`))
+    }
+    assert.doesNotMatch(
+      unlabeledBody,
+      /<label for="data-form-field-[0124]"|<legend[^>]*>null-radio-unique<\/legend>/
+    )
+    assert.match(
+      unlabeledBody,
+      /<input[^>]*id="data-form-field-0"[^>]*aria-label="null-text-unique"/
+    )
+    assert.match(
+      unlabeledBody,
+      /<textarea[^>]*id="data-form-field-1"[^>]*aria-label="empty-wiki-unique"/
+    )
+    assert.match(
+      unlabeledBody,
+      /<select[^>]*id="data-form-field-2"[^>]*aria-label="missing-select-unique"/
+    )
+    assert.match(
+      unlabeledBody,
+      /<fieldset[^>]*aria-label="null-radio-unique"[^>]*aria-describedby="data-form-field-3-after"/
+    )
+    assert.match(
+      unlabeledBody,
+      /<small id="data-form-field-3-after">Radio description<\/small>/
+    )
+    assert.match(
+      unlabeledBody,
+      /<label class="radio-option(?:\s[^"]*)?"[^>]*><input[^>]*\/> Yes<\/label>/
+    )
+    assert.match(unlabeledBody, /aria-label="unsafe&lt;&amp;&quot;-unique"/)
+    assert.doesNotMatch(unlabeledBody, /<label for="data-form-field-4">|<unsafe/)
+    assert.match(
+      unlabeledBody,
+      /<label for="data-form-field-5">Visible &lt;&amp; label<\/label>/
+    )
+    assert.doesNotMatch(unlabeledBody, /aria-label="explicit-unique"/)
   } finally {
     await unlink(fixture)
   }

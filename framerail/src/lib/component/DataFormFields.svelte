@@ -12,6 +12,7 @@
 
 {#each form.schema.fields as field, index (field.name)}
   {@const id = `data-form-field-${index}`}
+  {@const label = scalarText(field.properties.label)}
   {@const hint = scalarText(field.properties.hint)}
   {@const after = scalarText(field.properties.after)}
   <div class="form-field">
@@ -22,8 +23,11 @@
       <div class="static-field">{fieldText(field, form.values)}</div>
     {:else if field.kind === "select" && field.options.length >= 2 && field.options.length <= 4}
       <div class="field-control">
-        <fieldset aria-describedby={after ? `${id}-after` : undefined}>
-          <legend>{scalarText(field.properties.label) || field.name}</legend>
+        <fieldset
+          aria-label={label ? undefined : field.name}
+          aria-describedby={after ? `${id}-after` : undefined}
+        >
+          {#if label}<legend>{label}</legend>{/if}
           {#if draft[field.name] !== undefined && !field.options.some((option) => option.code === draft[field.name])}
             <output>Current value: {String(draft[field.name])}</output>
           {/if}
@@ -43,11 +47,12 @@
         {#if after}<small id={`${id}-after`}>{after}</small>{/if}
       </div>
     {:else}
-      <label for={id}>{scalarText(field.properties.label) || field.name}</label>
+      {#if label}<label for={id}>{label}</label>{/if}
       <div class="field-control">
         {#if field.kind === "select"}
           <select
             {id}
+            aria-label={label ? undefined : field.name}
             aria-describedby={after ? `${id}-after` : undefined}
             bind:value={draft[field.name]}
           >
@@ -61,6 +66,7 @@
         {:else if field.kind === "wiki" || (dimension(field.properties.height) ?? 0) >= 2}
           <textarea
             {id}
+            aria-label={label ? undefined : field.name}
             aria-describedby={after ? `${id}-after` : undefined}
             cols={dimension(field.properties.width)}
             oninput={(event) => (draft[field.name] = event.currentTarget.value)}
@@ -70,6 +76,7 @@
         {:else}
           <input
             {id}
+            aria-label={label ? undefined : field.name}
             aria-describedby={after ? `${id}-after` : undefined}
             oninput={(event) => (draft[field.name] = event.currentTarget.value)}
             placeholder={hint || undefined}
