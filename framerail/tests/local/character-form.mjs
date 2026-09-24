@@ -97,8 +97,9 @@ async function assertRadioField(wrapper, field, value, label) {
   await expect(wrapper.locator("legend")).toHaveText(label)
   const radios = await wrapper.locator('input[type="radio"]').evaluateAll((inputs) =>
     inputs.map((input) => {
-      if (!(input instanceof HTMLInputElement))
+      if (!(input instanceof HTMLInputElement)) {
         throw new TypeError("Expected radio input")
+      }
       return {
         code: input.value,
         label: input.closest("label")?.textContent?.trim(),
