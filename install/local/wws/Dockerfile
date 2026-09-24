@@ -19,6 +19,7 @@ COPY ./install/local/wws/health-check.sh /usr/local/bin/wikijump-health-check
 # Don't build until container execution (see cargo-watch)
 RUN mkdir /src
 COPY ./wws /src/wws
+COPY ./deepwell/vendor/wikidot-normalize /src/deepwell/vendor/wikidot-normalize
 WORKDIR /src/wws
 
 EXPOSE 3466

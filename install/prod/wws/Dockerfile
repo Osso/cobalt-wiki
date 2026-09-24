@@ -10,6 +10,7 @@ COPY ./install/prod/wws/health-check.sh /usr/local/bin/wikijump-health-check
 # Copy source
 RUN mkdir /src
 COPY ./wws /src/wws
+COPY ./deepwell/vendor/wikidot-normalize /src/deepwell/vendor/wikidot-normalize
 WORKDIR /src/wws
 
 # Cache rust dependencies
