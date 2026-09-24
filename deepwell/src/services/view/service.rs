@@ -884,3 +884,13 @@ impl ViewService {
         }
     }
 }
+
+#[test]
+fn multi_colon_page_slug_is_not_redirected() {
+    let slug = "writing:2022-03-27-slave-pens:freedom-or-vengeance";
+    assert_eq!(ViewService::should_redirect_page(slug), None);
+    assert_eq!(
+        ViewService::should_redirect_page("Writing:A;B:C"),
+        Some(String::from("writing:a:b:c")),
+    );
+}

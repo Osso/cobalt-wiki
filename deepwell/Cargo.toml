@@ -82,6 +82,10 @@ maplit = "1"
 pretty_assertions = "1"
 self_cell = "1"
 
+# Keeps colons after the category, as Wikidot does; also used by ftml.
+[patch.crates-io]
+wikidot-normalize = { path = "vendor/wikidot-normalize" }
+
 [build-dependencies]
 built = { version = "0.8", features = ["chrono", "git2"] }
 

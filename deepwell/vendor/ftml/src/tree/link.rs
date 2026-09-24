@@ -159,7 +159,7 @@ fn test_link_location() {
 
     test!("::page" => "::page");
     test!("::component:theme" => "::component:theme");
-    test!("multiple:category:page" => None, "multiple-category:page", None);
+    test!("multiple:category:page" => None, "multiple:category:page", None);
 }
 
 #[derive(Serialize, Deserialize, Debug, Hash, Clone, PartialEq, Eq)]

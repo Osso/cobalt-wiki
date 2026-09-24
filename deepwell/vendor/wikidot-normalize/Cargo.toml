@@ -1,0 +1,22 @@
+[package]
+name = "wikidot-normalize"
+description = "Simple library to provide Wikidot-compatible string normalization"
+repository = "https://github.com/scpwiki/wikidot-normalize"
+readme = "README.md"
+license = "MIT"
+keywords = ["wikidot", "normal", "normalization", "slug"]
+exclude = [".gitignore", ".github"]
+
+version = "0.12.0"
+authors = ["Emmie Maeda <emmie.maeda@gmail.com>"]
+edition = "2021" # this refers to the Cargo.toml version
+
+[dependencies]
+once_cell = "1"
+maplit = "1"
+regex = "1"
+trim-in-place = "0.1"
+unicode-normalization = "0.1"
+
+[dev-dependencies]
+str-macro = "1"
