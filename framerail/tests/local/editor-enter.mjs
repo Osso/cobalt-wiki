@@ -298,6 +298,47 @@ async function assertEditorFields(page, form, label) {
 }
 
 /** @param {import("@playwright/test").Page} page */
+async function assertStructuredTitleGeometry(page) {
+  const table = page.locator("#editor").getByRole("table")
+  const title = table.locator("tr").first().getByLabel("Title", { exact: true })
+  await expect(title).toBeVisible()
+  const tableBox = await table.boundingBox()
+  const titleBox = await title.boundingBox()
+  assert.ok(tableBox && titleBox, "structured Title rectangles required")
+  assert.ok(
+    titleBox.x >= tableBox.x &&
+      titleBox.x + titleBox.width <= tableBox.x + tableBox.width &&
+      titleBox.y >= tableBox.y &&
+      titleBox.y + titleBox.height <= tableBox.y + tableBox.height,
+    "Title must fit inside the structured table"
+  )
+  const leftOffset = titleBox.x - tableBox.x
+  assert.ok(
+    Math.abs(leftOffset - 106) <= 3,
+    `Title must align with the value column at 106 ± 3 px; got ${leftOffset}`
+  )
+  assert.ok(
+    titleBox.width < tableBox.width * 0.6,
+    "Title must be narrower than 60% of table"
+  )
+  const style = await title.evaluate((element) => {
+    const computed = getComputedStyle(element)
+    return {
+      fontSize: parseFloat(computed.fontSize),
+      fontWeight: parseFloat(computed.fontWeight)
+    }
+  })
+  assert.ok(
+    Math.abs(style.fontSize - 20.8) <= 0.1,
+    `Title font size must be 20.8 ± 0.1 px; got ${style.fontSize}`
+  )
+  assert.ok(
+    style.fontWeight >= 700,
+    `Title font weight must be at least 700; got ${style.fontWeight}`
+  )
+}
+
+/** @param {import("@playwright/test").Page} page */
 async function assertStructuredFooterGeometry(page) {
   const editor = page.locator("#editor")
   const table = editor.getByRole("table")
@@ -361,6 +402,20 @@ function assertOnlySavePost(blocked, expected, slug) {
 
 /**
  * @param {import("@playwright/test").Page} page
+ * @param {string} marker
+ */
+async function assertTitleFormValue(page, marker) {
+  const editor = page.locator("#editor")
+  await expect(editor.getByLabel("Title", { exact: true })).toHaveValue(marker)
+  const submittedTitle = await editor.evaluate((element) => {
+    if (!(element instanceof HTMLFormElement)) throw new Error("editor form required")
+    return new FormData(element).get("title")
+  })
+  assert.equal(submittedTitle, marker, "structured Title FormData value")
+}
+
+/**
+ * @param {import("@playwright/test").Page} page
  * @param {boolean} form
  * @param {(name: string) => string} label
  * @param {() => number} editCount
@@ -369,7 +424,9 @@ async function assertInputEnter(page, form, label, editCount) {
   const editor = page.locator("#editor")
   const marker = `Enter proof ${randomBytes(6).toString("hex")}`
   const title = editor.locator('[name="title"]')
-  const fields = [title, editor.locator('[name="tags"]')]
+  await assertImplicitEnterBlocked(page, title, marker, editCount)
+  if (form) await assertTitleFormValue(page, marker)
+  const fields = [editor.locator('[name="tags"]')]
   if (form) fields.push(editor.getByLabel(label("name"), { exact: true }))
   for (const field of fields) {
     await assertImplicitEnterBlocked(page, field, marker, editCount)
@@ -378,6 +435,7 @@ async function assertInputEnter(page, form, label, editCount) {
     ? editor.getByLabel(label("notes"), { exact: true })
     : editor.locator('[name="wikitext"]')
   await assertTextareaEnter(page, textarea, marker, editCount)
+  if (form) await assertTitleFormValue(page, marker)
   await assertCompositionNotPrevented(page, title)
   if (form) {
     await assertRadioEnterBlocked(page, editCount)
@@ -545,7 +603,10 @@ async function checkTarget(context, fixture, token, target) {
     await trapPagePosts(context, slug, blocked)
     trapped = true
     await assertEditorFields(page, form, label)
-    if (form) await assertStructuredFooterGeometry(page)
+    if (form) {
+      await assertStructuredTitleGeometry(page)
+      await assertStructuredFooterGeometry(page)
+    }
     await observeSubmits(page)
     const editCount = () => blocked.filter((entry) => entry.edit).length
     await assertInputEnter(page, form, label, editCount)
