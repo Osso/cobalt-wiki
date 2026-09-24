@@ -177,6 +177,17 @@ pub enum Element<'t> {
         attributes: AttributeMap<'t>,
     },
 
+    /// A Wikidot page action button, from `[[button]]`.
+    ///
+    /// The "tags" field holds the tag changes of a `set-tags` button, e.g.
+    /// `+_completed -draft`, and is empty for other types.
+    #[serde(rename_all = "kebab-case")]
+    Button {
+        button_type: Cow<'t, str>,
+        text: Cow<'t, str>,
+        tags: Cow<'t, str>,
+    },
+
     /// A collapsible, containing content hidden to be opened on click.
     ///
     /// This is an interactable element provided by Wikidot which allows hiding
@@ -366,6 +377,7 @@ impl Element<'_> {
             Element::DefinitionList(_) => "DefinitionList",
             Element::RadioButton { .. } => "RadioButton",
             Element::CheckBox { .. } => "CheckBox",
+            Element::Button { .. } => "Button",
             Element::Collapsible { .. } => "Collapsible",
             Element::TableOfContents { .. } => "TableOfContents",
             Element::Footnote => "Footnote",
@@ -421,6 +433,7 @@ impl Element<'_> {
             Element::List { .. } => false,
             Element::DefinitionList(_) => false,
             Element::RadioButton { .. } | Element::CheckBox { .. } => true,
+            Element::Button { .. } => true,
             Element::Collapsible { .. } => false,
             Element::TableOfContents { .. } => false,
             Element::Footnote => true,
@@ -550,6 +563,15 @@ impl Element<'_> {
             } => Element::CheckBox {
                 checked: *checked,
                 attributes: attributes.to_owned(),
+            },
+            Element::Button {
+                button_type,
+                text,
+                tags,
+            } => Element::Button {
+                button_type: string_to_owned(button_type),
+                text: string_to_owned(text),
+                tags: string_to_owned(tags),
             },
             Element::Collapsible {
                 elements,

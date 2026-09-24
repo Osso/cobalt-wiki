@@ -36,7 +36,7 @@ static ARGUMENT_KEY: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"[A-Za-z0-9_\-]+").unwrap());
 
 /// Wikidot reads only `key="value"` pairs from a lenient block head.
-static LENIENT_ARGUMENT: LazyLock<Regex> =
+pub(super) static LENIENT_ARGUMENT: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"([A-Za-z0-9_\-]+)\s*=\s*"([^"]*)""#).unwrap());
 
 impl<'r, 't> Parser<'r, 't>

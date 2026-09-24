@@ -22,6 +22,7 @@
 
 mod audio;
 mod bibliography;
+mod button;
 mod clear_float;
 mod collapsible;
 mod container;
@@ -56,6 +57,7 @@ mod prelude {
 
 use self::audio::render_audio;
 use self::bibliography::{render_bibcite, render_bibliography};
+use self::button::render_button;
 use self::clear_float::render_clear_float;
 use self::collapsible::{Collapsible, render_collapsible};
 use self::container::{render_color, render_container};
@@ -155,6 +157,11 @@ pub fn render_element(ctx: &mut HtmlContext, element: &Element) {
             checked,
             attributes,
         } => render_checkbox(ctx, *checked, attributes),
+        Element::Button {
+            button_type,
+            text,
+            tags,
+        } => render_button(ctx, button_type, text, tags),
         Element::Collapsible {
             elements,
             attributes,

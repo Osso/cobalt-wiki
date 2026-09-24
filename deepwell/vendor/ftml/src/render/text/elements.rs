@@ -200,6 +200,7 @@ pub fn render_element(ctx: &mut TextContext, element: &Element) {
         Element::RadioButton { .. } | Element::CheckBox { .. } => {
             // These cannot be rendered in text mode, and so are ignored.
         }
+        Element::Button { text, .. } => ctx.push_str(text),
         Element::Collapsible { elements, .. } => {
             // For collapsibles, we simply show the contents.
             // No collapsible labels (open or close) are shown.
