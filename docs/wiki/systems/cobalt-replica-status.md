@@ -26,6 +26,7 @@ Verified: 2026-09-24. This records evidence, not authorization to expose source-
 - Renderer changes need no sweep: `compiled_generator` carries the Deepwell build (`DEEPWELL_BUILD_ID`, the source store hash), and the page view rerenders a page compiled by another build before serving it (one 0.1–0.4 s first view per page per deploy). A standalone sweep is still needed once to fill `page_listing` for listing pages that are never viewed.
 - Includes and category `_template` pages already invalidate their dependents (12,347 include connections in production); listings invalidate through `page_listing`.
 - ListPages loads the site's page metadata once per render and filters in memory. Warm full rerenders (body, navigation, links) measured 0.09–0.42 s; nested `testlist` renders in 0.38 s instead of exceeding the 500 ms preprocess budget with 52 queries.
+- Local actual Atley form preview profiling at `5659f51` still exceeded the unchanged 2.5-second aggregate deadline at 2,938 ms (lexer ~1,338 ms; SQL ~229 ms). The minimal FTML whitespace-ordering change has production-grammar token identity proof only: 1/1 selected test, with 131 filtered. Its controlled lexer measurement is not an expanded end-to-end preview pass. Root deploy, actual-browser proof, and final Rust gates remain pending; no full-readiness claim.
 
 ## Access boundary
 
