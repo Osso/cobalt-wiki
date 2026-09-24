@@ -21,7 +21,13 @@ Rendering order for a published page body: live template → includes ([spec](co
 
 Archive check (2026-09-22): 5,969 of 5,970 pages in the eight form categories parse as field records; the exception, `player:_public`, is Wikidot's plain-text non-member page and is hidden, so it is never wrapped.
 
+### Rendering budgets
+
+Dependency resolution (live templates, includes, and ListPages) must not consume the FTML-only preprocessing allowance. Rendering retains the configured preprocessing and parse/render stage limits, plus a total cooperative deadline equal to their sum. Exceeding the total deadline reports `RenderTimeout`; preview must preserve stored pages, revisions, and source, and leave its database transaction usable. These async deadlines do not guarantee preemption of synchronous CPU work or immediate cancellation of an in-flight PostgreSQL query.
+
 ## Tests asserting this spec
+
+- `deepwell/tests/page_preview.rs`: a transaction-local delayed include read exceeds the preprocessing allowance but must render within the total budget; an over-budget dependency must fail without writes and permit subsequent database reads. The first case reproduced the old preprocessing timeout (`/tmp/claude/cobalt-preview-dependency-red-native.log`); corrected-stage verification is pending.
 
 - `deepwell/tests/page_list_pages.rs`: `form_pages_render_through_their_category_template` (select label, wiki field, filled include, unchanged YAML source, unwrapped `_public`); ignored `archived_cobalt_pages_render_without_template_syntax` renders real archived pages.
 - `deepwell/src/services/render/page_tokens.rs`, `live_template.rs`: token substitution, `====` split and ListPages exclusion.

@@ -315,8 +315,30 @@ impl RenderService {
 
     /// Preprocess, parse and render without storing anything. `body` is
     /// `Some` for a published page body (live template, URL arguments) and
-    /// `None` for fragments such as navigation pages and previews.
+    /// `None` for navigation fragments.
     async fn render_html(
+        ctx: &ServiceContext<'_>,
+        wikitext: String,
+        page_info: &PageInfo<'_>,
+        settings: &WikitextSettings,
+        body: Option<&BodyArguments>,
+    ) -> Result<RenderedHtml> {
+        let config = ctx.config();
+        let total_budget = config.preprocess_timeout + config.render_timeout;
+        timeout(
+            total_budget,
+            Self::render_html_stages(ctx, wikitext, page_info, settings, body),
+        )
+        .await
+        .or_raise(|| {
+            Error::new(
+                "failed to resolve and render page within total render budget",
+                ErrorType::RenderTimeout,
+            )
+        })?
+    }
+
+    async fn render_html_stages(
         ctx: &ServiceContext<'_>,
         mut wikitext: String,
         page_info: &PageInfo<'_>,
@@ -325,50 +347,38 @@ impl RenderService {
     ) -> Result<RenderedHtml> {
         let config = ctx.config();
 
-        // We isolate the actual tasks for rendering,
-        // allowing us to time it out if it takes too long.
-        //
-        // The preprocess step has to be distinct for borrowing reasons,
-        // since we want to do the processing for non-ftml work
-        // outside the timeout guards.
+        // Database-backed expansion uses the total budget, not the FTML-only limit.
+        if body.is_some() {
+            wikitext =
+                super::live_template::apply_live_template(ctx, wikitext, page_info)
+                    .await?;
+        }
+        let source = super::show_to::strip_show_to_regions(wikitext);
+        let (expanded, included_pages) =
+            super::includes::expand_includes(ctx, source, &page_info.site, settings)
+                .await?;
+        let (listed, listings) = super::list_pages::expand_list_pages(
+            ctx,
+            expanded,
+            page_info,
+            body.map_or(1, |body| body.list_page),
+        )
+        .await?;
+        wikitext = listed;
 
-        let (tokens, included_pages, listings) =
-            timeout(config.preprocess_timeout, async {
-                let mut source = std::mem::take(&mut wikitext);
-                if body.is_some() {
-                    source =
-                        super::live_template::apply_live_template(ctx, source, page_info)
-                            .await?;
-                }
-                let source = super::show_to::strip_show_to_regions(source);
-                let (expanded, included_pages) = super::includes::expand_includes(
-                    ctx,
-                    source,
-                    &page_info.site,
-                    settings,
-                )
-                .await?;
-                let (listed, listings) = super::list_pages::expand_list_pages(
-                    ctx,
-                    expanded,
-                    page_info,
-                    body.map_or(1, |body| body.list_page),
-                )
-                .await?;
-                wikitext = listed;
-                wikitext = super::wikidot_comments::strip_comments(std::mem::take(
-                    &mut wikitext,
-                ));
-                ftml::preprocess(&mut wikitext);
-                Ok::<_, ExnError>((ftml::tokenize(&wikitext), included_pages, listings))
-            })
-            .await
-            .or_raise(|| {
-                Error::new(
-                    "failed to preprocess and tokenize due to timeout",
-                    ErrorType::RenderTimeout,
-                )
-            })??;
+        let tokens = timeout(config.preprocess_timeout, async {
+            wikitext =
+                super::wikidot_comments::strip_comments(std::mem::take(&mut wikitext));
+            ftml::preprocess(&mut wikitext);
+            ftml::tokenize(&wikitext)
+        })
+        .await
+        .or_raise(|| {
+            Error::new(
+                "failed to preprocess and tokenize due to timeout",
+                ErrorType::RenderTimeout,
+            )
+        })?;
 
         let (tree, mut html_output, errors, lists_every_page) =
             timeout(config.render_timeout, async {
