@@ -93,8 +93,8 @@
   .field-control {
     display: flex;
     flex-wrap: wrap;
-    align-items: baseline;
     gap: 0.25em;
+    align-items: baseline;
   }
   input,
   textarea,

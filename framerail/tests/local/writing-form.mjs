@@ -187,8 +187,9 @@ function controlSelector(field) {
   if (
     field.kind === "wiki" ||
     (field.kind === "text" && Number(field.properties.height) >= 2)
-  )
+  ) {
     return "textarea"
+  }
   return field.kind === "select" ? "select" : 'input[type="text"]'
 }
 
@@ -197,7 +198,7 @@ function controlSelector(field) {
  * @param {import("../../src/lib/form-editor").FormField} field
  * @param {import("@playwright/test").Locator} control
  */
-async function assertGuidance(wrapper, field, control) {
+async function assertAfterGuidance(wrapper, field, control) {
   const after = text(field.properties.after)
   const help = wrapper.locator(".field-control > small")
   await expect(help).toHaveCount(after ? 1 : 0)
@@ -211,11 +212,46 @@ async function assertGuidance(wrapper, field, control) {
   } else {
     await expect(control).not.toHaveAttribute("aria-describedby")
   }
+}
+
+/**
+ * @param {import("../../src/lib/form-editor").FormField} field
+ * @param {import("@playwright/test").Locator} control
+ */
+async function assertPlaceholder(field, control) {
   if (field.kind === "text" || field.kind === "wiki") {
     const hint = text(field.properties.hint)
     if (hint) await expect(control).toHaveAttribute("placeholder", hint)
     else await expect(control).not.toHaveAttribute("placeholder")
   }
+}
+
+/**
+ * @param {import("../../src/lib/form-editor").FormField} field
+ * @param {import("@playwright/test").Locator} control
+ */
+async function assertDimensions(field, control) {
+  const width = Number(field.properties.width)
+  if (Number.isInteger(width) && width > 0) {
+    await expect(control).toHaveAttribute(
+      controlSelector(field) === "textarea" ? "cols" : "size",
+      String(width)
+    )
+  }
+  const height = Number(field.properties.height)
+  if (controlSelector(field) === "textarea" && Number.isInteger(height) && height > 0) {
+    await expect(control).toHaveAttribute("rows", String(height))
+  }
+}
+
+/**
+ * @param {import("@playwright/test").Locator} wrapper
+ * @param {import("../../src/lib/form-editor").FormField} field
+ * @param {import("@playwright/test").Locator} control
+ */
+async function assertGuidance(wrapper, field, control) {
+  await assertAfterGuidance(wrapper, field, control)
+  await assertPlaceholder(field, control)
 }
 
 /**
@@ -249,17 +285,7 @@ async function assertDefaultControl(wrapper, field) {
       digest(text(value)),
       `${field.name} default digest`
     )
-    const width = Number(field.properties.width)
-    if (Number.isInteger(width) && width > 0) {
-      await expect(control).toHaveAttribute(
-        controlSelector(field) === "textarea" ? "cols" : "size",
-        String(width)
-      )
-    }
-    const height = Number(field.properties.height)
-    if (controlSelector(field) === "textarea" && Number.isInteger(height) && height > 0) {
-      await expect(control).toHaveAttribute("rows", String(height))
-    }
+    await assertDimensions(field, control)
   }
   await assertGuidance(wrapper, field, control)
 }

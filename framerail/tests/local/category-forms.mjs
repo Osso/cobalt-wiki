@@ -233,8 +233,9 @@ function controlSelector(field) {
   if (
     field.kind === "wiki" ||
     (field.kind === "text" && Number(field.properties.height) >= 2)
-  )
+  ) {
     return "textarea"
+  }
   return field.kind === "select" ? "select" : 'input[type="text"]'
 }
 
