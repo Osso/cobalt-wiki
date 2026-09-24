@@ -255,6 +255,7 @@ test("source-defined fields render accessible typed controls and readonly static
     }).body
     assert.doesNotMatch(missingBody, /<input[^>]*type="radio"[^>]*checked/)
 
+    /** @type {import("../src/lib/form-editor").PageForm} */
     const unlabeled = {
       schema: {
         properties: {},

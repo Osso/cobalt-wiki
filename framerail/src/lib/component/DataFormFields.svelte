@@ -24,8 +24,8 @@
     {:else if field.kind === "select" && field.options.length >= 2 && field.options.length <= 4}
       <div class="field-control">
         <fieldset
-          aria-label={label ? undefined : field.name}
           aria-describedby={after ? `${id}-after` : undefined}
+          aria-label={label ? undefined : field.name}
         >
           {#if label}<legend>{label}</legend>{/if}
           {#if draft[field.name] !== undefined && !field.options.some((option) => option.code === draft[field.name])}
@@ -52,8 +52,8 @@
         {#if field.kind === "select"}
           <select
             {id}
-            aria-label={label ? undefined : field.name}
             aria-describedby={after ? `${id}-after` : undefined}
+            aria-label={label ? undefined : field.name}
             bind:value={draft[field.name]}
           >
             {#if !field.options.some((option) => option.code === draft[field.name])}
@@ -66,8 +66,8 @@
         {:else if field.kind === "wiki" || (dimension(field.properties.height) ?? 0) >= 2}
           <textarea
             {id}
-            aria-label={label ? undefined : field.name}
             aria-describedby={after ? `${id}-after` : undefined}
+            aria-label={label ? undefined : field.name}
             cols={dimension(field.properties.width)}
             oninput={(event) => (draft[field.name] = event.currentTarget.value)}
             placeholder={hint || undefined}
@@ -76,8 +76,8 @@
         {:else}
           <input
             {id}
-            aria-label={label ? undefined : field.name}
             aria-describedby={after ? `${id}-after` : undefined}
+            aria-label={label ? undefined : field.name}
             oninput={(event) => (draft[field.name] = event.currentTarget.value)}
             placeholder={hint || undefined}
             size={dimension(field.properties.width)}

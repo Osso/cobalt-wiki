@@ -91,7 +91,7 @@ async function assertStaticField(wrapper, field, value) {
  * @param {import("@playwright/test").Locator} wrapper
  * @param {import("../../src/lib/form-editor").FormField} field
  * @param {unknown} value
- * @param {string} label
+ * @param {string} visibleLabel
  */
 async function assertRadioField(wrapper, field, value, visibleLabel) {
   const legend = wrapper.locator("legend")
