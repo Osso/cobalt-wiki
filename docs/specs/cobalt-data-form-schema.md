@@ -96,9 +96,15 @@ Dependencies: Serde supplies the transport serialization contract; maintained `s
 
 `deepwell/tests/page_preview.rs` contains the six real-DB preview/form cases proven at `d9f5f79`. Frontend and authenticated browser preview acceptance, including its boundaries, are the [form-editor SSOT](cobalt-form-editor.md#tests-asserting-this-spec).
 
+## Historical NPC parser evidence
+
+The Wikidot repository's `git ls-tree` recovers the exact historical Symfony YAML submodule pin: `f3abfaa5228e7e81954e38b0757de2ad19875bc8`. The public `fabpot/yaml` checkout at `/tmp/claude/cobalt-legacy-sfyaml` was pinned to that commit and evaluated with PHP 8.5's archived `sfYamlParser`; its wrapper input included the historical `---` prefix. The full archived NPC schema parsed successfully (`/tmp/claude/cobalt-npc-pinned-sfyaml.log`, exit 0): 22 fields (7 static, 9 text, 4 select, 2 wiki), and the `race` option parsed with code `orc` and literal label `Orc:`.
+
+This supersedes the former claim that historical parser behavior was unavailable or unproven. It establishes acceptance by that pinned legacy parser only—not behavior of the current hosted implementation. The local NPC route remains blocked (schema RPC 4000; creation HTTP 500), the source inventory contains no saved NPC records, and no Rust/schema/archive change has been made. The current strict-rejection contract for this syntax therefore remains in force pending an explicit compatibility decision; NPC support is not claimed.
+
 ## Known gaps (current cycle)
 
-- [ ] The legacy NPC definition's apparent `orc: Orc:` syntax remains an error, not an automatic repair. The source inventory contains no saved NPC records. No real template or private record is included in fixtures.
+- [ ] Decide whether the current strict-rejection contract should gain compatibility for the historically accepted NPC `orc: Orc:` entry. Do not automatically repair it. The local NPC schema RPC still returns 4000 and creation returns HTTP 500; no saved NPC record exists in the source inventory or fixtures.
 - [ ] Formatting toolbar and source rich-editor parity are incomplete. Preview acceptance is documented in the [form-editor SSOT](cobalt-form-editor.md#tests-asserting-this-spec); it does not establish toolbar or source-parity behavior.
 - [ ] Draft ownership and hosted-server lifecycle semantics remain unproven; the local shared-target behavior is documented authorized inference in the [form-editor contract](cobalt-form-editor.md).
 - [ ] Independent or broader browser coverage remains open; the single local authenticated form roundtrip does not establish site-wide workflow parity.
