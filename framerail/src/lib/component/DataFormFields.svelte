@@ -126,8 +126,8 @@
   }
   fieldset {
     margin: 0;
-    border: 0;
     padding: 0;
+    border: 0;
   }
   .radio-option {
     display: inline;
