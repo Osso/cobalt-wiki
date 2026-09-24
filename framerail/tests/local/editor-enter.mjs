@@ -442,7 +442,7 @@ async function assertSaveEnter(page, slug, editCount) {
  */
 async function assertCancelEnter(page, editCount) {
   const editor = page.locator("#editor")
-  const cancel = editor.locator('button.button-cancel, input[name="cancel"]')
+  const cancel = editor.getByRole("button", { name: "Cancel", exact: true })
   await expect(cancel).toBeVisible()
   await cancel.focus()
   await page.keyboard.press("Enter")
