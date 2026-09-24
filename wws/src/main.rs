@@ -42,6 +42,7 @@ mod handler;
 mod info;
 mod language;
 mod path;
+mod presign;
 mod range;
 mod route;
 mod state;

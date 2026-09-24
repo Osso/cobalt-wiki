@@ -51,12 +51,17 @@ pub fn percent_encode_rfc5987(s: &str) -> String {
 }
 
 /// see https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Disposition and RFC 5987
-pub fn content_disposition_attachment(filename: &str) -> HeaderValue {
+pub fn content_disposition(as_attachment: bool, filename: &str) -> HeaderValue {
+    let disposition = if as_attachment {
+        "attachment"
+    } else {
+        "inline"
+    };
     if filename.is_ascii() {
         let escaped = filename.replace('\\', "\\\\").replace('"', "\\\"");
-        let value = format!("attachment; filename=\"{escaped}\"");
+        let value = format!("{disposition}; filename=\"{escaped}\"");
         HeaderValue::from_str(&value)
-            .unwrap_or_else(|_| HeaderValue::from_static("attachment"))
+            .unwrap_or_else(|_| HeaderValue::from_static(disposition))
     } else {
         let ascii_fallback: String = filename
             .chars()
@@ -70,10 +75,10 @@ pub fn content_disposition_attachment(filename: &str) -> HeaderValue {
             .collect();
         let encoded = percent_encode_rfc5987(filename);
         let value = format!(
-            "attachment; filename=\"{ascii_fallback}\"; filename*=UTF-8''{encoded}"
+            "{disposition}; filename=\"{ascii_fallback}\"; filename*=UTF-8''{encoded}"
         );
         HeaderValue::from_bytes(value.as_bytes())
-            .unwrap_or_else(|_| HeaderValue::from_static("attachment"))
+            .unwrap_or_else(|_| HeaderValue::from_static(disposition))
     }
 }
 
@@ -85,13 +90,19 @@ mod tests {
 
     #[test]
     fn disposition_ascii() {
-        let val = content_disposition_attachment("report.pdf");
+        let val = content_disposition(true, "report.pdf");
         assert_eq!(val.to_str().unwrap(), "attachment; filename=\"report.pdf\"");
     }
 
     #[test]
+    fn disposition_inline() {
+        let val = content_disposition(false, "chessset.jpg");
+        assert_eq!(val.to_str().unwrap(), "inline; filename=\"chessset.jpg\"");
+    }
+
+    #[test]
     fn disposition_escapes_quotes() {
-        let val = content_disposition_attachment("say\"hello\".txt");
+        let val = content_disposition(true, "say\"hello\".txt");
         assert_eq!(
             val.to_str().unwrap(),
             "attachment; filename=\"say\\\"hello\\\".txt\"",
@@ -100,7 +111,7 @@ mod tests {
 
     #[test]
     fn disposition_escapes_backslash() {
-        let val = content_disposition_attachment("back\\slash.txt");
+        let val = content_disposition(true, "back\\slash.txt");
         assert_eq!(
             val.to_str().unwrap(),
             "attachment; filename=\"back\\\\slash.txt\"",
@@ -109,7 +120,7 @@ mod tests {
 
     #[test]
     fn disposition_non_ascii() {
-        let val = content_disposition_attachment("données.csv");
+        let val = content_disposition(true, "données.csv");
         let s = std::str::from_utf8(val.as_bytes()).unwrap();
         assert!(s.contains("filename=\"donn_es.csv\""));
         assert!(s.contains("filename*=UTF-8''donn%C3%A9es.csv"));

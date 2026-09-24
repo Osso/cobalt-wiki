@@ -24,6 +24,7 @@ use crate::error::{
     BasicError, FallbackError, TextBlockErrorReason, build_basic_error_response,
 };
 use crate::state::ServerState;
+use crate::visibility::{CACHE_PRIVATE, PageVisibility};
 use axum::body::Body;
 use axum::extract::{Path, State};
 use axum::http::header::{self, HeaderMap};
@@ -84,7 +85,7 @@ async fn handle_text_block(
 ) -> Response {
     let site_id = get_site_id(headers);
     let page_id = try_response!(state.get_page_or_response(headers, site_id, page_slug));
-    let _visibility = try_response!(
+    let visibility = try_response!(
         state.get_page_visibility_or_response(headers, site_id, page_id, page_slug)
     );
 
@@ -207,7 +208,13 @@ async fn handle_text_block(
         bytes.push(b'\n');
         bytes
     });
-    let result = Response::builder()
+    // Text blocks keep their URL across page edits, so public ones are not
+    // given a long cache lifetime; restricted ones are never stored.
+    let mut builder = Response::builder();
+    if visibility == PageVisibility::Restricted {
+        builder = builder.header(header::CACHE_CONTROL, CACHE_PRIVATE);
+    }
+    let result = builder
         .header(header::CONTENT_TYPE, &content_type)
         .header(header::ETAG, &etag)
         .body(body);

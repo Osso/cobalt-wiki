@@ -32,7 +32,12 @@ use headers::{Cookie, HeaderMapExt};
 /// Framerail's session cookie.
 const SESSION_COOKIE: &str = "wikijump_token";
 
-const CACHE_PRIVATE: &str = "private, no-store";
+/// Files of anonymously viewable pages: browsers and edge caches keep them
+/// 30 days, so a file replaced under the same name can be stale that long.
+pub const CACHE_PUBLIC: &str = "public, max-age=2592000";
+
+/// Anything specific to a restricted page or to the viewer.
+pub const CACHE_PRIVATE: &str = "private, no-store";
 
 pub fn get_session_token(headers: &HeaderMap) -> Option<String> {
     headers

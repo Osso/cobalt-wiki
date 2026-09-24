@@ -19,13 +19,16 @@
  */
 
 use super::get_site_id;
-use crate::attachment::content_disposition_attachment;
+use crate::attachment::content_disposition;
 use crate::deepwell::FileData;
+use crate::error::{BasicError, build_basic_error_response};
 use crate::fetch::{
     fetch_file_info, fetch_full_body, fetch_range_bytes, fetch_range_stream,
 };
+use crate::presign::presign_file_get;
 use crate::range::{ByteRange, ParsedRange, evaluate_range};
 use crate::state::ServerState;
+use crate::visibility::{CACHE_PRIVATE, CACHE_PUBLIC, PageVisibility};
 use axum::body::Body;
 use axum::extract::{Path, State};
 use axum::http::header::{self, HeaderMap};
@@ -33,6 +36,7 @@ use axum::http::{Method, StatusCode};
 use axum::response::{IntoResponse, Response};
 use rand::distr::{Alphanumeric, SampleString};
 use std::fmt::Write;
+use time::OffsetDateTime;
 
 /// Prefix for MIME boundaries used in `multipart/byteranges` responses.
 ///
@@ -259,7 +263,7 @@ async fn serve_multi_range(
 pub async fn handle_file_fetch(
     State(state): State<ServerState>,
     method: Method,
-    Path((mut page_slug, filename)): Path<(String, String)>,
+    Path((page_slug, filename)): Path<(String, String)>,
     headers: HeaderMap,
 ) -> Response {
     info!(
@@ -268,24 +272,13 @@ pub async fn handle_file_fetch(
         "Returning file data",
     );
 
-    let site_id = get_site_id(&headers);
-    let (file_info, _visibility) =
-        match fetch_file_info(&state, &headers, site_id, &mut page_slug, &filename).await
-        {
-            Ok(info) => info,
-            Err(response) => return response,
-        };
-
-    serve_file(
-        &state, &method, &headers, &file_info, false, &page_slug, &filename,
-    )
-    .await
+    handle_file(&state, &method, &headers, page_slug, &filename, false).await
 }
 
 pub async fn handle_file_download(
     State(state): State<ServerState>,
     method: Method,
-    Path((mut page_slug, filename)): Path<(String, String)>,
+    Path((page_slug, filename)): Path<(String, String)>,
     headers: HeaderMap,
 ) -> Response {
     info!(
@@ -294,22 +287,100 @@ pub async fn handle_file_download(
         "Returning file download",
     );
 
-    let site_id = get_site_id(&headers);
-    let (file_info, _visibility) =
-        match fetch_file_info(&state, &headers, site_id, &mut page_slug, &filename).await
-        {
+    handle_file(&state, &method, &headers, page_slug, &filename, true).await
+}
+
+/// Streams files of anonymously viewable pages (publicly cacheable);
+/// redirects a permitted viewer of a restricted page to a presigned URL.
+async fn handle_file(
+    state: &ServerState,
+    method: &Method,
+    headers: &HeaderMap,
+    mut page_slug: String,
+    filename: &str,
+    as_attachment: bool,
+) -> Response {
+    let site_id = get_site_id(headers);
+    let (file_info, visibility) =
+        match fetch_file_info(state, headers, site_id, &mut page_slug, filename).await {
             Ok(info) => info,
             Err(response) => return response,
         };
 
-    serve_file(
-        &state, &method, &headers, &file_info, true, &page_slug, &filename,
+    match visibility {
+        PageVisibility::Public => {
+            serve_file(
+                state,
+                method,
+                headers,
+                &file_info,
+                as_attachment,
+                &page_slug,
+                filename,
+            )
+            .await
+        }
+        PageVisibility::Restricted => {
+            redirect_presigned(
+                state,
+                headers,
+                &file_info,
+                &page_slug,
+                filename,
+                as_attachment,
+            )
+            .await
+        }
+    }
+}
+
+async fn redirect_presigned(
+    state: &ServerState,
+    headers: &HeaderMap,
+    file_info: &FileData,
+    page_slug: &str,
+    filename: &str,
+    as_attachment: bool,
+) -> Response {
+    let now = OffsetDateTime::now_utc();
+    match presign_file_get(
+        &state.s3_files_bucket,
+        file_info,
+        filename,
+        as_attachment,
+        now,
     )
     .await
+    {
+        Ok(url) => build_or_500(
+            Response::builder()
+                .status(StatusCode::FOUND)
+                .header(header::LOCATION, url)
+                .header(header::CACHE_CONTROL, CACHE_PRIVATE)
+                .body(Body::empty()),
+        ),
+        Err(error) => {
+            error!(
+                s3_hash = &file_info.s3_hash,
+                "Cannot presign file URL: {error}",
+            );
+            build_basic_error_response(
+                state,
+                headers,
+                BasicError::FileFetch {
+                    site_id: get_site_id(headers),
+                    page_slug,
+                    filename,
+                },
+            )
+            .await
+        }
+    }
 }
 
 // ------------ Response builders ------------
 
+/// Only files of anonymously viewable pages are streamed.
 fn base_headers(
     status: StatusCode,
     etag: &str,
@@ -319,12 +390,13 @@ fn base_headers(
     let mut builder = Response::builder()
         .status(status)
         .header(header::ETAG, etag)
-        .header(header::ACCEPT_RANGES, "bytes");
+        .header(header::ACCEPT_RANGES, "bytes")
+        .header(header::CACHE_CONTROL, CACHE_PUBLIC);
 
     if as_attachment {
         builder = builder.header(
             header::CONTENT_DISPOSITION,
-            content_disposition_attachment(filename),
+            content_disposition(true, filename),
         );
     }
 

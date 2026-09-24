@@ -27,6 +27,9 @@ mod robots;
 mod text_block;
 mod well_known;
 
+#[cfg(test)]
+mod file_access_tests;
+
 pub use self::avatar::*;
 pub use self::basic_error::*;
 pub use self::file::*;
