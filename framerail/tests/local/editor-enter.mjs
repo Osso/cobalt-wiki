@@ -352,6 +352,23 @@ async function assertInputEnter(page, form, label, editCount) {
     : editor.locator('[name="wikitext"]')
   await assertTextareaEnter(page, textarea, marker, editCount)
   await assertCompositionNotPrevented(page, title)
+  if (form) {
+    await assertRadioEnterBlocked(page, editCount)
+  }
+}
+
+/**
+ * @param {import("@playwright/test").Page} page
+ * @param {() => number} editCount
+ */
+async function assertRadioEnterBlocked(page, editCount) {
+  const radio = page.locator("#editor").getByRole("radio").first()
+  await expect(radio).toBeVisible()
+  const submits = await countSubmits(page)
+  const requests = editCount()
+  await radio.press("Enter")
+  assert.equal(await countSubmits(page), submits, "radio Enter must not submit editor")
+  assert.equal(editCount(), requests, "radio Enter must not request edit action")
 }
 
 /**
