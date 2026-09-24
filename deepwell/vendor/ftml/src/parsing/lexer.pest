@@ -41,6 +41,11 @@ token = _{
     left_comment |
     right_comment |
 
+    // Whitespace
+    paragraph_break |
+    line_break |
+    space |
+
     // Text-like
     url |
     email |
@@ -105,11 +110,6 @@ token = _{
     heading |
     bullet_item |
     numbered_item |
-
-    // Whitespace
-    paragraph_break |
-    line_break |
-    space |
 
     // Generic fallback after all other rules have been tried
     other

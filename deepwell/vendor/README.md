@@ -4,6 +4,8 @@
 
 Unmatched `))` in acquired source previously panicked during page import. Source bytes remain unchanged; closing delimiters render literally. `tests/page_import.rs` exercises database import and rendered output. `tests/page_link_titles.rs` covers native title resolution and history-preserving rendering refresh.
 
+The lexer now tries existing whitespace rules immediately after raw/comment delimiters, before text and symbols. This preserves token priority for overlapping markup while reducing repeated ordered-choice checks on whitespace-heavy pages. A standalone debug Pest benchmark with identical baseline and reordered grammars matched token rules, slices, and byte spans; median lexer time fell from 724 to 430 ms on ~60 KB and 2,958 to 1,168 ms on ~121 KB. These are tokenizer-only measurements, not preview latency or timeout proof.
+
 Cargo and native Nix builds use the same local dependency. Replace this copy with a registry release once that release passes the regression. Upstream license remains in `ftml/LICENSE.md`.
 
 # wikidot-normalize patch

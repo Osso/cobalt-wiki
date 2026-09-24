@@ -203,6 +203,72 @@ fn tokens() {
     );
 
     test!(
+        "é🙂 @@\t[[[[a@b.cd]]]]\r\n\r\nx",
+        vec![
+            ExtractedToken {
+                token: Token::Other,
+                slice: "é",
+                span: 0..2
+            },
+            ExtractedToken {
+                token: Token::Other,
+                slice: "🙂",
+                span: 2..6
+            },
+            ExtractedToken {
+                token: Token::Whitespace,
+                slice: " ",
+                span: 6..7
+            },
+            ExtractedToken {
+                token: Token::Raw,
+                slice: "@@",
+                span: 7..9
+            },
+            ExtractedToken {
+                token: Token::Whitespace,
+                slice: "\t",
+                span: 9..10
+            },
+            ExtractedToken {
+                token: Token::LeftBracket,
+                slice: "[",
+                span: 10..11
+            },
+            ExtractedToken {
+                token: Token::LeftLink,
+                slice: "[[[",
+                span: 11..14
+            },
+            ExtractedToken {
+                token: Token::Email,
+                slice: "a@b.cd",
+                span: 14..20
+            },
+            ExtractedToken {
+                token: Token::RightLink,
+                slice: "]]]",
+                span: 20..23
+            },
+            ExtractedToken {
+                token: Token::RightBracket,
+                slice: "]",
+                span: 23..24
+            },
+            ExtractedToken {
+                token: Token::ParagraphBreak,
+                slice: "\r\n\r\n",
+                span: 24..28
+            },
+            ExtractedToken {
+                token: Token::Identifier,
+                slice: "x",
+                span: 28..29
+            },
+        ],
+    );
+
+    test!(
         "[[[[quadLinkTest]]]]",
         vec![
             ExtractedToken {
