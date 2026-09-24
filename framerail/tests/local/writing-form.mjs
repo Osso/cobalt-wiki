@@ -503,6 +503,23 @@ test("NewPage writing form labels, defaults and preview do not write", async () 
       })
       await expect(page.locator('#editor [name="title"]')).toHaveValue(title)
       await assertNewForm(page, fields)
+      const rows = page.locator("#editor .form-field")
+      for (const [index, field] of fields.entries()) {
+        if (field.kind !== "static") continue
+        const { marginBottom, fontSize } = await rows
+          .nth(index)
+          .locator(".static-field")
+          .evaluate((element) => {
+            const style = getComputedStyle(element)
+            return {
+              marginBottom: parseFloat(style.marginBottom),
+              fontSize: parseFloat(style.fontSize)
+            }
+          })
+        assert.equal(fontSize, 16, `${field.name} static font size`)
+        assert.equal(marginBottom, 12, `${field.name} static bottom spacing`)
+        assert.equal(marginBottom, 0.75 * fontSize, `${field.name} static spacing ratio`)
+      }
       await assertWritingLayout(page, fields)
       const author = fields.find((field) => field.name === "author")
       const summary = fields.find((field) => field.name === "summary")
