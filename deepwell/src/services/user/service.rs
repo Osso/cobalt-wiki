@@ -375,6 +375,7 @@ impl UserService {
             password,
             bypass_filter,
             bypass_email_verification,
+            created_at: created_at_override,
             ip_address,
         }: ActivateUserFromWikidot,
     ) -> Result<WikijumpUserModel> {
@@ -518,7 +519,7 @@ impl UserService {
 
         let model = user::ActiveModel {
             user_id: Set(user_id),
-            created_at: Set(created_at),
+            created_at: Set(created_at_override.unwrap_or(created_at)),
             avatar_s3_hash: Set(avatar_s3_hash),
             ..Default::default()
         };

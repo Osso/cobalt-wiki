@@ -193,6 +193,10 @@ pub struct ActivateUserFromWikidot {
 
     #[serde(default)]
     pub bypass_email_verification: bool,
+
+    /// Account creation time, if not the Wikidot account's (e.g. site join time).
+    #[serde(default, with = "time::serde::rfc3339::option")]
+    pub created_at: Option<time::OffsetDateTime>,
     pub ip_address: IpAddr,
 }
 
