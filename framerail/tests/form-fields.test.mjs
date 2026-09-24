@@ -340,7 +340,7 @@ test("source-defined fields render accessible typed controls and readonly static
       unlabeledBody,
       /<select[^>]*id="data-form-field-2"[^>]*aria-label="missing-select-unique"/
     )
-    const radioTag = unlabeledBody.match(/<fieldset\b[^>]*>/)?.[0]
+    const radioTag = /<fieldset\b[^>]*>/.exec(unlabeledBody)?.[0]
     assert.ok(radioTag, "unlabeled radio group must render")
     assert.match(radioTag, /aria-label="null-radio-unique"/)
     assert.match(radioTag, /aria-describedby="data-form-field-3-after"/)
