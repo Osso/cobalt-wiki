@@ -10,7 +10,8 @@ Render archived Wikidot form pages through their category `_template`, as Wikido
 - [x] Substitute before include expansion, so template includes receive filled arguments.
 - [x] Keep hidden pages (`_template`, `_public`) and pages in categories without a form template rendered from their own source.
 - [x] Render an explicit diagnostic for malformed form markers/definitions or a form page whose source is not a field record, without exposing its raw source or changing stored source.
-- [ ] Rerender category pages when their `_template` changes.
+- [x] Queue only the affected category's pages for rerender when its `_template` changes, through the normal edit path without changing their records.
+- [ ] Deliver the queued rerenders through the worker and refresh their compiled bodies.
 - [ ] Non-form live templates (`%%content%%`); none exist in the Cobalt archive.
 
 ## How it works
@@ -24,7 +25,8 @@ Archive check (2026-09-22): 5,969 of 5,970 pages in the eight form categories pa
 - `deepwell/tests/page_list_pages.rs`: `form_pages_render_through_their_category_template` (select label, wiki field, filled include, unchanged YAML source, unwrapped `_public`); ignored `archived_cobalt_pages_render_without_template_syntax` renders real archived pages.
 - `deepwell/src/services/render/page_tokens.rs`, `live_template.rs`: token substitution, `====` split and ListPages exclusion.
 - `deepwell/vendor/ftml/src/includes/test.rs`: `argument_values_exclude_whitespace_before_the_next_separator`.
+- `deepwell/tests/page_listing_invalidation.rs`: `editing_a_form_template_queues_only_its_category_without_changing_records` proves category-scoped queueing through a normal template edit; it passed against the dedicated empty Redis 15/test database at `72743dc` (`/tmp/claude/cobalt-template-edit-native.log`). The worker cannot observe this rollback-isolated fixture's private transaction, so compiled-body refresh remains unproven.
 
 ## Out of scope
 
-Template-change invalidation (queue fan-out is tracked separately), form editing (see [form schema](cobalt-data-form-schema.md)), and deployment.
+Form editing (see [form schema](cobalt-data-form-schema.md)) and deployment.
