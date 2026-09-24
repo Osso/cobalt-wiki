@@ -19,6 +19,7 @@
  */
 
 use super::prelude::*;
+use crate::layout::Layout;
 use crate::parsing::paragraph::ParagraphStack;
 use crate::parsing::{DepthItem, DepthList, process_depths};
 use crate::tree::{AttributeMap, Container, ContainerType};
@@ -39,6 +40,7 @@ fn try_consume_fn<'r, 't>(
     // Context variables
     let mut depths = Vec::new();
     let mut errors = Vec::new();
+    let mut dropped = false;
 
     // Produce a depth list with elements
     loop {
@@ -54,6 +56,18 @@ fn try_consume_fn<'r, 't>(
             }
         };
         parser.step()?;
+
+        // Wikidot's blockquote rule takes every ">" line but keeps only those
+        // with a space after the ">"s, so ">text" lines vanish. Sites use it
+        // to hide text ("with no space between the > and the text").
+        if parser.settings().layout == Layout::Wikidot
+            && parser.current().token != Token::Whitespace
+        {
+            skip_line(parser)?;
+            dropped = true;
+            continue;
+        }
+
         parser.get_optional_space()?; // allow whitespace after ">"
 
         // Check that the depth isn't obscenely deep, to avoid DOS attacks via stack overflow.
@@ -91,8 +105,12 @@ fn try_consume_fn<'r, 't>(
         depths.push((depth - 1, (), (elements, paragraph_safe)))
     }
 
-    // This blockquote has no rows, so the rule fails
+    // This blockquote has no rows, so the rule fails,
+    // unless its lines were dropped as Wikidot does.
     if depths.is_empty() {
+        if dropped {
+            return ok!(false; Vec::new(), errors);
+        }
         return Err(parser.make_err(ParseErrorKind::RuleFailed));
     }
 
@@ -103,6 +121,19 @@ fn try_consume_fn<'r, 't>(
         .collect();
 
     ok!(false; elements, errors)
+}
+
+/// Consume the rest of the line, including its line or paragraph break.
+fn skip_line(parser: &mut Parser) -> Result<(), ParseError> {
+    loop {
+        match parser.current().token {
+            Token::InputEnd => return Ok(()),
+            Token::LineBreak | Token::ParagraphBreak => return parser.step().map(|_| ()),
+            _ => {
+                parser.step()?;
+            }
+        }
+    }
 }
 
 fn build_blockquote_element(list: DepthList<(), (Vec<Element>, bool)>) -> Element {
@@ -131,4 +162,60 @@ fn build_blockquote_element(list: DepthList<(), (Vec<Element>, bool)>) -> Elemen
         stack.into_elements(),
         AttributeMap::new(),
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::data::PageInfo;
+    use crate::layout::Layout;
+    use crate::render::{Render, html::HtmlRender};
+    use crate::settings::{WikitextMode, WikitextSettings};
+
+    fn render(source: &str, layout: Layout) -> String {
+        let page_info = PageInfo::dummy();
+        let settings = WikitextSettings::from_mode(WikitextMode::Page, layout);
+        let mut text = source.to_owned();
+        crate::preprocess(&mut text);
+        let tokens = crate::tokenize(&text);
+        let (tree, errors) = crate::parse(&tokens, &page_info, &settings).into();
+        assert!(errors.is_empty(), "{errors:?}");
+        HtmlRender.render(&tree, &page_info, &settings).body
+    }
+
+    #[test]
+    fn wikidot_drops_quote_lines_without_a_space() {
+        // new-profile: the whole quoted block disappears on Wikidot.
+        assert_eq!(
+            render(
+                ">[[div style=\"float:right;\"]]\n>[[toc]]\n>[[/div]]\n\nWe know",
+                Layout::Wikidot,
+            ),
+            "<p>We know</p>",
+        );
+
+        // recruitment-status: ">" hides the message that is not current.
+        assert_eq!(
+            render(">Recruiting is open!\n\nWe're closed.", Layout::Wikidot),
+            "<p>We&#39;re closed.</p>",
+        );
+
+        // Only the lines with a space stay in the quote.
+        let mixed = render("> kept\n>hidden\n> also", Layout::Wikidot);
+        assert!(
+            mixed.starts_with("<blockquote>")
+                && mixed.contains("kept")
+                && mixed.contains("also")
+                && !mixed.contains("hidden"),
+            "{mixed}"
+        );
+    }
+
+    #[test]
+    fn wikijump_keeps_quote_lines_without_a_space() {
+        let native = render(">text", Layout::Wikijump);
+        assert!(
+            native.contains("<blockquote") && native.contains("text"),
+            "{native}"
+        );
+    }
 }
