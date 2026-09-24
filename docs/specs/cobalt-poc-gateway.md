@@ -40,7 +40,7 @@ Targeted Nix evaluation covers configuration generation. Main additionally verif
 - [x] Runtime htpasswd ownership/readability was corrected for `cobalt-wiki`.
 - [x] Public HTTPS ingress is configured through the existing Sakuin Cloudflare Tunnel as a proxied CNAME to the loopback gateway. Browser-like requests receive the gateway's `401 Basic` challenge. Python's default client is blocked upstream with Cloudflare `1010`.
 - [x] Full source/attachment import completed and authenticated file routing was exercised. Public ingress does not establish source ACL parity.
-- [ ] Source ACLs and WWS per-page authorization remain unfinished. The POC gate grants its holders access to the whole POC; it is not source-permission parity.
+- [ ] Source ACLs remain unfinished. WWS per-page authorization (Page/View per viewer for files and text blocks) is committed, not deployed; see [media routing](cobalt-media-routing.md). The POC gate grants its holders access to the whole POC; it is not source-permission parity.
 
 ## Out of scope
 

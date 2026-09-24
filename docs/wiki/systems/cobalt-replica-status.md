@@ -32,7 +32,7 @@ Verified: 2026-09-24. This records evidence, not authorization to expose source-
 
 `cobalt-company.sakuin.org` is publicly reachable over HTTPS without a client tunnel. The existing Sakuin Cloudflare Tunnel connects to the loopback gateway. Every visitor still needs the shared POC login. Public tests cover page, CSS, file, download, robots and `.well-known` authentication challenges with `X-Robots-Tag: noindex, nofollow, noarchive`.
 
-WWS does not implement complete per-page authorization. The shared gate grants its holders access to the whole POC; it must remain until source permission parity is proven and removal is authorized. Source creator identities remain unacquired, so target author/time records explicitly describe the technical migration, not original authorship.
+WWS checks Deepwell's Page/View permission for the viewer's session before serving a page's files and text blocks ([file access](#wws-file-access-2026-09-24), committed, not yet deployed); source permission parity (which roles see which categories) is still unproven. The shared gate grants its holders access to the whole POC; it must remain until source permission parity is proven and removal is authorized. Source creator identities remain unacquired, so target author/time records explicitly describe the technical migration, not original authorship.
 
 ## Local-first development workflow
 
@@ -114,6 +114,24 @@ After deploying: jobs already queued as `full` outdate only when their output ch
 - Parser fixes deployed with `297345d31155`: lenient collapsible heads with Wikidot default labels ("+ show block" / "– hide block"), include segments without `=` ignored, email token limited to real addresses (tables with `@<…>@` cells render), lenient iframe heads, and list items ending before a block close tag (`22d7d8e` and the parser-fix commits). Browser check: character:annibeth, arc:season-5, bgc:pennings, herbalists-compendium and character:mordecai show no literal `[[` and render their collapsibles, tables and iframe.
 - `[[gallery]]` renders Wikidot's gallery markup from the page's image attachments (`c8028c4`); `icons` shows all 468 images in Wikidot's order.
 - The 30 Wikidot site members are native accounts (`tools/cobalt_migration/wikidot_members.py`, run 2026-09-24): Wikidot account date on the user, site join date on the membership, roles member 30 / admin 5 / moderator 1 / root 1, unusable random passwords and `@members.invalid` placeholder emails until set-password emails are sent.
+
+## WWS file access, 2026-09-24
+
+Committed on branch `worktree-agent-a20dbe13be5fa7c62`, not deployed. Requirements: [same-site media routing](../../specs/cobalt-media-routing.md).
+
+- Files on multi-colon pages 404ed (`/-/file/writing:2021-10-21-to-paint-a-picture:the-game/chessset.jpg`): wws normalized slugs with crates.io `wikidot-normalize` 0.12, which merges earlier colons into a hyphen. wws now uses Deepwell's patched copy (`98609163d`, Dockerfiles `d6148d16e`). The Nix `wws` source includes `deepwell/vendor/wikidot-normalize`.
+- Files on private pages were served to anyone (`/-/file/admin:css/liberty-webfont.woff2` returned `200` anonymously): wws never checked page permissions. New Deepwell RPC `page_view_permission` runs the page view's Page/View check; wws refuses with `403` before the file lookup, also for text blocks (`4768749a7`). Deploy Deepwell before or with wws: an older Deepwell lacks the RPC and every file request would fail.
+- Caching (`eb3edea5c`): public-page files stream with `public, max-age=2592000`; restricted-page files redirect a permitted viewer to a presigned R2 URL (7 days, signed at UTC midnight, stable all day), redirect `private, no-store`.
+
+Proofs at `eb3edea5c`: wws `cargo test` 29 passed, 3 ignored, no warnings (`/tmp/claude/wws-test4.out`); router tests with Redis 2/2 (`/tmp/claude/wws-test-ignored2.out`); presigned GET against the local Silo returned `200` with the overridden type and disposition (`/tmp/claude/wws-test-s3.out`); Deepwell `page_view_permission` DB test 1/1 (`/tmp/claude/wws-deepwell-test.out`). Not proven: R2 accepting the presigned URL, production behavior.
+
+Post-deploy checks (through the Basic-auth gateway; "logged in" = a `wikijump_token` cookie of a site member):
+
+1. `curl -sI -u … https://cobalt-company.sakuin.org/-/file/writing:2021-10-21-to-paint-a-picture:the-game/chessset.jpg`: `200`, `Cache-Control: public, max-age=2592000`, `ETag` = content hash.
+2. Same URL with `GET`: body SHA-256 equals the Wikidot original.
+3. `curl -sI -u … https://cobalt-company.sakuin.org/-/file/admin:css/liberty-webfont.woff2` without cookie: `403`, `Cache-Control: private, no-store`.
+4. Same with the member's cookie: `302`, `Cache-Control: private, no-store`, `Location` on the R2 endpoint with `X-Amz-Date=<today>T000000Z`, `X-Amz-Expires=604800`, `response-content-type=font%2Fwoff2`; a second request returns the identical `Location`; `curl -sI "<Location>"` returns `200` with `Content-Type: font/woff2` and `Content-Disposition: inline; filename="liberty-webfont.woff2"`.
+5. `/-/download/admin:css/liberty-webfont.woff2` with the cookie: `302` whose `Location` carries `response-content-disposition=attachment…`.
 
 ## Outage 2026-09-24 17:52–18:05 UTC
 

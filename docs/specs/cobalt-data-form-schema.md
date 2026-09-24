@@ -109,7 +109,7 @@ The pre-deploy NPC missing-page browser run failed at `page_create_permission` w
 - [ ] Formatting toolbar and source rich-editor parity are incomplete. Preview acceptance is documented in the [form-editor SSOT](cobalt-form-editor.md#tests-asserting-this-spec); it does not establish toolbar or source-parity behavior.
 - [ ] Draft ownership and hosted-server lifecycle semantics remain unproven; the local shared-target behavior is documented authorized inference in the [form-editor contract](cobalt-form-editor.md).
 - [ ] Independent or broader browser coverage remains open; the single local authenticated form roundtrip does not establish site-wide workflow parity.
-- [ ] Private attachment authorization is separate and missing: current WWS attachment routes do not enforce page-view authorization. Do not expose private attachments.
+- [ ] Private attachment authorization: WWS file routes now enforce Page/View per viewer ([media routing](cobalt-media-routing.md)); committed, not deployed.
 - [ ] Independent verification, readability, and broader checks belong to the integration owner.
 
 ## Out of scope
