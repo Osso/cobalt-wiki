@@ -58,6 +58,37 @@ pub struct JobWorker {
     id: u16,
 }
 
+fn next_empty_queue_delay(current: Duration, max: Duration) -> Duration {
+    if current < max {
+        current.saturating_mul(2).min(max)
+    } else {
+        current
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::next_empty_queue_delay;
+    use std::time::Duration;
+
+    #[test]
+    fn empty_queue_delay_doubles_until_cap_without_overshooting() {
+        let max = Duration::from_secs(360);
+        let mut delay = Duration::from_secs(10);
+        for expected in [20, 40, 80, 160, 320, 360, 360] {
+            delay = next_empty_queue_delay(delay, max);
+            assert_eq!(delay, Duration::from_secs(expected));
+        }
+    }
+
+    #[test]
+    fn empty_queue_delay_caps_when_doubling_would_overflow() {
+        let max = Duration::MAX;
+        let current = max / 2 + Duration::from_secs(1);
+        assert_eq!(next_empty_queue_delay(current, max), max);
+    }
+}
+
 impl JobWorker {
     /// Spawns a number of local job workers.
     /// The number of workers is specified in the configuration.
@@ -130,11 +161,10 @@ impl JobWorker {
                 Ok(JobProcessStatus::NoJob) => {
                     trace!("No job for us to process, sleeping a while");
 
-                    // Exponential backoff, double wait up to the cap
-                    if empty_queue_delay < config!(job_max_poll_delay) {
-                        empty_queue_delay *= 2;
-                    }
-
+                    empty_queue_delay = next_empty_queue_delay(
+                        empty_queue_delay,
+                        config!(job_max_poll_delay),
+                    );
                     empty_queue_delay
                 }
                 Ok(JobProcessStatus::ReceivedJob) => {
