@@ -29,6 +29,11 @@ const categories = [
     counts: { static: 8, text: 9, wiki: 2, select: 5 }
   },
   {
+    name: "npc",
+    markerField: "name",
+    counts: { static: 7, text: 9, wiki: 2, select: 4 }
+  },
+  {
     name: "application",
     markerField: "pronouns",
     counts: { static: 23, text: 0, wiki: 12, select: 0 }
@@ -343,6 +348,15 @@ for (const category of categories) {
         const form = await readCreationForm(request, slug, token)
         const fields = form.schema.fields
         assertSchema(fields, category.counts)
+        if (category.name === "npc") {
+          const race = fields.find((candidate) => candidate.name === "race")
+          assert.ok(race, "npc race field required")
+          assert.equal(
+            race.options.find((option) => option.code === "orc")?.label,
+            "Orc:",
+            "npc orc race label"
+          )
+        }
         assert.deepEqual(form.values, {}, "missing-page form values must be empty")
         const field = fields.find((candidate) => candidate.name === category.markerField)
         assert.ok(field, `${category.name} ${category.markerField} marker field required`)
