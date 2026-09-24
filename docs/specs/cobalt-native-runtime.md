@@ -1,6 +1,6 @@
 # Cobalt native runtime
 
-`install/nixos/module.nix` defines an isolated, loopback-only Wikijump runtime using the [native packages](cobalt-native-packages.md). It does not expose a website or change Sakuin services. See the [runtime integration guide](../wiki/systems/cobalt-native-runtime.md) for deployment integration; that guide remains main-owned.
+`install/nixos/module.nix` defines an isolated, loopback-only Wikijump runtime using the [native packages](cobalt-native-packages.md). It does not expose a website or change Sakuin services. Root `deploy.sh` builds and restarts only the existing local preview Deepwell user service; `install/dev-deploy.sh` targets production Sakuin. See the [runtime integration guide](../wiki/systems/cobalt-native-runtime.md) for deployment integration; that guide remains main-owned.
 
 ## What it must do
 
