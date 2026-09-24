@@ -135,7 +135,23 @@ test("source-defined fields render accessible typed controls and readonly static
       values: { name: 7, rank: "1", sex: false, race: "orc", unknown: true }
     }
     const draft = createDraft(form)
-    const { body } = render(Component, { props: { form, draft } })
+    const title = 'A <& "Title"'
+    const titleLabel = "Title"
+    const { body } = render(Component, { props: { form, draft, title, titleLabel } })
+    const firstRow = /<tbody>\s*<tr\b[^>]*>(.*?)<\/tr>/s.exec(body)?.[1]
+    assert.ok(firstRow, "title must occupy first table row")
+    assert.match(
+      firstRow,
+      /<td class="form-labels(?:\s[^"]*)?">\s*<label for="data-form-title">Title<\/label>\s*<\/td>/
+    )
+    assert.match(
+      firstRow,
+      /<td class="form-values(?:\s[^"]*)?">\s*<input[^>]*id="data-form-title"[^>]*\/?>(?:\s*)<\/td>/
+    )
+    assert.match(firstRow, /<input[^>]*name="title"/)
+    assert.match(firstRow, /<input[^>]*type="text"/)
+    assert.match(firstRow, /<input[^>]*size="35"/)
+    assert.match(firstRow, /<input[^>]*value="A &lt;&amp; &quot;Title&quot;"/)
     assert.match(body, /Read only &lt;safe(?:&gt;|>)/)
     assert.match(body, /Summary &lt;script(?:&gt;|>)/)
     assert.match(body, /Summary value &lt;safe(?:&gt;|>)/)
@@ -204,7 +220,7 @@ test("source-defined fields render accessible typed controls and readonly static
 
     const numeric = { ...form, values: { ...form.values, rank: 1, sex: true } }
     const numericBody = render(Component, {
-      props: { form: numeric, draft: createDraft(numeric) }
+      props: { form: numeric, draft: createDraft(numeric), title, titleLabel }
     }).body
     assert.match(
       numericBody,
@@ -221,7 +237,7 @@ test("source-defined fields render accessible typed controls and readonly static
 
     const nullable = { ...form, values: { ...form.values, rank: null } }
     const nullBody = render(Component, {
-      props: { form: nullable, draft: createDraft(nullable) }
+      props: { form: nullable, draft: createDraft(nullable), title, titleLabel }
     }).body
     assert.match(nullBody, /<input[^>]*type="radio"[^>]*checked[^>]*\/>\s*Null<\/label>/)
     assert.doesNotMatch(
@@ -232,7 +248,7 @@ test("source-defined fields render accessible typed controls and readonly static
     const unknown = { ...form, values: { ...form.values, rank: 99, sex: null } }
     const unknownDraft = createDraft(unknown)
     const unknownBody = render(Component, {
-      props: { form: unknown, draft: unknownDraft }
+      props: { form: unknown, draft: unknownDraft, title, titleLabel }
     }).body
     assert.match(unknownBody, /Current value: 99/)
     assert.match(unknownBody, /Current value: null/)
@@ -244,7 +260,7 @@ test("source-defined fields render accessible typed controls and readonly static
     const unknownRace = { ...form, values: { ...form.values, race: "legacy" } }
     const unknownRaceDraft = createDraft(unknownRace)
     const unknownRaceBody = render(Component, {
-      props: { form: unknownRace, draft: unknownRaceDraft }
+      props: { form: unknownRace, draft: unknownRaceDraft, title, titleLabel }
     }).body
     assert.match(unknownRaceBody, /<option[^>]*selected[^>]*>legacy<\/option>/)
     assert.deepEqual(changedFields(unknownRace, unknownRaceDraft), {})
@@ -254,7 +270,7 @@ test("source-defined fields render accessible typed controls and readonly static
     delete missingValues.sex
     const missing = { ...form, values: missingValues }
     const missingBody = render(Component, {
-      props: { form: missing, draft: createDraft(missing) }
+      props: { form: missing, draft: createDraft(missing), title, titleLabel }
     }).body
     assert.doesNotMatch(missingBody, /<input[^>]*type="radio"[^>]*checked/)
 
@@ -313,7 +329,7 @@ test("source-defined fields render accessible typed controls and readonly static
       values: {}
     }
     const unlabeledBody = render(Component, {
-      props: { form: unlabeled, draft: createDraft(unlabeled) }
+      props: { form: unlabeled, draft: createDraft(unlabeled), title, titleLabel }
     }).body
     for (const name of [
       "null-text-unique",

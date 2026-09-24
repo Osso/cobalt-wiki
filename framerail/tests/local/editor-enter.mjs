@@ -312,10 +312,12 @@ async function assertStructuredTitleGeometry(page) {
       titleBox.y + titleBox.height <= tableBox.y + tableBox.height,
     "Title must fit inside the structured table"
   )
-  const leftOffset = titleBox.x - tableBox.x
+  const valueCell = await table.locator("tr").nth(1).locator("td").nth(1).boundingBox()
+  assert.ok(valueCell, "structured field value-cell rectangle required")
+  const leftOffset = titleBox.x - valueCell.x
   assert.ok(
-    Math.abs(leftOffset - 106) <= 3,
-    `Title must align with the value column at 106 ± 3 px; got ${leftOffset}`
+    leftOffset >= 0 && leftOffset <= 4,
+    `Title must align with the shared value column within its padding; got ${leftOffset}`
   )
   assert.ok(
     titleBox.width < tableBox.width * 0.6,

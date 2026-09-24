@@ -146,23 +146,35 @@
   use:enhance
   use:preventEditorImplicitSubmit
 >
-  <input
-    name="title"
-    class="editor-title"
-    placeholder={data.internationalization?.title}
-    type="text"
-    bind:value={$form.title}
-  />
-  <input
-    name="altTitle"
-    class="editor-alt-title"
-    placeholder={data.internationalization?.["alt-title"]}
-    type="text"
-    bind:value={$form.altTitle}
-  />
   {#if sourceForm}
-    <DataFormFields form={sourceForm} bind:draft />
+    <DataFormFields
+      form={sourceForm}
+      bind:draft
+      bind:title={$form.title}
+      titleLabel={data.internationalization?.title}
+    />
+    <input
+      name="altTitle"
+      class="editor-alt-title"
+      placeholder={data.internationalization?.["alt-title"]}
+      type="text"
+      bind:value={$form.altTitle}
+    />
   {:else}
+    <input
+      name="title"
+      class="editor-title"
+      placeholder={data.internationalization?.title}
+      type="text"
+      bind:value={$form.title}
+    />
+    <input
+      name="altTitle"
+      class="editor-alt-title"
+      placeholder={data.internationalization?.["alt-title"]}
+      type="text"
+      bind:value={$form.altTitle}
+    />
     <WikitextToolbar
       attachmentLookup={data.page
         ? () => lookupEditorAttachments(params.slug)

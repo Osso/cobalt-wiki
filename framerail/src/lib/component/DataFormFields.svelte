@@ -2,7 +2,17 @@
   import { scalarText, fieldText } from "../form-editor"
   import type { PageForm, FormDraft } from "../form-editor"
 
-  let { form, draft = $bindable() }: { form: PageForm; draft: FormDraft } = $props()
+  let {
+    form,
+    draft = $bindable(),
+    title = $bindable(),
+    titleLabel
+  }: {
+    form: PageForm
+    draft: FormDraft
+    title: string
+    titleLabel: string | undefined
+  } = $props()
 
   function dimension(value: unknown): number | undefined {
     const number = Number(value)
@@ -12,6 +22,18 @@
 
 <table class="form-table">
   <tbody>
+    <tr class="form-field">
+      <td class="form-labels"><label for="data-form-title">{titleLabel}</label></td>
+      <td class="form-values">
+        <input
+          id="data-form-title"
+          name="title"
+          type="text"
+          size="35"
+          bind:value={title}
+        />
+      </td>
+    </tr>
     {#each form.schema.fields as field, index (field.name)}
       {@const id = `data-form-field-${index}`}
       {@const label = scalarText(field.properties.label)}
@@ -114,6 +136,10 @@
   }
   .form-labels {
     max-width: 40%;
+  }
+  #data-form-title {
+    font-size: 130%;
+    font-weight: bold;
   }
   input,
   textarea,
