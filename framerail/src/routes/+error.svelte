@@ -239,7 +239,7 @@
         placeholder={errorData.internationalization?.["wiki-page-revision-comments"]}
         bind:value={$editForm.comments}></textarea>
       {#if layout === Layout.WIKIDOT}
-        <div class="buttons">
+        <div class="buttons" class:alignleft={createForm !== null}>
           <input
             class="btn btn-danger"
             onclick={cancelCreate}
