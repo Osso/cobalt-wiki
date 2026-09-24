@@ -51,7 +51,9 @@ Local observations (2026-09-22): authenticated homepage `200`, unauthenticated h
 
 ## Character full-form acceptance
 
-At `7c4ebcdf4fd9c2bef4be21e1013952c7057ce500`, `framerail/tests/local/character-form.mjs` passed 1/1 against actual `character:atley` (`/tmp/claude/cobalt-character-form-browser.log`). It proves the ordered 33-field schema (11 static, 10 text, 7 select, 5 wiki), controls, stored values, options, dimensions, and existing/missing Name previews without source/revision/value mutation or creating the missing target. `after` semantics, wiki toolbars, and static rich formatting have no source-parity proof; see the [form-editor SSOT](../../specs/cobalt-form-editor.md).
+At `7c4ebcdf4fd9c2bef4be21e1013952c7057ce500`, `framerail/tests/local/character-form.mjs` passed 1/1 against actual `character:atley` (`/tmp/claude/cobalt-character-form-browser.log`). It proves the ordered 33-field schema (11 static, 10 text, 7 select, 5 wiki), controls, stored values, options, dimensions, and existing/missing Name previews without source/revision/value mutation or creating the missing target.
+
+Hosted Writing capture on September 24, 2026 (`/home/osso/.local/share/cobalt-wiki/source/form-editor-disposable/writing-controls-dom.json`, `writing-archive-schema.json`, `writing-form.html`, and `/tmp/claude/cobalt-hosted-writing-disposable.jpg`) confirms current presentation for lowercase hints as placeholders, the `Summary` width-80/height-3 textarea, adjacent plain `after` text, and labeled radio controls. The authorized fresh disposable editor was neither saved nor published; the direct subsequent URL was `404` with no edit form (`writing-no-publish.json`). The tab disappeared before Cancel could be observed, so lock or autosaved-draft cleanup is unproven. This does not prove server validation/enforcement, watcher or checkbox semantics, arbitrary static rich formatting, wiki toolbars, or full hosted parity; see the [form-editor SSOT](../../specs/cobalt-form-editor.md).
 
 ## Local full-preview media routing
 
