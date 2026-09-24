@@ -38,8 +38,15 @@ async function readPage(request, slug, token) {
     }
   })
   assert.equal(response.status(), 200, `page_view status for ${slug}`)
+  /**
+   * @type {{
+   *   error?: { code?: string }
+   *   result?: import("../../src/lib/server/deepwell/views").PageView
+   * }}
+   */
   const payload = await response.json()
   assert.ok(!payload.error, `page_view error code ${payload.error?.code ?? "?"}`)
+  assert.ok(payload.result, `page_view result required for ${slug}`)
   return payload.result
 }
 
@@ -56,14 +63,10 @@ function initialValue(field, values) {
 function assertSchema(fields) {
   assert.equal(fields.length, 33, "archived character form field count")
   const counts = Object.groupBy(fields, (field) => field.kind)
-  for (const [kind, count] of Object.entries({
-    static: 11,
-    text: 10,
-    select: 7,
-    wiki: 5
-  })) {
-    assert.equal(counts[kind]?.length, count, `${kind} field count`)
-  }
+  assert.equal(counts.static?.length, 11, "static field count")
+  assert.equal(counts.text?.length, 10, "text field count")
+  assert.equal(counts.select?.length, 7, "select field count")
+  assert.equal(counts.wiki?.length, 5, "wiki field count")
   assert.equal(
     new Set(fields.map((field) => field.name)).size,
     33,
@@ -74,8 +77,126 @@ function assertSchema(fields) {
 }
 
 /**
- * @param {import("@playwright/test").Page} page @param
- *   {import("../../src/lib/form-editor").PageForm} form
+ * @param {import("@playwright/test").Locator} wrapper
+ * @param {import("../../src/lib/form-editor").FormField} field
+ * @param {unknown} value
+ */
+async function assertStaticField(wrapper, field, value) {
+  const expected = text(field.properties.value ?? value)
+  const visible = await wrapper.locator(".static-field").textContent()
+  assert.equal(digest(visible), digest(expected), `static content digest: ${field.name}`)
+}
+
+/**
+ * @param {import("@playwright/test").Locator} wrapper
+ * @param {import("../../src/lib/form-editor").FormField} field
+ * @param {unknown} value
+ * @param {string} label
+ */
+async function assertRadioField(wrapper, field, value, label) {
+  await expect(wrapper.locator("legend")).toHaveText(label)
+  const radios = await wrapper.locator('input[type="radio"]').evaluateAll((inputs) =>
+    inputs.map((input) => {
+      if (!(input instanceof HTMLInputElement))
+        throw new TypeError("Expected radio input")
+      return {
+        code: input.value,
+        label: input.closest("label")?.textContent?.trim(),
+        checked: input.checked
+      }
+    })
+  )
+  const declared = field.options.map((option) => ({
+    code: text(option.code),
+    label: text(option.label)
+  }))
+  assert.equal(
+    digest(radios.map(({ code, label: optionLabel }) => ({ code, label: optionLabel }))),
+    digest(declared),
+    `${field.name} radio option digest in source order`
+  )
+  assert.equal(
+    digest(radios.filter((radio) => radio.checked).map((radio) => radio.code)),
+    digest(field.options.some((option) => option.code === value) ? [text(value)] : []),
+    `${field.name} selected option digest`
+  )
+}
+
+/**
+ * @param {import("@playwright/test").Locator} control
+ * @param {import("../../src/lib/form-editor").FormField} field
+ * @param {unknown} value
+ */
+async function assertSelectField(control, field, value) {
+  const options = await control.locator("option").evaluateAll((nodes) =>
+    nodes.map((node) => {
+      if (!(node instanceof HTMLOptionElement)) throw new TypeError("Expected option")
+      return { code: node.value, label: node.textContent?.trim() }
+    })
+  )
+  const declared = field.options.map((option) => ({
+    code: text(option.code),
+    label: text(option.label)
+  }))
+  const unknown = !field.options.some((option) => option.code === value)
+  assert.equal(
+    digest(options),
+    digest(unknown ? [{ code: text(value), label: text(value) }, ...declared] : declared),
+    `${field.name} select option digest in source order`
+  )
+  assert.equal(
+    digest(await control.inputValue()),
+    digest(text(value)),
+    `${field.name} selected value digest`
+  )
+}
+
+/**
+ * @param {import("@playwright/test").Locator} control
+ * @param {import("../../src/lib/form-editor").FormField} field
+ */
+async function assertDimensions(control, field) {
+  const width = Number(field.properties.width)
+  if (Number.isInteger(width) && width > 0) {
+    await expect(control).toHaveAttribute(
+      field.kind === "wiki" ? "cols" : "size",
+      String(width)
+    )
+  }
+  if (field.kind === "wiki") {
+    const height = Number(field.properties.height)
+    if (Number.isInteger(height) && height > 0) {
+      await expect(control).toHaveAttribute("rows", String(height))
+    }
+  }
+}
+
+/**
+ * @param {import("@playwright/test").Locator} wrapper
+ * @param {import("../../src/lib/form-editor").FormField} field
+ * @param {import("../../src/lib/form-editor").FormValues} values
+ */
+async function assertFieldControl(wrapper, field, values) {
+  const label = text(field.properties.label) || field.name
+  const value = initialValue(field, values)
+  if (field.kind === "static") return assertStaticField(wrapper, field, value)
+  if (field.kind === "select" && field.options.length >= 2 && field.options.length <= 4) {
+    return assertRadioField(wrapper, field, value, label)
+  }
+  await expect(wrapper.locator("label").first()).toHaveText(label)
+  const control = wrapper.locator("input, textarea, select").first()
+  if (field.kind === "select") return assertSelectField(control, field, value)
+  assert.equal(
+    digest(await control.inputValue()),
+    digest(text(value)),
+    `${field.name} value digest`
+  )
+  await assertDimensions(control, field)
+}
+
+/**
+ * @param {import("@playwright/test").Page} page
+ * @param {import("../../src/lib/form-editor").PageForm} form
  */
 async function assertFormControls(page, form) {
   const editor = page.locator("#editor")
@@ -86,97 +207,7 @@ async function assertFormControls(page, form) {
   const controls = editor.locator(".form-field")
   await expect(controls).toHaveCount(form.schema.fields.length)
   for (const [index, field] of form.schema.fields.entries()) {
-    const wrapper = controls.nth(index)
-    const label = text(field.properties.label) || field.name
-    const value = initialValue(field, form.values)
-    if (field.kind === "static") {
-      const expected = text(field.properties.value ?? value)
-      const visible = await wrapper.locator(".static-field").textContent()
-      assert.equal(
-        digest(visible),
-        digest(expected),
-        `static content digest: ${field.name}`
-      )
-      continue
-    }
-    if (
-      field.kind === "select" &&
-      field.options.length >= 2 &&
-      field.options.length <= 4
-    ) {
-      await expect(wrapper.locator("legend")).toHaveText(label)
-      const radios = await wrapper.locator('input[type="radio"]').evaluateAll((inputs) =>
-        inputs.map((input) => ({
-          code: input.value,
-          label: input.closest("label")?.textContent?.trim(),
-          checked: input.checked
-        }))
-      )
-      const declared = field.options.map((option) => ({
-        code: text(option.code),
-        label: text(option.label)
-      }))
-      assert.equal(
-        digest(
-          radios.map(({ code, label: optionLabel }) => ({ code, label: optionLabel }))
-        ),
-        digest(declared),
-        `${field.name} radio option digest in source order`
-      )
-      assert.equal(
-        digest(radios.filter((radio) => radio.checked).map((radio) => radio.code)),
-        digest(
-          field.options.some((option) => option.code === value) ? [text(value)] : []
-        ),
-        `${field.name} selected option digest`
-      )
-      continue
-    }
-    await expect(wrapper.locator("label").first()).toHaveText(label)
-    const control = wrapper.locator("input, textarea, select").first()
-    if (field.kind === "select") {
-      const options = await control
-        .locator("option")
-        .evaluateAll((nodes) =>
-          nodes.map((node) => ({ code: node.value, label: node.textContent?.trim() }))
-        )
-      const declared = field.options.map((option) => ({
-        code: text(option.code),
-        label: text(option.label)
-      }))
-      const unknown = !field.options.some((option) => option.code === value)
-      assert.equal(
-        digest(options),
-        digest(
-          unknown ? [{ code: text(value), label: text(value) }, ...declared] : declared
-        ),
-        `${field.name} select option digest in source order`
-      )
-      assert.equal(
-        digest(await control.inputValue()),
-        digest(text(value)),
-        `${field.name} selected value digest`
-      )
-    } else {
-      assert.equal(
-        digest(await control.inputValue()),
-        digest(text(value)),
-        `${field.name} value digest`
-      )
-      const dimension = Number(field.properties.width)
-      if (Number.isInteger(dimension) && dimension > 0) {
-        await expect(control).toHaveAttribute(
-          field.kind === "wiki" ? "cols" : "size",
-          String(dimension)
-        )
-      }
-      if (field.kind === "wiki") {
-        const height = Number(field.properties.height)
-        if (Number.isInteger(height) && height > 0) {
-          await expect(control).toHaveAttribute("rows", String(height))
-        }
-      }
-    }
+    await assertFieldControl(controls.nth(index), field, form.values)
   }
 }
 
@@ -244,13 +275,14 @@ test("imported character form renders and previews without persisting either pag
       assert.ok(cookie, "authenticated browser session required")
       const token = decodeURIComponent(cookie.value)
       const existing = await readPage(context.request, existingSlug, token)
-      assert.equal(existing?.type, "found", "imported character required")
+      assert.ok(existing.type === "found", "imported character required")
       assert.ok(existing.data.form, "existing character must expose a form")
+      assert.equal(typeof existing.data.wikitext, "string", "existing source required")
       const form = existing.data.form
       assertSchema(form.schema.fields)
       assert.ok(existing.data.page_revision.revision_id, "existing revision required")
       const template = await readPage(context.request, templateSlug, token)
-      assert.equal(template?.type, "found", "character template required")
+      assert.ok(template.type === "found", "character template required")
       assert.ok(!template.data.form, "template must remain raw source")
 
       await page.goto(`${preview}/${existingSlug}/edit`, { waitUntil: "networkidle" })
@@ -258,7 +290,13 @@ test("imported character form renders and previews without persisting either pag
       const marker = `Character preview ${randomBytes(6).toString("hex")}`
       await previewName(page, existingSlug, marker)
       const after = await readPage(context.request, existingSlug, token)
-      assert.equal(after?.type, "found", "existing page must remain present")
+      assert.ok(after.type === "found", "existing page must remain present")
+      assert.ok(after.data.form, "existing form must remain present")
+      assert.equal(
+        typeof after.data.wikitext,
+        "string",
+        "existing source must remain present"
+      )
       assert.equal(
         after.data.page_revision.revision_id,
         existing.data.page_revision.revision_id
@@ -269,14 +307,16 @@ test("imported character form renders and previews without persisting either pag
         "source digest"
       )
       assert.equal(
-        digest(after.data.form?.values),
+        digest(after.data.form.values),
         digest(form.values),
         "stored values digest"
       )
       await page.reload({ waitUntil: "networkidle" })
       await assertFormControls(page, form)
       const reloaded = await readPage(context.request, existingSlug, token)
-      assert.equal(reloaded?.type, "found", "reloaded character must remain present")
+      assert.ok(reloaded.type === "found", "reloaded character must remain present")
+      assert.ok(reloaded.data.form, "reloaded form must remain present")
+      assert.equal(typeof reloaded.data.wikitext, "string", "reloaded source required")
       assert.equal(
         reloaded.data.page_revision.revision_id,
         existing.data.page_revision.revision_id
@@ -287,7 +327,7 @@ test("imported character form renders and previews without persisting either pag
         "reloaded source digest"
       )
       assert.equal(
-        digest(reloaded.data.form?.values),
+        digest(reloaded.data.form.values),
         digest(form.values),
         "reloaded values digest"
       )
