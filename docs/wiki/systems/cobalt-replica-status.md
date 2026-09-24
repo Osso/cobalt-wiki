@@ -82,7 +82,8 @@ At current code, `/tmp/claude/cobalt-who-we-are-browser-green.log` is green: `wh
 - Collapsible blocks render Wikidot's `collapsible-block` markup (folded/unfolded parts, `&nbsp;` labels, `folded` and `hideLocation`) instead of `<details>`, which showed both labels without Wikijump CSS; Framerail's `clickCollapsible` swaps the parts (`091b076`; fixture `collapsible/wikidot`; production browser test `framerail/tests/local/collapsible.mjs` 1/1).
 - Triple-link labels show raw-span text, so WritingBox authors read `Alli` with href `/player:alli`, identical to Wikidot (`c370654`).
 - The header search box uses Wikidot's markup without a visible label, which overlapped the logo (`c911937`).
-- A rerender sweep of all 6,092 older pages was started after deploy `cc5da0ac2c41` (`/tmp/cobalt-rerender-sweep-2.log` on the host).
+- In the Wikidot layout, blockquote lines without a space after `>` are dropped, as Wikidot's blockquote rule keeps only `>+ ` lines (`ebdf259`; unit tests in `blockquote.rs`). The site relies on it to hide text (`recruitment-status`), and `new-profile`'s `>[[div]]` / `>[[toc]]` block now renders nothing, as on Wikidot. 14 live pages have such lines, including `home:start`.
+- A rerender sweep of the older pages runs after deploy `ebdf2594963b` (`/tmp/cobalt-rerender-sweep-3.log` on the host). It waits for the job queue to fall to 20 before each batch; the dependent listing rerenders it causes drain at about 230 jobs a minute.
 
 ## Production Meilisearch search
 
