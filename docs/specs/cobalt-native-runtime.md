@@ -25,6 +25,7 @@
 - `install/nixos/module.nix` — `services.cobaltWiki` options, runtime TOML, initialization helpers, private service units, and resource slice.
 - `install/nixos/packages.nix` — supplies Deepwell, WWS, Framerail, and the pinned Silo storage package.
 - `install/nixos/wait_deepwell.py` — bounded HTTP readiness check used by Deepwell's `ExecStartPost` before ordered dependents start.
+- The existing local preview runtime at `/home/osso/.local/share/cobalt-wiki/local-full/deepwell.toml` uses two workers and a one-to-two-second empty-queue poll for template-refresh proof. This local-only setting does not change the module or production configuration.
 
 ## Tests asserting this spec
 
