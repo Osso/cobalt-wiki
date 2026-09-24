@@ -351,6 +351,89 @@ async function assertNoWrites(request, token, slug, baseline) {
   }
 }
 
+/**
+ * @param {import("@playwright/test").Locator} locator
+ * @param {string} name
+ */
+async function visibleBox(locator, name) {
+  await expect(locator).toBeVisible()
+  const box = await locator.boundingBox()
+  assert.ok(box, `${name} visible rectangle required`)
+  return box
+}
+
+/** @param {number} actual @param {number} expected @param {string} name */
+function assertNear(actual, expected, name) {
+  assert.ok(
+    Math.abs(actual - expected) <= 2,
+    `${name}: expected ${expected} ± 2, got ${actual}`
+  )
+}
+
+/**
+ * @param {import("@playwright/test").Page} page
+ * @param {import("../../src/lib/form-editor").FormField[]} fields
+ */
+async function assertWritingLayout(page, fields) {
+  const rows = page.locator("#editor .form-field")
+  /** @param {string} name */
+  const row = (name) => {
+    const index = fields.findIndex((field) => field.name === name)
+    assert.ok(index >= 0, `${name} writing field required`)
+    return rows.nth(index)
+  }
+  const authorLabel = await visibleBox(row("author").locator("label"), "Author label")
+  const authorInput = await visibleBox(
+    row("author").locator('input[type="text"]'),
+    "Author input"
+  )
+  const imageLabel = await visibleBox(row("image").locator("label"), "Image label")
+  const imageInput = await visibleBox(
+    row("image").locator('input[type="text"]'),
+    "Image input"
+  )
+  for (const [name, label, control] of [
+    ["Author", authorLabel, authorInput],
+    ["Image", imageLabel, imageInput]
+  ]) {
+    assertNear(control.x - label.x, 106, `${name} label-to-control offset`)
+    assert.ok(
+      label.y < control.y + control.height,
+      `${name} label overlaps control vertically`
+    )
+    assert.ok(
+      control.y < label.y + label.height,
+      `${name} control overlaps label vertically`
+    )
+  }
+
+  const summary = await visibleBox(row("summary").locator("textarea"), "Summary")
+  const content = await visibleBox(row("content").locator("textarea"), "Content")
+  for (const [name, control] of [
+    ["Image", imageInput],
+    ["Summary", summary],
+    ["Content", content]
+  ]) {
+    assertNear(control.x, authorInput.x, `${name} control-column alignment`)
+  }
+
+  const formatLabel = await visibleBox(row("format").locator("legend"), "Format label")
+  assertNear(formatLabel.x, authorLabel.x, "Format label-column alignment")
+  const radios = await row("format").locator('input[type="radio"]').all()
+  assert.equal(radios.length, 4, "Format has four visible radio options")
+  const radioBoxes = await Promise.all(
+    radios.map((radio, index) => visibleBox(radio, `Format radio ${index + 1}`))
+  )
+  for (const [index, radio] of radioBoxes.entries()) {
+    assertNear(radio.y, radioBoxes[0].y, `Format radio ${index + 1} horizontal alignment`)
+    if (index > 0) {
+      assert.ok(radio.x > radioBoxes[index - 1].x, "Format radios advance left to right")
+    }
+  }
+  assert.ok(formatLabel.y < radioBoxes[0].y + radioBoxes[0].height)
+  assert.ok(radioBoxes[0].y < formatLabel.y + formatLabel.height)
+}
+
 test("NewPage writing form labels, defaults and preview do not write", async () => {
   const adminPath = process.env.COBALT_LOCAL_ADMIN_PASSWORD_FILE
   assert.ok(adminPath, "cobalt-import password file required")
@@ -362,7 +445,7 @@ test("NewPage writing form labels, defaults and preview do not write", async () 
     headless: true
   })
   try {
-    const context = await browser.newContext()
+    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } })
     try {
       const page = await context.newPage()
       await page.goto(`${preview}/-/login`, { waitUntil: "networkidle" })
@@ -412,6 +495,7 @@ test("NewPage writing form labels, defaults and preview do not write", async () 
       })
       await expect(page.locator('#editor [name="title"]')).toHaveValue(title)
       await assertNewForm(page, fields)
+      await assertWritingLayout(page, fields)
       const author = fields.find((field) => field.name === "author")
       const summary = fields.find((field) => field.name === "summary")
       assert.ok(author && summary, "archived author and summary required")
