@@ -125,8 +125,8 @@
     white-space: pre-wrap;
   }
   fieldset {
-    margin: 0;
     padding: 0;
+    margin: 0;
     border: 0;
   }
   .radio-option {
