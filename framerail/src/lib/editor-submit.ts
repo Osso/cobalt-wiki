@@ -4,7 +4,7 @@ export function preventEditorImplicitSubmit(event: KeyboardEvent): void {
     event.key === "Enter" &&
     !event.isComposing &&
     target instanceof HTMLInputElement &&
-    target.type === "text" &&
+    (target.type === "text" || target.type === "radio") &&
     target.form === event.currentTarget
   ) {
     event.preventDefault()
