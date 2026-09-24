@@ -17,21 +17,16 @@ From Wikidot's revision list newer than ``SINCE`` (epoch), in this order:
    whose displayed size differs) are downloaded and replaced when the bytes
    differ; replica files absent from Wikidot are deleted only when a revision
    says the file was deleted, renamed or moved away.
-4. Deletions, when ``REPLICA_PAGES`` is given: a JSON list of live replica
-   slugs that have rows in the replica's copy of Wikidot's revision list
-   (``wikidot_site_change``), so pages that only ever existed on the replica
-   are never candidates. A permanent Wikidot delete removes the page and all
-   its revisions, so SiteChanges never shows it. Listed pages missing from
-   Wikidot's full ListPages listing are deleted (page_delete) only when the
-   import principal created them and Wikidot answers 404 "does not exist".
+Permanent Wikidot deletions never appear in the revision list and are not
+mirrored.
 
 Writes ``sync-report.json`` (everything done or skipped, with reasons) and
 ``sync-apply.sql`` (page dates, new revision-list rows, revision-list rows
-moved to renamed pages and removed for deleted pages), to run with psql on the
+moved to renamed pages), to run with psql on the
 replica database. Every Wikidot request waits 1s after the previous one.
 
     python -m tools.cobalt_migration.wikidot_sync https://cobalt-company.wikidot.com \\
-        http://127.0.0.1:27471/jsonrpc 6000000 PASSWORD_FILE SINCE_EPOCH OUT_DIR [REPLICA_PAGES]
+        http://127.0.0.1:27471/jsonrpc 6000000 PASSWORD_FILE SINCE_EPOCH OUT_DIR
 
 The Deepwell URL must be loopback (an SSH forward to the replica host).
 """
@@ -48,7 +43,6 @@ import urllib.request
 
 from .poc_import import LoopbackRpc
 from .wikidot_changes import fetch_changes
-from .wikidot_dates import fetch_dates
 from .wikidot_files import FileListError, check_download, file_events, parse_file_list, plan_files
 
 TOKEN = "cobaltreplica"
@@ -59,8 +53,6 @@ META = re.compile(
     re.S,
 )
 RENAMED = re.compile(r'You successfully renamed the page: "([^"]+)" to "([^"]+)"\.')
-# More deletion candidates than this means the listing, not the site, changed.
-MAX_DELETIONS = 25
 NOTHING_TO_MOVE = "nothing to move: neither slug on the replica (the page sync creates the new one)"
 INTERVAL = 1.0
 ATTEMPTS = 4
@@ -343,43 +335,6 @@ def sync_files(rpc, site_id, user_id, origin, replica_page_id, wikidot_page_id, 
     return outcomes
 
 
-def deletion_candidates(replica_slugs, wikidot_slugs, handled):
-    """Replica pages absent from Wikidot's full listing, excluding slugs this
-    run already handled."""
-    return sorted(set(replica_slugs) - set(wikidot_slugs) - set(handled))
-
-
-def missing_on_wikidot(status, body, slug):
-    """Whether Wikidot's answer for /slug says the page does not exist."""
-    notice = f"The page <em>{html.escape(slug)}</em> you want to access does not exist."
-    return status == 404 and notice in body
-
-
-def sync_deletions(rpc, site_id, user_id, origin, candidates):
-    """Delete candidates Wikidot confirms gone; {slug: outcome}."""
-    outcomes = {}
-    for slug in candidates:
-        page = rpc.rpc("page_get", {"site_id": site_id, "page": slug})
-        if page is None:
-            outcomes[slug] = "already gone from the replica"
-            continue
-        first = rpc.rpc("page_revision_get", {"site_id": site_id, "page_id": page["page_id"], "revision_number": 0})
-        if first is None or first["user_id"] != user_id:
-            outcomes[slug] = "kept: not created by the import principal"
-            continue
-        status, body = wikidot_request(f"{origin}/{urllib.parse.quote(slug, safe=':')}")
-        if not missing_on_wikidot(status, body.decode(errors="replace"), slug):
-            outcomes[slug] = f"kept: Wikidot answers http {status} without saying the page does not exist"
-            continue
-        rpc.rpc("page_delete", {
-            "site_id": site_id, "page": page["page_id"], "last_revision_id": page["revision_id"],
-            "user_id": user_id, "ip_address": "127.0.0.1",
-            "revision_comments": "Wikidot sync (deleted on Wikidot)",
-        })
-        outcomes[slug] = "deleted"
-    return outcomes
-
-
 def sql_literal(value):
     if value is None:
         return "NULL"
@@ -388,10 +343,10 @@ def sql_literal(value):
     return "'" + str(value).replace("'", "''") + "'"
 
 
-def apply_sql(site_id, pages, changes, renames=(), deleted=()):
-    """Revision-list rows follow renamed pages and leave deleted ones (Wikidot
-    lists rows under the current slug and drops a deleted page's rows), then
-    page dates and new revision-list rows, as one transaction."""
+def apply_sql(site_id, pages, changes, renames=()):
+    """Revision-list rows follow renamed pages (Wikidot lists rows under the
+    current slug), then page dates and new revision-list rows, as one
+    transaction."""
     lines = ["\\set ON_ERROR_STOP on", "BEGIN;"]
     for rename in renames:
         # Rows of a page are listed under its current slug, whichever way the
@@ -401,10 +356,6 @@ def apply_sql(site_id, pages, changes, renames=(), deleted=()):
                 f"UPDATE wikidot_site_change SET page_slug = {sql_literal(rename['to'])} "
                 f"WHERE site_id = {site_id} AND page_slug = {sql_literal(rename['from'])};"
             )
-    for slug in deleted:
-        lines.append(
-            f"DELETE FROM wikidot_site_change WHERE site_id = {site_id} AND page_slug = {sql_literal(slug)};"
-        )
     for slug, state in pages.items():
         lines.append(
             f"UPDATE page SET created_at = to_timestamp({state['created_at']}), "
@@ -426,21 +377,8 @@ def apply_sql(site_id, pages, changes, renames=(), deleted=()):
     return "\n".join(lines) + "\n"
 
 
-def run_deletions(rpc, site_id, user_id, origin, replica_pages_file, handled):
-    """Deletion step and its report section."""
-    with open(replica_pages_file) as file:
-        replica_slugs = json.load(file)
-    wikidot_slugs = paced(fetch_dates, origin)
-    candidates = deletion_candidates(replica_slugs, wikidot_slugs, handled)
-    if len(candidates) > MAX_DELETIONS:
-        return {"skipped": f"{len(candidates)} replica pages missing from Wikidot's listing "
-                           f"(limit {MAX_DELETIONS}); listing suspect, nothing deleted",
-                "candidates": candidates}
-    return {"wikidot_pages": len(wikidot_slugs), "pages": sync_deletions(rpc, site_id, user_id, origin, candidates)}
-
-
 def main(argv):
-    origin, endpoint, site_id, password_file, since, out_dir, *replica_pages = argv
+    origin, endpoint, site_id, password_file, since, out_dir = argv
     site_id, since = int(site_id), int(since)
     password = open(password_file).read().strip()
     login = LoopbackRpc(endpoint, "", site_id).rpc("login", {
@@ -454,7 +392,7 @@ def main(argv):
     renames = parse_renames(changes)
     sync_renames(rpc, site_id, user_id, renames)
 
-    report = {"pages": {}, "renames": renames, "files": {}, "deletions": {}}
+    report = {"pages": {}, "renames": renames, "files": {}}
     pages = {}
     for slug in dict.fromkeys(row["slug"] for row in changes):
         state = wikidot_page(origin, slug)
@@ -477,20 +415,12 @@ def main(argv):
         except FileListError as error:
             entry["skipped"] = str(error)
 
-    deleted = []
-    if replica_pages:
-        handled = set(report["pages"]) | {r["from"] for r in renames if r["from"]}
-        report["deletions"] = run_deletions(rpc, site_id, user_id, origin, replica_pages[0], handled)
-        deleted = [slug for slug, outcome in report["deletions"].get("pages", {}).items() if outcome == "deleted"]
-    else:
-        report["deletions"] = {"skipped": "no replica page list given"}
-
     # The wrapper rerenders SiteChanges pages when the revision list changed.
-    report["changed"] = bool(changes or deleted)
+    report["changed"] = bool(changes)
     with open(f"{out_dir}/sync-report.json", "w") as file:
         json.dump(report, file, indent=1)
     with open(f"{out_dir}/sync-apply.sql", "w") as file:
-        file.write(apply_sql(site_id, pages, changes, renames, deleted))
+        file.write(apply_sql(site_id, pages, changes, renames))
     for rename in renames:
         print(f"rename {rename['from']} -> {rename['to']}: {rename['outcome']}")
     for slug, outcome in report["pages"].items():
@@ -502,10 +432,6 @@ def main(argv):
             print(f"{slug} files skipped: {entry['skipped']}")
         for comments in entry["unrecognized_comments"]:
             print(f"{slug} unrecognized file change: {comments}")
-    for slug, outcome in report["deletions"].get("pages", {}).items():
-        print(f"delete {slug}: {outcome}")
-    if "skipped" in report["deletions"]:
-        print(f"deletions: {report['deletions']['skipped']}")
 
 
 if __name__ == "__main__":
