@@ -10,6 +10,8 @@ When a page changes, Deepwell queues `rerender_page` jobs (Valkey rsmq queue `rs
 - [x] A job for a page and type that is already pending is not queued again. The marker (`job:rerender-pending:<page_id>:<type>`, 1 h expiry) is cleared when a worker starts the job, so a later change queues the page again.
 - [x] A rerender caused by a renderer build change queues no dependents: a `full` rerender outdates dependents only when the page's stored output came from the current build and the new output differs (its source changed without an edit). A `full` rerender with unchanged output queues nothing.
 - [x] `standalone` and view-time rerenders (stale `compiled_generator`) queue nothing.
+- [x] Bars render the navigation page's latest revision: its live page's `latest_revision_id`, not a revision matched by slug. A wikitext edit of a navigation page queues a navigation rerender of every page using it.
+- [x] Rerender jobs carry no depth and nothing skips them by depth or update time. Jobs queued with the former `depth` field still run, and configs with the former `ftml.rerender-skip` keys still load.
 
 ## How it works
 
@@ -20,19 +22,18 @@ When a page changes, Deepwell queues `rerender_page` jobs (Valkey rsmq queue `rs
 - `deepwell/src/services/outdate.rs` — finds dependents at change time; `outdate_pages` queues them and fans out navigation pages.
 - `deepwell/src/services/job/service.rs` — `queue_rerender` with the pending marker; `start_rerender_job` clears it.
 - `deepwell/src/services/job/worker.rs` — clears the marker, then runs `PageRevisionService::rerender`.
-- `deepwell/src/services/page_revision/service.rs` — `rerender`: `full` outdates only on a same-build output change; edits call the outdater directly.
+- `deepwell/src/services/page_revision/service.rs` — `rerender`: `full` outdates only on a same-build output change; edits call the outdater directly, including `outdate_nav_pages`. `get_latest_text_optional` reads bar wikitext through `page.latest_revision_id`.
 
 ## Tests asserting this spec
 
-- `deepwell/tests/page_rerender_fanout.rs` (dedicated Redis, `--ignored`): renderer-version sweep queues nothing; a nested include change queues each dependent once plus one navigation rerender per page, and draining queues nothing; pending jobs collapse until a worker starts them.
+- `deepwell/tests/page_rerender_fanout.rs` (dedicated Redis, `--ignored`): renderer-version sweep queues nothing; a nested include change queues each dependent once plus one navigation rerender per page, and draining queues nothing; pending jobs collapse until a worker starts them; a navigation page edited twice shows its last text in another page's bar.
 - `deepwell/tests/page_standalone_rerender.rs`: standalone and unchanged `full` rerenders queue nothing; `full` after an out-of-band source change queues dependents.
 - `deepwell/tests/page_listing_invalidation.rs`, `deepwell/tests/file_attachment_invalidation.rs`: listing and attachment dependents.
+- Unit tests: `job::structs` (a queued job with `depth` deserializes), `config::file` (config with `rerender-skip` loads).
 
 ## Known gaps (current cycle)
 
 - [ ] Jobs are queued before the change's transaction commits (existing ordering). With deduplication, a second change that finds its job pending relies on that job reading after the second change commits; a job received within that commit window renders the older state.
-- [ ] `rerender-skip` rules are inverted in code (`updated_recently!` is true when the page was *not* updated within the window), so they skip slow deep jobs and run fast loops. Jobs no longer queue jobs, so dependent jobs have depth 1 and production's rules (from depth 3) never apply; the built-in test default `(1, 100 ms)` would skip depth-1 jobs of pages not updated in the last 100 ms. Kept unchanged pending a decision to delete them.
-- [ ] Navigation-page wikitext for bars is read by `get_latest_text_optional`, whose `IN (subquery ORDER BY …)` does not select the latest revision, so an edited navigation page can render an older revision into bars.
 
 ## Out of scope
 
