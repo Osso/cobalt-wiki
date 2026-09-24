@@ -14,6 +14,7 @@
   import WikitextToolbar from "$lib/component/WikitextToolbar.svelte"
   import { lookupEditorPages, lookupEditorAttachments } from "$lib/editor-lookup"
   import { createDraft, changedFields, mergeDraftSource } from "$lib/form-editor"
+  import { preventEditorImplicitSubmit } from "$lib/editor-submit"
   import type { PageForm } from "$lib/form-editor"
 
   import type { PageProps } from "./$types"
@@ -137,7 +138,14 @@
   </h2>
 {/if}
 
-<form id="editor" class="editor" action="?/edit" method="POST" use:enhance>
+<form
+  id="editor"
+  class="editor"
+  action="?/edit"
+  method="POST"
+  use:enhance
+  onkeydown={preventEditorImplicitSubmit}
+>
   <input
     name="title"
     class="editor-title"

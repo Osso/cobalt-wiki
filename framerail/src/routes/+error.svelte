@@ -16,6 +16,7 @@
   import { lookupEditorPages } from "$lib/editor-lookup"
   import DataFormFields from "$lib/component/DataFormFields.svelte"
   import { changedFields, createDraft } from "$lib/form-editor"
+  import { preventEditorImplicitSubmit } from "$lib/editor-submit"
   import type { PageForm } from "$lib/form-editor"
 
   import type { PageData } from "./$types"
@@ -179,7 +180,14 @@
       </h2>
     {/if}
 
-    <form id="editor" class="editor" action="?/edit" method="POST" use:editEnhance>
+    <form
+      id="editor"
+      class="editor"
+      action="?/edit"
+      method="POST"
+      use:editEnhance
+      onkeydown={preventEditorImplicitSubmit}
+    >
       <input
         name="title"
         class="editor-title"
