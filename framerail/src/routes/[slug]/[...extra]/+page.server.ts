@@ -25,6 +25,7 @@ import {
   pageRevisionAction,
   pageRollbackAction,
   pageScoreAction,
+  pageSetTagsAction,
   pageVoteCancelAction,
   pageVoteCastAction,
   pageVoteGetAction
@@ -58,6 +59,7 @@ export const actions = {
   draftSave: pageDraftSaveAction,
   draftDelete: pageDraftDeleteAction,
   editPermission: pageEditPermissionAction,
+  setTags: pageSetTagsAction,
   fileList: pageFileListAction,
   fileUpload: pageFileUploadAction,
   fileDelete: pageFileDeleteAction,

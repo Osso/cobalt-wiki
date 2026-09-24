@@ -102,6 +102,42 @@ export async function pageEditPermission(
   return client.request("page_edit_permission", {}, requestContext)
 }
 
+/* ----- Page Tags ----- */
+export interface PageTagsState {
+  page_id: number
+  revision_id: number
+  tags: string[]
+}
+export async function pageGetTags(
+  siteId: number,
+  slug: string
+): Promise<Nullable<PageTagsState>> {
+  return client.request("page_get", { site_id: siteId, page: slug })
+}
+
+/** A page edit that changes only the tags; Deepwell checks edit permission. */
+export async function pageSetTags(
+  siteId: number,
+  page: PageTagsState,
+  userId: number,
+  userIpAddr: string,
+  requestContext: RequestContext
+): Promise<Nullable<CreatePageRevisionOutput>> {
+  return client.request(
+    "page_edit",
+    {
+      site_id: siteId,
+      page: page.page_id,
+      user_id: userId,
+      ip_address: userIpAddr,
+      last_revision_id: page.revision_id,
+      revision_comments: "",
+      tags: page.tags
+    },
+    requestContext
+  )
+}
+
 /* ----- Page History ----- */
 export interface PageRevisionModelFiltered {
   revision_id: number

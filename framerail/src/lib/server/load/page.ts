@@ -7,6 +7,7 @@ import {
   pageCreatePermission,
   pageEdit,
   pageEditPermission,
+  pageGetTags,
   pageHistory,
   pageImportedHistory,
   pageImportedRevision,
@@ -21,6 +22,7 @@ import {
   pageRevision,
   pageRollback,
   pageScore,
+  pageSetTags,
   pageVoteCast,
   pageVoteList,
   pageVoteRemove
@@ -40,6 +42,7 @@ import { pageView } from "$lib/server/deepwell/views"
 import { loadSiteInfo } from "$lib/server/load/site-info"
 import { DeleteOptions, Layout, PageLockType } from "$lib/types"
 import { requireDeepwellError } from "$lib/deepwell-errors"
+import { applyTagChanges } from "$lib/tag-buttons"
 import { error, redirect } from "@sveltejs/kit"
 import { fail, superValidate, withFiles } from "sveltekit-superforms"
 import { valibot } from "sveltekit-superforms/adapters"
@@ -522,6 +525,46 @@ export async function pageEditAction({
       code: error.code,
       data: error.data
     })
+  }
+}
+
+/* ----- Page Tags ----- */
+/**
+ * Applies Wikidot tag changes (`+x -y`, form field `changes`) to the
+ * page's current tags, as a tags-only page edit by the session user.
+ */
+export async function pageSetTagsAction({
+  request,
+  params,
+  getClientAddress,
+  cookies,
+  locals
+}: RequestEvent) {
+  const changes = String((await request.formData()).get("changes") ?? "")
+  const requestContext = getRequestContext(locals)
+  try {
+    const { can_edit } = await pageEditPermission(requestContext)
+    const session = can_edit ? await authGetSession(cookies.get("wikijump_token")) : null
+    if (!session) {
+      return fail(403, {
+        message: "UNTRANSLATED:You don't have permission to edit this page"
+      })
+    }
+    const { siteId } = loadSiteInfo(request.headers)
+    const current = await pageGetTags(siteId, params.slug)
+    if (!current) return fail(404, { message: "UNTRANSLATED:Page not found" })
+    const tags = applyTagChanges(current.tags, changes)
+    await pageSetTags(
+      siteId,
+      { ...current, tags },
+      session.user_id,
+      getClientAddress(),
+      requestContext
+    )
+    return { tags }
+  } catch (e) {
+    const error = requireDeepwellError(e)
+    return fail(500, { message: error.message, code: error.code, data: error.data })
   }
 }
 

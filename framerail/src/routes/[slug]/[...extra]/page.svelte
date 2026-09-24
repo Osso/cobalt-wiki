@@ -12,9 +12,11 @@
     LockPane,
     MovePane,
     ParentPane,
+    TagsPane,
     VotePane
   } from "."
   import { resolve } from "$app/paths"
+  import { clickTagButton } from "$lib/tag-buttons"
 
   import type { PageProps } from "./$types"
   import type { Optional } from "$lib/types"
@@ -89,6 +91,45 @@
     if (data.options?.history) {
       pagePaneState = PagePane.History
     }
+  })
+
+  /** Reloads on success, as Wikidot does, so `[[iftags]]` re-evaluates. */
+  async function saveTagChanges(changes: string) {
+    const body = new FormData()
+    body.set("changes", changes)
+    const res = await fetch("?/setTags", { method: "POST", body }).then((res) =>
+      res.text()
+    )
+    const result = deserialize<
+      { tags: string[] },
+      { message: string; data?: Record<string, unknown> }
+    >(res)
+    if (result.type === "success") {
+      window.location.reload()
+    } else {
+      errorPopupState.current = {
+        state: true,
+        message:
+          result.type === "failure"
+            ? result.data!.message
+            : "UNTRANSLATED:Failed to update tags",
+        data: result.type === "failure" ? (result.data!.data ?? null) : null
+      }
+    }
+  }
+
+  // Capture phase, like the layout's listeners for other Wikidot widgets.
+  $effect(() => {
+    const onClick = (event: MouseEvent) =>
+      clickTagButton(event, {
+        setTags: saveTagChanges,
+        openTags: () => {
+          showSource = false
+          pagePaneState = PagePane.Tags
+        }
+      })
+    window.addEventListener("click", onClick, true)
+    return () => window.removeEventListener("click", onClick, true)
   })
 </script>
 
@@ -183,6 +224,19 @@
           type="button"
         >
           {data.internationalization?.vote}
+        </a>
+        <!-- svelte-ignore a11y_invalid_attribute -->
+        <a
+          id="tags-button"
+          class="btn btn-default"
+          href="javascript:;"
+          onclick={() => {
+            showSource = false
+            pagePaneState = PagePane.Tags
+          }}
+          type="button"
+        >
+          {data.internationalization?.tags}
         </a>
         <!-- svelte-ignore a11y_invalid_attribute -->
         <a
@@ -341,6 +395,12 @@
         <HistoryPane {setRevision} {setShowRevision} {...props} />
       {:else if pagePaneState === PagePane.Delete}
         <DeletePane bind:pagePaneState {...props} />
+      {:else if pagePaneState === PagePane.Tags}
+        <TagsPane
+          close={() => (pagePaneState = PagePane.None)}
+          {saveTagChanges}
+          {...props}
+        />
       {/if}
     </div>
   {/if}

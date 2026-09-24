@@ -211,7 +211,8 @@ export enum PagePane {
   Parent = "parent",
   Vote = "vote",
   Delete = "delete",
-  Lock = "lock"
+  Lock = "lock",
+  Tags = "tags"
 }
 export enum UserType {
   Regular = "regular",
