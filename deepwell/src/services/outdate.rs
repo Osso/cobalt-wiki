@@ -28,6 +28,7 @@ use crate::types::{ConnectionType, PageId, PageOrder, RerenderDepth};
 use crate::utils::split_category_name;
 use ref_map::*;
 use sea_orm::FromQueryResult;
+use std::collections::{BTreeSet, HashSet};
 
 #[derive(Debug)]
 pub struct OutdateService;
@@ -52,7 +53,7 @@ impl OutdateService {
 
         let (category_slug, page_slug) = split_category_name(slug);
         let (result1, result2, result3) = join!(
-            Self::outdate_outgoing_includes(ctx, page_id, depth),
+            Self::outdate_outgoing_includes(ctx, site_id, page_id, depth),
             Self::outdate_templates(ctx, site_id, category_slug, page_slug, depth),
             Self::outdate_nav_pages(ctx, site_id, slug, depth),
         );
@@ -81,7 +82,7 @@ impl OutdateService {
 
         let (result1, result2) = join!(
             Self::process_page_edit(ctx, site_id, page_id, slug, depth),
-            Self::outdate_incoming_links(ctx, page_id, depth),
+            Self::outdate_incoming_links(ctx, site_id, page_id, depth),
         );
         raise_multiple!(result1, result2; make_error);
 
@@ -118,32 +119,92 @@ impl OutdateService {
         Ok(())
     }
 
-    /// Queues the given pages for re-rendering.
-    pub async fn outdate(
+    /// Queues the given dependent pages for re-rendering.
+    ///
+    /// Every page whose output depends on a change is found here, when the
+    /// change happens: includes are recorded transitively, and templates and
+    /// listings are recorded on each page using them. So dependent jobs queue
+    /// nothing further. The exception is a dependent that is a navigation page:
+    /// every page using it stores its own compiled copy of the bar, and those
+    /// are queued here too.
+    async fn outdate_pages(
         ctx: &ServiceContext<'_>,
-        page_id: i64,
+        site_id: i64,
+        page_ids: BTreeSet<i64>,
         depth: RerenderDepth,
     ) -> Result<()> {
+        if page_ids.is_empty() {
+            return Ok(());
+        }
+
         let make_error = || {
             Error::new(
                 format!(
-                    "failed to run outdater on page ID {} (depth {})",
-                    page_id, depth
+                    "failed to run outdater on {} pages on site ID {site_id} (depth {depth})",
+                    page_ids.len(),
                 ),
                 ErrorType::PageOutdater,
             )
         };
 
-        let page = PageService::get_direct(ctx, page_id, false)
+        let nav_slugs = Self::nav_page_slugs(ctx, site_id)
             .await
             .or_raise(make_error)?;
 
-        let id = PageId::from_page_model(&page);
-        JobService::queue_rerender_page(ctx, id, depth.plus_one())
-            .await
-            .or_raise(make_error)?;
+        for &page_id in &page_ids {
+            let page = PageService::get_direct(ctx, page_id, false)
+                .await
+                .or_raise(make_error)?;
+
+            let id = PageId::from_page_model(&page);
+            JobService::queue_rerender_page(ctx, id, depth.plus_one())
+                .await
+                .or_raise(make_error)?;
+
+            if nav_slugs.contains(&page.slug) {
+                Self::outdate_nav_pages(ctx, site_id, &page.slug, depth)
+                    .await
+                    .or_raise(make_error)?;
+            }
+        }
 
         Ok(())
+    }
+
+    /// Slugs of the site's and its categories' navigation pages.
+    async fn nav_page_slugs(
+        ctx: &ServiceContext<'_>,
+        site_id: i64,
+    ) -> Result<HashSet<String>> {
+        let make_error = || {
+            Error::new(
+                format!("failed to get navigation pages of site ID {site_id}"),
+                ErrorType::PageOutdater,
+            )
+        };
+        let site = SiteService::get(ctx, Reference::Id(site_id))
+            .await
+            .or_raise(make_error)?;
+        let categories: Vec<(Option<String>, Option<String>)> = PageCategory::find()
+            .select_only()
+            .column(page_category::Column::TopBarPage)
+            .column(page_category::Column::SideBarPage)
+            .filter(page_category::Column::SiteId.eq(site_id))
+            .into_tuple()
+            .all(ctx.transaction())
+            .await
+            .or_raise(make_error)?;
+
+        Ok([site.top_bar_page, site.side_bar_page]
+            .into_iter()
+            .chain(
+                categories
+                    .into_iter()
+                    .flat_map(|(top, side)| [top, side])
+                    .flatten(),
+            )
+            .filter(|slug| !slug.is_empty())
+            .collect())
     }
 
     /// Rerender the listing pages that could show `page_id` in any of the given
@@ -174,19 +235,20 @@ impl OutdateService {
                 }
             })
             .collect();
-        for id in listing_pages_affected_by(ctx, site_id, &subjects)
+        let ids = listing_pages_affected_by(ctx, site_id, &subjects)
             .await
             .or_raise(make_error)?
             .into_iter()
             .filter(|&id| id != page_id)
-        {
-            Self::outdate(ctx, id, depth).await.or_raise(make_error)?;
-        }
-        Ok(())
+            .collect();
+        Self::outdate_pages(ctx, site_id, ids, depth)
+            .await
+            .or_raise(make_error)
     }
 
     pub async fn outdate_incoming_links(
         ctx: &ServiceContext<'_>,
+        site_id: i64,
         page_id: i64,
         depth: RerenderDepth,
     ) -> Result<()> {
@@ -202,22 +264,24 @@ impl OutdateService {
             )
         };
 
-        for id in LinkService::get_to(ctx, page_id, Some(CONNECTION_TYPES))
+        let ids = LinkService::get_to(ctx, page_id, Some(CONNECTION_TYPES))
             .await
             .or_raise(make_error)?
             .connections
             .iter()
             .map(|connection| connection.from_page_id)
             .filter(|id| *id != page_id)
-        {
-            Self::outdate(ctx, id, depth).await.or_raise(make_error)?;
-        }
+            .collect();
+        Self::outdate_pages(ctx, site_id, ids, depth)
+            .await
+            .or_raise(make_error)?;
 
         Ok(())
     }
 
     pub async fn outdate_outgoing_includes(
         ctx: &ServiceContext<'_>,
+        site_id: i64,
         page_id: i64,
         depth: RerenderDepth,
     ) -> Result<()> {
@@ -237,16 +301,17 @@ impl OutdateService {
             )
         };
 
-        for id in LinkService::get_to(ctx, page_id, Some(CONNECTION_TYPES))
+        let ids = LinkService::get_to(ctx, page_id, Some(CONNECTION_TYPES))
             .await
             .or_raise(make_error)?
             .connections
             .iter()
             .map(|connection| connection.from_page_id)
             .filter(|id| *id != page_id)
-        {
-            Self::outdate(ctx, id, depth).await.or_raise(make_error)?;
-        }
+            .collect();
+        Self::outdate_pages(ctx, site_id, ids, depth)
+            .await
+            .or_raise(make_error)?;
         Ok(())
     }
 
@@ -293,11 +358,10 @@ impl OutdateService {
             .await
             .or_raise(make_error)?;
 
-            for page in pages {
-                Self::outdate(ctx, page.page_id, depth)
-                    .await
-                    .or_raise(make_error)?;
-            }
+            let ids = pages.into_iter().map(|page| page.page_id).collect();
+            Self::outdate_pages(ctx, site_id, ids, depth)
+                .await
+                .or_raise(make_error)?;
         }
 
         Ok(())

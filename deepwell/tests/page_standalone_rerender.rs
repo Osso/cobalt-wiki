@@ -40,6 +40,24 @@ async fn import_page(runner: &TestRunner, site_id: i64, slug: &str, source: &str
     .page_id
 }
 
+/// Replaces the latest revision's source without creating a revision.
+async fn replace_source(runner: &TestRunner, site_id: i64, page_id: i64, source: &str) {
+    let revision = PageRevisionService::get_latest(runner.context(), site_id, page_id)
+        .await
+        .unwrap();
+    let hash = TextService::create(runner.context(), source.into())
+        .await
+        .unwrap();
+    page_revision::ActiveModel {
+        revision_id: Set(revision.revision_id),
+        wikitext_hash: Set(hash.to_vec()),
+        ..Default::default()
+    }
+    .update(runner.context().transaction())
+    .await
+    .unwrap();
+}
+
 async fn queue_sent_count(connection: &mut redis::aio::MultiplexedConnection) -> u64 {
     let count: Option<u64> = connection
         .hget("rsmq:job:Q", "totalsent")
@@ -76,21 +94,8 @@ async fn standalone_rerender_updates_the_page_without_queueing_dependents() {
         .await
         .unwrap();
 
-    // The stored source changes without a new revision, as after a renderer upgrade.
-    let revision = PageRevisionService::get_latest(runner.context(), site_id, target_id)
-        .await
-        .unwrap();
-    let hash = TextService::create(runner.context(), "New body".into())
-        .await
-        .unwrap();
-    page_revision::ActiveModel {
-        revision_id: Set(revision.revision_id),
-        wikitext_hash: Set(hash.to_vec()),
-        ..Default::default()
-    }
-    .update(runner.context().transaction())
-    .await
-    .unwrap();
+    // The stored source changes without a new revision.
+    replace_source(&runner, site_id, target_id, "New body").await;
 
     let rerender = |rerender_type: &str| {
         json!({
@@ -114,7 +119,12 @@ async fn standalone_rerender_updates_the_page_without_queueing_dependents() {
         "standalone rerender must recompile the body"
     );
 
-    // A full rerender of the same page does queue its dependents.
+    // A full rerender whose output is unchanged queues nothing either.
+    run_endpoint!(runner, page_rerender, rerender("full"));
+    assert_eq!(queue_sent_count(&mut connection).await, sent_before);
+
+    // A full rerender of a source changed without an edit queues its dependents.
+    replace_source(&runner, site_id, target_id, "Newest body").await;
     run_endpoint!(runner, page_rerender, rerender("full"));
     assert!(queue_sent_count(&mut connection).await > sent_before);
 }

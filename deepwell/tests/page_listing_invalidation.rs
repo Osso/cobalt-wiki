@@ -8,10 +8,12 @@ use common::TestRunner;
 use deepwell::constants::ADMIN_USER_ID;
 use deepwell::services::job::{
     JOB_QUEUE_DELAY, JOB_QUEUE_MAXIMUM_SIZE, JOB_QUEUE_NAME, JOB_QUEUE_PROCESS_TIME,
+    JobService,
 };
 use deepwell::services::page::{CreatePage, EditPage, EditPageBody};
+use deepwell::services::page_revision::RerenderType;
 use deepwell::services::{PageRevisionService, PageService, RequestContext};
-use deepwell::types::{Maybe, Reference};
+use deepwell::types::{Maybe, PageId, Reference};
 use redis::AsyncCommands;
 use rsmq_async::{Rsmq, RsmqConnection};
 use serde_json::json;
@@ -254,7 +256,18 @@ async fn page_changes_rerender_listings_that_could_show_them() {
         "{queued:?}"
     );
 
-    // Retagging out of the selection also changes the listing.
+    // Retagging out of the selection also changes the listing. A worker has
+    // started the first job; until then, the pending job would cover it.
+    let roster_page = PageService::get(runner.context(), site_id, Reference::Id(roster))
+        .await
+        .unwrap();
+    JobService::start_rerender_job(
+        runner.context(),
+        PageId::from_page_model(&roster_page),
+        RerenderType::Standalone,
+    )
+    .await
+    .unwrap();
     let last_revision_id =
         PageRevisionService::get_latest(runner.context(), site_id, alpha)
             .await

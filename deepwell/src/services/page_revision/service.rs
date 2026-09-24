@@ -23,7 +23,7 @@ use crate::models::page_revision::{
     self, Entity as PageRevision, Model as PageRevisionModel,
 };
 use crate::models::text::{self, Entity as Text, Model as TextModel};
-use crate::services::render::{BodyArguments, RenderPageOutput};
+use crate::services::render::{BodyArguments, COMPILED_GENERATOR, RenderPageOutput};
 use crate::services::score::ScoreValue;
 use crate::services::{
     LinkService, OutdateService, PageService, ParentService, RenderService, ScoreService,
@@ -318,6 +318,7 @@ impl PageRevisionService {
                         tasks.rerender_incoming_links,
                         OutdateService::outdate_incoming_links(
                             ctx,
+                            site_id,
                             page_id,
                             RerenderDepth::default()
                         ),
@@ -326,6 +327,7 @@ impl PageRevisionService {
                         tasks.rerender_outgoing_includes,
                         OutdateService::outdate_outgoing_includes(
                             ctx,
+                            site_id,
                             page_id,
                             RerenderDepth::default()
                         ),
@@ -951,9 +953,16 @@ impl PageRevisionService {
 
         let model = match rerender_type {
             RerenderType::Full | RerenderType::Standalone => {
-                // Outdate all descendent pages (full only) and update body and nav pages
+                // Update body and nav pages. A full rerender also outdates the
+                // pages depending on this one, but only when its output changed
+                // under the same renderer build: that means its source changed
+                // without an edit (edits outdate dependents themselves). Output
+                // that changed with the build says nothing about dependents,
+                // which are stale by build too and rerender when viewed.
+                let source_changed = revision.compiled_generator == *COMPILED_GENERATOR
+                    && revision.compiled_body_html_hash != compiled_body_html_hash;
 
-                if rerender_type == RerenderType::Full {
+                if rerender_type == RerenderType::Full && source_changed {
                     OutdateService::process_page_edit(
                         ctx,
                         site_id,

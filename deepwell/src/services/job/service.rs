@@ -21,6 +21,7 @@
 use super::prelude::*;
 use crate::services::page_revision::RerenderType;
 use crate::types::{PageId, RerenderDepth};
+use redis::AsyncCommands;
 use rsmq_async::{Rsmq, RsmqConnection};
 use std::time::Duration;
 
@@ -89,33 +90,22 @@ impl JobService {
         Ok(())
     }
 
-    /// Queues a page for being rerendered soon.
+    /// Queues a dependent page for being rerendered soon.
+    ///
+    /// The job rerenders the page standalone: the change that made it
+    /// stale already queued every other page it affects.
     ///
     /// # Arguments
     /// | Argument  | Description |
     /// |-----------|-------------|
-    /// | `site-id` | The ID of the site the page is on. |
-    /// | `page-id` | The ID of the page. |
-    /// | `depth` | If rerendering a page causes more pages to be rerendered due to outdating, then this value should be incremented with each layer of job depth. This way we can avoid infinite loop conditions where jobs endlessly pile onto the queue, rerendering each other. |
+    /// | `id` | The page to rerender. |
+    /// | `depth` | Recorded on the job; the rerender-skip rules check it. |
     pub async fn queue_rerender_page(
         ctx: &ServiceContext<'_>,
         id: PageId,
         depth: RerenderDepth,
     ) -> Result<()> {
-        debug!(
-            "Queuing page rerender for page ID {} and site ID {}",
-            id.page_id, id.site_id,
-        );
-        Self::queue_job(
-            ctx,
-            &Job::RerenderPage {
-                id,
-                depth,
-                r#type: RerenderType::Full,
-            },
-            None,
-        )
-        .await
+        Self::queue_rerender(ctx, id, depth, RerenderType::Standalone).await
     }
 
     /// Queues a page's navigation page data for rerendering soon.
@@ -127,19 +117,81 @@ impl JobService {
         id: PageId,
         depth: RerenderDepth,
     ) -> Result<()> {
+        Self::queue_rerender(ctx, id, depth, RerenderType::NavigationOnly).await
+    }
+
+    /// Queues a rerender job unless the same one is already pending.
+    ///
+    /// A pending job has not started yet, so it will read the change that is
+    /// queuing it now. Its marker is removed when a worker starts it.
+    async fn queue_rerender(
+        ctx: &ServiceContext<'_>,
+        id: PageId,
+        depth: RerenderDepth,
+        rerender_type: RerenderType,
+    ) -> Result<()> {
+        let key = pending_rerender_key(id, rerender_type);
+        let make_error = || {
+            Error::new(
+                format!("failed to mark rerender job pending: {key}"),
+                ErrorType::Job,
+            )
+        };
+
+        let mut redis = ctx.redis();
+        let marked: Option<String> = redis::cmd("SET")
+            .arg(&key)
+            .arg(1)
+            .arg("NX")
+            .arg("EX")
+            .arg(PENDING_RERENDER_EXPIRY_SECS)
+            .query_async(&mut redis)
+            .await
+            .or_raise(make_error)?;
+        if marked.is_none() {
+            debug!("Rerender job already pending: {key}");
+            return Ok(());
+        }
+
         debug!(
-            "Queuing page rerender for page ID {} and site ID {}",
+            "Queuing {rerender_type:?} rerender for page ID {} and site ID {}",
             id.page_id, id.site_id,
         );
-        Self::queue_job(
-            ctx,
-            &Job::RerenderPage {
-                id,
-                depth,
-                r#type: RerenderType::NavigationOnly,
-            },
-            None,
-        )
-        .await
+        let job = Job::RerenderPage {
+            id,
+            depth,
+            r#type: rerender_type,
+        };
+        if let Err(error) = Self::queue_job(ctx, &job, None).await {
+            let _: () = redis.del(&key).await.or_raise(make_error)?;
+            return Err(error);
+        }
+
+        Ok(())
     }
+
+    /// Called by a worker when it starts a rerender job, so that later
+    /// changes queue the page again.
+    pub async fn start_rerender_job(
+        ctx: &ServiceContext<'_>,
+        id: PageId,
+        rerender_type: RerenderType,
+    ) -> Result<()> {
+        let key = pending_rerender_key(id, rerender_type);
+        let _: () = ctx.redis().del(&key).await.or_raise(|| {
+            Error::new(
+                format!("failed to clear pending rerender job: {key}"),
+                ErrorType::Job,
+            )
+        })?;
+        Ok(())
+    }
+}
+
+/// How long a pending-rerender marker lives. A worker removes it when the job
+/// starts; the expiry only frees a page whose job was lost.
+const PENDING_RERENDER_EXPIRY_SECS: u64 = 3600;
+
+fn pending_rerender_key(id: PageId, rerender_type: RerenderType) -> String {
+    format!("job:rerender-pending:{}:{rerender_type:?}", id.page_id)
 }

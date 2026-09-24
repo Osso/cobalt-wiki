@@ -251,18 +251,17 @@ impl JobWorker {
                     page_id, site_id, category_id, depth, extra,
                 );
 
-                PageRevisionService::rerender(
-                    ctx,
-                    PageId {
-                        site_id,
-                        category_id,
-                        page_id,
-                    },
-                    depth,
-                    rerender_type,
-                )
-                .await
-                .or_raise(make_error)?;
+                let id = PageId {
+                    site_id,
+                    category_id,
+                    page_id,
+                };
+                JobService::start_rerender_job(ctx, id, rerender_type)
+                    .await
+                    .or_raise(make_error)?;
+                PageRevisionService::rerender(ctx, id, depth, rerender_type)
+                    .await
+                    .or_raise(make_error)?;
 
                 NextJob::Done
             }
