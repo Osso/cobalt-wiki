@@ -5,6 +5,7 @@ import json
 import re
 import unicodedata
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from .archive import write_manifest
 
@@ -51,8 +52,28 @@ def _paragraphs(value):
     )
 
 
-def player_payload(source, fields):
-    """Convert text-only player forms; refuse unhandled fields, media, or markup."""
+def _portrait_markup(original, portrait):
+    if not original:
+        if portrait is not None:
+            raise ImportBlocked("portrait reference supplied without a source portrait")
+        return None
+    if portrait is None:
+        raise ImportBlocked("portrait must be migrated before creating this profile")
+    if type(portrait) is int and portrait > 0:
+        return f"[img:{portrait}|none]"
+    if isinstance(portrait, str) and portrait == original:
+        if re.search(r"[\s|\[\]]", portrait):
+            raise ImportBlocked("portrait URL contains BBCode delimiters or whitespace")
+        parsed = urlsplit(portrait)
+        if parsed.scheme in ("http", "https") and parsed.netloc:
+            return f"[img:{portrait}|none]"
+    raise ImportBlocked(
+        "portrait reference must be a positive image ID or matching http(s) URL"
+    )
+
+
+def player_payload(source, fields, *, portrait=None):
+    """Convert player forms with only explicitly resolved portrait references."""
     if not source["fullname"].startswith("player:"):
         raise ImportBlocked("not a player profile")
     if not isinstance(fields, dict):
@@ -60,8 +81,7 @@ def player_payload(source, fields):
     unknown = [key for key in fields if key not in PLAYER_FIELDS and _text(fields[key])]
     if unknown:
         raise ImportBlocked("unhandled player fields: " + ", ".join(sorted(unknown)))
-    if _text(fields.get("portrait")):
-        raise ImportBlocked("portrait must be migrated before creating this profile")
+    image = _portrait_markup(_text(fields.get("portrait")), portrait)
     sections = [
         ("Who Am I?", "whoAmI"),
         ("RP Preferences", "rpPrefs"),
@@ -72,7 +92,7 @@ def player_payload(source, fields):
         for label, key in sections
         if _text(fields.get(key))
     )
-    sidebar = []
+    sidebar = [image] if image else []
     for label, key in (
         ("Nicknames", "nicknames"),
         ("Pronouns", "pronouns"),

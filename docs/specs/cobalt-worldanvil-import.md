@@ -1,6 +1,6 @@
 # Additive World Anvil import
 
-`tools/cobalt_migration/worldanvil_import.py` provides create-only primitives. The requested migration remains **all missing Cobalt wiki pages**, preserving every existing destination article. Only text-only player conversion is implemented.
+`tools/cobalt_migration/worldanvil_import.py` provides create-only primitives. The requested migration remains **all missing Cobalt wiki pages**, preserving every existing destination article. Player conversion supports plain text and explicitly resolved portrait references; other source media remains blocked.
 
 ## Current capability matrix
 
@@ -11,7 +11,8 @@
 | Player `nicknames`, `pronouns`, `battleTag`, `discordUsername`, `timezone` text | Supported | Converts plain text to sidebar definitions. Local behavioral test. |
 | Player source tags | Supported | Retains source tags and adds `player` plus `cobalt-source:<fullname>`. Local behavioral test. |
 | Create journal and readback | Supported | Writes pending before create; uncertain responses block another create; a readback mismatch remains `created_unverified`. Local behavioral test. |
-| Player portraits and other image/media content | Blocked | A nonempty `portrait` blocks conversion. Upload and destination media linking are not implemented. |
+| Player portraits with resolved references | Supported in payload conversion | A nonempty source `portrait` requires a caller-supplied positive World Anvil image ID or an http(s) URL exactly matching the source field. Emits `[img:ID|none]` or `[img:URL|none]` before sidebar definitions; rejects missing, unrequested, malformed, or BBCode-delimiter-bearing references. Local behavioral tests; no upload or live creation in this slice. |
+| Other image/media content and portrait uploads | Blocked | No upload or download is implemented; source photo upload is handled separately by the caller. |
 | Wikidot-style markup in supported player text | Blocked | Detected formatting blocks conversion rather than being transformed or discarded. |
 | Unknown nonempty player fields | Blocked | Conversion fails rather than dropping data. |
 | Characters, background characters, writings, reference pages, templates, dynamic pages, and all other categories | Missing | No converter is implemented. |
@@ -35,7 +36,7 @@
 
 ## Implementation inventory
 
-- `tools/cobalt_migration/worldanvil_import.py`: text-only player payload conversion, destination identity check, creation journal, readback checks.
+- `tools/cobalt_migration/worldanvil_import.py`: plain-text player payload conversion with optional resolved portrait, destination identity check, creation journal, readback checks.
 - `tools/cobalt_migration/worldanvil_client.py`: read and create transport; no update/delete operation.
 
 ## Tests asserting this spec
@@ -46,7 +47,7 @@
 ## Known gaps (current cycle)
 
 - [ ] All non-player page-category conversions are unimplemented.
-- [ ] Media upload and destination media linking are unimplemented.
+- [ ] Media upload and linking beyond resolved player portrait payload references are unimplemented.
 - [ ] Wikidot markup conversion is unimplemented.
 - [ ] Unknown player fields need explicit mappings before import.
 - [ ] No ongoing synchronization is implemented.

@@ -73,6 +73,60 @@ class PlayerPayloadTests(unittest.TestCase):
             with self.subTest(changes=changes), self.assertRaises(ImportBlocked):
                 player_payload(SOURCE, {**FIELDS, **changes})
 
+    def test_image_id_precedes_sidebar_definitions(self):
+        fields = {**FIELDS, "portrait": "portrait.png"}
+        payload = player_payload(SOURCE, fields, portrait=6815014)
+        self.assertEqual(
+            payload["sidepanelcontenttop"].splitlines()[0:2],
+            ["[img:6815014|none]", "--Nicknames::Ani--"],
+        )
+        self.assertNotIn("[img:", payload["content"])
+
+    def test_external_image_url_must_match_source_exactly(self):
+        for url in (
+            "https://example.org/portraits/Aze_Veil.jpg",
+            "http://cobalt-company.wdfiles.com/local--files/character:aszera/Aze_Veil.jpg",
+        ):
+            with self.subTest(url=url):
+                payload = player_payload(
+                    SOURCE, {**FIELDS, "portrait": url}, portrait=url
+                )
+                self.assertEqual(
+                    payload["sidepanelcontenttop"].splitlines()[0], f"[img:{url}|none]"
+                )
+
+    def test_missing_portrait_cannot_gain_an_image(self):
+        for reference in (6815014, "https://example.org/portrait.jpg"):
+            with self.subTest(reference=reference), self.assertRaises(ImportBlocked):
+                player_payload(SOURCE, FIELDS, portrait=reference)
+
+    def test_invalid_portrait_references_block_conversion(self):
+        source_url = "http://example.org/portrait.jpg"
+        fields = {**FIELDS, "portrait": source_url}
+        for reference in (
+            True,
+            False,
+            0,
+            -1,
+            1.5,
+            "6815014",
+            "https://example.org/portrait.jpg",
+            "ftp://example.org/portrait.jpg",
+            "http://example.org/portrait.jpg|right",
+            "http://example.org/portrait.jpg[bad]",
+        ):
+            with self.subTest(reference=reference), self.assertRaises(ImportBlocked):
+                player_payload(SOURCE, fields, portrait=reference)
+
+    def test_matching_external_url_with_bbcode_delimiters_blocks_conversion(self):
+        for url in (
+            "https://example.org/a|b.jpg",
+            "https://example.org/a[b].jpg",
+            "https://example.org/a]b.jpg",
+        ):
+            with self.subTest(url=url), self.assertRaises(ImportBlocked):
+                player_payload(SOURCE, {**FIELDS, "portrait": url}, portrait=url)
+
     def test_unknown_nonempty_fields_block_instead_of_losing_data(self):
         with self.assertRaises(ImportBlocked):
             player_payload(SOURCE, {**FIELDS, "extraBiography": "Keep this too"})
