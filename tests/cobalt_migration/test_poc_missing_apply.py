@@ -1,12 +1,12 @@
 import copy
 import unittest
 
-from tests.cobalt_migration.test_poc_import import ImportTests, Store
+from tests.cobalt_migration import test_poc_import as fixtures
 from tools.cobalt_migration import poc_import as poc
 from tools.cobalt_migration import poc_missing_inventory as missing
 
 
-class TaggedStore(Store):
+class TaggedStore(fixtures.Store):
     def rpc(self, method, params):
         result = super().rpc(method, params)
         if method == "page_import":
@@ -42,10 +42,10 @@ def inventory(plan, store):
 
 
 class MissingApplyTests(unittest.TestCase):
-    setUp = ImportTests.setUp
-    tearDown = ImportTests.tearDown
-    make_archive = ImportTests.make_archive
-    plan = ImportTests.plan
+    setUp = fixtures.ImportTests.setUp
+    tearDown = fixtures.ImportTests.tearDown
+    make_archive = fixtures.ImportTests.make_archive
+    plan = fixtures.ImportTests.plan
 
     def apply(self, plan, store, snapshot=None, **limits):
         return missing.apply_missing(
