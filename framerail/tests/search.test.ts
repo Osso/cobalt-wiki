@@ -82,8 +82,8 @@ test("GET form uses source theme selectors and submits a named query to the sear
   assert.match(body, /<form[^>]*method="GET"/)
   assert.match(body, /<form[^>]*action="\/search:site"/)
   assert.match(body, /id="search-top-box-input"[^>]*name="query"/)
-  assert.match(body, /<label[^>]*for="search-top-box-input"/)
-  assert.match(body, /<button[^>]*type="submit"[^>]*>Search<\/button>/)
+  assert.match(body, /id="search-top-box-input"[^>]*placeholder="Search this site"/)
+  assert.match(body, /<input class="button btn" type="submit" value="Search"/)
 })
 
 test("search sends only bounded query parameters with trusted site and session headers", async () => {

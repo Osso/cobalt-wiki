@@ -1,7 +1,13 @@
-<div id="search-top-box">
-  <form id="search-top-box-form" action="/search:site" method="GET">
-    <label for="search-top-box-input">Search this wiki</label>
-    <input id="search-top-box-input" name="query" size="15" type="search" />
-    <button class="button" type="submit">Search</button>
+<div id="search-top-box" class="form-search">
+  <form id="search-top-box-form" action="/search:site" method="GET" class="input-append">
+    <input
+      id="search-top-box-input"
+      class="text search-query"
+      type="text"
+      size="15"
+      name="query"
+      placeholder="Search this site"
+      aria-label="Search this site"
+    /><input class="button btn" type="submit" value="Search" />
   </form>
 </div>
