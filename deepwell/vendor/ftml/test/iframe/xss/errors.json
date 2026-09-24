@@ -18,9 +18,9 @@
         "kind": "no-rules-match"
     },
     {
-        "token": "other",
+        "token": "left-block",
         "rule": "block-iframe",
-        "span": [57, 58],
+        "span": [63, 65],
         "kind": "block-malformed-arguments"
     },
     {
@@ -36,9 +36,9 @@
         "kind": "no-rules-match"
     },
     {
-        "token": "colon",
+        "token": "left-block",
         "rule": "block-iframe",
-        "span": [83, 84],
+        "span": [95, 97],
         "kind": "block-malformed-arguments"
     },
     {
