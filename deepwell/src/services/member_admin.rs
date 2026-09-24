@@ -267,7 +267,7 @@ impl MemberAdminService {
                 if name.is_empty() {
                     bail!(Error::new(
                         "no account has this email, so the invite needs a name",
-                        ErrorType::BadRequest,
+                        ErrorType::UserNameRequired,
                     ));
                 }
                 (
@@ -287,7 +287,7 @@ impl MemberAdminService {
         {
             bail!(Error::new(
                 "this account is already a site member",
-                ErrorType::BadRequest,
+                ErrorType::SiteMemberExists,
             ));
         }
         RelationService::create_site_member(
@@ -357,7 +357,7 @@ impl MemberAdminService {
         if user_id == actor.user_id {
             bail!(Error::new(
                 format!("you cannot {action} yourself"),
-                ErrorType::BadRequest,
+                ErrorType::OwnMembership,
             ));
         }
         RelationService::get_site_member(
@@ -376,7 +376,7 @@ impl MemberAdminService {
         if held.iter().any(|(role, _)| *role == MemberRole::Root) {
             bail!(Error::new(
                 format!("you cannot {action} the site's root member"),
-                ErrorType::PermissionDenied,
+                ErrorType::RootMemberProtected,
             ));
         }
         Ok(Target { user_id, held })

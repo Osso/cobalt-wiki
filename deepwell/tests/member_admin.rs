@@ -298,7 +298,7 @@ async fn admin_removes_members_but_not_root_or_themselves() {
         } else {
             run_endpoint_err!(runner, member_admin_remove, params)
         };
-        assert_contains_error!(error, ErrorType::PermissionDenied);
+        assert_contains_error!(error, ErrorType::RootMemberProtected);
     }
     assert!(is_member(&runner, &site, root).await);
     assert_eq!(
@@ -309,7 +309,7 @@ async fn admin_removes_members_but_not_root_or_themselves() {
     // A root member acts as an admin.
     act_as(&mut runner, &site, Some(root));
     let own = run_endpoint_err!(runner, member_admin_remove, remove(root));
-    assert_contains_error!(own, ErrorType::BadRequest);
+    assert_contains_error!(own, ErrorType::OwnMembership);
     assert!(list(&runner).await.iter().any(|e| e.user_id == root));
 }
 
@@ -330,7 +330,7 @@ async fn invite_creates_account_membership_and_emails_a_working_link() {
         member_admin_invite,
         invite("ma-new@example.com", None)
     );
-    assert_contains_error!(error, ErrorType::BadRequest);
+    assert_contains_error!(error, ErrorType::UserNameRequired);
 
     let created = run_endpoint!(
         runner,
@@ -393,7 +393,7 @@ async fn invite_creates_account_membership_and_emails_a_working_link() {
         member_admin_invite,
         invite("ma-new@example.com", Some("MaNewcomer")),
     );
-    assert_contains_error!(error, ErrorType::BadRequest);
+    assert_contains_error!(error, ErrorType::SiteMemberExists);
     assert_eq!(wait_for_requests(&requests, 2).await.len(), 1);
 }
 

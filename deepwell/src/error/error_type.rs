@@ -142,6 +142,7 @@ pub enum ErrorType {
     FilterExists,
     CustomDomainExists,
     PageLockExists,
+    SiteMemberExists,
 
     // 3000
     InvalidAuthentication,
@@ -181,6 +182,8 @@ pub enum ErrorType {
         parent_role_id: i64,
     },
     DeleteRoleWithChildren,
+    RootMemberProtected,
+    OwnMembership,
 
     // 4000
     BadRequest,
@@ -199,6 +202,7 @@ pub enum ErrorType {
     ExpectedWikidotUser {
         was_user: WikijumpUserModel,
     },
+    UserNameRequired,
 
     // 4200
     SiteSlugEmpty,
@@ -447,6 +451,7 @@ impl ErrorType {
             ErrorType::FilterExists => 2106,
             ErrorType::CustomDomainExists => 2107,
             ErrorType::PageLockExists => 2108,
+            ErrorType::SiteMemberExists => 2109,
 
             //
             // 3000 -- Client / Protocol Errors
@@ -475,6 +480,8 @@ impl ErrorType {
             ErrorType::CyclicRoleViolation { .. } => 3107,
             ErrorType::RoleHierarchyViolation { .. } => 3108,
             ErrorType::DeleteRoleWithChildren => 3109,
+            ErrorType::RootMemberProtected => 3110,
+            ErrorType::OwnMembership => 3111,
 
             //
             // 4000, 5000, 6000 -- Client / Request Errors
@@ -501,6 +508,7 @@ impl ErrorType {
             ErrorType::DisallowedEmail => 4106,
             ErrorType::ExpectedWikijumpUser { .. } => 4107,
             ErrorType::ExpectedWikidotUser { .. } => 4108,
+            ErrorType::UserNameRequired => 4109,
 
             // 4200 - Site
             ErrorType::SiteSlugEmpty => 4200,
@@ -707,6 +715,7 @@ impl ErrorType {
                 "Cannot perform, custom domain already exists"
             }
             ErrorType::PageLockExists => "Cannot perform, page lock already exists",
+            ErrorType::SiteMemberExists => "The user is already a member of the site",
 
             // 3000
             ErrorType::InvalidAuthentication => {
@@ -749,6 +758,12 @@ impl ErrorType {
             ErrorType::DeleteRoleWithChildren => {
                 "Cannot delete a role which has child roles, you must reparent or delete the child roles first"
             }
+            ErrorType::RootMemberProtected => {
+                "The site's root member cannot be changed or removed"
+            }
+            ErrorType::OwnMembership => {
+                "Site admins cannot change or remove their own membership"
+            }
 
             // 4000
             ErrorType::BadRequest => "The request is in some way malformed or incorrect",
@@ -765,6 +780,7 @@ impl ErrorType {
             ErrorType::InvalidEmail => "The user's email is invalid",
             ErrorType::ExpectedWikijumpUser { .. } => "Expected to be a real user",
             ErrorType::ExpectedWikidotUser { .. } => "Expected to be a Wikidot-only user",
+            ErrorType::UserNameRequired => "A name is required to create the account",
 
             // 4200
             ErrorType::SiteSlugEmpty => "Site slug cannot be empty",
