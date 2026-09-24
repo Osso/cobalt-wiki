@@ -38,7 +38,7 @@ async function readStoredPage(request, slug) {
 
 /**
  * @param {import("@playwright/test").Page} page @param {string} slug
- *   @param {string} title @param {string} source
+ * @param {string} title @param {string} source
  */
 async function createRawPage(page, slug, title, source) {
   await page.goto(`${preview}/${slug}`, { waitUntil: "networkidle" })
@@ -86,7 +86,8 @@ async function requireStoredPage(request, slug) {
  *   revisionId
  */
 async function waitForWorkerRefresh(request, slug, originalSource, revisionId) {
-  const deadline = performance.now() + 30_000
+  const started = performance.now()
+  const deadline = started + 5_000
   while (performance.now() < deadline) {
     const stored = await requireStoredPage(request, slug)
     assert.equal(stored.wikitext, originalSource, "worker must preserve dependent source")
@@ -100,11 +101,14 @@ async function waitForWorkerRefresh(request, slug, originalSource, revisionId) {
       stored.compiled_body_html.includes("Moth") &&
       !stored.compiled_body_html.includes("Before marker:")
     ) {
+      console.log(
+        JSON.stringify({ slug, refreshMs: Math.round(performance.now() - started) })
+      )
       return stored
     }
     await delay(250)
   }
-  assert.fail(`${slug} stored compiled HTML did not refresh within 30 seconds`)
+  assert.fail(`${slug} stored compiled HTML did not refresh within 5 seconds`)
 }
 
 test("template edit refreshes only dependent stored compiled HTML through worker", async () => {
