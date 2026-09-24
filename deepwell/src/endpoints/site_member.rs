@@ -27,6 +27,9 @@ use std::net::IpAddr;
 struct CreateSiteMemberInput {
     #[serde(flatten)]
     input: CreateSiteMember,
+    /// Original join time, for imported memberships.
+    #[serde(default, with = "time::serde::rfc3339::option")]
+    joined_at: Option<time::OffsetDateTime>,
     ip_address: IpAddr,
 }
 
@@ -63,21 +66,38 @@ pub async fn membership_set(
     ctx: &ServiceContext<'_>,
     params: Params<'static>,
 ) -> Result<()> {
-    let CreateSiteMemberInput { input, ip_address } = parse!(params, SiteMembership);
+    let CreateSiteMemberInput {
+        input,
+        joined_at,
+        ip_address,
+    } = parse!(params, SiteMembership);
     let user_id = input.user_id;
     let site_id = input.site_id;
+    let make_error = || {
+        Error::new(
+            format!(
+                "failed to add user ID {} as a site member of site ID {}",
+                user_id, site_id,
+            ),
+            ErrorType::SiteMembership,
+        )
+    };
 
     RelationService::create_site_member(ctx, input, ip_address)
         .await
-        .or_raise(|| {
-            Error::new(
-                format!(
-                    "failed to add user ID {} as a site member of site ID {}",
-                    user_id, site_id,
-                ),
-                ErrorType::SiteMembership,
-            )
-        })
+        .or_raise(make_error)?;
+
+    if let Some(joined_at) = joined_at {
+        RelationService::set_site_member_joined_at(
+            ctx,
+            GetSiteMember { site_id, user_id },
+            joined_at,
+        )
+        .await
+        .or_raise(make_error)?;
+    }
+
+    Ok(())
 }
 
 pub async fn membership_remove(

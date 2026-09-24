@@ -19,8 +19,10 @@
  */
 
 use super::prelude::*;
+use crate::models::relation;
 use crate::services::audit::{AuditEvent, AuditService};
 use std::net::IpAddr;
+use time::OffsetDateTime;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "snake_case", tag = "cause", content = "user_id")]
@@ -96,6 +98,29 @@ impl RelationService {
         .await
         .or_raise(make_error)?;
 
+        Ok(())
+    }
+
+    /// Backdates a membership to when the user originally joined, e.g. on Wikidot.
+    pub async fn set_site_member_joined_at(
+        ctx: &ServiceContext<'_>,
+        input: GetSiteMember,
+        joined_at: OffsetDateTime,
+    ) -> Result<()> {
+        let membership = Self::get_site_member(ctx, input).await?;
+        relation::ActiveModel {
+            relation_id: Set(membership.relation_id),
+            created_at: Set(joined_at),
+            ..Default::default()
+        }
+        .update(ctx.transaction())
+        .await
+        .or_raise(|| {
+            Error::new(
+                "failed to set site member join time",
+                ErrorType::SiteMemberRelation,
+            )
+        })?;
         Ok(())
     }
 

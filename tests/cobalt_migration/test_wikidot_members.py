@@ -48,10 +48,11 @@ class ImportMemberTest(unittest.TestCase):
         record = rpc.params("import_wikidot_user")[0]
         self.assertEqual((record["user_id"], record["name"], record["slug"], record["created_at"], record["karma"]),
                          (7444794, "OzmaAsimov", "ozmaasimov", "2020-11-03T08:00:00Z", 3))
+        self.assertEqual(rpc.params("member_set")[0]["joined_at"], "2021-04-29T14:55:00Z")
         self.assertEqual(sorted(g["role_id"] for g in rpc.params("user_role_grant")), [1, 2, 4])
         account = rpc.params("user_activate_from_wikidot")[0]
         self.assertEqual(account["user_id"], 7444794)
-        self.assertEqual(account["created_at"], "2021-04-29T14:55:00Z")
+        self.assertNotIn("created_at", account)
         self.assertEqual(account["email"], "wikidot-7444794@members.invalid")
         self.assertGreaterEqual(len(account["password"]), 64)
 

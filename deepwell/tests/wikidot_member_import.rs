@@ -1,6 +1,6 @@
 //! A Wikidot site member becomes a native account through the import RPCs:
-//! wikidot_user record, site membership, role grant, then activation with the
-//! site join time as the account creation time.
+//! wikidot_user record, site membership dated at the site join time, role
+//! grant, then activation keeping the Wikidot account creation time.
 
 #[macro_use]
 mod common;
@@ -14,7 +14,7 @@ use time::macros::datetime;
 const USER_ID: i64 = 7444794;
 
 #[tokio::test]
-async fn wikidot_member_becomes_account_with_join_time_and_role() {
+async fn wikidot_member_becomes_account_with_membership_join_time_and_role() {
     let runner = TestRunner::setup().await;
     let site_id = run_endpoint!(runner, site_get, json!({"site": "test"}))
         .unwrap()
@@ -44,6 +44,7 @@ async fn wikidot_member_becomes_account_with_join_time_and_role() {
             "site_id": site_id, "user_id": USER_ID,
             "metadata": {"accepted": {"cause": "accepted", "user_id": ADMIN_USER_ID}},
             "created_by": ADMIN_USER_ID,
+            "joined_at": "2021-04-29T14:55:00Z",
             "ip_address": common::IP_ADDRESS,
         }),
     );
@@ -69,14 +70,21 @@ async fn wikidot_member_becomes_account_with_join_time_and_role() {
             "email": "wikidot-7444794@members.invalid", "locales": ["en"],
             "password": "secret nobody is told",
             "bypass_filter": true, "bypass_email_verification": true,
-            "created_at": "2021-04-29T14:55:00Z",
             "ip_address": common::IP_ADDRESS,
         }),
     );
     assert_eq!(user.user_id, USER_ID);
     assert_eq!(user.name, "OzmaAsimov");
     assert_eq!(user.slug, "ozmaasimov");
-    assert_eq!(user.created_at, datetime!(2021-04-29 14:55:00 UTC));
+    assert_eq!(user.created_at, datetime!(2020-11-03 08:00:00 UTC));
+
+    let membership = run_endpoint!(
+        runner,
+        membership_get,
+        json!({"site_id": site_id, "user_id": USER_ID}),
+    )
+    .expect("user is a site member");
+    assert_eq!(membership.created_at, datetime!(2021-04-29 14:55:00 UTC));
 
     let roles = run_endpoint!(
         runner,

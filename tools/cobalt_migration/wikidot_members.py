@@ -2,8 +2,8 @@
 
 Each member becomes a Deepwell user with the Wikidot user ID, name and slug
 (activated from its wikidot_user record, imported first from the public
-profile when the member authored no revision) and created at the site join
-time, a site membership, and site
+profile when the member authored no revision, keeping its Wikidot account
+creation time), a site membership dated at the site join time, and site
 roles: member for everyone, plus admin or moderator, plus root for the master
 admin. Accounts get an unreachable placeholder email and a random password
 that is never stored or shown, so nobody can log in until a set-password link
@@ -80,7 +80,9 @@ def import_member(rpc, member, site_id, role_ids, importer, fetch=fetch_profile)
         rpc.rpc("member_set", {
             "site_id": site_id, "user_id": user_id,
             "metadata": {"accepted": {"cause": "accepted", "user_id": importer}},
-            "created_by": importer, "ip_address": IP_ADDRESS,
+            "created_by": importer,
+            "joined_at": rfc3339(member["member_since_epoch"]),
+            "ip_address": IP_ADDRESS,
         })
     held = {role["name"] for role in rpc.rpc("user_role_list", {"site_id": site_id, "user_id": user_id})}
     for name in sorted(wanted_roles(member) - held):
@@ -94,7 +96,6 @@ def import_member(rpc, member, site_id, role_ids, importer, fetch=fetch_profile)
         "email": placeholder_email(user_id), "locales": ["en"],
         "password": secrets.token_urlsafe(48),
         "bypass_filter": True, "bypass_email_verification": True,
-        "created_at": rfc3339(member["member_since_epoch"]),
         "ip_address": IP_ADDRESS,
     })
     return "created"
