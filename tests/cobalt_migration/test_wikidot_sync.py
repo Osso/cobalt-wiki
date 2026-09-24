@@ -304,6 +304,19 @@ class SyncFilesTest(unittest.TestCase):
         self.assertEqual(list(replica.files[1]), ["a.jpg"])
 
 
+class FileUrlTest(unittest.TestCase):
+    def test_encodes_like_wikidot_redirect(self):
+        # wdfiles.com answers 500 for this file with a raw colon, 200 with %3A.
+        self.assertEqual(
+            wikidot_sync.file_url(
+                "https://cobalt-company.wikidot.com",
+                "/local--files/writing:2026-09-14-carrot-cake-and-a-luckydo/Baird%20Cosmology.png",
+            ),
+            "https://cobalt-company.wdfiles.com/local--files/"
+            "writing%3A2026-09-14-carrot-cake-and-a-luckydo/Baird%20Cosmology.png",
+        )
+
+
 class SyncRenamesTest(unittest.TestCase):
     def test_moves_in_order_and_reruns_as_already_moved(self):
         replica = FakeReplica(["character:brynnal", "writing:x", "writing:y"])

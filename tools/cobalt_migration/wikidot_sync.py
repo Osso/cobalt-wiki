@@ -255,10 +255,13 @@ def sync_renames(rpc, site_id, user_id, renames):
         rename["outcome"] = action
 
 
-def wdfiles_origin(origin):
-    """https://site.wikidot.com -> https://site.wdfiles.com, where files are served."""
+def file_url(origin, href):
+    """wdfiles.com URL for a listed ``/local--files/page/name`` link, encoded
+    as Wikidot's own redirect does (``:`` as %3A); wdfiles answers 500 for
+    some names when the colon is raw."""
     parts = urllib.parse.urlsplit(origin)
-    return f"{parts.scheme}://{parts.hostname.removesuffix('.wikidot.com')}.wdfiles.com"
+    path = urllib.parse.quote(urllib.parse.unquote(href), safe="/")
+    return f"{parts.scheme}://{parts.hostname.removesuffix('.wikidot.com')}.wdfiles.com{path}"
 
 
 def list_wikidot_files(origin, page_id):
@@ -277,7 +280,12 @@ def list_wikidot_files(origin, page_id):
 
 
 def download(url, listed_size):
-    status, data = wikidot_request(url)
+    """The file's bytes; FileListError (reported per file) when retries run out
+    or the bytes are not the listed file."""
+    try:
+        status, data = wikidot_request(url)
+    except (urllib.error.URLError, TimeoutError) as error:
+        raise FileListError(f"download failed: {error}") from None
     if status != 200:
         raise FileListError(f"download: http {status}")
     check_download(data, listed_size)
@@ -302,7 +310,7 @@ def sync_files(rpc, site_id, user_id, origin, replica_page_id, wikidot_page_id, 
     for name, action in sorted(plan_files(wikidot, replica, events["touched"], events["gone"]).items()):
         try:
             if action in {"create", "verify"}:
-                data = download(wdfiles_origin(origin) + wikidot[name]["href"], wikidot[name]["size"])
+                data = download(file_url(origin, wikidot[name]["href"]), wikidot[name]["size"])
                 current = replica.get(name)
                 if current and hashlib.sha512(data).hexdigest() == current["s3_hash"]:
                     outcomes[name] = "unchanged"
