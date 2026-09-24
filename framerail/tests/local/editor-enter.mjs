@@ -297,6 +297,29 @@ async function assertEditorFields(page, form, label) {
   await expect(editor.getByLabel(label("notes"), { exact: true })).toBeVisible()
 }
 
+/** @param {import("@playwright/test").Page} page */
+async function assertStructuredFooterGeometry(page) {
+  const editor = page.locator("#editor")
+  const table = editor.getByRole("table")
+  const cancel = editor.getByRole("button", { name: "Cancel", exact: true })
+  const save = editor.getByRole("button", { name: "Save", exact: true })
+  for (const control of [table, cancel, save]) await expect(control).toBeVisible()
+  const tableBox = await table.boundingBox()
+  const cancelBox = await cancel.boundingBox()
+  const saveBox = await save.boundingBox()
+  assert.ok(tableBox && cancelBox && saveBox, "structured footer rectangles required")
+  const leftOffset = cancelBox.x - tableBox.x
+  assert.ok(
+    Math.abs(leftOffset - 2) <= 2,
+    `Cancel must sit 2 ± 2 px from form table left; got ${leftOffset}`
+  )
+  const centerOffset = cancelBox.y + cancelBox.height / 2 - saveBox.y - saveBox.height / 2
+  assert.ok(
+    Math.abs(centerOffset) <= 2,
+    `Cancel and Save must share a line; center offset ${centerOffset} px`
+  )
+}
+
 /**
  * @param {import("@playwright/test").BrowserContext} context
  * @param {string} slug
@@ -522,6 +545,7 @@ async function checkTarget(context, fixture, token, target) {
     await trapPagePosts(context, slug, blocked)
     trapped = true
     await assertEditorFields(page, form, label)
+    if (form) await assertStructuredFooterGeometry(page)
     await observeSubmits(page)
     const editCount = () => blocked.filter((entry) => entry.edit).length
     await assertInputEnter(page, form, label, editCount)
