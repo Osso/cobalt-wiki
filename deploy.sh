@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Build and restart the existing local preview Deepwell service only."""
 
-from pathlib import Path
 import subprocess
+from pathlib import Path
 
 
 root = Path(__file__).resolve().parent
