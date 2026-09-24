@@ -90,17 +90,9 @@ function assertWritingSchema(fields) {
  * @param {string} label
  */
 async function assertStaticLabel(wrapper, label) {
-  const associated = await wrapper.evaluate(
-    (row, expected) =>
-      [...row.children].some(
-        (child) =>
-          !child.classList.contains("static-field") &&
-          child.tagName !== "SMALL" &&
-          child.textContent?.trim() === expected
-      ),
-    label
-  )
-  assert.ok(associated, `${label} must label its own static row`)
+  const visibleLabel = wrapper.locator(".static-field .static-label")
+  await expect(visibleLabel).toBeVisible()
+  await expect(visibleLabel).toHaveText(label)
 }
 
 /**
@@ -113,7 +105,15 @@ async function assertDefaultControl(wrapper, field) {
   if (field.kind === "static") {
     if (text(field.properties.label)) await assertStaticLabel(wrapper, label)
     assert.equal(
-      digest(await wrapper.locator(".static-field").textContent()),
+      digest(
+        await wrapper.locator(".static-field").evaluate((element) =>
+          [...element.childNodes]
+            .filter((node) => node.nodeType === Node.TEXT_NODE)
+            .map((node) => node.textContent)
+            .join("")
+            .trim()
+        )
+      ),
       digest(text(field.properties.value ?? value)),
       `${field.name} static content digest`
     )
