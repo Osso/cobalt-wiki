@@ -94,12 +94,12 @@ Dependencies: Serde supplies the transport serialization contract; maintained `s
 
 `deepwell/wikidot-forms/tests/compatibility.rs` uses only synthetic inputs. Run `cargo test --manifest-path deepwell/wikidot-forms/Cargo.toml` with a target directory outside the checkout.
 
-`deepwell/tests/page_preview.rs` contains the six real-DB preview/form cases proven at `d9f5f79`. `framerail/tests/page-preview.test.ts` covers the bounded frontend action/component introduced at `ffb3cc4` and completed at `85c4e09`; integration is `fd02305`.
+`deepwell/tests/page_preview.rs` contains the six real-DB preview/form cases proven at `d9f5f79`. Frontend and authenticated browser preview acceptance, including its boundaries, are the [form-editor SSOT](cobalt-form-editor.md#tests-asserting-this-spec).
 
 ## Known gaps (current cycle)
 
 - [ ] The legacy NPC definition's apparent `orc: Orc:` syntax remains an error, not an automatic repair. The source inventory contains no saved NPC records. No real template or private record is included in fixtures.
-- [ ] Formatting toolbar and source rich-editor parity are incomplete. Preview runtime/browser acceptance remains open.
+- [ ] Formatting toolbar and source rich-editor parity are incomplete. Preview acceptance is documented in the [form-editor SSOT](cobalt-form-editor.md#tests-asserting-this-spec); it does not establish toolbar or source-parity behavior.
 - [ ] Draft ownership and hosted-server lifecycle semantics remain unproven; the local shared-target behavior is documented authorized inference in the [form-editor contract](cobalt-form-editor.md).
 - [ ] Independent or broader browser coverage remains open; the single local authenticated form roundtrip does not establish site-wide workflow parity.
 - [ ] Private attachment authorization is separate and missing: current WWS attachment routes do not enforce page-view authorization. Do not expose private attachments.
