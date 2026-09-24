@@ -4,7 +4,11 @@ import { readFile } from "node:fs/promises"
 import { test } from "node:test"
 import { chromium, expect, request } from "@playwright/test"
 
-const preview = "http://127.0.0.1:3090"
+// COBALT_SEARCH_URL          replica origin, e.g. http://127.0.0.1:3090
+// COBALT_POC_HTPASSWD        gateway htpasswd (user name is read from it)
+// COBALT_LOCAL_PASSWORD_FILE gateway password
+const preview = process.env.COBALT_SEARCH_URL
+const htpasswd = process.env.COBALT_POC_HTPASSWD
 const searchPath = "/search:site"
 const pageSize = 20
 
@@ -138,8 +142,8 @@ test("protected hydrated search returns a prepared result and distinct paginatio
   const fixturePath = process.env.COBALT_SEARCH_FIXTURE
   const passwordPath = process.env.COBALT_LOCAL_PASSWORD_FILE
   assert.ok(
-    fixturePath && passwordPath,
-    "explicit search fixture and BasicAuth file required"
+    preview && htpasswd && fixturePath && passwordPath,
+    "replica origin, search fixture and gateway files required"
   )
   const fixture = await readFixture(fixturePath)
   const unauthenticated = await request.newContext()
@@ -160,7 +164,7 @@ test("protected hydrated search returns a prepared result and distinct paginatio
   try {
     const context = await browser.newContext({
       httpCredentials: {
-        username: "cobalt",
+        username: (await readFile(htpasswd, "utf8")).split(":")[0].trim(),
         password: (await readFile(passwordPath, "utf8")).trim(),
         origin: preview
       }

@@ -43,8 +43,10 @@ Cobalt provides a server-side Meilisearch-backed `search:site` result page for c
 ## Known gaps (current cycle)
 
 - The SSR cache-isolation batch retained 22 passing tests; `20a3afc` corrected the three incomplete doctype fixtures, with their targeted group passing 4/4. Final scoped frontend checks and the bounded independent evidence audit passed.
-- [ ] Local proof has no production-deployment coverage. The freshness result uses a real database with fake Meilisearch.
+- [x] Production search enabled 2026-09-24; see [replica status](../wiki/systems/cobalt-replica-status.md#production-meilisearch-search).
+- [ ] `MEILISEARCH_MASTER_KEY` carries a scoped key in production; the variable name predates that.
+- Wikidot's own search is disabled on the source site ("Search is temporarily unavailable"), so result-page markup has no live source to match.
 
 ## Out of scope
 
-Source ACL parity, deployment, result ranking tuning, and a browser-exposed Meilisearch credential are excluded. Search must not make source-private pages or content available.
+Source ACL parity, result ranking tuning, and a browser-exposed Meilisearch credential are excluded. Search must not make source-private pages or content available.
