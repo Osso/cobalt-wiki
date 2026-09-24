@@ -77,7 +77,7 @@ function assertWritingSchema(fields) {
     assert.equal(kinds[kind]?.length, count, `${kind} field count`)
   }
   assert.equal(new Set(fields.map((field) => field.name)).size, 28, "unique fields")
-  for (const label of ["Summary", "Additional Content Warnings", "Digest"]) {
+  for (const label of ["Summary", "Additional Content Warnings", "Digest?"]) {
     assert.ok(
       fields.some((field) => field.kind === "static" && field.properties.label === label),
       `${label} must be an archived static-field label`
@@ -90,7 +90,7 @@ function assertWritingSchema(fields) {
  * @param {string} label
  */
 async function assertStaticLabel(wrapper, label) {
-  const visibleLabel = wrapper.locator(".static-field .static-label")
+  const visibleLabel = wrapper.locator(".static-label")
   await expect(visibleLabel).toBeVisible()
   await expect(visibleLabel).toHaveText(label)
 }
@@ -105,15 +105,7 @@ async function assertDefaultControl(wrapper, field) {
   if (field.kind === "static") {
     if (text(field.properties.label)) await assertStaticLabel(wrapper, label)
     assert.equal(
-      digest(
-        await wrapper.locator(".static-field").evaluate((element) =>
-          [...element.childNodes]
-            .filter((node) => node.nodeType === Node.TEXT_NODE)
-            .map((node) => node.textContent)
-            .join("")
-            .trim()
-        )
-      ),
+      digest(await wrapper.locator(".static-field").textContent()),
       digest(text(field.properties.value ?? value)),
       `${field.name} static content digest`
     )
