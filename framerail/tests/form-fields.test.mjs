@@ -81,6 +81,24 @@ test("source-defined fields render accessible typed controls and readonly static
               { code: "orc", label: "Orc" },
               { code: "troll", label: "Troll" }
             ]
+          },
+          {
+            name: "summary-label",
+            kind: "static",
+            properties: { label: "Summary <script>", value: "Summary value <safe>" },
+            options: []
+          },
+          {
+            name: "empty-static",
+            kind: "static",
+            properties: { label: "", value: "Empty-label value" },
+            options: []
+          },
+          {
+            name: "missing-static",
+            kind: "static",
+            properties: { value: "Missing-label value" },
+            options: []
           }
         ]
       },
@@ -89,6 +107,17 @@ test("source-defined fields render accessible typed controls and readonly static
     const draft = createDraft(form)
     const { body } = render(Component, { props: { form, draft } })
     assert.match(body, /Read only &lt;safe(?:&gt;|>)/)
+    assert.match(body, /Summary &lt;script(?:&gt;|>)/)
+    assert.match(body, /Summary value &lt;safe(?:&gt;|>)/)
+    assert.ok(body.indexOf("Summary &lt;script") < body.indexOf("Summary value &lt;safe"))
+    assert.doesNotMatch(body, /<script>|summary-label|empty-static|missing-static/)
+    assert.match(body, /Empty-label value/)
+    assert.match(body, /Missing-label value/)
+    assert.equal((body.match(/class="static-label(?:\s[^"]*)?"/g) ?? []).length, 1)
+    assert.equal(draft["summary-label"], undefined)
+    assert.equal(draft["empty-static"], undefined)
+    assert.equal(draft["missing-static"], undefined)
+    assert.deepEqual(changedFields(form, { ...draft, "summary-label": "changed" }), {})
     assert.match(body, /<label for="data-form-field-1">Name<\/label>/)
     assert.match(body, /<input[^>]*type="text"/)
     assert.match(body, /<input[^>]*size="40"/)

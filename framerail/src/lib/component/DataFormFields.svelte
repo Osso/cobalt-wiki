@@ -15,7 +15,12 @@
   {@const hint = scalarText(field.properties.hint ?? field.properties.Hint)}
   <div class="form-field">
     {#if field.kind === "static"}
-      <div class="static-field">{fieldText(field, form.values)}</div>
+      <div class="static-field">
+        {#if scalarText(field.properties.label)}
+          <div class="static-label">{scalarText(field.properties.label)}</div>
+        {/if}
+        {fieldText(field, form.values)}
+      </div>
     {:else if field.kind === "select" && field.options.length >= 2 && field.options.length <= 4}
       <fieldset aria-describedby={hint ? `${id}-hint` : undefined}>
         <legend>{scalarText(field.properties.label) || field.name}</legend>
