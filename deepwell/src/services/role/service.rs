@@ -40,6 +40,7 @@ use crate::services::{PageService, RelationService, ServiceContext};
 use crate::types::{Action, Permission, Reference, Resource};
 use crate::utils::{now, trim_default};
 use sea_orm::prelude::Expr;
+use sea_orm::sea_query::OnConflict;
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::net::IpAddr;
@@ -365,16 +366,29 @@ impl RoleService {
 
         let role = Self::get(ctx, site_id, role_id.into()).await?;
 
-        let user_role = user_role::ActiveModel {
+        // A revoked grant keeps its (user_id, role_id) row, so granting the
+        // role again revives that row instead of inserting a duplicate key.
+        let user_role = UserRole::insert(user_role::ActiveModel {
             user_id: Set(user_id),
             role_id: Set(role.role_id),
             site_id: Set(role.site_id),
             assigned_at: Set(now()),
             assigned_by: Set(assigning_user_id),
             expires_at: Set(expires_at),
-            ..Default::default()
-        }
-        .insert(txn)
+            deleted_at: Set(None),
+        })
+        .on_conflict(
+            OnConflict::columns([user_role::Column::UserId, user_role::Column::RoleId])
+                .update_columns([
+                    user_role::Column::SiteId,
+                    user_role::Column::AssignedAt,
+                    user_role::Column::AssignedBy,
+                    user_role::Column::ExpiresAt,
+                    user_role::Column::DeletedAt,
+                ])
+                .to_owned(),
+        )
+        .exec_with_returning(txn)
         .await
         .or_raise(make_error)?;
 

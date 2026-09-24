@@ -294,7 +294,7 @@ impl PasswordTokenService {
         Ok(count > 0)
     }
 
-    async fn find_by_email(
+    pub(crate) async fn find_by_email(
         ctx: &ServiceContext<'_>,
         email: &str,
     ) -> Result<Option<UserModel>> {
@@ -339,7 +339,7 @@ fn query_error() -> Error {
     Error::new("password link query failed", ErrorType::DatabaseQuery)
 }
 
-fn generate_token() -> String {
+pub(crate) fn generate_token() -> String {
     let mut rng = rand::rng();
     assert_is_csprng(&rng);
     let mut buffer = [0; 32];

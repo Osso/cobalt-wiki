@@ -45,8 +45,9 @@ use crate::services::settings::{NavigationPageHtml, SettingsService};
 use crate::services::user::User;
 use crate::services::view::ViewType;
 use crate::services::{
-    BlueprintPageService, CategoryService, DomainService, PageRevisionService,
-    PageService, RenderService, SessionService, SiteService, TextService, UserService,
+    BlueprintPageService, CategoryService, DomainService, MemberAdminService,
+    PageRevisionService, PageService, RenderService, SessionService, SiteService,
+    TextService, UserService,
 };
 use crate::types::{Action, PageId, Permission, RerenderDepth, Resource};
 use crate::utils::{parse_locales, split_category};
@@ -93,7 +94,16 @@ impl ViewService {
         .await
         .or_raise(make_error)?;
 
-        Ok(GetPreloadViewOutput { viewer })
+        let site_admin = match &viewer.user_session {
+            Some(UserSession { session, user }) if !session.restricted => {
+                MemberAdminService::is_site_admin(ctx, site_id, user.user_id)
+                    .await
+                    .or_raise(make_error)?
+            }
+            _ => false,
+        };
+
+        Ok(GetPreloadViewOutput { viewer, site_admin })
     }
 
     pub async fn page(

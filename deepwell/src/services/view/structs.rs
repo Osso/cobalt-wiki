@@ -59,6 +59,8 @@ pub struct GetPreloadView {
 pub struct GetPreloadViewOutput {
     #[serde(flatten)]
     pub viewer: Viewer,
+    /// Whether the session user holds the site's `admin` or `root` role.
+    pub site_admin: bool,
 }
 
 /// Yield information for a page view, depending on the status of the page.

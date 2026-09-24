@@ -355,6 +355,12 @@ async fn build_module(app_state: ServerState) -> Result<RpcModule<ServerState>> 
     register!("member_get", membership_get);
     register!("member_remove", membership_remove);
 
+    // Member administration (acting user from the session header, site admins only)
+    register!("member_admin_list", member_admin_list);
+    register!("member_admin_set_role", member_admin_set_role);
+    register!("member_admin_remove", member_admin_remove);
+    register!("member_admin_invite", member_admin_invite);
+
     // Roles
     register!("role_list", list_site_roles);
     register!("user_role_list", get_user_roles);
