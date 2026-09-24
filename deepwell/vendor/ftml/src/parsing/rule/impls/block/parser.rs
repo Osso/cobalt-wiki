@@ -401,14 +401,12 @@ where
     ) -> Result<Arguments<'t>, ParseError> {
         let mut arguments = Arguments::new();
         if in_head {
+            // Heads may span lines, as with get_head_map().
             let head = collect_text(
                 self,
                 self.rule(),
                 &[ParseCondition::current(Token::RightBlock)],
-                &[
-                    ParseCondition::current(Token::ParagraphBreak),
-                    ParseCondition::current(Token::LineBreak),
-                ],
+                &[],
                 Some(ParseErrorKind::BlockMalformedArguments),
             )?;
             for captures in LENIENT_ARGUMENT.captures_iter(head) {
