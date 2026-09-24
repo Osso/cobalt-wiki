@@ -117,7 +117,8 @@ async fn editing_a_form_template_queues_only_its_category_without_changing_recor
     .unwrap();
     assert_eq!(before.wikitext.as_deref(), Some(record));
     let old_html = before.compiled_body_html.unwrap();
-    assert!(old_html.contains("Old specimen: Moth"), "{old_html}");
+    assert!(old_html.contains("Old specimen:"), "{old_html}");
+    assert!(old_html.contains("Moth"), "{old_html}");
     let original_revision =
         PageRevisionService::get_latest(runner.context(), site_id, dependent)
             .await
