@@ -4,6 +4,7 @@ import { requireDeepwellError } from "$lib/deepwell-errors"
 import { authGetSession } from "$lib/server/auth/getSession"
 import { authLogin } from "$lib/server/auth/login"
 import { translate } from "$lib/server/deepwell/translate"
+import { loadSiteChrome } from "$lib/server/load/site-chrome"
 import { loadSiteInfo } from "$lib/server/load/site-info"
 import { fail } from "@sveltejs/kit"
 import { superValidate } from "sveltekit-superforms"
@@ -20,7 +21,6 @@ export async function loadLoginPage(
   preloadData: PreloadDataAsync
 ) {
   // Set up parameters
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { siteId } = loadSiteInfo(request.headers)
   const sessionToken = cookies.get("wikijump_token")
 
@@ -45,13 +45,22 @@ export async function loadLoginPage(
     "create-account": {}
   }
 
-  const internationalization = await translate(locales, translateKeys)
+  const chrome = await loadSiteChrome(siteId, sessionToken, parentData)
+  const internationalization = await translate(locales, {
+    ...translateKeys,
+    ...chrome.footerKeys
+  })
 
   // superform
   const loginForm = await superValidate(valibot(loginSchema))
 
   // Return to page for rendering
-  return { isLoggedIn, internationalization, loginForm }
+  return {
+    compiled_top_bar_html: chrome.compiled_top_bar_html,
+    isLoggedIn,
+    internationalization,
+    loginForm
+  }
 }
 
 export async function loginAction({ request, getClientAddress, cookies }: RequestEvent) {

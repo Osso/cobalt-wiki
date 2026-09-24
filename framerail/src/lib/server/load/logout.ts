@@ -4,6 +4,7 @@ import { requireDeepwellError } from "$lib/deepwell-errors"
 import { parseAcceptLangHeader } from "$lib/locales"
 import { authLogout } from "$lib/server/auth/logout"
 import { translate } from "$lib/server/deepwell/translate"
+import { loadSiteChrome } from "$lib/server/load/site-chrome"
 import { loadSiteInfo } from "$lib/server/load/site-info"
 import { fail } from "@sveltejs/kit"
 
@@ -17,7 +18,6 @@ export async function loadLogoutPage(
   preloadData: PreloadDataAsync
 ) {
   // Set up parameters
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { siteId } = loadSiteInfo(request.headers)
   const sessionToken = cookies.get("wikijump_token")
 
@@ -37,10 +37,18 @@ export async function loadLogoutPage(
     "logout.toast": {}
   }
 
-  const internationalization = await translate(locales, translateKeys)
+  const chrome = await loadSiteChrome(siteId, sessionToken, parentData)
+  const internationalization = await translate(locales, {
+    ...translateKeys,
+    ...chrome.footerKeys
+  })
 
   // Return to page for rendering
-  return { isLoggedIn, internationalization }
+  return {
+    compiled_top_bar_html: chrome.compiled_top_bar_html,
+    isLoggedIn,
+    internationalization
+  }
 }
 
 export async function logoutAction({ cookies, request }: RequestEvent) {

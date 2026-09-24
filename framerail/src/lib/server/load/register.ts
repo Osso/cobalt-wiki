@@ -3,6 +3,7 @@ import { requireDeepwellError } from "$lib/deepwell-errors"
 
 import { translate } from "$lib/server/deepwell/translate"
 import { userCreate } from "$lib/server/deepwell/user"
+import { loadSiteChrome } from "$lib/server/load/site-chrome"
 import { loadSiteInfo } from "$lib/server/load/site-info"
 import { fail } from "@sveltejs/kit"
 import { superValidate } from "sveltekit-superforms"
@@ -29,7 +30,6 @@ export async function loadRegisterPage(
   preloadData: PreloadDataAsync
 ) {
   // Set up parameters
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { siteId } = loadSiteInfo(request.headers)
   const sessionToken = cookies.get("wikijump_token")
 
@@ -62,13 +62,22 @@ export async function loadRegisterPage(
     "error-form.password-mismatch": {}
   }
 
-  const internationalization = await translate(locales, translateKeys)
+  const chrome = await loadSiteChrome(siteId, sessionToken, parentData)
+  const internationalization = await translate(locales, {
+    ...translateKeys,
+    ...chrome.footerKeys
+  })
 
   // superform
   const registerForm = await superValidate(valibot(registerSchema))
 
   // Return to page for rendering
-  return { isLoggedIn, internationalization, registerForm }
+  return {
+    compiled_top_bar_html: chrome.compiled_top_bar_html,
+    isLoggedIn,
+    internationalization,
+    registerForm
+  }
 }
 
 export async function registerAction({ request, getClientAddress }: RequestEvent) {

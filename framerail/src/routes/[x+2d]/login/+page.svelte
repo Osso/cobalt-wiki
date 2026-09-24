@@ -1,5 +1,6 @@
 <script lang="ts">
   import { goto, invalidateAll } from "$app/navigation"
+  import { resolve } from "$app/paths"
   import { page } from "$app/state"
   import { errorPopupState } from "$lib/stores.svelte"
   import { superForm } from "sveltekit-superforms"
@@ -51,22 +52,22 @@
     <input
       name="nameOrEmail"
       class="text"
-      placeholder="username or email address"
       autocomplete="username"
+      placeholder="username or email address"
       type="text"
       bind:value={$form.nameOrEmail}
     />
     <input
       name="password"
       class="text"
-      placeholder="password"
       autocomplete="current-password"
+      placeholder="password"
       type="password"
       bind:value={$form.password}
     />
     <button class="btn btn-primary" type="submit">Sign in</button>
     <p>
-      No account yet? <a href="/-/register">Create account</a>
+      No account yet? <a href={resolve("/-/register", {})}>Create account</a>
     </p>
   </form>
 {/if}
