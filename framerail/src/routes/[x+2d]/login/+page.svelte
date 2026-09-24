@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { invalidateAll } from "$app/navigation"
+  import { goto, invalidateAll } from "$app/navigation"
+  import { page } from "$app/state"
   import { errorPopupState } from "$lib/stores.svelte"
   import { superForm } from "sveltekit-superforms"
   import { untrack } from "svelte"
@@ -12,6 +13,12 @@
 
   let isLoggedIn = $derived<boolean>(data.isLoggedIn)
 
+  // The header's Sign in link passes the page to return to, as Wikidot does.
+  const returnPath = $derived.by(() => {
+    const origUrl = page.url.searchParams.get("origUrl") ?? "/"
+    return origUrl.startsWith("/") && !origUrl.startsWith("//") ? origUrl : "/"
+  })
+
   const { form, enhance } = superForm(
     untrack(() => data.loginForm),
     {
@@ -20,6 +27,7 @@
           toast(ToastType.Success, data.internationalization!["login.toast"]!)
           isLoggedIn = true
           await invalidateAll()
+          await goto(returnPath)
           return
         }
 
@@ -35,32 +43,31 @@
   )
 </script>
 
+<h1 id="login-title">Sign in to {page.data.site?.name}</h1>
 {#if isLoggedIn}
-  {data.internationalization?.["login.toast"]}
+  <p>{data.internationalization?.["login.toast"]}</p>
 {:else}
   <form id="login" class="login-form" method="POST" use:enhance>
     <input
       name="nameOrEmail"
-      class="auth-name-or-email"
-      placeholder={data.internationalization?.specifier}
+      class="text"
+      placeholder="username or email address"
+      autocomplete="username"
       type="text"
       bind:value={$form.nameOrEmail}
     />
     <input
       name="password"
-      class="auth-password"
-      placeholder={data.internationalization?.password}
+      class="text"
+      placeholder="password"
+      autocomplete="current-password"
       type="password"
       bind:value={$form.password}
     />
-    <div class="action-row auth-actions">
-      <button class="action-button auth-button button-cancel clickable" type="button">
-        {data.internationalization?.cancel}
-      </button>
-      <button class="action-button auth-button button-login clickable" type="submit">
-        {data.internationalization?.login}
-      </button>
-    </div>
+    <button class="btn btn-primary" type="submit">Sign in</button>
+    <p>
+      No account yet? <a href="/-/register">Create account</a>
+    </p>
   </form>
 {/if}
 
@@ -68,12 +75,21 @@
   .login-form {
     display: flex;
     flex-direction: column;
-    gap: 1em;
-    align-items: center;
-    justify-content: center;
+    gap: 0.75em;
+    max-width: 24em;
+    margin: 1em auto;
 
-    .action-row {
-      justify-content: center;
+    input {
+      padding: 0.4em;
+      font-size: 1.1em;
     }
+
+    button {
+      align-self: flex-start;
+    }
+  }
+
+  #login-title {
+    text-align: center;
   }
 </style>

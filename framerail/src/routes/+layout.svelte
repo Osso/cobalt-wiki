@@ -6,6 +6,7 @@
   import ErrorPopup from "$lib/popup/error.svelte"
   import Toasts from "$lib/component/Toasts.svelte"
   import SearchBox from "$lib/component/SearchBox.svelte"
+  import LoginStatus from "$lib/component/LoginStatus.svelte"
 
   import { page } from "$app/state"
   import { pageLayoutState, errorPopupState } from "$lib/stores.svelte"
@@ -25,8 +26,15 @@
     }
   }
 
+  // Account pages a Wikidot site's visitors reach from its header use the site's theme.
+  const SITE_THEMED_ROUTES = new Set([
+    "/[x+2d]/login",
+    "/[x+2d]/logout",
+    "/[x+2d]/register"
+  ])
+
   function setLayout() {
-    if (page.route.id?.startsWith("/[x+2d]/")) {
+    if (page.route.id?.startsWith("/[x+2d]/") && !SITE_THEMED_ROUTES.has(page.route.id)) {
       // this is a special page, use Wikijump layout
       pageLayoutState.current = Layout.WIKIJUMP
     } else {
@@ -104,6 +112,7 @@
         <span>{page.data.site?.tagline}</span>
       </h2>
       <SearchBox />
+      <LoginStatus />
     {/snippet}
 
     {#snippet topBar()}
