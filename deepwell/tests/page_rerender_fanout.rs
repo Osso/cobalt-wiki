@@ -461,3 +461,53 @@ async fn pending_rerenders_collapse_until_a_worker_starts_them() {
     edit_source(&mut runner, fixture.site_id, "component:inner", "Inner v4").await;
     assert_inner_change_jobs(&queued(&mut connection).await, &fixture);
 }
+
+#[tokio::test]
+#[ignore = "requires a dedicated Redis database; run explicitly with --ignored"]
+async fn edited_navigation_page_renders_its_latest_revision_into_bars() {
+    let mut runner = TestRunner::setup_with_config(production_like_config()).await;
+    let site_id = run_endpoint!(runner, site_get, json!({"site": "test"}))
+        .unwrap()
+        .site
+        .site_id;
+    run_endpoint!(
+        runner,
+        site_update,
+        json!({
+            "site": site_id,
+            "user_id": SYSTEM_USER_ID,
+            "top_bar_page": "nav:latest-top",
+            "side_bar_page": "",
+            "ip_address": "127.0.0.1",
+        }),
+    );
+    create_page(&mut runner, site_id, "nav:latest-top", "Top bar first").await;
+    create_page(&mut runner, site_id, "latest-consumer", "Consumer body").await;
+    let (_connection, mut rsmq) = fresh_queue().await;
+
+    edit_source(&mut runner, site_id, "nav:latest-top", "Top bar second").await;
+    edit_source(&mut runner, site_id, "nav:latest-top", "Top bar third").await;
+    drain(&runner, &mut rsmq).await;
+
+    let consumer = PageService::get(
+        runner.context(),
+        site_id,
+        Reference::Slug("latest-consumer".into()),
+    )
+    .await
+    .unwrap();
+    let revision =
+        PageRevisionService::get_latest(runner.context(), site_id, consumer.page_id)
+            .await
+            .unwrap();
+    let top_bar = TextService::get(
+        runner.context(),
+        revision
+            .compiled_top_bar_html_hash
+            .as_deref()
+            .expect("top bar"),
+    )
+    .await
+    .unwrap();
+    assert!(top_bar.contains("Top bar third"), "top bar: {top_bar}");
+}

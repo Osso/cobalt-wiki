@@ -23,7 +23,6 @@ use crate::models::page_revision::{
     self, Entity as PageRevision, Model as PageRevisionModel,
 };
 use crate::models::site::Model as SiteModel;
-use crate::models::text::{self, Entity as Text, Model as TextModel};
 use crate::services::render::{BodyArguments, COMPILED_GENERATOR, RenderPageOutput};
 use crate::services::score::ScoreValue;
 use crate::services::{
@@ -31,12 +30,11 @@ use crate::services::{
     SettingsService, SiteService, TextService,
 };
 use crate::types::{FetchDirection, PageId, PageRevisionType, RerenderDepth};
-use crate::utils::{split_category, split_category_name, trim_default};
+use crate::utils::{split_category, split_category_name};
 use ftml::data::PageInfo;
 use ftml::layout::Layout;
 use ftml::settings::{WikitextMode, WikitextSettings};
 use ref_map::*;
-use sea_query::{Order, Query};
 use std::borrow::Cow;
 use std::num::NonZeroI32;
 use std::sync::LazyLock;
@@ -314,6 +312,7 @@ impl PageRevisionService {
                 //
                 // This macro runs the given method (second value) if the condition (first value)
                 // is true, otherwise does nothing.
+                let slug = slug.as_str();
 
                 try_join!(
                     conditional_future!(
@@ -331,6 +330,16 @@ impl PageRevisionService {
                             ctx,
                             site_id,
                             page_id,
+                            RerenderDepth::default()
+                        ),
+                    ),
+                    // Pages using this page as a bar compile it like an include.
+                    conditional_future!(
+                        tasks.rerender_outgoing_includes,
+                        OutdateService::outdate_nav_pages(
+                            ctx,
+                            site_id,
+                            slug,
                             RerenderDepth::default()
                         ),
                     ),
@@ -1236,55 +1245,38 @@ impl PageRevisionService {
         }
     }
 
-    /// Internal method for getting a text column for the latest revision of a page.
+    /// Internal method for getting a text column for the latest revision of a live page.
     async fn get_latest_text_optional(
         ctx: &ServiceContext<'_>,
         site_id: i64,
         reference: Reference<'_>,
-        text_column: page_revision::Column,
+        text_hash: fn(&PageRevisionModel) -> &[u8],
     ) -> Result<Option<String>> {
-        let page_condition = match reference {
-            Reference::Id(page_id) => page_revision::Column::PageId.eq(page_id),
-            Reference::Slug(page_slug) => {
-                page_revision::Column::Slug.eq(trim_default(page_slug.as_ref()))
-            }
-        };
-
         let make_error = || {
             Error::new(
-                format!(
-                    "failed to get latest '{:?}' text data for revision in site ID {}",
-                    text_column, site_id,
-                ),
+                format!("failed to get latest revision text data in site ID {site_id}"),
                 ErrorType::PageRevision,
             )
         };
 
-        let txn = ctx.transaction();
-        let text = Text::find()
-            .select_only()
-            .column(text::Column::Contents)
-            .filter(
-                text::Column::Hash.in_subquery(
-                    Query::select()
-                        .column(text_column)
-                        .from(page_revision::Entity)
-                        .and_where(page_revision::Column::SiteId.eq(site_id))
-                        .and_where(page_condition)
-                        .order_by(page_revision::Column::RevisionNumber, Order::Desc)
-                        .to_owned(),
-                ),
-            )
-            .into_tuple()
-            .one(txn)
+        // latest_revision_id is NULL while the page's first revision is being created.
+        let Some(revision_id) = PageService::get_optional(ctx, site_id, reference)
+            .await
+            .or_raise(make_error)?
+            .and_then(|page| page.latest_revision_id)
+        else {
+            return Ok(None);
+        };
+        let revision = Self::get_direct(ctx, revision_id)
             .await
             .or_raise(make_error)?;
-
-        Ok(text)
+        let text = TextService::get(ctx, text_hash(&revision))
+            .await
+            .or_raise(make_error)?;
+        Ok(Some(text))
     }
 
-    /// Gets the wikitext from the latest revision of a page or null if it doesn't exist.
-    /// This is a specific helper method since it requires a join.
+    /// Gets the wikitext from the latest revision of a live page or null if it doesn't exist.
     ///
     /// NOTE: This accepts page slugs with an explicit `_default:` category, but
     ///       does *not* handle non-normalized page slugs. In such a case, it
@@ -1294,12 +1286,9 @@ impl PageRevisionService {
         site_id: i64,
         reference: Reference<'_>,
     ) -> Result<Option<String>> {
-        Self::get_latest_text_optional(
-            ctx,
-            site_id,
-            reference,
-            page_revision::Column::WikitextHash,
-        )
+        Self::get_latest_text_optional(ctx, site_id, reference, |revision| {
+            &revision.wikitext_hash
+        })
         .await
     }
 
@@ -1319,8 +1308,7 @@ impl PageRevisionService {
         )
     }
 
-    /// Gets the compiled body HTML from the latest revision of a page.
-    /// This is a specific helper method since it requires a join.
+    /// Gets the compiled body HTML from the latest revision of a live page.
     ///
     /// NOTE: The same caveats apply to this method as `get_wikitext_optional()`.
     pub async fn get_compiled_html_optional(
@@ -1328,12 +1316,9 @@ impl PageRevisionService {
         site_id: i64,
         reference: Reference<'_>,
     ) -> Result<Option<String>> {
-        Self::get_latest_text_optional(
-            ctx,
-            site_id,
-            reference,
-            page_revision::Column::CompiledBodyHtmlHash,
-        )
+        Self::get_latest_text_optional(ctx, site_id, reference, |revision| {
+            &revision.compiled_body_html_hash
+        })
         .await
     }
 
