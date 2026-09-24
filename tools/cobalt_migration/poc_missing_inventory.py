@@ -2,6 +2,8 @@
 
 from collections import Counter, defaultdict
 
+from . import poc_import as poc
+
 
 def _valid_field(field, value):
     if field.endswith("_id"):
@@ -143,3 +145,67 @@ def select_missing(plan, inventory):
         "existing_pages": existing_pages,
         "skipped": dict(skipped),
     }
+
+
+def _create_page(rpc, plan, entry, data):
+    if poc._get_page(rpc, plan, entry) is not None:
+        raise poc.PocImportError("page inventory changed; reconcile before restarting")
+    rpc(
+        "page_import",
+        {
+            "site_id": plan["site_id"],
+            "user_id": plan["user_id"],
+            "slug": entry["fullname"],
+            "title": entry["title"],
+            "wikitext": data.decode("utf-8"),
+            "tags": entry["tags"],
+            "alt_title": None,
+            "layout": None,
+            "revision_comments": poc._marker(plan),
+            "bypass_filter": True,
+            "ip_address": "127.0.0.1",
+        },
+    )
+    page = poc._get_page(rpc, plan, entry)
+    if page is None:
+        raise poc.PocImportError("created page missing on readback")
+    poc._check_page(page, plan, entry)
+    if page["tags"] != entry["tags"]:
+        raise poc.PocImportError("created page did not retain exact tags")
+    return page["page_id"]
+
+
+def _create_file(rpc, put, plan, entry, data, page_id):
+    page = poc._get_page(rpc, plan, entry)
+    if page is None or page["page_id"] != page_id:
+        raise poc.PocImportError(
+            "attachment owner changed; reconcile before restarting"
+        )
+    if poc._get_file(rpc, plan, entry, page_id) is not None:
+        raise poc.PocImportError("file inventory changed; reconcile before restarting")
+    poc._import_file(rpc, put, plan, entry, data, page_id)
+
+
+def apply_missing(
+    archive_path, plan_path, inventory, rpc, put, *, endpoint, max_pages, max_files
+):
+    """Create a bounded batch against a fresh complete inventory, exclusively.
+
+    Caller exports current and historical identities before EACH invocation and
+    excludes concurrent writers. A failed mutation aborts; export again before
+    restarting. Existing records are never repaired or content-checked.
+    """
+    plan = poc._load_plan(archive_path, plan_path)
+    if inventory.get("rpc_endpoint") != endpoint:
+        raise ValueError("inventory RPC endpoint mismatch")
+    if any(type(n) is not int or n < 0 for n in (max_pages, max_files)):
+        raise ValueError("batch limits must be nonnegative integers")
+    selected = select_missing(plan, inventory)
+    pages = dict(selected["existing_pages"])
+    entries = selected["pages"][:max_pages]
+    for entry, data in poc._members(archive_path, entries):
+        pages[entry["fullname"]] = _create_page(rpc, plan, entry, data)
+    files = [e for e in selected["attachments"] if e["fullname"] in pages][:max_files]
+    for entry, data in poc._members(archive_path, files):
+        _create_file(rpc, put, plan, entry, data, pages[entry["fullname"]])
+    return {"pages": len(entries), "attachments": len(files)}
