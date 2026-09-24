@@ -15,7 +15,7 @@ Expand archived `[[module ListPages]]` blocks into ordinary wikitext before FTML
 - [x] `[[module CountPages ...]]` takes the same selection arguments, counts every matching visible page (no `limit`/`perPage` cap) and renders its body with `%%total%%` filled inside a `list-pages-box` div, as Wikidot does on `stats`.
 - [x] Nested modules (an item template containing, or including, another ListPages): the outer module ends at its matching `[[/module]]`; outer tokens fill inner module headers but not inner item templates; inner modules expand after the outer items, up to four levels (Cobalt `testlist`).
 - [x] Pagination like Wikidot: `perPage` items per page (`limit` caps items across all pages); a pager (`page N of M`, pages 1–2, current ±2, last two, `...` gaps, previous/next) links to `/<page>/p/N`, which every module on the page follows. Stored HTML is page 1; `/p/N` renders on demand without storing.
-- [x] Rerender listing pages when matching pages are created, edited, retagged, moved, deleted or restored: each page body stores its selections (`page_listing`), and a changed page (before and after) queues rerenders of the listing pages whose selection it matches; a matching navigation page then refreshes every page's bar through the existing navigation outdater.
+- [x] Rerender listing pages when matching pages are created, edited, retagged, moved, deleted or restored: each page body stores its selections (`page_listing`), and a changed page (before and after) queues rerenders of the listing pages whose selection it matches; a matching navigation page also queues a navigation rerender of every page using it, in the same step ([rerender invalidation](cobalt-rerender-invalidation.md)).
 
 ## Data limits
 
@@ -30,4 +30,4 @@ Imported pages carry import-time `created_at`/`updated_at`; original Wikidot cre
 
 ## Out of scope
 
-Other modules (`CountPages`, `NewPage`, `Join`, ...), listing invalidation (queue fan-out is tracked separately), and deployment.
+Other modules (`CountPages`, `NewPage`, `Join`, ...), listing invalidation (queue fan-out: [rerender invalidation](cobalt-rerender-invalidation.md)), and deployment.
