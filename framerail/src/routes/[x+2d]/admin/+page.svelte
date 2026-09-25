@@ -51,9 +51,9 @@
   }
 </script>
 
-<h1>UNTRANSLATED:Admin panel route</h1>
+<h1>Site Manager</h1>
 
-<textarea class="debug">{JSON.stringify(data, null, 2)}</textarea>
+<p><a href="/-/admin/members">Site members</a></p>
 
 {#if isEdit}
   <form id="editor" class="editor" method="POST" use:enhance>
@@ -214,11 +214,6 @@
 {/if}
 
 <style global lang="scss">
-  .debug {
-    width: 100%;
-    height: 60vh;
-  }
-
   .site-info {
     padding: 0 0 2em;
   }
