@@ -70,6 +70,7 @@ _ALLOWED = {
     "a",
     "img",
     "script",
+    "iframe",
 }
 _BLOCK = {
     "p",
@@ -86,8 +87,25 @@ _BLOCK = {
     "table",
     "pre",
     "div",
+    "iframe",
 }
 _MARKUP = {"strong": "b", "em": "i", "strike": "s", "del": "s"}
+_TAG_ACTIONS = {
+    "WIKIDOT.page.listeners.editTags(event)",
+    "WIKIDOT.page.listeners.updateTagsByButton(event, '+_completed -@@')",
+}
+_YOUTUBE_EMBED = re.compile(
+    r"https://www\.youtube\.com/embed/[A-Za-z0-9_-]{11}(?:\?si=[A-Za-z0-9_-]+)?"
+)
+_IFRAME_ATTRS = {
+    "src",
+    "title",
+    "width",
+    "height",
+    "frameborder",
+    "allow",
+    "allowfullscreen",
+}
 
 
 class _PageParser(HTMLParser):
@@ -118,7 +136,13 @@ class _PageParser(HTMLParser):
     def _append(self, tag, attrs, void):
         if tag not in _ALLOWED:
             raise UnsupportedContent(f"unsupported element <{tag}>")
-        if any(name.startswith("on") for name in attrs):
+        if any(name.startswith("on") for name in attrs) and not (
+            tag == "a"
+            and set(attrs) == {"class", "href", "onclick"}
+            and attrs["class"] == "wiki-standalone-button"
+            and attrs["href"] == "javascript:;"
+            and attrs["onclick"] in _TAG_ACTIONS
+        ):
             raise UnsupportedContent(f"actionable attribute in <{tag}>")
         style = attrs.get("style") or ""
         hidden = (
@@ -399,6 +423,20 @@ def _render(element, source_url, image_ref):
         "collapsible-block-content",
     }:
         raise UnsupportedContent("unmatched collapsible structure")
+    if tag == "iframe":
+        src = element.attrs.get("src") or ""
+        title = element.attrs.get("title") or ""
+        if (
+            not set(element.attrs) <= _IFRAME_ATTRS
+            or not _YOUTUBE_EMBED.fullmatch(src)
+            or not title.strip()
+            or any(
+                not isinstance(child, str) or child.strip()
+                for child in element.children
+            )
+        ):
+            raise UnsupportedContent("unsupported iframe")
+        return f"[url:{src}]{literal_text(title)}[/url]"
     if tag == "br":
         return "[br]"
     if tag == "hr":

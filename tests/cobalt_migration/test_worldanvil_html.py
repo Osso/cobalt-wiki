@@ -159,6 +159,64 @@ class RenderedContentTests(unittest.TestCase):
             "Tab [b]name[/b] After[/p]",
         )
 
+    def test_observed_tag_controls_keep_labels_without_actions(self):
+        body = (
+            '<p><a class="wiki-standalone-button" href="javascript:;" '
+            'onclick="WIKIDOT.page.listeners.editTags(event)">'
+            "Click here to open the Tags editor</a> "
+            '<a class="wiki-standalone-button" href="javascript:;" '
+            'onclick="WIKIDOT.page.listeners.updateTagsByButton(event, '
+            "'+_completed -@@')\">Publish</a></p>"
+        )
+        self.assertEqual(
+            self.convert(body),
+            "[p]Click here to open the Tags editor Publish[/p]",
+        )
+
+    def test_unknown_tag_actions_remain_blocked(self):
+        for body in (
+            '<a class="wiki-standalone-button" href="javascript:;" onclick="evil()">Bad</a>',
+            '<a href="javascript:;" onclick="WIKIDOT.page.listeners.editTags(event)">Bad</a>',
+            '<a class="wiki-standalone-button" href="/tags" onclick="WIKIDOT.page.listeners.editTags(event)">Bad</a>',
+            '<a class="wiki-standalone-button" href="javascript:;" onclick="WIKIDOT.page.listeners.updateTagsByButton(event, \'-_completed\')">Bad</a>',
+            '<a class="wiki-standalone-button" href="javascript:;" onclick="WIKIDOT.page.listeners.editTags(event)" onmouseover="evil()">Bad</a>',
+        ):
+            with self.subTest(body=body), self.assertRaises(UnsupportedContent):
+                self.convert(body)
+
+    def test_observed_youtube_iframes_become_titled_video_links(self):
+        for src in (
+            "https://www.youtube.com/embed/uKNx5UXEH3E?si=48nuouNw2UuZoTzb",
+            "https://www.youtube.com/embed/2IJx_Q5v0xM?si=n4AZVwjXadNGVsaP",
+            "https://www.youtube.com/embed/2IJx_Q5v0xM",
+        ):
+            with self.subTest(src=src):
+                body = (
+                    '<p>Watch:</p><iframe width="560" height="315" src="'
+                    + src
+                    + '" title="YouTube video player" frameborder="0" '
+                    'allow="accelerometer; autoplay; clipboard-write; encrypted-media; '
+                    'gyroscope; picture-in-picture; web-share" '
+                    'allowfullscreen="allowfullscreen"></iframe><p>After</p>'
+                )
+                self.assertEqual(
+                    self.convert(body),
+                    f"[p]Watch:[/p]\n[url:{src}]YouTube video player[/url]\n[p]After[/p]",
+                )
+
+    def test_unknown_iframes_remain_blocked(self):
+        for body in (
+            '<iframe src="https://evil.example/embed/uKNx5UXEH3E" title="Video"></iframe>',
+            '<iframe src="https://www.youtube.com/watch?v=uKNx5UXEH3E" title="Video"></iframe>',
+            '<iframe src="https://www.youtube.com/embed/short" title="Video"></iframe>',
+            '<iframe src="https://www.youtube.com/embed/uKNx5UXEH3E?autoplay=1" title="Video"></iframe>',
+            '<iframe src="https://www.youtube.com/embed/uKNx5UXEH3E" title="Video" srcdoc="<script>bad</script>"></iframe>',
+            '<iframe src="https://www.youtube.com/embed/uKNx5UXEH3E"></iframe>',
+            '<iframe src="https://www.youtube.com/embed/uKNx5UXEH3E" title="Video">Hidden text</iframe>',
+        ):
+            with self.subTest(body=body), self.assertRaises(UnsupportedContent):
+                self.convert(body)
+
     def test_observed_yui_tabs_become_all_static_labeled_sections(self):
         tabs = """
         <script type="text/javascript" src="https://d3g0gp89917ko0.cloudfront.net/v--0c0da3649c4f/common--javascript/yahooui/tabview-min.js"></script>

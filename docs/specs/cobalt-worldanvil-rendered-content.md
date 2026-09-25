@@ -10,8 +10,9 @@
 - [x] Render observed Wikidot YUI tabsets as ordered static labeled sections, including panels hidden by the tab widget; recognize only the paired library script, navigation, panels, and matching initializer.
 - [x] Render observed Wikidot collapsible blocks as `[spoiler=label]...[/spoiler]`, preserving labels and nested content; accept only the folded/unfolded controls and hidden panel structure.
 - [x] Preserve literal bracket-bearing source text inside `[noparse]...[/noparse]` (also via `literal_text` for source-reference text); reject any text with a `[/noparse]` collision. Keep generated BBCode structural.
-- [x] Preserve children of inert `href="javascript:;"` anchors without emitting navigation; reject actionable event attributes and other JavaScript URLs.
-- [x] Block unknown elements, scripts/forms/frames (including YouTube embeds), unmatched tabs or collapsibles, hidden content outside recognized panels, cell spans, malformed or unsafe URLs, and invalid image references rather than dropping them.
+- [x] Preserve children of inert `href="javascript:;"` anchors without emitting navigation. Convert only observed `wiki-standalone-button` tag-editor and publish handlers to inert visible labels; they do not edit Wikidot tags on World Anvil. Reject other actionable event attributes and JavaScript URLs.
+- [x] Convert observed titled `https://www.youtube.com/embed/<11-character video ID>` iframes (optionally with the observed `?si=` token) to `[url:exact-source]title[/url]` video references. These are links, **not embedded players**; preserve the exact source URL and title, never execute iframe content.
+- [x] Block unknown elements, scripts/forms/other frames, unknown handlers or iframe attributes/content, unmatched tabs or collapsibles, hidden content outside recognized panels, cell spans, malformed or unsafe URLs, and invalid image references rather than dropping them.
 
 ## How it works
 
@@ -23,7 +24,7 @@
 
 ## Tests asserting this spec
 
-- `tests/cobalt_migration/test_worldanvil_html.py`: formatting, links/images, void tags, nested tables, YUI tabs, nested collapsibles, literal brackets, and rejection boundaries.
+- `tests/cobalt_migration/test_worldanvil_html.py`: formatting, links/images, void tags, nested tables, YUI tabs, nested collapsibles, literal brackets, inert tag controls, titled YouTube video links, and rejection boundaries.
 
 ## Known gaps (current cycle)
 
