@@ -1,5 +1,9 @@
 # Additive World Anvil import
 
+> **Paused — September 25, 2026.** No automatic World Anvil hook was installed. Manual import is stopped; do not publish further World Anvil content without a new user request. The retained helpers and partial data do not make the full migration complete.
+>
+> Local operation journals record 54 created articles (11 players, 2 characters, and 41 technical references), 1 rejected item, and 321 hash-verified image uploads. These are operation records, not a fresh remote inventory.
+
 `tools/cobalt_migration/worldanvil_import.py` provides create-only primitives. The user-selected goal remains **all missing Cobalt wiki pages** while preserving existing destination articles; it is not complete.
 
 ## Current capability matrix
