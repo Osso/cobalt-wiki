@@ -13,8 +13,7 @@ Site admins manage members from `/-/admin/members`, the replica of Wikidot's `_a
 - [x] The header account menu links to the page ("Site members") only when `preload_view` reports `site_admin`.
 - [x] A revoked role can be granted again: `user_role_grant` revives the `(user_id, role_id)` row instead of inserting a duplicate key.
 - [x] The existing `[[module Join]]` button links to `/-/join`, retaining its escaped custom label; it no longer relies on Wikidot's absent dialog script.
-- [x] The site-themed `/-/join` page lets signed-in guests submit a trimmed 1–2,000-character application message. Signed-out visitors get sign-in/account links; pending applicants see their message and wait for review, and existing members cannot apply from the form. Account creation and application alone do not grant membership.
-- [x] Site members shows pending membership application messages with Approve/Reject actions. Only admins/root may review; approving grants membership, rejecting permits a later application. See [membership applications](cobalt-membership-applications.md) for the lifecycle.
+- [ ] Membership applications have frontend support: signed-in guests can send a short message at `/-/join`; pending guests see their message; members cannot apply; Site members presents admin/root Approve/Reject controls. Rejecting permits a later application. The backend integration, local end-to-end verification, and public deployment remain pending; see [membership applications](cobalt-membership-applications.md) for the lifecycle.
 - [ ] Not offered: bans, Wikidot's per-member "send private message".
 
 ## RPCs
@@ -43,4 +42,4 @@ All read the acting user and site from the request headers.
 - `deepwell/vendor/ftml/src/render/handle.rs::join_links_to_membership_application` verifies the native link and default/custom escaped labels (1/1 passed).
 - `framerail/tests/join.test.ts` covers signed-out, guest, pending and member page states; actor/site request context; message validation; readable backend refusals. 4/4 passed with 2/2 page-layout tests during development.
 - `framerail/tests/members.test.ts` also covers the pending application queue, safely rendered messages, approve/reject RPC context, malformed decisions, and signed-out/unauthorized review; 12/12 passed during application UI development.
-- Not proven: an application browser run, a real Mailgun send, application deployment.
+- Pending proof: backend integration, local end-to-end application flow, and public deployment.
