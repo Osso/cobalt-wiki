@@ -83,7 +83,7 @@ test("local imported history paginates and exposes preserved source without roll
       const isHistoryRead =
         url.origin === origin &&
         url.pathname === "/home:start" &&
-        ["?/importedHistory", "?/importedRevision"].includes(url.search)
+        ["?/history", "?/importedHistory", "?/importedRevision"].includes(url.search)
       if (isHistoryRead) {
         await route.continue()
         return
