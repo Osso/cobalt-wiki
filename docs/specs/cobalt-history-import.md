@@ -9,7 +9,7 @@ Cobalt history import must store authorized source revision history without pres
 | Denied | Numeric source identity `1312457155`; revision `2` returned HTTP `200`, but parsed title and content classify it as `Private content`. | History count is access-blocked. |
 | Redirect | Same-origin redirect destination `/_admin` returned HTTP `200` Site Manager; original `source/admin_manage.txt` contains the `ManageSite` module. | Source page ID and history are unknown. |
 
-The historical plan baseline remains two unresolved identities. Neither observation implies three revisions. Independent offline verification is pending.
+The historical plan baseline remains two unresolved identities. Neither observation implies three revisions. Independent offline verification passes with these boundaries: `/tmp/claude/cobalt-source-identities-final-gate.json`.
 
 ## What it must do
 
