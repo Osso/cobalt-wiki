@@ -31,19 +31,19 @@
     {#if imageError}
       <p role="alert">Unable to load image.</p>
     {:else}
-      <img src={image.src} alt={image.alt} onerror={() => (imageError = true)} />
+      <img alt={image.alt} onerror={() => (imageError = true)} src={image.src} />
     {/if}
     <div class="controls">
       <span aria-live="polite">Image {selectedIndex + 1} of {images.length}</span>
-      <button type="button" disabled={selectedIndex === 0} onclick={() => moveBy(-1)}
+      <button disabled={selectedIndex === 0} onclick={() => moveBy(-1)} type="button"
         >Previous</button
       >
       <button
-        type="button"
         disabled={selectedIndex === images.length - 1}
-        onclick={() => moveBy(1)}>Next</button
+        onclick={() => moveBy(1)}
+        type="button">Next</button
       >
-      <button type="button" onclick={() => dialog.close()}>Close</button>
+      <button onclick={() => dialog.close()} type="button">Close</button>
     </div>
   </div>
 </dialog>
@@ -65,34 +65,34 @@
   .viewer {
     display: flex;
     flex-direction: column;
-    align-items: center;
     gap: 12px;
+    align-items: center;
   }
 
   img {
     display: block;
-    max-width: 100%;
-    max-height: calc(100dvh - 120px);
     width: auto;
+    max-width: 100%;
     height: auto;
+    max-height: calc(100dvh - 120px);
     object-fit: contain;
   }
 
   .controls {
     display: flex;
     flex-wrap: wrap;
+    gap: 8px;
     align-items: center;
     justify-content: center;
-    gap: 8px;
   }
 
   button {
     min-height: 44px;
     padding: 8px 12px;
     color: #111;
+    cursor: pointer;
     background: #fff;
     border: 1px solid #777;
-    cursor: pointer;
   }
 
   button:focus-visible {

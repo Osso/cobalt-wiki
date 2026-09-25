@@ -6,6 +6,7 @@ import { render } from "svelte/server"
 
 const component = new URL("../src/lib/component/GalleryViewer.svelte", import.meta.url)
 
+/** @param {number} initialIndex */
 async function renderViewer(initialIndex) {
   const compiled = compile(await readFile(component, "utf8"), {
     generate: "server",

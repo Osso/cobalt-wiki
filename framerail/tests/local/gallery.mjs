@@ -45,8 +45,9 @@ test("Badges thumbnails open a bounded gallery viewer without navigating or savi
     const writes = []
     page.on("pageerror", (error) => errors.push(error.message))
     page.on("request", (request) => {
-      if (request.method() !== "GET" && request.method() !== "HEAD")
+      if (request.method() !== "GET" && request.method() !== "HEAD") {
         writes.push(request.method())
+      }
     })
     await page.goto(`${origin}/badges`, { waitUntil: "networkidle" })
     const links = page.locator("#page-content .gallery-box .gallery-item a")
