@@ -84,6 +84,7 @@ test("local imported history paginates and exposes preserved source without roll
       }
     })
     const origin = "http://127.0.0.1:3089"
+    /** @type {string[]} */
     const unexpectedPosts = []
     await context.route("**/*", async (route) => {
       const request = route.request()
@@ -100,6 +101,7 @@ test("local imported history paginates and exposes preserved source without roll
       await route.abort()
     })
     const page = await context.newPage()
+    /** @type {Error[]} */
     const pageErrors = []
     page.on("pageerror", (error) => pageErrors.push(error))
     const content = page.locator("#page-content")
