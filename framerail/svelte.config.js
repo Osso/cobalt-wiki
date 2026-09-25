@@ -25,6 +25,7 @@ const config = {
 
   kit: {
     adapter: adapter(),
+    appDir: "-/assets",
     csrf: {
       // Allow flexible hosts on local, since we don't have real DNS
       checkOrigin: process.env.FRAMERAIL_ENV !== "local"

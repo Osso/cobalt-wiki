@@ -8,6 +8,7 @@ The replica must preserve existing Wikidot names rather than flattening their co
 - [ ] Serve and create multi-colon pages at their exact slug, without a redirect to a dash-merged name.
 - [ ] Assign imported multi-colon pages to the first-colon category.
 - [ ] Preserve ordinary single-colon/default references, explicit labels, fragments and subpaths.
+- [ ] Serve leading-underscore page names such as `/_applications` without confusing them with framework assets. Framework assets occupy `/-/assets`, inside the reserved system namespace.
 - [x] Reconcile affected existing category assignments without changing source bytes or revision identity. Production, 2026-09-23: 456 imported multi-colon pages moved from 438 per-prefix categories to `writing` (the only affected first segment); the emptied categories, which had no permission rows, were deleted. Only `page.page_category_id` changed. Rollback data: tables `reconcile_20260923_page_category` (page, old category) and `reconcile_20260923_categories` (deleted rows). Afterwards the replica `stats` CountPages totals match Wikidot except one RP log absent from the archive (5,385 vs 5,386).
 
 ## How it works
@@ -22,6 +23,7 @@ The replica must preserve existing Wikidot names rather than flattening their co
 
 ## Tests asserting this spec
 
+- `framerail/tests/local/admin-pages.mjs`: real HTTP/browser lookup of `/_applications`, its dashboard headings and client hydration without page errors.
 - `deepwell/tests/page_canonical_names.rs`: native category identity and exact links despite a normalized-name collision.
 - `deepwell/tests/page_import.rs`: exact import identity and source-category behavior.
 - `deepwell/tests/page_multi_colon_slug.rs`: native create and view at the exact slug with no `redirect_page`.
