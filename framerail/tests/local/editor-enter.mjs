@@ -329,7 +329,9 @@ async function assertStructuredTitleGeometry(page) {
     const computed = getComputedStyle(element)
     return {
       fontSize: parseFloat(computed.fontSize),
-      fontWeight: parseFloat(computed.fontWeight)
+      fontWeight: parseFloat(computed.fontWeight),
+      borderStyle: computed.borderTopStyle,
+      borderWidth: parseFloat(computed.borderTopWidth)
     }
   })
   assert.ok(
@@ -340,6 +342,8 @@ async function assertStructuredTitleGeometry(page) {
     style.fontWeight >= 700,
     `Title font weight must be at least 700; got ${style.fontWeight}`
   )
+  assert.equal(style.borderStyle, "solid", "Title uses the hosted text-input border")
+  assert.equal(style.borderWidth, 1, "Title border is 1px at the test browser scale")
 }
 
 /** @param {import("@playwright/test").Page} page */
