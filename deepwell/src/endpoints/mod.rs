@@ -46,6 +46,8 @@ mod prelude {
     pub use std::convert::TryFrom;
 }
 
+pub mod watching;
+
 pub mod all {
     pub use super::auth::*;
     pub use super::basic_error::*;
@@ -86,6 +88,7 @@ pub mod all {
     pub use super::user_bot::*;
     pub use super::view::*;
     pub use super::vote::*;
+    pub use super::watching::*;
 }
 
 pub mod auth;
