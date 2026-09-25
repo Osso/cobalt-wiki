@@ -51,7 +51,7 @@ test("Toasts CSS keeps its 850px positioning and sizing without Sass deprecation
     }),
     { filename: toasts }
   )
-  const css = prepared.code.match(/<style(?:\s[^>]*)?>([\s\S]*?)<\/style>/)?.[1]
+  const css = /<style(?:\s[^>]*)?>([\s\S]*?)<\/style>/.exec(prepared.code)?.[1]
   assert.ok(css, "Toasts style must compile")
   assertSmallScreenRules(css, [
     /@media \(max-width: 850px\) \{\s*:global\(\.toasts\) \{\s*align-items: center;\s*width: 100%;\s*margin: 1rem 0;/,
