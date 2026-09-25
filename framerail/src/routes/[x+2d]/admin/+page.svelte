@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invalidateAll } from "$app/navigation"
+  import { resolve } from "$app/paths"
   import { errorPopupState } from "$lib/stores.svelte"
   import { Layout } from "$lib/types"
   import { superForm } from "sveltekit-superforms"
@@ -53,7 +54,7 @@
 
 <h1>Site Manager</h1>
 
-<p><a href="/-/admin/members">Site members</a></p>
+<p><a href={resolve("/-/admin/members", {})}>Site members</a></p>
 
 {#if isEdit}
   <form id="editor" class="editor" method="POST" use:enhance>

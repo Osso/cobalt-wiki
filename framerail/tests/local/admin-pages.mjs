@@ -18,6 +18,7 @@ test("Applications loads its imported dashboard and framework assets", async () 
   const context = await browser.newContext()
   try {
     const page = await context.newPage()
+    /** @type {string[]} */
     const errors = []
     page.on("pageerror", (error) => errors.push(error.message))
     const response = await page.goto(`${origin}/_applications`, {
