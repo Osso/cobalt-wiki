@@ -256,6 +256,18 @@ async fn unavailable_or_hidden_revisions_and_deleted_pages_are_skipped() {
             .unwrap()
             .is_none()
     );
+    let revision_request = serde_json::json!({
+        "site_id": site_id, "page_id": page_id, "revision_number": 0,
+        "details": {"wikitext": true}
+    });
+    let readable = deepwell::endpoints::all::page_revision_get(
+        ctx,
+        common::make_params(revision_request.clone()),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(readable.wikitext.as_deref(), Some(OLD));
     page_revision::ActiveModel {
         revision_id: Set(old),
         hidden: Set(vec!["wikitext".into()]),
@@ -269,6 +281,17 @@ async fn unavailable_or_hidden_revisions_and_deleted_pages_are_skipped() {
             .await
             .unwrap()
             .is_none()
+    );
+    let hidden = deepwell::endpoints::all::page_revision_get(
+        ctx,
+        common::make_params(revision_request),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert!(
+        hidden.wikitext.is_none(),
+        "hidden source must also be absent from revision readback"
     );
     page_revision::ActiveModel {
         revision_id: Set(old),
