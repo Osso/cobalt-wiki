@@ -98,7 +98,11 @@ test("local imported history paginates and exposes preserved source without roll
     const response = await page.goto(`${origin}/home:start`, { waitUntil: "networkidle" })
     assert.ok(response, "local homepage must return an HTTP response")
     assert.equal(response.status(), 200)
-    assert.equal(pageErrors.length, 0, "homepage hydration must not throw")
+    assert.deepEqual(
+      pageErrors.map((error) => error.stack),
+      [],
+      "homepage hydration must not throw"
+    )
     await expect(content).toBeVisible()
     const currentBodyHash = digest(await content.innerHTML())
     await page.locator("#history-button").click()
@@ -142,7 +146,11 @@ test("local imported history paginates and exposes preserved source without roll
       ).toBeVisible()
     }
     await page.reload({ waitUntil: "networkidle" })
-    assert.equal(pageErrors.length, 0, "homepage hydration must not throw after reload")
+    assert.deepEqual(
+      pageErrors.map((error) => error.stack),
+      [],
+      "history interaction and homepage reload must not throw"
+    )
     await expect(content).toBeVisible()
     assert.equal(digest(await content.innerHTML()), currentBodyHash)
     assert.deepEqual(unexpectedPosts, [], "history must not issue other POST actions")
