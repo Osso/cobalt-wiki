@@ -32,7 +32,7 @@ The replica must preserve existing Wikidot names rather than flattening their co
 
 ## Known gaps (current cycle)
 
-- [ ] Final local-browser result and independent gates remain pending. `551d29df5` changes the Framerail config source only; the local `deploy.sh` result is not yet recorded.
+- [ ] Final local-browser result and independent gates remain pending. `551d29df5` changes the Framerail config source only; confirmed local deployment/rerender evidence is tracked with the [ListPages repair proof](cobalt-list-pages.md#current-repair-proof), not final-pass evidence.
 - [ ] Public status is unchanged: this scope is separate from the sibling roster-only rollout. The namespace and Site Manager route repairs do not establish complete administration coverage.
 - [ ] Full canonical-name corpus proof. The naming code (`f5fbf4c`) is deployed with the rendering branch and existing data is reconciled.
 - [ ] Category ACL/creator metadata remains separate; source observations must not be treated as a complete permission export.

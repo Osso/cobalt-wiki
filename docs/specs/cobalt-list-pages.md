@@ -30,7 +30,7 @@ Imported pages carry import-time `created_at`/`updated_at`; original Wikidot cre
 
 ## Current repair proof
 
-`1db12295f` added the exact Digest Writings joined-table regression after reproducing it RED and then passing it GREEN. Its database-backed test was blocked by the environment; independent gates, final browser result, and the local `deploy.sh` outcome remain pending. Public status is unchanged: this scope is separate from the sibling roster-only rollout.
+`1db12295f` added the exact Digest Writings joined-table regression after reproducing it RED and then passing it GREEN. Its database-backed test was blocked by the environment. Local `./deploy.sh` succeeded at `1db12295f` (`/tmp/pi-tool-7c8f32f7c9abc38b.log`) with a debug build and local-only backend restart; a standalone Digest rerender completed, and page-view source/revision IDs remained unchanged in `/tmp/claude/cobalt-admin-digest-before.json` and `after.json`. Independent gates and final browser proof remain pending. Public status is unchanged: this scope is separate from the sibling roster-only rollout.
 
 ## Out of scope
 

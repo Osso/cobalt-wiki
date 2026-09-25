@@ -25,7 +25,7 @@ The imported Admin menu's `/_admin` entry must reach the native site administrat
 
 ## Known gaps (current cycle)
 
-- [ ] Final local-browser result and independent gates remain pending. The local `deploy.sh` result is not yet recorded.
+- [ ] Final local-browser result and independent gates remain pending. Confirmed local deployment/rerender evidence is tracked with the [ListPages repair proof](cobalt-list-pages.md#current-repair-proof), not final-pass evidence.
 - [ ] Public status is unchanged: this scope is separate from the sibling roster-only rollout.
 
 ## Out of scope
