@@ -367,6 +367,9 @@ async fn build_module(app_state: ServerState) -> Result<RpcModule<ServerState>> 
     register!("watching_preferences_set", watching_preferences_set);
     register!("watching_subscriptions", watching_subscriptions);
     register!("watching_subscription_set", watching_subscription_set);
+    register!("watching_activity", watching_activity);
+    register!("watching_change", watching_change);
+    register!("watching_unsubscribe", watching_unsubscribe);
 
     // Membership applications (request session and site are authoritative)
     register!("member_application_get", member_application_get);

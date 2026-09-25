@@ -113,9 +113,17 @@ pub async fn start() -> Result<()> {
             result = search_worker::run(&app_state.database, &search) => {
                 result.or_raise(make_error)?;
             }
+            result = crate::services::watching::worker::run(&app_state) => {
+                result.or_raise(make_error)?;
+            }
         }
     } else {
-        server.stopped().await;
+        tokio::select! {
+            _ = server.stopped() => (),
+            result = crate::services::watching::worker::run(&app_state) => {
+                result.or_raise(make_error)?;
+            }
+        }
     }
     Ok(())
 }
