@@ -98,7 +98,6 @@ pub mod render;
 pub mod role;
 pub mod score;
 pub mod search;
-pub mod watching;
 pub mod session;
 pub mod settings;
 pub mod site;
@@ -107,6 +106,7 @@ pub mod text_block;
 pub mod user;
 pub mod view;
 pub mod vote;
+pub mod watching;
 
 pub use self::alias::AliasService;
 pub use self::authentication::AuthenticationService;

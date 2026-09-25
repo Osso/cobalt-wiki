@@ -44,39 +44,39 @@ pub async fn visible_change(
     let Some((new_revision, previous)) = load_change_revisions(ctx, change).await? else {
         return Ok(None);
     };
-    let site = SiteService::get(ctx, Reference::Id(change.site_id)).await?;
-    let layout =
-        SettingsService::get_layout(ctx, change.site_id, Some(change.page_id)).await?;
-    let score = ScoreService::score(ctx, change.page_id).await?;
-    let before = match previous.as_ref() {
-        Some(revision) => Some(
-            render_revision_for_viewer(
-                ctx,
-                revision,
-                &site,
-                &score,
-                layout,
-                &viewer_slug,
-            )
-            .await?,
-        ),
-        None => None,
-    };
-    let after = render_revision_for_viewer(
-        ctx,
-        &new_revision,
-        &site,
-        &score,
-        layout,
-        &viewer_slug,
-    )
-    .await?;
+    let (before, after) =
+        render_change_text(ctx, change, &new_revision, previous.as_ref(), &viewer_slug)
+            .await?;
     Ok(Some(VisibleChange {
         title: new_revision.title,
         slug: new_revision.slug,
         before,
         after,
     }))
+}
+
+async fn render_change_text(
+    ctx: &ServiceContext<'_>,
+    change: ChangeRevisions,
+    new_revision: &PageRevision,
+    previous: Option<&PageRevision>,
+    viewer_slug: &str,
+) -> Result<(Option<String>, String)> {
+    let site = SiteService::get(ctx, Reference::Id(change.site_id)).await?;
+    let layout =
+        SettingsService::get_layout(ctx, change.site_id, Some(change.page_id)).await?;
+    let score = ScoreService::score(ctx, change.page_id).await?;
+    let before = match previous {
+        Some(revision) => Some(
+            render_revision_for_viewer(ctx, revision, &site, &score, layout, viewer_slug)
+                .await?,
+        ),
+        None => None,
+    };
+    let after =
+        render_revision_for_viewer(ctx, new_revision, &site, &score, layout, viewer_slug)
+            .await?;
+    Ok((before, after))
 }
 
 async fn recipient_can_view_page(
@@ -98,22 +98,32 @@ async fn recipient_can_view_page(
     if page.site_id != change.site_id {
         return Ok(None);
     }
+    let page_allowed =
+        check_current_page_view(ctx, user_id, change, page.page_category_id).await?;
+    Ok(page_allowed.then_some(user.slug))
+}
+
+async fn check_current_page_view(
+    ctx: &ServiceContext<'_>,
+    user_id: i64,
+    change: ChangeRevisions,
+    category_id: i64,
+) -> Result<bool> {
     let permission_ctx = CheckPermissionContext {
         user_id: Some(user_id),
         site_id: change.site_id,
         page_reference: Some(Reference::Id(change.page_id)),
     };
-    let page_allowed = PermissionService::check_user_can(
+    PermissionService::check_user_can(
         ctx,
         &permission_ctx,
         Permission {
             resource_type: Resource::Page,
-            resource_category: Some(Reference::Id(page.page_category_id)),
+            resource_category: Some(Reference::Id(category_id)),
             action: Action::View,
         },
     )
-    .await?;
-    Ok(page_allowed.then_some(user.slug))
+    .await
 }
 
 async fn load_change_revisions(
