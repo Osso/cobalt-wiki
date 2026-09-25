@@ -249,7 +249,9 @@ def _render_collapsible(element, source_url, image_ref):
         raise UnsupportedContent("invalid collapsible content")
     _collapsible_control(expanded[0])
     body = _render_children(expanded[1], source_url, image_ref).strip()
-    return f"[spoiler={label}]{body}[/spoiler]"
+    if "|" in body or "|" in label:
+        raise UnsupportedContent("pipe in spoiler content or label is not supported")
+    return f"[spoiler]{body}|{label}[/spoiler]"
 
 
 def _url(value: str | None, source_url: str, kind: str) -> str:
@@ -449,7 +451,7 @@ def _render(element, source_url, image_ref):
                 raise UnsupportedContent(f"invalid image ID for {url}")
         else:
             reference = url
-        return f"[img:{reference}|none]"
+        return f"[img:{reference}]"
     if tag == "a":
         text = _render_children(element, source_url, image_ref, block=False)
         if element.attrs.get("href") == "javascript:;":

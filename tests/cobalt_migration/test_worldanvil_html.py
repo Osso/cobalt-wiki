@@ -54,10 +54,10 @@ class RenderedContentTests(unittest.TestCase):
         self.assertEqual(
             result,
             "[table][tr][th]Role[/th][td][table][tr][td]Scout[/td][/tr][/table]"
-            "[img:https://cobalt-company.wikidot.com/local--files/character:abigael/icon.jpg|none]"
+            "[img:https://cobalt-company.wikidot.com/local--files/character:abigael/icon.jpg]"
             "[/td][/tr][/table]\n"
             "[p][url:https://cobalt-company.wikidot.com/roster#people]Roster & friends[/url] "
-            "after image [img:https://example.org/second.png|none][br]End[/p]",
+            "after image [img:https://example.org/second.png][br]End[/p]",
         )
 
     def test_image_callback_maps_only_positive_ids_and_preserves_other_source_urls(
@@ -68,8 +68,7 @@ class RenderedContentTests(unittest.TestCase):
 
         self.assertEqual(
             self.convert('<img src="/first.jpg"><img src="/second.jpg">', resolve),
-            "[img:6815014|none]"
-            "[img:https://cobalt-company.wikidot.com/second.jpg|none]",
+            "[img:6815014][img:https://cobalt-company.wikidot.com/second.jpg]",
         )
 
     def test_missing_duplicate_and_nested_content_wrappers_are_rejected(self):
@@ -123,17 +122,15 @@ class RenderedContentTests(unittest.TestCase):
         </div><p>After</p>"""
         self.assertEqual(
             self.convert(body),
-            "[p]Before[/p]\n[spoiler=+ Relationship Spoilers][p][noparse][CW: Suicide] [/noparse]"
-            "[img:https://cobalt-company.wikidot.com/portrait.jpg|none][/p]\n"
-            "[table][tr][td][b]Details[/b][/td][/tr][/table][/spoiler]\n[p]After[/p]",
+            "[p]Before[/p]\n[spoiler][p][noparse][CW: Suicide] [/noparse]"
+            "[img:https://cobalt-company.wikidot.com/portrait.jpg][/p]\n"
+            "[table][tr][td][b]Details[/b][/td][/tr][/table]|+ Relationship Spoilers[/spoiler]\n[p]After[/p]",
         )
 
-    def test_nested_collapsibles_keep_both_labels_and_bodies(self):
+    def test_nested_collapsibles_block_unsupported_native_pipe_nesting(self):
         body = """<div class="collapsible-block"><div class="collapsible-block-folded"><a class="collapsible-block-link" href="javascript:;">Outer</a></div><div class="collapsible-block-unfolded" style="display:none"><div class="collapsible-block-unfolded-link"><a class="collapsible-block-link" href="javascript:;">Hide</a></div><div class="collapsible-block-content"><div class="collapsible-block"><div class="collapsible-block-folded"><a class="collapsible-block-link" href="javascript:;">Inner</a></div><div class="collapsible-block-unfolded" style="display:none"><div class="collapsible-block-unfolded-link"><a class="collapsible-block-link" href="javascript:;">Hide</a></div><div class="collapsible-block-content"><p>Secret</p></div></div></div></div></div></div>"""
-        self.assertEqual(
-            self.convert(body),
-            "[spoiler=Outer][spoiler=Inner][p]Secret[/p][/spoiler][/spoiler]",
-        )
+        with self.assertRaisesRegex(UnsupportedContent, "pipe"):
+            self.convert(body)
 
     def test_malformed_collapsibles_and_actionable_controls_block(self):
         for body in (
@@ -155,7 +152,7 @@ class RenderedContentTests(unittest.TestCase):
                 '<p>Before <a href="javascript:;"><img src="/icon.png"></a> '
                 '<a href="javascript:;">Tab <strong>name</strong></a> After</p>'
             ),
-            "[p]Before [img:https://cobalt-company.wikidot.com/icon.png|none] "
+            "[p]Before [img:https://cobalt-company.wikidot.com/icon.png] "
             "Tab [b]name[/b] After[/p]",
         )
 
@@ -241,7 +238,7 @@ class RenderedContentTests(unittest.TestCase):
             "[h1]Writings[/h1]\n[h2]Stories[/h2]\n"
             "[table][tr][td][url:https://cobalt-company.wikidot.com/writing:first]First[/url]"
             "[/td][/tr][/table]\n[h2]Logs[/h2]\n"
-            "[table][tr][td]Second[img:https://cobalt-company.wikidot.com/second.jpg|none]"
+            "[table][tr][td]Second[img:https://cobalt-company.wikidot.com/second.jpg]"
             "[/td][/tr][/table]\n[p]After[/p]",
         )
 
