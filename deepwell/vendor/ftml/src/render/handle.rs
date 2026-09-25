@@ -208,7 +208,13 @@ impl Handle {
                 warn!("Specified path file source when local paths are disabled");
                 return None;
             }
-            FileSource::File1 { file } => (&info.site, &info.page, file),
+            FileSource::File1 { file } => {
+                let page = match &info.category {
+                    Some(category) => format!("{category}:{}", info.page),
+                    None => info.page.to_string(),
+                };
+                return Some(Cow::Owned(format!("/-/file/{page}/{file}")));
+            }
             FileSource::File2 { page, file } => (&info.site, page, file),
             FileSource::File3 { site, page, file } => (site, page, file),
         };
@@ -326,6 +332,46 @@ impl Handle {
         let _ = code;
 
         // TODO
+    }
+}
+
+#[cfg(test)]
+mod file_link_tests {
+    use super::*;
+    use crate::layout::Layout;
+    use crate::render::html::HtmlRender;
+    use crate::settings::WikitextMode;
+
+    #[test]
+    fn bare_image_uses_full_current_page_name() {
+        let settings = WikitextSettings::from_mode(WikitextMode::Page, Layout::Wikidot);
+        for (category, page, expected) in [
+            (Some("character"), "melancholy", "character:melancholy"),
+            (None, "media-preview", "media-preview"),
+            (
+                Some("character"),
+                "melancholy:outfits",
+                "character:melancholy:outfits",
+            ),
+        ] {
+            let info = PageInfo {
+                page: Cow::Borrowed(page),
+                category: category.map(Cow::Borrowed),
+                ..PageInfo::dummy()
+            };
+            let mut source = "[[image Portrait.png]]".to_owned();
+            crate::preprocess(&mut source);
+            let tokens = crate::tokenize(&source);
+            let (tree, errors) = crate::parse(&tokens, &info, &settings).into();
+            assert!(errors.is_empty(), "{errors:?}");
+            let html = HtmlRender
+                .render_with_handle(&tree, &info, &settings, Handle::default())
+                .body;
+            assert!(
+                html.contains(&format!("src=\"/-/file/{expected}/Portrait.png\"")),
+                "{html}"
+            );
+        }
     }
 }
 
