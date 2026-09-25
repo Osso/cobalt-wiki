@@ -305,11 +305,13 @@ async function assertStructuredTitleGeometry(page) {
   const tableBox = await table.boundingBox()
   const titleBox = await title.boundingBox()
   assert.ok(tableBox && titleBox, "structured Title rectangles required")
+  const fitsHorizontally =
+    titleBox.x >= tableBox.x && titleBox.x + titleBox.width <= tableBox.x + tableBox.width
+  const fitsVertically =
+    titleBox.y >= tableBox.y &&
+    titleBox.y + titleBox.height <= tableBox.y + tableBox.height
   assert.ok(
-    titleBox.x >= tableBox.x &&
-      titleBox.x + titleBox.width <= tableBox.x + tableBox.width &&
-      titleBox.y >= tableBox.y &&
-      titleBox.y + titleBox.height <= tableBox.y + tableBox.height,
+    fitsHorizontally && fitsVertically,
     "Title must fit inside the structured table"
   )
   const valueCell = await table.locator("tr").nth(1).locator("td").nth(1).boundingBox()
