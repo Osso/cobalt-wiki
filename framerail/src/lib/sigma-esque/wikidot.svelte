@@ -75,6 +75,10 @@
     display: none;
   }
 
+  .wj-monospace {
+    font-size: 0.98em;
+  }
+
   @media (prefers-color-scheme: light) {
     :root {
       /* Fallback colors */
