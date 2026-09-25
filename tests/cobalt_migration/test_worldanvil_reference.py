@@ -46,13 +46,13 @@ class ReferencePayloadTests(unittest.TestCase):
         source_section = content.split("Source text:[br]", 1)[1]
         self.assertEqual(
             source_section,
-            "[noparse]---[/noparse][br]"
+            "[code][noparse]---[/noparse][br]"
             "[noparse]field: [include template:infobox][/noparse][br]"
             "[noparse][code]x[/code][/noparse][br]"
             "[br]"
             "[noparse][[module CSS]][/noparse][br]"
             "[noparse]&lt;style&gt;body {color:red}&lt;/style&gt;[/noparse][br]"
-            "[noparse]&lt;widget attr=&quot;x&amp;y&quot;&gt;[/noparse][br]",
+            "[noparse]&lt;widget attr=&quot;x&amp;y&quot;&gt;[/noparse][br][/code]",
         )
 
     def test_reference_identity_does_not_require_unavailable_metadata_title(self):

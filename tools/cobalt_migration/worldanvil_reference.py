@@ -25,7 +25,7 @@ def reference_payload(source, raw_source):
         "Source reference (not an executable template, style, or system page)[br]"
         f"{title_line}"
         f"Original fullname: {_literal_lines(fullname)}[br]"
-        f"Source text:[br]{_literal_lines(raw_source)}"
+        f"Source text:[br][code]{_literal_lines(raw_source)}[/code]"
     )
     tags = list(
         dict.fromkeys(
