@@ -8,7 +8,13 @@ const origin = "http://127.0.0.1:3090"
 const backend = "http://127.0.0.1:2749/jsonrpc"
 const siteId = 6000000
 
+/**
+ * @param {string} method
+ * @param {Record<string, unknown>} params
+ * @param {string} [token]
+ */
 async function rpc(method, params, token) {
+  /** @type {Record<string, string>} */
   const headers = {
     "Content-Type": "application/json",
     "X-Deepwell-Site-Id": String(siteId),
@@ -26,6 +32,11 @@ async function rpc(method, params, token) {
   return body.result
 }
 
+/**
+ * @param {import("@playwright/test").Browser} browser
+ * @param {string} name
+ * @param {string} password
+ */
 async function login(browser, name, password) {
   const context = await browser.newContext()
   const page = await context.newPage()
@@ -109,7 +120,9 @@ test("local guest applies, is rejected, reapplies, and gains edit access only af
     await expect(application).toHaveCount(0)
     assert.equal((await rpc("page_edit_permission", {}, guest.token)).can_edit, true)
     await guest.page.reload()
-    await expect(guest.page.locator("#page-content")).toContainText("already a member")
+    await expect(
+      guest.page.getByText("You are already a member of this site.", { exact: true })
+    ).toBeVisible()
     await guest.page.goto(origin, { waitUntil: "networkidle" })
     await guest.page.locator("#edit-button").click()
     await expect(guest.page.locator("#editor")).toBeVisible()
