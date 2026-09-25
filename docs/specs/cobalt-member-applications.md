@@ -33,7 +33,8 @@ A signed-in guest can request site membership with a short message. Site admins 
 - [x] Local end-to-end lifecycle verification passed 1/1: a guest remains pending, rejection permits reapplication, approval grants editor access, removal cleans up membership, and the flow performs no page saves. Evidence: `/tmp/claude/cobalt-membership-applications-followup-ledger-2026-09-25.md`.
 - [x] Production deployment completed September 25, 2026 at 07:30:59 UTC. `./install/dev-deploy.sh` deployed `all` at `0d9ebcca4153`; its optimized backend took 9m09, production source matched `b8127c096` before these docs edits, and both units were active.
 - [x] Anonymous production calls to `member_application_get` and `member_application_list` returned `PermissionDenied` 3106, proving the deployed RPC routes enforce their authorization boundary.
-- [ ] No public-browser lifecycle proof is claimed. Read-only anonymous RPC proof does not exercise applying, reviewing, approving, or rejecting through the public UI.
+- [x] Read-only public browser proof follows the homepage Join link to `/-/join`; an existing guest sees the application form (main inspected `/tmp/cobalt-production-membership-join.jpg`). Anonymous Join GET returns 200 with sign-in/account links and approval requirement; anonymous Site members GET withholds admin access.
+- [ ] No public write-lifecycle proof is claimed: applying, rejecting, approving, and resulting editor access were exercised locally, not against real production accounts.
 
 ## Out of scope
 
