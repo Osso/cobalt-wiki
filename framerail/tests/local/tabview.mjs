@@ -64,6 +64,7 @@ test("Colson Relationships tabs switch content by click and keyboard without edi
     const before = await readStoredPage(api)
     const context = await browser.newContext()
     const page = await context.newPage()
+    /** @type {string[]} */
     const writes = []
     await context.route("**/*", async (route) => {
       if (route.request().method() === "POST") {
