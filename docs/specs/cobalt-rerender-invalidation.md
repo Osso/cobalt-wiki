@@ -4,7 +4,7 @@ When a page changes, Deepwell queues `rerender_page` jobs (Valkey rsmq queue `rs
 
 ## What it must do
 
-- [x] A change (edit, create, delete, move, restore, attachment) queues every affected page at that moment: pages that include it (includes are recorded transitively), pages in its category when it is a `_template`, listing pages whose selection it matches ([ListPages](cobalt-list-pages.md)), linking pages on create/delete, and a navigation rerender of every page using it as a top or side bar. (Linking-page invalidation on create/delete is existing behavior without a dedicated test here.)
+- [x] A change (edit, create, delete, move, restore, attachment) queues every affected page at that moment: pages that include it (includes are recorded transitively), pages in its category when it is a `_template`, listing pages whose [ListPages](cobalt-list-pages.md) selection matches it (including ASCII case-insensitive plain, required, and excluded tags), linking pages on create/delete, and a navigation rerender of every page using it as a top or side bar. (Linking-page invalidation on create/delete is existing behavior without a dedicated test here.)
 - [x] A queued page that is itself a navigation page also queues a navigation rerender of every page using that bar, at the same moment (bars are compiled into each page and are not recorded as dependencies).
 - [x] Dependent jobs are `standalone` rerenders and queue nothing further; one change produces at most one job per affected page and type.
 - [x] A job for a page and type that is already pending is not queued again. The marker (`job:rerender-pending:<page_id>:<type>`, 1 h expiry) is cleared when a worker starts the job, so a later change queues the page again.
