@@ -57,10 +57,12 @@ Cobalt implements local site, category, and page watching. This specification de
 - `/tmp/cobalt-watching-editor-green.log` — local browser proof 1/1 covers four editor modes; default and opted-out controls serialize while eight aborted saves make no writes.
 - Protected local-final artifacts record unchanged original pages `6116`, native content `10092`, history `45369`, drafts `0`, and grants `32`; fixture page `3000006133` and its two revisions are excluded. Native-content hashing excludes five renderer-cache/`updated_at` fields and is not a full-row equality claim. Final cleanup records zero subscriptions, email-enabled users, auto-watch users, and real email attempts; fixture account `20000005` remains without email.
 
-## Known gaps (current cycle)
+## Final integration evidence
 
-- [ ] Final backend gate 811 remains pending; do not mark it complete.
-- [ ] Final frontend gate 812 remains pending; do not mark it complete.
+- [x] At `63b4c5501`, the watcher implementation passes its final scoped gate. Backend `cargo fmt --check`, `cargo check`, and Rust readability pass; retained stub tests pass 23/23. Fresh changed-test ESLint/Prettier and deploy-path Ruff lint/format pass.
+- [x] Backend proof is 16 targeted tests, plus 10 overlapping policy tests and 6 bounded-diff tests; the latter two counts are not additive. Local UI and editor proof each pass 1/1; editor coverage includes all four modes and eight aborted saves with no writes.
+- [x] Protected local artifacts retain original pages, native content, history, drafts, and grants. Post-deploy readback records two Activity detail checks. No real email was sent: two notifications were captured with zero email attempts.
+- [ ] Whole-project Svelte typecheck is not ready: five unchanged errors in `framerail/tests/local/imported-history.mjs` (lines 87, 103, 110, 158, and 164) make `svelte-check` exit 1. Watcher-scope errors are zero. Fix those errors and rerun the whole-project check before a branch-ready claim.
 
 ## Out of scope
 
