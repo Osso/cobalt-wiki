@@ -127,6 +127,16 @@ class PlayerPayloadTests(unittest.TestCase):
             with self.subTest(url=url), self.assertRaises(ImportBlocked):
                 player_payload(SOURCE, {**FIELDS, "portrait": url}, portrait=url)
 
+    def test_plain_profile_url_is_retained_without_treating_scheme_as_italics(self):
+        fields = {
+            **FIELDS,
+            "whoAmI": "Artist and storyteller.\nhttps://erzahlerin.myportfolio.com/",
+        }
+        payload = player_payload(SOURCE, fields)
+        self.assertIn("https://erzahlerin.myportfolio.com/", payload["content"])
+        with self.assertRaises(ImportBlocked):
+            player_payload(SOURCE, {**FIELDS, "whoAmI": "//Actual italic text//"})
+
     def test_unknown_nonempty_fields_block_instead_of_losing_data(self):
         with self.assertRaises(ImportBlocked):
             player_payload(SOURCE, {**FIELDS, "extraBiography": "Keep this too"})

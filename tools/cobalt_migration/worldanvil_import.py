@@ -37,8 +37,9 @@ def _text(value):
 
 def _plain(value):
     value = _text(value)
+    without_urls = re.sub(r"https?://[^\s<>\[\]]+", "URL", value)
     if re.search(
-        r"\[|\]|\*\*|//|__|\|\||@@|^\s*[+*>#]|^\s*[-=]{3,}", value, re.MULTILINE
+        r"\[|\]|\*\*|//|__|\|\||@@|^\s*[+*>#]|^\s*[-=]{3,}", without_urls, re.MULTILINE
     ):
         raise ImportBlocked("wiki formatting needs conversion before import")
     return value
