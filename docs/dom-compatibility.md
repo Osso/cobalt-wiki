@@ -14,7 +14,11 @@ UI where existing themes should be adapted to:
   * Page editor
   * Page options
 
-## FTML tabview interaction
+## FTML tabview compatibility
+
+In legacy/Wikidot layout, compiled `wj-tabs` markup receives the source theme's YUI-style tab presentation: distinct bordered, padded controls; a source-blue selected control; wrapped long labels; and bordered, padded panels. This is a layout/theme compatibility concern only and does not alter page content.
+
+### Interaction
 
 Compiled `wj-tabs` tabviews use layout-level delegated handlers rather than custom-element registration. Activation shows only the matching direct-child panel, retaining the server-selected initial panel until activation. It updates sibling tabs' `aria-selected` and `tabindex` attributes and panels' `hidden` state.
 
