@@ -314,7 +314,7 @@ class HistoryImportOrchestratorTest(unittest.TestCase):
     def test_matching_existing_is_skipped_and_later_conflict_aborts_preflight(self):
         self.archive_pages(
             [
-                (101, "home:start", {0: "original"}),
+                (101, "home:start", {1: "missing before conflict", 0: "original"}),
                 (102, "home:other", {0: "target conflict"}),
             ]
         )
