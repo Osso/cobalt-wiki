@@ -72,7 +72,9 @@ test("local guest applies, is rejected, reapplies, and gains edit access only af
     const join = guest.page.locator(".join-box a")
     await expect(join).toHaveAttribute("href", "/-/join")
     await join.click()
-    await expect(guest.page.locator("h1")).toHaveText("Apply to become a member")
+    await expect(
+      guest.page.getByRole("heading", { name: "Apply to become a member", exact: true })
+    ).toBeVisible()
     await guest.page
       .locator('[name="message"]')
       .fill("I would like to help document our adventures.")
