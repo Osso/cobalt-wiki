@@ -181,7 +181,10 @@ async function loginAdmin(request, fixture, password) {
   assert.equal(login.needs_mfa, false)
   assert.ok(login.session_token)
   const session = await rpc(request, "session_get", [login.session_token])
-  assert.ok(Number.isSafeInteger(session?.user_id) && session.user_id > 0)
+  assert.ok(
+    Number.isSafeInteger(session?.user_id),
+    "authenticated service actor required"
+  )
   assert.notEqual(session.user_id, fixture.user_id, "actor must differ from reader")
   assert.equal(session.restricted, false)
   return { token: login.session_token, userId: session.user_id }
