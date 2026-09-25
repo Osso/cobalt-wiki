@@ -21,9 +21,7 @@ let
       server {
         listen 127.0.0.1:3088 default_server;
         server_name ${hostname};
-        auth_basic "Cobalt Company POC";
         add_header X-Robots-Tag "noindex, nofollow, noarchive" always;
-        auth_basic_user_file ${cfg.htpasswdFile};
         client_max_body_size 100m;
         proxy_set_header Host ${hostname};
         proxy_set_header X-Forwarded-Host ${hostname};
@@ -51,14 +49,10 @@ let
 in
 {
   options.services.cobaltWiki.pocGateway = {
-    enable = lib.mkEnableOption "all-route authenticated Cobalt POC gateway";
+    enable = lib.mkEnableOption "Cobalt POC same-origin gateway";
     siteId = lib.mkOption {
       type = lib.types.ints.positive;
       description = "Actual provisioned cobalt-company site ID; never infer it from seed order.";
-    };
-    htpasswdFile = lib.mkOption {
-      type = lib.types.str;
-      description = "Runtime htpasswd file readable by cobalt-wiki, outside the Nix store; contains the cobalt login hash.";
     };
   };
 
@@ -68,16 +62,10 @@ in
         assertion = wiki.mainDomain == "sakuin.org" && wiki.filesDomain == "sakuin.org";
         message = "The Cobalt POC gateway requires mainDomain and filesDomain sakuin.org for same-origin links.";
       }
-      {
-        assertion =
-          builtins.match "/[A-Za-z0-9_./-]+" cfg.htpasswdFile != null
-          && !(lib.hasPrefix "/nix/store/" cfg.htpasswdFile);
-        message = "POC htpasswdFile must be an absolute runtime path outside the Nix store, without nginx configuration metacharacters.";
-      }
     ];
     systemd.services.cobalt-wiki-framerail.environment.ORIGIN = lib.mkForce "https://${hostname}";
     systemd.services.cobalt-wiki-gateway = {
-      description = "Authenticated Cobalt POC same-origin gateway";
+      description = "Cobalt POC same-origin gateway";
       wantedBy = [ "multi-user.target" ];
       requires = [
         "cobalt-wiki-framerail.service"
