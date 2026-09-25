@@ -153,11 +153,11 @@ def index_articles(articles):
     return inventory
 
 
-def _find_existing(source, inventory):
-    names = {
-        _normalize(source["title"]),
-        _normalize(source["fullname"].partition(":")[2]),
-    }
+def _find_existing(source, inventory, title):
+    names = {_normalize(title)}
+    namespace, _, shortname = source["fullname"].partition(":")
+    if namespace in {"player", "character", "bgc"}:
+        names.add(_normalize(shortname))
     matches = {}
     for name in names - {""}:
         matches.update(inventory.get(("name", name), {}))
@@ -217,7 +217,7 @@ def import_page(client, world_id, source, payload, journal_path, inventory):
                 "prior creation needs reconciliation; refusing another create"
             )
         return previous
-    existing = _find_existing(source, inventory)
+    existing = _find_existing(source, inventory, payload["title"])
     if len(existing) > 1:
         raise ImportBlocked("multiple live identity candidates; refusing creation")
     entry = {

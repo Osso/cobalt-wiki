@@ -177,6 +177,35 @@ class ImportPageTests(unittest.TestCase):
             self.assertEqual(result["status"], "existing")
             self.assertEqual(remote.articles, {"old-id": old})
 
+    def test_application_is_not_confused_with_existing_player_of_same_name(self):
+        old = {
+            "id": "aly-player",
+            "title": "Aly",
+            "tags": "player,aly",
+            "content": "Manual player biography",
+        }
+        remote = Destination([old])
+        source = {"fullname": "application:aly", "title": "Aly"}
+        payload = {
+            "title": "Application: Aly",
+            "templateType": "article",
+            "state": "private",
+            "content": "Original application",
+            "tags": "cobalt-source:application:aly",
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            result = import_page(
+                remote,
+                WORLD,
+                source,
+                payload,
+                Path(directory) / "journal.json",
+                index_articles(remote.articles.values()),
+            )
+            self.assertEqual(result["status"], "created")
+            self.assertEqual(remote.articles["aly-player"], old)
+            self.assertEqual(remote.articles[NEW_ID]["title"], "Application: Aly")
+
     def test_lost_creation_response_is_durably_blocked_on_resume(self):
         remote = Destination(lose_response=True)
         inventory = index_articles(remote.articles.values())
