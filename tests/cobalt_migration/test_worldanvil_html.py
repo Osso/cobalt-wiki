@@ -2,7 +2,11 @@
 
 import unittest
 
-from tools.cobalt_migration.worldanvil_html import UnsupportedContent, convert_html
+from tools.cobalt_migration.worldanvil_html import (
+    UnsupportedContent,
+    convert_html,
+    literal_text,
+)
 
 SOURCE = "https://cobalt-company.wikidot.com/character:abigael"
 
@@ -88,12 +92,72 @@ class RenderedContentTests(unittest.TestCase):
             "<span hidden>Hidden</span>",
             '<td colspan="2">Wide</td>',
             '<td rowspan="2">Tall</td>',
-            "<p>Literal [b] markup</p>",
+            "<p>Literal [/noparse] collision</p>",
             '<a href="javascript:alert(1)">Unsafe</a>',
             '<img src="data:image/png;base64,AA">',
         ):
             with self.subTest(body=body), self.assertRaises(UnsupportedContent):
                 self.convert(body)
+
+    def test_literal_brackets_are_escaped_only_in_source_text(self):
+        self.assertEqual(
+            literal_text("[CW: Suicide]"), "[noparse][CW: Suicide][/noparse]"
+        )
+        self.assertEqual(literal_text("A [b] B"), "[noparse]A [b] B[/noparse]")
+        self.assertEqual(literal_text("Unmarked"), "Unmarked")
+        self.assertEqual(
+            self.convert("<p>[CW: Suicide] <strong>Reader</strong> [b] text</p>"),
+            "[p][noparse][CW: Suicide] [/noparse][b]Reader[/b][noparse] [b] text[/noparse][/p]",
+        )
+        with self.assertRaises(UnsupportedContent):
+            literal_text("collision [/noparse] here")
+
+    def test_collapsible_preserves_label_nested_content_and_following_text(self):
+        body = """<p>Before</p>
+        <div class="collapsible-block">
+          <div class="collapsible-block-folded"><a class="collapsible-block-link" href="javascript:;">+&nbsp;Relationship Spoilers</a></div>
+          <div class="collapsible-block-unfolded" style="display:none">
+            <div class="collapsible-block-unfolded-link"><a class="collapsible-block-link" href="javascript:;">-&nbsp;Hide Content</a></div>
+            <div class="collapsible-block-content"><p>[CW: Suicide] <img src="/portrait.jpg"></p><table><tr><td><strong>Details</strong></td></tr></table></div>
+          </div>
+        </div><p>After</p>"""
+        self.assertEqual(
+            self.convert(body),
+            "[p]Before[/p]\n[spoiler=+ Relationship Spoilers][p][noparse][CW: Suicide] [/noparse]"
+            "[img:https://cobalt-company.wikidot.com/portrait.jpg|none][/p]\n"
+            "[table][tr][td][b]Details[/b][/td][/tr][/table][/spoiler]\n[p]After[/p]",
+        )
+
+    def test_nested_collapsibles_keep_both_labels_and_bodies(self):
+        body = """<div class="collapsible-block"><div class="collapsible-block-folded"><a class="collapsible-block-link" href="javascript:;">Outer</a></div><div class="collapsible-block-unfolded" style="display:none"><div class="collapsible-block-unfolded-link"><a class="collapsible-block-link" href="javascript:;">Hide</a></div><div class="collapsible-block-content"><div class="collapsible-block"><div class="collapsible-block-folded"><a class="collapsible-block-link" href="javascript:;">Inner</a></div><div class="collapsible-block-unfolded" style="display:none"><div class="collapsible-block-unfolded-link"><a class="collapsible-block-link" href="javascript:;">Hide</a></div><div class="collapsible-block-content"><p>Secret</p></div></div></div></div></div></div>"""
+        self.assertEqual(
+            self.convert(body),
+            "[spoiler=Outer][spoiler=Inner][p]Secret[/p][/spoiler][/spoiler]",
+        )
+
+    def test_malformed_collapsibles_and_actionable_controls_block(self):
+        for body in (
+            '<div class="collapsible-block"><p>Unrecognized</p></div>',
+            '<div class="collapsible-block"><div class="collapsible-block-folded"><a href="javascript:;">Show</a></div><div class="collapsible-block-unfolded" style="display:none"><div class="collapsible-block-unfolded-link"><a class="collapsible-block-link" href="javascript:;">Hide</a></div><div class="collapsible-block-content"><p>Secret</p></div></div></div>',
+            '<a href="javascript:;" onclick="evil()">Click</a>',
+            '<a href="javascript:alert(1)">Unsafe</a>',
+            '<a href="javascript:;" onmouseover="evil()">Unsafe</a>',
+            '<a href="javascript:;" onclick="evil()"><img src="/icon.png"></a>',
+            '<div class="collapsible-block"><div class="collapsible-block-folded"><a class="collapsible-block-link" href="javascript:;">[bad]</a></div><div class="collapsible-block-unfolded" style="display:none"><div class="collapsible-block-unfolded-link"><a class="collapsible-block-link" href="javascript:;">Hide</a></div><div class="collapsible-block-content">Content</div></div></div>',
+            '<iframe src="https://www.youtube.com/embed/video"></iframe>',
+        ):
+            with self.subTest(body=body), self.assertRaises(UnsupportedContent):
+                self.convert(body)
+
+    def test_inert_javascript_anchor_keeps_children_without_navigation(self):
+        self.assertEqual(
+            self.convert(
+                '<p>Before <a href="javascript:;"><img src="/icon.png"></a> '
+                '<a href="javascript:;">Tab <strong>name</strong></a> After</p>'
+            ),
+            "[p]Before [img:https://cobalt-company.wikidot.com/icon.png|none] "
+            "Tab [b]name[/b] After[/p]",
+        )
 
     def test_observed_yui_tabs_become_all_static_labeled_sections(self):
         tabs = """
@@ -138,7 +202,7 @@ class RenderedContentTests(unittest.TestCase):
                 self.subTest(reference=reference),
                 self.assertRaises(UnsupportedContent),
             ):
-                self.convert('<img src="/first.jpg">', lambda _url: reference)
+                self.convert('<img src="/first.jpg">', lambda _url, ref=reference: ref)
 
     def test_missing_link_or_image_source_blocks(self):
         for body in ("<a>label</a>", "<img>", '<a href="/bad]url">label</a>'):

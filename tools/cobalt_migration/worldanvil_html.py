@@ -1,9 +1,9 @@
 """Convert a source-rendered page-content HTML subtree into World Anvil BBCode."""
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
-from typing import Callable
 from urllib.parse import urljoin, urlsplit
 
 
@@ -118,6 +118,8 @@ class _PageParser(HTMLParser):
     def _append(self, tag, attrs, void):
         if tag not in _ALLOWED:
             raise UnsupportedContent(f"unsupported element <{tag}>")
+        if any(name.startswith("on") for name in attrs):
+            raise UnsupportedContent(f"actionable attribute in <{tag}>")
         style = attrs.get("style") or ""
         hidden = (
             "hidden" in attrs
@@ -125,7 +127,7 @@ class _PageParser(HTMLParser):
             or re.search(
                 r"(?:^|;)\s*(?:display\s*:\s*none|visibility\s*:\s*hidden)\b",
                 style,
-                re.I,
+                re.IGNORECASE,
             )
         )
         panel = (
@@ -133,9 +135,15 @@ class _PageParser(HTMLParser):
             and self.stack[-1].attrs.get("class") == "yui-content"
             and re.fullmatch(r"wiki-tab-\d+-\d+", attrs.get("id") or "")
         )
-        if hidden and not (
-            panel and re.fullmatch(r"\s*display\s*:\s*none\s*;?\s*", style, re.I)
-        ):
+        recognized_hidden = (
+            tag == "div"
+            and attrs.get("class") == "collapsible-block-unfolded"
+            and self.stack[-1].attrs.get("class") == "collapsible-block"
+        )
+        exact_hidden_style = re.fullmatch(
+            r"\s*display\s*:\s*none\s*;?\s*", style, re.IGNORECASE
+        )
+        if hidden and not (exact_hidden_style and (panel or recognized_hidden)):
             raise UnsupportedContent(f"hidden content in <{tag}>")
         if tag in {"td", "th"} and ("colspan" in attrs or "rowspan" in attrs):
             raise UnsupportedContent(f"table cell spans in <{tag}>")
@@ -159,6 +167,65 @@ class _PageParser(HTMLParser):
         if self.root is None or self.count != 1 or self.stack:
             raise UnsupportedContent("missing, duplicate, or unclosed #page-content")
         return self.root
+
+
+def literal_text(value: str) -> str:
+    """Keep source text literal rather than interpreting it as World Anvil BBCode."""
+    if "[/noparse]" in value.lower():
+        raise UnsupportedContent("literal text contains a noparse closing tag")
+    if "[" in value or "]" in value:
+        return f"[noparse]{value}[/noparse]"
+    return value
+
+
+def _significant_children(element: _Element) -> list[_Element]:
+    children = [child for child in element.children if not isinstance(child, str)]
+    if any(isinstance(child, str) and child.strip() for child in element.children):
+        raise UnsupportedContent("unexpected text in collapsible structure")
+    return children
+
+
+def _collapsible_control(container: _Element) -> _Element:
+    children = _significant_children(container)
+    if len(children) != 1 or children[0].tag != "a":
+        raise UnsupportedContent("invalid collapsible control")
+    anchor = children[0]
+    if anchor.attrs != {"class": "collapsible-block-link", "href": "javascript:;"}:
+        raise UnsupportedContent("invalid collapsible control link")
+    return anchor
+
+
+def _render_collapsible(element, source_url, image_ref):
+    children = _significant_children(element)
+    if len(children) != 2:
+        raise UnsupportedContent("invalid collapsible structure")
+    folded, unfolded = children
+    if (
+        folded.attrs != {"class": "collapsible-block-folded"}
+        or unfolded.attrs
+        != {"class": "collapsible-block-unfolded", "style": "display:none"}
+        or folded.tag != "div"
+        or unfolded.tag != "div"
+    ):
+        raise UnsupportedContent("invalid collapsible panels")
+    label_anchor = _collapsible_control(folded)
+    if any(not isinstance(child, str) for child in label_anchor.children):
+        raise UnsupportedContent("unsupported collapsible label")
+    label = " ".join("".join(label_anchor.children).split())
+    if not label or "[" in label or "]" in label or "[/noparse]" in label.lower():
+        raise UnsupportedContent("unrepresentable collapsible label")
+    expanded = _significant_children(unfolded)
+    if (
+        len(expanded) != 2
+        or expanded[0].tag != "div"
+        or expanded[0].attrs != {"class": "collapsible-block-unfolded-link"}
+        or expanded[1].tag != "div"
+        or expanded[1].attrs != {"class": "collapsible-block-content"}
+    ):
+        raise UnsupportedContent("invalid collapsible content")
+    _collapsible_control(expanded[0])
+    body = _render_children(expanded[1], source_url, image_ref).strip()
+    return f"[spoiler={label}]{body}[/spoiler]"
 
 
 def _url(value: str | None, source_url: str, kind: str) -> str:
@@ -290,8 +357,7 @@ def _render_children(element, source_url, image_ref, *, block=True):
             continue
         if isinstance(child, str):
             text = child if element.tag == "pre" else re.sub(r"\s+", " ", child)
-            if "[" in text or "]" in text:
-                raise UnsupportedContent("literal BBCode brackets in source text")
+            text = literal_text(text)
             if (
                 not text.strip()
                 and block
@@ -324,6 +390,15 @@ def _render(element, source_url, image_ref):
         raise UnsupportedContent("unsupported script in #page-content")
     if element.attrs.get("class") in {"yui-navset", "yui-nav", "yui-content"}:
         raise UnsupportedContent("unmatched YUI tab structure")
+    if element.attrs.get("class") == "collapsible-block":
+        return _render_collapsible(element, source_url, image_ref)
+    if element.attrs.get("class") in {
+        "collapsible-block-folded",
+        "collapsible-block-unfolded",
+        "collapsible-block-unfolded-link",
+        "collapsible-block-content",
+    }:
+        raise UnsupportedContent("unmatched collapsible structure")
     if tag == "br":
         return "[br]"
     if tag == "hr":
@@ -338,8 +413,10 @@ def _render(element, source_url, image_ref):
             reference = url
         return f"[img:{reference}|none]"
     if tag == "a":
-        url = _url(element.attrs.get("href"), source_url, "link")
         text = _render_children(element, source_url, image_ref, block=False)
+        if element.attrs.get("href") == "javascript:;":
+            return text
+        url = _url(element.attrs.get("href"), source_url, "link")
         return f"[url:{url}]{text}[/url]"
     if tag in {"tbody", "thead", "tfoot", "table", "tr", "td", "th", "ul", "ol", "li"}:
         inner = _render_children(element, source_url, image_ref, block=False).strip()
