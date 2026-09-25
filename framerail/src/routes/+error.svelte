@@ -250,6 +250,14 @@
         class="editor-comments"
         placeholder={errorData.internationalization?.["wiki-page-revision-comments"]}
         bind:value={$editForm.comments}></textarea>
+      <label class="watcher-suppression">
+        <input
+          type="checkbox"
+          name="doNotNotifyWatchers"
+          bind:checked={$editForm.doNotNotifyWatchers}
+        />
+        Do Not Notify Watchers
+      </label>
       {#if layout === Layout.WIKIDOT}
         <div class="buttons" class:alignleft={createForm !== null}>
           <input
