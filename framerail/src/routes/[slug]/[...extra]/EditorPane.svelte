@@ -203,8 +203,8 @@
     bind:value={$form.comments}></textarea>
   <label class="watcher-suppression">
     <input
-      type="checkbox"
       name="doNotNotifyWatchers"
+      type="checkbox"
       bind:checked={$form.doNotNotifyWatchers}
     />
     Do Not Notify Watchers

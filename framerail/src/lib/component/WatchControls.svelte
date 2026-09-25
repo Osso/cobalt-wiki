@@ -28,16 +28,16 @@
 {#if watching}
   <div class="watch-controls" aria-label="Watching">
     {#if message}<p role="status">{message}</p>{/if}
-    {#each controls as control}
+    {#each controls as control (`${control.scope}:${control.targetId}`)}
       {@const subscribed = watching.subscriptions.some(
         (subscription) =>
           subscription.scope === control.scope &&
           subscription.target_id === control.targetId
       )}
       <form action="?/watching" method="POST">
-        <input type="hidden" name="scope" value={control.scope} />
-        <input type="hidden" name="target_id" value={control.targetId} />
-        <input type="hidden" name="watching" value={String(!subscribed)} />
+        <input name="scope" type="hidden" value={control.scope} />
+        <input name="target_id" type="hidden" value={control.targetId} />
+        <input name="watching" type="hidden" value={String(!subscribed)} />
         <button class="btn btn-default" type="submit">
           {subscribed ? "Unwatch" : "Watch"} this {control.label}
         </button>

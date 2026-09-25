@@ -280,7 +280,7 @@
     </div>
 
     {#if showPageOptions}
-      <WatchControls watching={data.watching} message={props.form?.message} />
+      <WatchControls message={props.form?.message} watching={data.watching} />
       <div id="page-options-bottom-2" class="page-options-bottom form-actions">
         <!-- svelte-ignore a11y_invalid_attribute -->
         <a

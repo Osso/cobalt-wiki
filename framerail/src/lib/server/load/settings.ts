@@ -88,8 +88,9 @@ export async function settingsEmailAction(event: RequestEvent) {
 
 export async function settingsWatchingAction({ request, cookies }: RequestEvent) {
   const sessionToken = cookies.get("wikijump_token")
-  if (!sessionToken)
+  if (!sessionToken) {
     return fail(401, { section: "watching", message: "You are not signed in." })
+  }
   const form = await request.formData()
   const preferences = {
     email_enabled: form.get("email_enabled") === "on",

@@ -39,12 +39,10 @@ export async function setSubscriptionAction({ request, cookies }: RequestEvent) 
   const scope = form.get("scope")
   const targetId = Number(form.get("target_id"))
   const watching = form.get("watching")
-  if (
-    (scope !== "site" && scope !== "category" && scope !== "page") ||
-    !Number.isSafeInteger(targetId) ||
-    targetId <= 0 ||
-    (watching !== "true" && watching !== "false")
-  ) {
+  const validScope = scope === "site" || scope === "category" || scope === "page"
+  const validTarget = Number.isSafeInteger(targetId) && targetId > 0
+  const validChoice = watching === "true" || watching === "false"
+  if (!validScope || !validTarget || !validChoice) {
     return fail(400, { message: "Invalid watch selection." })
   }
 

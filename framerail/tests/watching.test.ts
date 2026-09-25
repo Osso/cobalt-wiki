@@ -96,35 +96,37 @@ test("existing signed-in page shows current subscription state for site/category
   assert.match(body, /name="target_id"[^>]*value="7"/)
 })
 
-test("existing page route reads watches only for authenticated readers", async () => {
-  const responder = (rpc: Rpc) => {
-    if (rpc.method === "page_view")
-      return {
-        result: {
-          type: "found",
-          data: {
-            options: {},
-            redirect_page: null,
-            wikitext: "content",
-            compiled_body_html: "<p>content</p>",
-            page: {
-              page_id: 12,
-              page_category_id: 7,
-              slug: "test",
-              created_at: "2026-09-25T12:00:00Z"
-            },
-            page_revision: { title: "Test", revision_number: 1 },
-            attributions: []
-          }
+function replyToPageLoad(rpc: Rpc) {
+  if (rpc.method === "page_view") {
+    return {
+      result: {
+        type: "found",
+        data: {
+          options: {},
+          redirect_page: null,
+          wikitext: "content",
+          compiled_body_html: "<p>content</p>",
+          page: {
+            page_id: 12,
+            page_category_id: 7,
+            slug: "test",
+            created_at: "2026-09-25T12:00:00Z"
+          },
+          page_revision: { title: "Test", revision_number: 1 },
+          attributions: []
         }
       }
-    if (rpc.method === "watching_subscriptions") return { result: subscriptions }
-    if (rpc.method === "translate") return { result: {} }
-    throw Error(`unexpected RPC ${rpc.method}`)
+    }
   }
+  if (rpc.method === "watching_subscriptions") return { result: subscriptions }
+  if (rpc.method === "translate") return { result: {} }
+  throw Error(`unexpected RPC ${rpc.method}`)
+}
+
+test("existing page route reads watches only for authenticated readers", async () => {
   for (const route of [editor, homepage]) {
     for (const session of [null, "secret"]) {
-      const { value, calls } = await withRpc(responder, () =>
+      const { value, calls } = await withRpc(replyToPageLoad, () =>
         route.load({
           ...event("/test", session),
           params: { slug: "test", extra: "" },
@@ -147,7 +149,7 @@ test("existing page route reads watches only for authenticated readers", async (
       params: { slug: "test", extra: "" },
       locals: {}
     }
-    const stale = await withRpc(responder, () => route.load(staleSession))
+    const stale = await withRpc(replyToPageLoad, () => route.load(staleSession))
     assert.equal(stale.value.watching, null)
     assert.equal(
       stale.calls.filter((call) => call.method === "watching_subscriptions").length,
@@ -281,43 +283,43 @@ test("unavailable activity changes are not shown as an empty feed", async () => 
   )
 })
 
+async function assertRawEditSuppression(pageId: number, suppressed: boolean) {
+  const fields = {
+    pageId: String(pageId),
+    siteId: "6000011",
+    lastRevisionId: "70",
+    title: "Test",
+    altTitle: "",
+    tags: "",
+    comments: "",
+    ...(suppressed ? { doNotNotifyWatchers: "true" } : {}),
+    wikitext: "Test content"
+  }
+  const submission = await withRpc(
+    (rpc) =>
+      rpc.method === "session_get"
+        ? { result: { user_id: 42 } }
+        : { result: { revision_id: 71, revision_number: 2 } },
+    () =>
+      editor.actions.edit({
+        ...event("/test/edit", "secret", fields),
+        params: { slug: "test" },
+        locals: {},
+        getClientAddress: () => "203.0.113.9"
+      })
+  )
+  assert.equal(submission.value.status, undefined, JSON.stringify(submission.value.data))
+  const rpc = submission.calls.find(
+    (call) => call.method === (pageId ? "page_edit" : "page_create")
+  )
+  assert.ok(rpc)
+  assert.equal(rpc.params.do_not_notify_watchers, suppressed)
+}
+
 test("raw create/edit submissions send explicit suppression boolean", async () => {
   for (const pageId of [0, 12]) {
     for (const suppressed of [false, true]) {
-      const fields = {
-        pageId: String(pageId),
-        siteId: "6000011",
-        lastRevisionId: "70",
-        title: "Test",
-        altTitle: "",
-        tags: "",
-        comments: "",
-        ...(suppressed ? { doNotNotifyWatchers: "true" } : {}),
-        wikitext: "Test content"
-      }
-      const submission = await withRpc(
-        (rpc) =>
-          rpc.method === "session_get"
-            ? { result: { user_id: 42 } }
-            : { result: { revision_id: 71, revision_number: 2 } },
-        () =>
-          editor.actions.edit({
-            ...event("/test/edit", "secret", fields),
-            params: { slug: "test" },
-            locals: {},
-            getClientAddress: () => "203.0.113.9"
-          })
-      )
-      assert.equal(
-        submission.value.status,
-        undefined,
-        JSON.stringify(submission.value.data)
-      )
-      const rpc = submission.calls.find(
-        (call) => call.method === (pageId ? "page_edit" : "page_create")
-      )
-      assert.ok(rpc)
-      assert.equal(rpc.params.do_not_notify_watchers, suppressed)
+      await assertRawEditSuppression(pageId, suppressed)
     }
   }
 })

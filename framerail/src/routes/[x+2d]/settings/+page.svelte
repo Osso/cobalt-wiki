@@ -42,17 +42,17 @@
       <p>Activity stays on. Email and automatic watches are off until you opt in.</p>
       <label class="watching-choice">
         <input
-          type="checkbox"
           name="email_enabled"
           checked={data.watchingPreferences.email_enabled}
+          type="checkbox"
         />
         Email me about watched pages
       </label>
       <label class="watching-choice">
         <input
-          type="checkbox"
           name="auto_watch"
           checked={data.watchingPreferences.auto_watch}
+          type="checkbox"
         />
         Automatically watch pages after I edit them
       </label>
@@ -62,13 +62,13 @@
     {#if form?.message && !form.section}<p role="status">{form.message}</p>{/if}
     {#if data.watchingSubscriptions?.length}
       <ul>
-        {#each data.watchingSubscriptions as subscription}
+        {#each data.watchingSubscriptions as subscription (`${subscription.scope}:${subscription.target_id}`)}
           <li>
             {subscription.scope} #{subscription.target_id}
             <form action="?/unwatch" method="POST">
-              <input type="hidden" name="scope" value={subscription.scope} />
-              <input type="hidden" name="target_id" value={subscription.target_id} />
-              <input type="hidden" name="watching" value="false" />
+              <input name="scope" type="hidden" value={subscription.scope} />
+              <input name="target_id" type="hidden" value={subscription.target_id} />
+              <input name="watching" type="hidden" value="false" />
               <button class="btn btn-default" type="submit">Unwatch</button>
             </form>
           </li>

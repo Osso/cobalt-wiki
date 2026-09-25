@@ -252,8 +252,8 @@
         bind:value={$editForm.comments}></textarea>
       <label class="watcher-suppression">
         <input
-          type="checkbox"
           name="doNotNotifyWatchers"
+          type="checkbox"
           bind:checked={$editForm.doNotNotifyWatchers}
         />
         Do Not Notify Watchers
