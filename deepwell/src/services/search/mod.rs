@@ -499,7 +499,7 @@ impl SearchService {
 
 /// Extract text only from displayed HTML nodes. Compiled output, not raw source,
 /// is required so conditional wikitext omitted during rendering cannot be indexed.
-fn plain_body(html: &str) -> String {
+pub(crate) fn plain_body(html: &str) -> String {
     fn visit(node: scraper::ElementRef<'_>, output: &mut String) {
         for child in node.children() {
             match child.value() {

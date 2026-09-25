@@ -2,3 +2,4 @@
 
 pub mod diff;
 pub mod subscriptions;
+pub mod visibility;

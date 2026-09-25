@@ -223,6 +223,36 @@ impl RenderService {
         Ok(rendered.html_output.body)
     }
 
+    /// Render supplied page source as the named viewer without storing it.
+    /// Unlike the latest-revision show-to view, callers supply the exact revision.
+    pub async fn render_page_for_viewer(
+        ctx: &ServiceContext<'_>,
+        wikitext: String,
+        page_info: &PageInfo<'_>,
+        layout: Layout,
+        viewer: &str,
+    ) -> Result<String> {
+        let source =
+            super::show_to::reveal_show_to_regions(&wikitext, viewer).unwrap_or(wikitext);
+        let settings = WikitextSettings::from_mode(WikitextMode::Page, layout);
+        let rendered = Self::render_html(
+            ctx,
+            source,
+            page_info,
+            &settings,
+            Some(&BodyArguments::default()),
+        )
+        .await?;
+        if !rendered.errors.is_empty() {
+            return Err(Error::new(
+                "failed to render viewer-visible page without parse errors",
+                ErrorType::Render,
+            )
+            .into());
+        }
+        Ok(rendered.html_output.body)
+    }
+
     /// Render a page body (`body` is `Some`) or navigation fragment for a
     /// signed-in viewer (a user slug), keeping the show-to regions that list them.
     /// `None` when no region does, so the shared stored HTML applies. Nothing is
