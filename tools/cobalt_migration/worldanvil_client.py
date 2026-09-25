@@ -13,7 +13,11 @@ from uuid import UUID
 
 
 class WorldAnvilError(Exception):
-    """A sanitized transport or response failure."""
+    """A sanitized failure with an optional provider response for diagnostics."""
+
+    def __init__(self, message, *, response_body=None):
+        super().__init__(message)
+        self.response_body = response_body
 
 
 def _uuid(value):
@@ -134,11 +138,17 @@ class WorldAnvilClient:
                 with error:
                     status = error.code
                     retry_after = error.headers.get("Retry-After")
+                    response_body = error.read().decode("utf-8", errors="replace")
+                for name in ("x-application-key", "x-auth-token"):
+                    response_body = response_body.replace(
+                        self._headers[name], "[REDACTED]"
+                    )
                 if read and status in (408, 429, 500, 502, 503, 504) and attempt < 3:
                     time.sleep(_retry_delay(attempt, retry_after))
                     continue
                 raise WorldAnvilError(
-                    f"World Anvil {method} {path} returned HTTP {status}"
+                    f"World Anvil {method} {path} returned HTTP {status}",
+                    response_body=response_body,
                 ) from None
             except (TimeoutError, URLError, ConnectionError, OSError):
                 if read and attempt < 3:

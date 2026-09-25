@@ -9,7 +9,7 @@
 - `get_article` GETs `/article?id=UUID&granularity=2`; `get_world` GETs `/world?id=UUID&granularity=2`. Require JSON objects, valid UUID and nonblank title, requested identity, and no explicit `success: false`.
 - `create_article` PUTs `/article` **without an ID parameter**. It requires a nonblank title and templateType, forbids caller-supplied `id` and `world`, and adds `world: {"id": WORLD}`. Return validated created article reference. Never update or delete existing articles; no PATCH/DELETE method is exposed.
 - Retry only reads (including the read-only listing POST) on transient HTTP 408/429/5xx (500, 502, 503, 504) and connection errors, at most four attempts total with exponential delay, jitter, and Retry-After (maximum 30 seconds, otherwise fail). No automatic retry for PUT, including timeout or uncertain response: a second PUT could create another UUID. Permanent errors and malformed responses fail immediately.
-- Errors reveal method, fixed API path and status/category only; never include credentials, raw response bodies, or URL query values.
+- Error messages reveal method, fixed API path and status/category only. HTTP failures retain a separate `response_body` for validation diagnostics with both credential values redacted; callers must treat provider text as potentially private and avoid printing it indiscriminately. No query values or provider body are added to the exception message.
 
 ## Proof and boundaries
 

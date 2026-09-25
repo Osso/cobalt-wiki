@@ -218,6 +218,27 @@ class WorldAnvilClientTests(unittest.TestCase):
                     self.client.get_world(WORLD)
                 self.assertNotIn("auth-secret", str(caught.exception))
 
+    def test_validation_response_is_available_without_credentials(self):
+        self.responses.append(
+            (
+                422,
+                {
+                    "error": "Invalid sidepanel content",
+                    "token": "auth-secret",
+                    "key": "app-secret",
+                },
+                {},
+            )
+        )
+        with self.assertRaises(WorldAnvilError) as caught:
+            self.client.create_article(
+                WORLD, {"title": "New", "templateType": "article"}
+            )
+        self.assertIn("Invalid sidepanel content", caught.exception.response_body)
+        self.assertNotIn("auth-secret", caught.exception.response_body)
+        self.assertNotIn("app-secret", caught.exception.response_body)
+        self.assertEqual(len(self.requests), 1)
+
     def test_rejects_invalid_article_and_create_input_before_network(self):
         self.responses.append((200, {"id": "not-a-uuid", "title": "Wrong"}, {}))
         with self.assertRaises(WorldAnvilError):
