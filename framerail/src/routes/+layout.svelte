@@ -7,6 +7,9 @@
   import Toasts from "$lib/component/Toasts.svelte"
   import SearchBox from "$lib/component/SearchBox.svelte"
   import LoginStatus from "$lib/component/LoginStatus.svelte"
+  import GalleryViewer from "$lib/component/GalleryViewer.svelte"
+  import { readGallerySelection, type GallerySelection } from "$lib/gallery"
+  import { afterNavigate } from "$app/navigation"
 
   import { page } from "$app/state"
   import { pageLayoutState, errorPopupState } from "$lib/stores.svelte"
@@ -19,6 +22,22 @@
   import { clickTabview, keydownTabview } from "$lib/tabview"
 
   let { children } = $props()
+  let gallery = $state<GallerySelection | null>(null)
+
+  function closeGallery() {
+    const opener = gallery?.opener
+    gallery = null
+    opener?.focus()
+  }
+
+  afterNavigate(closeGallery)
+
+  function openGallery(event: MouseEvent) {
+    const selection = readGallerySelection(event)
+    if (!selection) return
+    event.preventDefault()
+    gallery = selection
+  }
 
   function closeErrorPopup() {
     errorPopupState.current = {
@@ -50,6 +69,7 @@
       clickSiteChanges(event, (path) => window.location.assign(path))
       clickCollapsible(event)
       clickTabview(event)
+      openGallery(event)
     }
     window.addEventListener("submit", onSubmit, true)
     window.addEventListener("click", onClick, true)
@@ -73,6 +93,14 @@
 <div id="toasts">
   <Toasts />
 </div>
+
+{#if gallery}
+  <GalleryViewer
+    images={gallery.images}
+    initialIndex={gallery.initialIndex}
+    onclose={closeGallery}
+  />
+{/if}
 
 <svelte:head>
   <title>{page.data.site?.name}</title>

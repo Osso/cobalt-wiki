@@ -9,6 +9,7 @@ FTML must render same-site attachment references through the deployed site's pro
 - [x] Preserve source bytes and revision identity while refreshing derived HTML.
 - [x] Serve actual imported image bytes behind authentication and no-index controls.
 - [x] Render Wikidot `[[gallery]]` markup: bare galleries list the page's image attachments in Wikidot's en_US name order, `: file` lists keep source order; originals are shown at Wikidot's thumbnail sizes because there is no resizer.
+- [ ] An ordinary thumbnail click opens that gallery's image viewer without navigating away. Show the original image at natural size within the viewport, its position/count, bounded Previous/Next controls, and Close/Escape dismissal with focus returned to the thumbnail. Opening/browsing/closing must not save page content; modified clicks retain normal link behavior.
 - [x] Resolve files on pages whose names have more than one colon (`/-/file/writing:2021-10-21-to-paint-a-picture:the-game/chessset.jpg`): wws normalizes page slugs with the same patched `wikidot-normalize` as Deepwell.
 - [x] Serve a page's files (`/-/file`, `/-/download`) and text blocks (`/-/code`, `/-/html`) only to viewers the page view would show the page to; others get `403` (the page view's status), `Cache-Control: private, no-store`. The viewer is the `wikijump_token` session cookie; an unknown or expired token counts as anonymous.
 - [x] Files of pages anonymous visitors may view stream from wws with `Cache-Control: public, max-age=2592000` (30 days). A file replaced under the same name can be served stale from browser/edge caches for up to 30 days.
@@ -22,6 +23,7 @@ FTML must render same-site attachment references through the deployed site's pro
 
 ## Implementation inventory
 
+- `framerail/src/lib/gallery.ts`, `framerail/src/lib/component/GalleryViewer.svelte`, `framerail/src/routes/+layout.svelte`: gallery-scoped click selection, modal viewer and capture-phase integration before client routing.
 - `deepwell/vendor/ftml/src/render/handle.rs`: selects same-origin routes for same-site media.
 - `wws/Cargo.toml` `[patch.crates-io]`: `deepwell/vendor/wikidot-normalize`; the Nix `wws` source (`install/nixos/packages.nix`) and the wws Dockerfiles include that directory.
 - `deepwell/src/services/view/service.rs` `ViewService::page_view_permission` (RPC `page_view_permission`, params `site_id`, `page_id`, `session_token`) → `{can_view, public}`: the page view's Page/View check (page's category, page context) for the session's user and for anonymous.
@@ -31,6 +33,7 @@ FTML must render same-site attachment references through the deployed site's pro
 
 - `deepwell/tests/page_media_urls.rs`: native rendering of local, explicit same-site, external and cross-site image references, including bare category-page media and the live `character:melancholy` ImageBox path.
 - `deepwell/tests/page_gallery.rs` and FTML `render::html::element::gallery` tests: gallery markup, sizes, order and image filtering.
+- `framerail/tests/local/gallery.mjs`: actual Badges thumbnail click, original image, Next/Previous, Close/Escape, keyboard reopening, last-image boundary, unchanged URL/source/revision and zero write requests.
 - FTML AST fixtures: image/audio/video output contracts.
 - `deepwell/tests/page_view_permission.rs` (DB): public vs private category, member vs anonymous vs banned member vs unknown token, page from another site rejected.
 - `wws` unit tests: `fetch` (multi-colon slug kept), `visibility` (cookie, decision, `403` headers), `presign` (same URL within a UTC day, new URL next day, expiry, overrides, reserved characters stay encoded), `attachment` (inline disposition).
