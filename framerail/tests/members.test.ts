@@ -100,7 +100,7 @@ function responder(extra: (rpc: Rpc) => unknown = () => undefined) {
       }
     }
     if (rpc.method === "member_application_list") {
-      return { result: { applications: [] } }
+      return { result: [] }
     }
     if (rpc.method === "translate") {
       return { result: { "footer-license-unless": "License" } }
@@ -170,8 +170,7 @@ test("admins see pending membership messages with approve and reject actions", a
     "session-secret",
     responder((rpc) => {
       if (rpc.method === "member_admin_list") return { result: MEMBERS }
-      if (rpc.method === "member_application_list")
-        return { result: { applications: [application] } }
+      if (rpc.method === "member_application_list") return { result: [application] }
       return undefined
     })
   )

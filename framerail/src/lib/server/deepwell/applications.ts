@@ -36,7 +36,7 @@ export function memberApplicationSubmit(
 
 export function memberApplicationList(
   context: RequestContext
-): Promise<{ applications: PendingApplication[] }> {
+): Promise<PendingApplication[]> {
   return client.request("member_application_list", {}, context)
 }
 

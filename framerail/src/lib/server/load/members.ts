@@ -69,7 +69,7 @@ export async function loadMembersPage(
   if (access === "admin") {
     try {
       members = await memberAdminList({ sessionToken, siteId })
-      applications = (await memberApplicationList({ sessionToken, siteId })).applications
+      applications = await memberApplicationList({ sessionToken, siteId })
     } catch (caught) {
       if (requireDeepwellError(caught).code !== PERMISSION_DENIED) throw caught
       access = "denied"
