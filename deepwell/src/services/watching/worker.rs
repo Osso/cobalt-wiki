@@ -2,7 +2,7 @@
 
 use super::{
     diff::rendered_diff,
-    visibility::{VisibleChange, visible_change},
+    visibility::{ChangeRevisions, VisibleChange, visible_change},
 };
 use crate::api::ServerState;
 use crate::error::prelude::*;
@@ -90,10 +90,12 @@ async fn prepare_delivery(
     let visible = visible_change(
         ctx,
         notification.user_id,
-        notification.site_id,
-        notification.page_id,
-        notification.previous_revision_id,
-        notification.new_revision_id,
+        ChangeRevisions {
+            site_id: notification.site_id,
+            page_id: notification.page_id,
+            previous_revision_id: notification.previous_revision_id,
+            new_revision_id: notification.new_revision_id,
+        },
     )
     .await;
     let visible = match visible {
@@ -103,23 +105,30 @@ async fn prepare_delivery(
             return Ok(None);
         }
         Err(_) => {
-            error!(
-                "Watcher revision visibility/rendering failed for event {} recipient {}; no delivery",
-                notification.event_id, notification.user_id
-            );
-            finish_claim(
-                ctx,
-                notification,
-                false,
-                "failed",
-                None,
-                Some("revision visibility/rendering failed"),
-            )
-            .await?;
+            fail_visibility_claim(ctx, notification).await?;
             return Ok(None);
         }
     };
     prepare_optional_email(ctx, notification, &visible).await
+}
+
+async fn fail_visibility_claim(
+    ctx: &ServiceContext<'_>,
+    notification: &PendingNotification,
+) -> Result<()> {
+    error!(
+        "Watcher revision visibility/rendering failed for event {} recipient {}; no delivery",
+        notification.event_id, notification.user_id
+    );
+    finish_claim(
+        ctx,
+        notification,
+        false,
+        "failed",
+        None,
+        Some("revision visibility/rendering failed"),
+    )
+    .await
 }
 
 async fn prepare_optional_email(
@@ -133,19 +142,7 @@ async fn prepare_optional_email(
         return Ok(None);
     };
     if ctx.state().mailgun.is_none() {
-        error!(
-            "Watcher email unavailable for event {}: Mailgun is not configured",
-            notification.event_id
-        );
-        finish_claim(
-            ctx,
-            notification,
-            true,
-            "failed",
-            None,
-            Some("email sender is not configured"),
-        )
-        .await?;
+        fail_missing_sender(ctx, notification).await?;
         return Ok(None);
     }
     let token = uuid::Uuid::new_v4().to_string();
@@ -155,6 +152,25 @@ async fn prepare_optional_email(
     Ok(Some(email))
 }
 
+async fn fail_missing_sender(
+    ctx: &ServiceContext<'_>,
+    notification: &PendingNotification,
+) -> Result<()> {
+    error!(
+        "Watcher email unavailable for event {}: Mailgun is not configured",
+        notification.event_id
+    );
+    finish_claim(
+        ctx,
+        notification,
+        true,
+        "failed",
+        None,
+        Some("email sender is not configured"),
+    )
+    .await
+}
+
 async fn eligible_email_recipient(
     ctx: &ServiceContext<'_>,
     notification: &PendingNotification,
@@ -162,22 +178,7 @@ async fn eligible_email_recipient(
     if notification.email_status != "pending" {
         return Ok(None);
     }
-    let row = ctx
-        .transaction()
-        .query_one_raw(Statement::from_sql_and_values(
-            DatabaseBackend::Postgres,
-            "SELECT email_enabled FROM watch_preferences WHERE user_id = $1",
-            [notification.user_id.into()],
-        ))
-        .await
-        .or_raise(|| {
-            Error::new("failed to read watcher email preference", ErrorType::User)
-        })?;
-    let enabled = row
-        .map(|row| row.try_get::<bool>("", "email_enabled"))
-        .transpose()
-        .or_raise(|| Error::new("invalid watcher email preference", ErrorType::User))?
-        .unwrap_or(false);
+    let enabled = query_email_enabled(ctx, notification.user_id).await?;
     if !enabled {
         return Ok(None);
     }
@@ -190,6 +191,24 @@ async fn eligible_email_recipient(
     Ok(recipient
         .filter(|user| user.deleted_at.is_none() && user.email_verified_at.is_some())
         .map(|user| user.email))
+}
+
+async fn query_email_enabled(ctx: &ServiceContext<'_>, user_id: i64) -> Result<bool> {
+    let row = ctx
+        .transaction()
+        .query_one_raw(Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            "SELECT email_enabled FROM watch_preferences WHERE user_id = $1",
+            [user_id.into()],
+        ))
+        .await
+        .or_raise(|| {
+            Error::new("failed to read watcher email preference", ErrorType::User)
+        })?;
+    row.map(|row| row.try_get::<bool>("", "email_enabled"))
+        .transpose()
+        .or_raise(|| Error::new("invalid watcher email preference", ErrorType::User))
+        .map(|enabled| enabled.unwrap_or(false))
 }
 
 pub(crate) async fn actor_name(ctx: &ServiceContext<'_>, user_id: i64) -> Result<String> {
@@ -211,6 +230,24 @@ async fn compose_email(
     let site = SiteService::get(ctx, Reference::Id(notification.site_id)).await?;
     let domain = DomainService::preferred_domain(ctx.config(), &site);
     let actor = actor_name(ctx, notification.actor_user_id).await?;
+    Ok(format_email(
+        notification,
+        visible,
+        recipient,
+        &domain,
+        &actor,
+        token,
+    ))
+}
+
+fn format_email(
+    notification: &PendingNotification,
+    visible: &VisibleChange,
+    recipient: String,
+    domain: &str,
+    actor: &str,
+    token: &str,
+) -> OutgoingEmail {
     let event = if notification.previous_revision_id.is_some() {
         "edited"
     } else {
@@ -224,7 +261,7 @@ async fn compose_email(
     );
     let unsubscribe_url =
         format!("https://{domain}/-/watching-unsubscribe?token={token}");
-    Ok(OutgoingEmail {
+    OutgoingEmail {
         to: recipient,
         subject: format!("{title} was {event}"),
         text: format!(
@@ -232,7 +269,7 @@ async fn compose_email(
             notification.created_at
         ),
         html: None,
-    })
+    }
 }
 
 async fn finish_claim(

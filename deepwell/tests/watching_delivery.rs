@@ -18,7 +18,9 @@ use deepwell::services::site::{CreateSite, SiteService};
 use deepwell::services::user::{CreateUser, UserService};
 use deepwell::services::watching::subscriptions::{WatchPreferences, WatchScope};
 use deepwell::services::watching::{
-    activity, subscriptions, visibility::visible_change, worker,
+    activity, subscriptions,
+    visibility::{ChangeRevisions, visible_change},
+    worker,
 };
 use deepwell::services::{RequestContext, ServiceContext, TextService};
 use deepwell::types::{Action, Permission, Reference, Resource, UserType};
@@ -500,10 +502,12 @@ async fn recursive_stored_revision_render_fails_closed_without_stopping_later_de
             visible_change(
                 &ctx,
                 f.reader,
-                f.site_id,
-                page,
-                corrupt_old.then_some(created),
-                changed,
+                ChangeRevisions {
+                    site_id: f.site_id,
+                    page_id: page,
+                    previous_revision_id: corrupt_old.then_some(created),
+                    new_revision_id: changed,
+                },
             )
             .await
             .is_err(),

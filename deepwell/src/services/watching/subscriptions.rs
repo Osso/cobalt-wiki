@@ -142,28 +142,13 @@ async fn can_view_target(
     if !can_view_site(ctx, site_id, user_id).await? {
         return Ok(false);
     }
-    let (category_id, page_reference) = match scope {
-        WatchScope::Site => return Ok(target_id == site_id),
-        WatchScope::Category => {
-            if CategoryService::get_optional(ctx, site_id, Reference::Id(target_id))
-                .await?
-                .is_none()
-            {
-                return Ok(false);
-            }
-            (target_id, None)
-        }
-        WatchScope::Page => {
-            let Some(page) =
-                PageService::get_direct_optional(ctx, target_id, false).await?
-            else {
-                return Ok(false);
-            };
-            if page.site_id != site_id {
-                return Ok(false);
-            }
-            (page.page_category_id, Some(Reference::Id(page.page_id)))
-        }
+    if matches!(scope, WatchScope::Site) {
+        return Ok(target_id == site_id);
+    }
+    let Some((category_id, page_reference)) =
+        visible_target_category(ctx, site_id, scope, target_id).await?
+    else {
+        return Ok(false);
     };
     PermissionService::check_user_can(
         ctx,
@@ -179,6 +164,29 @@ async fn can_view_target(
         },
     )
     .await
+}
+
+async fn visible_target_category(
+    ctx: &ServiceContext<'_>,
+    site_id: i64,
+    scope: WatchScope,
+    target_id: i64,
+) -> Result<Option<(i64, Option<Reference<'static>>)>> {
+    match scope {
+        WatchScope::Site => Ok(None),
+        WatchScope::Category => {
+            let category =
+                CategoryService::get_optional(ctx, site_id, Reference::Id(target_id))
+                    .await?;
+            Ok(category.map(|_| (target_id, None)))
+        }
+        WatchScope::Page => {
+            let page = PageService::get_direct_optional(ctx, target_id, false).await?;
+            Ok(page
+                .filter(|page| page.site_id == site_id)
+                .map(|page| (page.page_category_id, Some(Reference::Id(page.page_id)))))
+        }
+    }
 }
 
 fn scope_columns(scope: WatchScope, target_id: i64) -> (Option<i64>, Option<i64>) {
@@ -203,33 +211,7 @@ pub async fn subscriptions(
     )).await.or_raise(|| Error::new("failed to list watch subscriptions", ErrorType::User))?;
     let mut visible = Vec::new();
     for row in rows {
-        let category_id: Option<i64> = row
-            .try_get("", "category_id")
-            .or_raise(|| Error::new("invalid watch subscription", ErrorType::User))?;
-        let page_id: Option<i64> = row
-            .try_get("", "page_id")
-            .or_raise(|| Error::new("invalid watch subscription", ErrorType::User))?;
-        let subscription = match (category_id, page_id) {
-            (Some(target_id), None) => WatchSubscription {
-                scope: WatchScope::Category,
-                target_id,
-            },
-            (None, Some(target_id)) => WatchSubscription {
-                scope: WatchScope::Page,
-                target_id,
-            },
-            (None, None) => WatchSubscription {
-                scope: WatchScope::Site,
-                target_id: site_id,
-            },
-            (Some(_), Some(_)) => {
-                return Err(Error::new(
-                    "invalid watch subscription scope",
-                    ErrorType::User,
-                )
-                .into());
-            }
-        };
+        let subscription = map_subscription(&row, site_id)?;
         if can_view_target(
             ctx,
             site_id,
@@ -243,6 +225,38 @@ pub async fn subscriptions(
         }
     }
     Ok(visible)
+}
+
+fn map_subscription(
+    row: &sea_orm::QueryResult,
+    site_id: i64,
+) -> Result<WatchSubscription> {
+    let category_id: Option<i64> = row
+        .try_get("", "category_id")
+        .or_raise(|| Error::new("invalid watch subscription", ErrorType::User))?;
+    let page_id: Option<i64> = row
+        .try_get("", "page_id")
+        .or_raise(|| Error::new("invalid watch subscription", ErrorType::User))?;
+    let subscription = match (category_id, page_id) {
+        (Some(target_id), None) => WatchSubscription {
+            scope: WatchScope::Category,
+            target_id,
+        },
+        (None, Some(target_id)) => WatchSubscription {
+            scope: WatchScope::Page,
+            target_id,
+        },
+        (None, None) => WatchSubscription {
+            scope: WatchScope::Site,
+            target_id: site_id,
+        },
+        (Some(_), Some(_)) => {
+            return Err(
+                Error::new("invalid watch subscription scope", ErrorType::User).into(),
+            );
+        }
+    };
+    Ok(subscription)
 }
 
 pub async fn subscription_set(
@@ -259,6 +273,18 @@ pub async fn subscription_set(
     if matches!(scope, WatchScope::Site) && target_id != site_id {
         return Err(denied());
     }
+    update_subscription(ctx, user_id, site_id, scope, target_id, watching).await?;
+    Ok(watching)
+}
+
+async fn update_subscription(
+    ctx: &ServiceContext<'_>,
+    user_id: i64,
+    site_id: i64,
+    scope: WatchScope,
+    target_id: i64,
+    watching: bool,
+) -> Result<()> {
     let (category_id, page_id) = scope_columns(scope, target_id);
     let values = vec![
         user_id.into(),
@@ -279,5 +305,5 @@ pub async fn subscription_set(
         .or_raise(|| {
             Error::new("failed to update watch subscription", ErrorType::User)
         })?;
-    Ok(watching)
+    Ok(())
 }

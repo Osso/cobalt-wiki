@@ -23,16 +23,67 @@ pub struct VisibleChange {
     pub after: String,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct ChangeRevisions {
+    pub site_id: i64,
+    pub page_id: i64,
+    pub previous_revision_id: Option<i64>,
+    pub new_revision_id: i64,
+}
+
 /// Build recipient-visible plain text from exact stored revisions. No prior
 /// permission snapshot exists: current access is required for both sources.
 pub async fn visible_change(
     ctx: &ServiceContext<'_>,
     user_id: i64,
-    site_id: i64,
-    page_id: i64,
-    previous_revision_id: Option<i64>,
-    new_revision_id: i64,
+    change: ChangeRevisions,
 ) -> crate::error::Result<Option<VisibleChange>> {
+    let Some(viewer_slug) = recipient_can_view_page(ctx, user_id, change).await? else {
+        return Ok(None);
+    };
+    let Some((new_revision, previous)) = load_change_revisions(ctx, change).await? else {
+        return Ok(None);
+    };
+    let site = SiteService::get(ctx, Reference::Id(change.site_id)).await?;
+    let layout =
+        SettingsService::get_layout(ctx, change.site_id, Some(change.page_id)).await?;
+    let score = ScoreService::score(ctx, change.page_id).await?;
+    let before = match previous.as_ref() {
+        Some(revision) => Some(
+            render_revision_for_viewer(
+                ctx,
+                revision,
+                &site,
+                &score,
+                layout,
+                &viewer_slug,
+            )
+            .await?,
+        ),
+        None => None,
+    };
+    let after = render_revision_for_viewer(
+        ctx,
+        &new_revision,
+        &site,
+        &score,
+        layout,
+        &viewer_slug,
+    )
+    .await?;
+    Ok(Some(VisibleChange {
+        title: new_revision.title,
+        slug: new_revision.slug,
+        before,
+        after,
+    }))
+}
+
+async fn recipient_can_view_page(
+    ctx: &ServiceContext<'_>,
+    user_id: i64,
+    change: ChangeRevisions,
+) -> Result<Option<String>> {
     let Some(user) = UserService::get_real_optional(ctx, Reference::Id(user_id)).await?
     else {
         return Ok(None);
@@ -40,16 +91,17 @@ pub async fn visible_change(
     if user.deleted_at.is_some() || user.user_type != UserType::Regular {
         return Ok(None);
     }
-    let Some(page) = PageService::get_direct_optional(ctx, page_id, false).await? else {
+    let Some(page) = PageService::get_direct_optional(ctx, change.page_id, false).await?
+    else {
         return Ok(None);
     };
-    if page.site_id != site_id {
+    if page.site_id != change.site_id {
         return Ok(None);
     }
     let permission_ctx = CheckPermissionContext {
         user_id: Some(user_id),
-        site_id,
-        page_reference: Some(Reference::Id(page_id)),
+        site_id: change.site_id,
+        page_reference: Some(Reference::Id(change.page_id)),
     };
     let [site_allowed, page_allowed] = PermissionService::batch_check_user_can(
         ctx,
@@ -68,18 +120,27 @@ pub async fn visible_change(
         ],
     )
     .await?;
-    if !site_allowed || !page_allowed {
-        return Ok(None);
-    }
+    Ok((site_allowed && page_allowed).then_some(user.slug))
+}
 
-    let Some(new_revision) =
-        load_visible_revision(ctx, site_id, page_id, new_revision_id).await?
+async fn load_change_revisions(
+    ctx: &ServiceContext<'_>,
+    change: ChangeRevisions,
+) -> Result<Option<(PageRevision, Option<PageRevision>)>> {
+    let Some(new_revision) = load_visible_revision(
+        ctx,
+        change.site_id,
+        change.page_id,
+        change.new_revision_id,
+    )
+    .await?
     else {
         return Ok(None);
     };
-    let previous = match previous_revision_id {
+    let previous = match change.previous_revision_id {
         Some(id) => {
-            let Some(revision) = load_visible_revision(ctx, site_id, page_id, id).await?
+            let Some(revision) =
+                load_visible_revision(ctx, change.site_id, change.page_id, id).await?
             else {
                 return Ok(None);
             };
@@ -87,25 +148,7 @@ pub async fn visible_change(
         }
         None => None,
     };
-    let site = SiteService::get(ctx, Reference::Id(site_id)).await?;
-    let layout = SettingsService::get_layout(ctx, site_id, Some(page_id)).await?;
-    let score = ScoreService::score(ctx, page_id).await?;
-    let before = match previous.as_ref() {
-        Some(revision) => Some(
-            render_revision_for_viewer(ctx, revision, &site, &score, layout, &user.slug)
-                .await?,
-        ),
-        None => None,
-    };
-    let after =
-        render_revision_for_viewer(ctx, &new_revision, &site, &score, layout, &user.slug)
-            .await?;
-    Ok(Some(VisibleChange {
-        title: new_revision.title,
-        slug: new_revision.slug,
-        before,
-        after,
-    }))
+    Ok(Some((new_revision, previous)))
 }
 
 async fn render_revision_for_viewer(
@@ -128,8 +171,21 @@ async fn render_revision_for_viewer(
     let source = TextService::get(ctx, &revision.wikitext_hash)
         .await
         .or_raise(context)?;
+    let page_info = revision_page_info(revision, site, score);
+    let html =
+        RenderService::render_page_for_viewer(ctx, source, &page_info, layout, viewer)
+            .await
+            .or_raise(context)?;
+    Ok(plain_body(&html))
+}
+
+fn revision_page_info<'a>(
+    revision: &'a PageRevision,
+    site: &'a SiteModel,
+    score: &ScoreValue,
+) -> PageInfo<'a> {
     let (category, page_slug) = crate::utils::split_category(&revision.slug);
-    let page_info = PageInfo {
+    PageInfo {
         page: Cow::Borrowed(page_slug),
         category: category.map(Cow::Borrowed),
         site: Cow::Borrowed(&site.slug),
@@ -142,12 +198,7 @@ async fn render_revision_for_viewer(
             .map(|tag| Cow::Borrowed(tag.as_str()))
             .collect(),
         language: Cow::Borrowed(&site.locale),
-    };
-    let html =
-        RenderService::render_page_for_viewer(ctx, source, &page_info, layout, viewer)
-            .await
-            .or_raise(context)?;
-    Ok(plain_body(&html))
+    }
 }
 
 async fn load_visible_revision(

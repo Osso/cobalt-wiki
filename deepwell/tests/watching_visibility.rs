@@ -16,7 +16,7 @@ use deepwell::services::role::{
 };
 use deepwell::services::site::{CreateSite, SiteService};
 use deepwell::services::user::{CreateUser, UserService};
-use deepwell::services::watching::visibility::visible_change;
+use deepwell::services::watching::visibility::{ChangeRevisions, visible_change};
 use deepwell::types::{Action, Maybe, Permission, Reference, Resource, UserType};
 use sea_orm::{ActiveModelTrait, Set};
 
@@ -203,10 +203,19 @@ async fn exact_stored_revisions_render_each_viewers_visible_text() {
             "New secret A.",
         ),
     ] {
-        let change = visible_change(ctx, user, site_id, page_id, Some(old), new)
-            .await
-            .unwrap()
-            .expect("view permitted");
+        let change = visible_change(
+            ctx,
+            user,
+            ChangeRevisions {
+                site_id,
+                page_id,
+                previous_revision_id: Some(old),
+                new_revision_id: new,
+            },
+        )
+        .await
+        .unwrap()
+        .expect("view permitted");
         assert_eq!(change.title, "watch-visible");
         assert_eq!(change.slug, "watch-visible");
         let before = change.before.expect("stored old revision");
@@ -222,16 +231,34 @@ async fn exact_stored_revisions_render_each_viewers_visible_text() {
         assert!(!before.contains(other_old) && !change.after.contains(other_new));
         assert!(!before.contains("[[include") && !change.after.contains("[[include"));
     }
-    let outsider_change = visible_change(ctx, outsider, site_id, page_id, Some(old), new)
-        .await
-        .unwrap()
-        .expect("public page");
+    let outsider_change = visible_change(
+        ctx,
+        outsider,
+        ChangeRevisions {
+            site_id,
+            page_id,
+            previous_revision_id: Some(old),
+            new_revision_id: new,
+        },
+    )
+    .await
+    .unwrap()
+    .expect("public page");
     assert!(!outsider_change.before.unwrap().contains("secret"));
     assert!(!outsider_change.after.contains("secret"));
-    let creation = visible_change(ctx, a, site_id, page_id, None, new)
-        .await
-        .unwrap()
-        .expect("creation");
+    let creation = visible_change(
+        ctx,
+        a,
+        ChangeRevisions {
+            site_id,
+            page_id,
+            previous_revision_id: None,
+            new_revision_id: new,
+        },
+    )
+    .await
+    .unwrap()
+    .expect("creation");
     assert_eq!(creation.before, None);
     assert!(creation.after.contains("New secret A."));
 }
@@ -245,16 +272,34 @@ async fn unavailable_or_hidden_revisions_and_deleted_pages_are_skipped() {
     let (page_id, old) = create_page(&runner, site_id, "watch-hidden", OLD).await;
     let new = edit_page(&runner, site_id, page_id, old, NEW).await;
     assert!(
-        visible_change(ctx, user, site_id, page_id, Some(old), i64::MAX)
-            .await
-            .unwrap()
-            .is_none()
+        visible_change(
+            ctx,
+            user,
+            ChangeRevisions {
+                site_id,
+                page_id,
+                previous_revision_id: Some(old),
+                new_revision_id: i64::MAX
+            }
+        )
+        .await
+        .unwrap()
+        .is_none()
     );
     assert!(
-        visible_change(ctx, user, site_id, page_id, Some(i64::MAX), new)
-            .await
-            .unwrap()
-            .is_none()
+        visible_change(
+            ctx,
+            user,
+            ChangeRevisions {
+                site_id,
+                page_id,
+                previous_revision_id: Some(i64::MAX),
+                new_revision_id: new
+            }
+        )
+        .await
+        .unwrap()
+        .is_none()
     );
     let revision_request = serde_json::json!({
         "site_id": site_id, "page_id": page_id, "revision_number": 0,
@@ -277,10 +322,19 @@ async fn unavailable_or_hidden_revisions_and_deleted_pages_are_skipped() {
     .await
     .unwrap();
     assert!(
-        visible_change(ctx, user, site_id, page_id, Some(old), new)
-            .await
-            .unwrap()
-            .is_none()
+        visible_change(
+            ctx,
+            user,
+            ChangeRevisions {
+                site_id,
+                page_id,
+                previous_revision_id: Some(old),
+                new_revision_id: new
+            }
+        )
+        .await
+        .unwrap()
+        .is_none()
     );
     let hidden = deepwell::endpoints::all::page_revision_get(
         ctx,
@@ -310,10 +364,19 @@ async fn unavailable_or_hidden_revisions_and_deleted_pages_are_skipped() {
     .await
     .unwrap();
     assert!(
-        visible_change(ctx, user, site_id, page_id, Some(old), new)
-            .await
-            .unwrap()
-            .is_none()
+        visible_change(
+            ctx,
+            user,
+            ChangeRevisions {
+                site_id,
+                page_id,
+                previous_revision_id: Some(old),
+                new_revision_id: new
+            }
+        )
+        .await
+        .unwrap()
+        .is_none()
     );
     page::ActiveModel {
         page_id: Set(page_id),
@@ -324,10 +387,19 @@ async fn unavailable_or_hidden_revisions_and_deleted_pages_are_skipped() {
     .await
     .unwrap();
     assert!(
-        visible_change(ctx, user, site_id, page_id, None, new)
-            .await
-            .unwrap()
-            .is_none()
+        visible_change(
+            ctx,
+            user,
+            ChangeRevisions {
+                site_id,
+                page_id,
+                previous_revision_id: None,
+                new_revision_id: new
+            }
+        )
+        .await
+        .unwrap()
+        .is_none()
     );
 }
 
@@ -344,10 +416,19 @@ async fn current_page_view_denial_skips_both_snapshots() {
     let (page_id, old) = create_page(&runner, site_id, "watch-denied", OLD).await;
     let new = edit_page(&runner, site_id, page_id, old, NEW).await;
     assert!(
-        visible_change(ctx, user, site_id, page_id, Some(old), new)
-            .await
-            .unwrap()
-            .is_some()
+        visible_change(
+            ctx,
+            user,
+            ChangeRevisions {
+                site_id,
+                page_id,
+                previous_revision_id: Some(old),
+                new_revision_id: new
+            }
+        )
+        .await
+        .unwrap()
+        .is_some()
     );
     role_permission::Entity::delete_many()
         .filter(role_permission::Column::SiteId.eq(site_id))
@@ -357,10 +438,19 @@ async fn current_page_view_denial_skips_both_snapshots() {
         .await
         .unwrap();
     assert!(
-        visible_change(ctx, user, site_id, page_id, Some(old), new)
-            .await
-            .unwrap()
-            .is_none()
+        visible_change(
+            ctx,
+            user,
+            ChangeRevisions {
+                site_id,
+                page_id,
+                previous_revision_id: Some(old),
+                new_revision_id: new
+            }
+        )
+        .await
+        .unwrap()
+        .is_none()
     );
 }
 
@@ -407,10 +497,19 @@ async fn included_page_denied_to_shared_view_is_not_in_notification() {
         "Parent content.\n[[include watch-private:secret]]",
     )
     .await;
-    let change = visible_change(ctx, user, site_id, page_id, Some(first), new)
-        .await
-        .unwrap()
-        .expect("recipient can view parent");
+    let change = visible_change(
+        ctx,
+        user,
+        ChangeRevisions {
+            site_id,
+            page_id,
+            previous_revision_id: Some(first),
+            new_revision_id: new,
+        },
+    )
+    .await
+    .unwrap()
+    .expect("recipient can view parent");
     assert!(change.after.contains("Parent content."), "{}", change.after);
     assert!(
         !change.after.contains("Private included secret."),
@@ -438,9 +537,18 @@ async fn malformed_revision_render_returns_error_without_source_fallback() {
     .update(ctx.transaction())
     .await
     .unwrap();
-    let error = visible_change(ctx, user, site_id, page_id, None, revision_id)
-        .await
-        .expect_err("recursive include must fail closed");
+    let error = visible_change(
+        ctx,
+        user,
+        ChangeRevisions {
+            site_id,
+            page_id,
+            previous_revision_id: None,
+            new_revision_id: revision_id,
+        },
+    )
+    .await
+    .expect_err("recursive include must fail closed");
     assert!(
         format!("{error:?}").contains(&format!("revision ID {revision_id}")),
         "{error:?}"

@@ -1,6 +1,6 @@
 //! Recipient-scoped Activity and email opt-out.
 
-use super::visibility::visible_change;
+use super::visibility::{ChangeRevisions, visible_change};
 use super::worker::{PendingNotification, actor_name};
 use crate::error::prelude::*;
 use crate::services::ServiceContext;
@@ -59,6 +59,14 @@ pub async fn list_activity(
          ORDER BY e.event_id DESC LIMIT $4",
         [user_id.into(), site_id.into(), before_event_id.into(), (limit as i64 + 1).into()],
     )).await.or_raise(|| Error::new("failed to load watcher Activity", ErrorType::Page))?;
+    map_visible_activity(ctx, rows, limit).await
+}
+
+async fn map_visible_activity(
+    ctx: &ServiceContext<'_>,
+    rows: Vec<sea_orm::QueryResult>,
+    limit: u64,
+) -> Result<ActivityPage> {
     let has_more = rows.len() > limit as usize;
     let mut next_before = None;
     let mut items = Vec::new();
@@ -102,17 +110,27 @@ async fn load_visible_detail(
     let visible = visible_change(
         ctx,
         notification.user_id,
-        notification.site_id,
-        notification.page_id,
-        notification.previous_revision_id,
-        notification.new_revision_id,
+        ChangeRevisions {
+            site_id: notification.site_id,
+            page_id: notification.page_id,
+            previous_revision_id: notification.previous_revision_id,
+            new_revision_id: notification.new_revision_id,
+        },
     )
     .await?;
     let Some(visible) = visible else {
         return Ok(None);
     };
     let actor = actor_name(ctx, notification.actor_user_id).await?;
-    Ok(Some(ChangeDetail {
+    Ok(Some(format_change_detail(notification, visible, actor)))
+}
+
+fn format_change_detail(
+    notification: &PendingNotification,
+    visible: super::visibility::VisibleChange,
+    actor: String,
+) -> ChangeDetail {
+    ChangeDetail {
         item: ActivityItem {
             event_id: notification.event_id,
             page_id: notification.page_id,
@@ -130,7 +148,7 @@ async fn load_visible_detail(
         },
         before_text: visible.before,
         after_text: visible.after,
-    }))
+    }
 }
 
 /// A random email-link token authorizes only opting its recipient out of email.
@@ -151,6 +169,11 @@ pub async fn unsubscribe_email(ctx: &ServiceContext<'_>, token: &str) -> Result<
     let user_id: i64 = row
         .try_get("", "user_id")
         .or_raise(|| Error::new("invalid unsubscribe recipient", ErrorType::User))?;
+    disable_recipient_email(ctx, user_id).await?;
+    Ok(true)
+}
+
+async fn disable_recipient_email(ctx: &ServiceContext<'_>, user_id: i64) -> Result<()> {
     ctx.transaction()
         .execute_raw(Statement::from_sql_and_values(
             DatabaseBackend::Postgres,
@@ -164,5 +187,5 @@ pub async fn unsubscribe_email(ctx: &ServiceContext<'_>, token: &str) -> Result<
         "UPDATE watch_notification SET unsubscribe_token_hash = NULL WHERE user_id = $1",
         [user_id.into()],
     )).await.or_raise(|| Error::new("failed to consume watcher unsubscribe links", ErrorType::User))?;
-    Ok(true)
+    Ok(())
 }
