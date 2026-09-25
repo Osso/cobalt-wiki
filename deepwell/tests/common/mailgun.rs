@@ -9,6 +9,13 @@ use tokio::net::TcpListener;
 #[allow(unused)] // Only the tests that send email use it.
 /// Records the raw requests Mailgun would receive, answering each with 200.
 pub async fn fake_mailgun() -> (MailgunSender, Arc<Mutex<Vec<String>>>) {
+    fake_mailgun_with_status(200).await
+}
+
+/// Records requests before responding with the requested HTTP status.
+pub async fn fake_mailgun_with_status(
+    status: u16,
+) -> (MailgunSender, Arc<Mutex<Vec<String>>>) {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}", listener.local_addr().unwrap());
     let requests = Arc::new(Mutex::new(Vec::new()));
@@ -39,7 +46,7 @@ pub async fn fake_mailgun() -> (MailgunSender, Arc<Mutex<Vec<String>>>) {
             seen.lock().unwrap().push(String::from_utf8(bytes).unwrap());
             let body = r#"{"message":"Queued. Thank you."}"#;
             let reply = format!(
-                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                "HTTP/1.1 {status} Test\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
                 body.len(),
             );
             socket.write_all(reply.as_bytes()).await.unwrap();

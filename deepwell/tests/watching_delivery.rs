@@ -1,7 +1,9 @@
 //! Committed page changes delivered through the actual watcher worker and fake Mailgun.
 mod common;
 
-use common::{TestRunner, fake_mailgun, form_field, wait_for_requests};
+use common::{
+    TestRunner, fake_mailgun, fake_mailgun_with_status, form_field, wait_for_requests,
+};
 use deepwell::constants::SYSTEM_USER_ID;
 use deepwell::license::License;
 use deepwell::models::{page_revision, site, user};
@@ -16,7 +18,7 @@ use deepwell::services::site::{CreateSite, SiteService};
 use deepwell::services::user::{CreateUser, UserService};
 use deepwell::services::watching::subscriptions::{WatchPreferences, WatchScope};
 use deepwell::services::watching::{activity, subscriptions, worker};
-use deepwell::services::{RequestContext, ServiceContext};
+use deepwell::services::{RequestContext, ServiceContext, TextService};
 use deepwell::types::{Action, Permission, Reference, Resource, UserType};
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ConnectionTrait, DatabaseBackend,
@@ -276,9 +278,199 @@ async fn retire_site(runner: &TestRunner, f: &Fixture) {
     tx.commit().await.unwrap();
 }
 
+async fn enable_email(runner: &TestRunner, tx: &DatabaseTransaction, f: &Fixture) {
+    let ctx = context(runner, tx, request(f.site_id, f.reader, None));
+    subscriptions::preferences_set(
+        &ctx,
+        WatchPreferences {
+            email_enabled: true,
+            auto_watch: false,
+        },
+    )
+    .await
+    .unwrap();
+}
+
+async fn delivery_state(
+    runner: &TestRunner,
+    event: i64,
+    recipient: i64,
+) -> (bool, bool, String, Option<String>) {
+    let row = runner.state().database.query_one_raw(Statement::from_sql_and_values(
+        DatabaseBackend::Postgres,
+        "SELECT processed_at IS NOT NULL AS processed, activity_ready, email_status, last_error FROM watch_notification WHERE event_id = $1 AND user_id = $2",
+        [event.into(), recipient.into()],
+    )).await.unwrap().unwrap();
+    (
+        row.try_get("", "processed").unwrap(),
+        row.try_get("", "activity_ready").unwrap(),
+        row.try_get("", "email_status").unwrap(),
+        row.try_get("", "last_error").unwrap(),
+    )
+}
+
 fn message(requests: &Arc<Mutex<Vec<String>>>, index: usize) -> String {
     let captured = requests.lock().unwrap();
     form_field(&captured[index], "text")
+}
+
+#[tokio::test]
+async fn recorded_mailgun_failure_is_not_replayed_and_activity_remains_ready() {
+    let (sender, requests) = fake_mailgun_with_status(500).await;
+    let runner = TestRunner::setup_with_mailgun(sender).await;
+    let tx = runner.state().database.begin().await.unwrap();
+    let f = fixture(&runner, &tx).await;
+    subscribe(&runner, &tx, &f, WatchScope::Site, f.site_id).await;
+    enable_email(&runner, &tx, &f).await;
+    let (_, revision) = create(
+        &runner,
+        &tx,
+        &f,
+        "story:failed-email",
+        "Visible change.",
+        false,
+    )
+    .await;
+    tx.commit().await.unwrap();
+    let event = event_id(&runner, revision).await.unwrap();
+
+    assert_eq!(worker::process_one(runner.state()).await.unwrap(), 1);
+    assert_eq!(wait_for_requests(&requests, 1).await.len(), 1);
+    assert_eq!(
+        delivery_state(&runner, event, f.reader).await,
+        (
+            true,
+            true,
+            "failed".into(),
+            Some("email attempt failed; delivery may be uncertain".into()),
+        )
+    );
+    assert_eq!(
+        activity_for(&runner, &f, None, 10).await.items[0].event_id,
+        event
+    );
+    assert_eq!(worker::process_one(runner.state()).await.unwrap(), 0);
+    assert_eq!(wait_for_requests(&requests, 1).await.len(), 1);
+    retire_site(&runner, &f).await;
+}
+
+#[tokio::test]
+async fn revoked_page_view_after_commit_prevents_both_delivery_channels() {
+    let (sender, requests) = fake_mailgun().await;
+    let runner = TestRunner::setup_with_mailgun(sender).await;
+    let tx = runner.state().database.begin().await.unwrap();
+    let f = fixture(&runner, &tx).await;
+    subscribe(&runner, &tx, &f, WatchScope::Site, f.site_id).await;
+    enable_email(&runner, &tx, &f).await;
+    let (page, created) =
+        create(&runner, &tx, &f, "story:revoked", "First version.", true).await;
+    let edited = edit(&runner, &tx, &f, page, created, "Changed version.", false)
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+    let event = event_id(&runner, edited).await.unwrap();
+
+    let tx = runner.state().database.begin().await.unwrap();
+    PermissionService::update_permissions_for_role(
+        &context(&runner, &tx, RequestContext::default()),
+        UpdateRolePermissionsInput {
+            site_id: f.site_id,
+            role_reference: Reference::Id(f.role_id),
+            new_permissions: vec![Permission {
+                resource_type: Resource::Site,
+                resource_category: None,
+                action: Action::View,
+            }],
+            cascade_removals: false,
+            updating_user_id: SYSTEM_USER_ID,
+            ip_address: common::IP_ADDRESS,
+        },
+    )
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+
+    assert_eq!(worker::process_one(runner.state()).await.unwrap(), 1);
+    assert_eq!(
+        delivery_state(&runner, event, f.reader).await,
+        (true, false, "disabled".into(), None)
+    );
+    assert!(activity_for(&runner, &f, None, 10).await.items.is_empty());
+    assert_eq!(wait_for_requests(&requests, 0).await.len(), 0);
+    assert_eq!(worker::process_one(runner.state()).await.unwrap(), 0);
+    retire_site(&runner, &f).await;
+}
+
+#[tokio::test]
+async fn recursive_stored_revision_render_fails_closed_without_stopping_later_delivery() {
+    let (sender, requests) = fake_mailgun().await;
+    let runner = TestRunner::setup_with_mailgun(sender).await;
+    let tx = runner.state().database.begin().await.unwrap();
+    let f = fixture(&runner, &tx).await;
+    subscribe(&runner, &tx, &f, WatchScope::Site, f.site_id).await;
+    enable_email(&runner, &tx, &f).await;
+    tx.commit().await.unwrap();
+
+    for corrupt_old in [false, true] {
+        let slug = if corrupt_old {
+            "watch-broken-old"
+        } else {
+            "watch-broken-new"
+        };
+        let tx = runner.state().database.begin().await.unwrap();
+        let (page, created) =
+            create(&runner, &tx, &f, slug, "Before.", corrupt_old).await;
+        let changed = if corrupt_old {
+            edit(&runner, &tx, &f, page, created, "After.", false)
+                .await
+                .unwrap()
+        } else {
+            created
+        };
+        let corrupted_revision = if corrupt_old { created } else { changed };
+        let ctx = context(&runner, &tx, RequestContext::default());
+        let hash = TextService::create(&ctx, format!("[[include {slug}]]"))
+            .await
+            .unwrap();
+        page_revision::ActiveModel {
+            revision_id: Set(corrupted_revision),
+            wikitext_hash: Set(hash.to_vec()),
+            ..Default::default()
+        }
+        .update(&tx)
+        .await
+        .unwrap();
+        tx.commit().await.unwrap();
+        let event = event_id(&runner, changed).await.unwrap();
+
+        assert_eq!(worker::process_one(runner.state()).await.unwrap(), 1);
+        assert_eq!(
+            delivery_state(&runner, event, f.reader).await,
+            (
+                true,
+                false,
+                "failed".into(),
+                Some("revision visibility/rendering failed".into()),
+            )
+        );
+        assert!(activity_for(&runner, &f, None, 10).await.items.is_empty());
+        assert_eq!(wait_for_requests(&requests, 0).await.len(), 0);
+    }
+
+    let tx = runner.state().database.begin().await.unwrap();
+    let (_, healthy) =
+        create(&runner, &tx, &f, "story:healthy", "Safe content.", false).await;
+    tx.commit().await.unwrap();
+    let event = event_id(&runner, healthy).await.unwrap();
+    assert_eq!(worker::process_one(runner.state()).await.unwrap(), 1);
+    assert_eq!(delivery_state(&runner, event, f.reader).await.0, true);
+    assert_eq!(
+        activity_for(&runner, &f, None, 10).await.items[0].event_id,
+        event
+    );
+    assert_eq!(wait_for_requests(&requests, 1).await.len(), 1);
+    assert_eq!(worker::process_one(runner.state()).await.unwrap(), 0);
+    retire_site(&runner, &f).await;
 }
 
 #[tokio::test]
