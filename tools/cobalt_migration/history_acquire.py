@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import time
 from pathlib import Path
 
 from .history_export import export_history
@@ -63,9 +64,24 @@ def acquire_site_history(
         "pages": {},
         "failed_page_id": None,
     }
+    previous_completion = None
+
+    def paced_fetch(request):
+        nonlocal previous_completion
+        if previous_completion is not None:
+            remaining = 1 - (time.monotonic() - previous_completion)
+            if remaining > 0:
+                time.sleep(remaining)
+        try:
+            return fetch(request)
+        finally:
+            previous_completion = time.monotonic()
+
     for page_id in identities:
         try:
-            page = exporter(source_origin, page_id, directory / str(page_id), fetch)
+            page = exporter(
+                source_origin, page_id, directory / str(page_id), paced_fetch
+            )
         except Exception:
             state["failed_page_id"] = page_id
             _save_checkpoint(path, _progress(state))
