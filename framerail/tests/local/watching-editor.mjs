@@ -115,6 +115,10 @@ async function assertEditorSendsWatcherChoice(page, slug, structured, blockedWri
   await expect(checkbox).not.toBeChecked()
   const submit = page.locator('#editor [type="submit"]')
   for (const suppress of [false, true]) {
+    // Each aborted save opens the application's error dialog. A new document
+    // isolates the next choice without dismissing or saving any draft.
+    await page.goto(`${preview}/${slug}/edit`, { waitUntil: "networkidle" })
+    await expect(checkbox).not.toBeChecked()
     await expect(submit).toBeEnabled()
     if (suppress) await checkbox.check()
     const saveRequest = page.waitForRequest(
@@ -122,7 +126,28 @@ async function assertEditorSendsWatcherChoice(page, slug, structured, blockedWri
         request.method() === "POST" && request.url().includes(`/${slug}/edit?/edit`)
     )
     await submit.click()
-    const posted = await saveRequest
+    const posted = await saveRequest.catch(async (error) => {
+      console.error(
+        JSON.stringify({
+          slug,
+          suppress,
+          blocked: blockedWrites.map(
+            (request) => new URL(request.url()).pathname + new URL(request.url()).search
+          ),
+          invalid: await page
+            .locator("#editor :invalid")
+            .evaluateAll((elements) =>
+              elements.map((element) => element.getAttribute("name"))
+            ),
+          errors: await page
+            .locator('#editor [aria-invalid="true"]')
+            .evaluateAll((elements) =>
+              elements.map((element) => element.getAttribute("name"))
+            )
+        })
+      )
+      throw error
+    })
     const payload = await decodeSave(posted)
     assert.equal(
       payload.doNotNotifyWatchers,
