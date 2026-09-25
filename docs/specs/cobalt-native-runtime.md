@@ -14,7 +14,7 @@ Local preview deployment requires SQLx CLI on PATH (for example, `nix shell nixp
 - [ ] Create separate `cobalt-wiki-files` and `cobalt-wiki-text-blocks` buckets without public bucket policies.
 - [ ] Disable seeding during ordinary startup and refuse backend startup before explicit production provisioning.
 - [x] Offer a manual-only bootstrap unit when a private reviewed seed directory is explicitly supplied; apply packaged migrations, seed, and mark success only after both commands succeed.
-- [ ] Use a fixed HTTPS Framerail origin and production adapter-node server, without disabling CSRF checks.
+- [ ] Use a fixed HTTPS Framerail origin and production adapter-node server, without disabling CSRF checks. Framerail permits cross-origin form POSTs only when `FRAMERAIL_ENV=local`; production and unset environments retain same-origin enforcement.
 - [x] Keep dependent WWS/Framerail startup ordered after a successful Deepwell JSON-RPC ping, with bounded retries for transient startup failures. Four HTTP tests pass; production switch completed with successful first WWS ping and zero automatic restarts.
 
 ## How it works
@@ -31,7 +31,7 @@ Local preview deployment requires SQLx CLI on PATH (for example, `nix shell nixp
 
 ## Tests asserting this spec
 
-`tests/cobalt_migration/test_readiness.py` exercises refused connections before listener activation, transient HTTP failures, Retry-After timing, invalid RPC responses and bounded exhaustion. Production switch verification remains necessary to prove systemd ordering. Targeted module evaluation establishes generated configuration, not running-service or migration correctness. A separate isolated local PostgreSQL 17, Valkey, and Silo environment completed migrations and the stock development seeder, then supported three Deepwell form-edit DB tests and four view-helper tests; its protected logs are under `/home/osso/.local/share/cobalt-wiki/integration/`. That proves only those local application paths, not this NixOS module's services, production provisioning, private ACLs, or deployment.
+`framerail/tests/csrf-config.test.mjs` uses an isolated SvelteKit fixture to assert same-origin and cross-origin form POST behavior for local, production, and unset environments; it does not verify deployment. `tests/cobalt_migration/test_readiness.py` exercises refused connections before listener activation, transient HTTP failures, Retry-After timing, invalid RPC responses and bounded exhaustion. Production switch verification remains necessary to prove systemd ordering. Targeted module evaluation establishes generated configuration, not running-service or migration correctness. A separate isolated local PostgreSQL 17, Valkey, and Silo environment completed migrations and the stock development seeder, then supported three Deepwell form-edit DB tests and four view-helper tests; its protected logs are under `/home/osso/.local/share/cobalt-wiki/integration/`. That proves only those local application paths, not this NixOS module's services, production provisioning, private ACLs, or deployment.
 
 ## Known gaps (current cycle)
 
