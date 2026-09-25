@@ -26,7 +26,7 @@ A signed-in guest can request site membership with a short message. Site admins 
 
 ## Known gaps (current cycle)
 
-- [ ] Frontend join form and moderation section are integrated and verified by parent task.
+- [ ] The Join form and Site members moderation queue are locally integrated with this backend. The backend DB suite passed 6/6; independent browser, lint, type, and check verification remains pending. No production deployment has occurred.
 
 ## Out of scope
 

@@ -26,7 +26,7 @@ The imported Admin menu's `/_admin` entry must reach the native site administrat
 ## Known gaps (current cycle)
 
 - [ ] Public status is unchanged: these fixes have no public deployment. This screen remains native site information plus member administration, not the complete legacy Site Manager suite.
-- [ ] Membership application review belongs in Site members, not this entry screen. Its frontend queue is implemented; backend integration and local end-to-end verification remain pending. See [membership applications](cobalt-member-applications.md).
+- [ ] Membership application review belongs in Site members, not this entry screen. Its locally integrated queue and verification status are documented in the [membership applications](cobalt-member-applications.md) spec.
 
 ## Out of scope
 
