@@ -22,6 +22,9 @@ Cobalt history import must store authorized source revision history without pres
 - [ ] Never fabricate revision records, bodies, author identities, or metadata.
 - [ ] Distinguish the technical migration record already present on POC pages from source history; do not represent it as a source revision.
 - [ ] Reconcile every imported record and explicitly report retained gaps after import.
+- [ ] Preflight the complete acquired archive and identity-matched local targets before bulk writes; import only missing records, preserving matching existing history and rejecting conflicts.
+- [ ] Split large page histories by serialized JSON-RPC request bytes within the existing 10 MiB limit, without splitting a revision or increasing the server limit.
+- [ ] Bind resumable application reports to source inputs, target endpoint/site, page identities and current revision guards. After an uncertain write outcome, a fresh invocation reads persisted history before submitting remaining records; it never blindly replays matching records.
 
 ### Proof and operational safety
 
