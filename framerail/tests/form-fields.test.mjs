@@ -174,7 +174,7 @@ test("source-defined fields render accessible typed controls and readonly static
     const html = body.replace(/<!--.*?-->/g, "")
     assert.match(
       html,
-      /<input[^>]*value="7"[^>]*\/>\s*<small id="data-form-field-1-after">Optional "cover" image\. Leave blank for no image\. &lt;unsafe(?:&gt;|>)<\/small>/
+      /<input[^>]*value="7"[^>]*\/>\s*<small id="data-form-field-1-after"[^>]*>Optional "cover" image\. Leave blank for no image\. &lt;unsafe(?:&gt;|>)<\/small>/
     )
     assert.doesNotMatch(
       body,
@@ -187,12 +187,12 @@ test("source-defined fields render accessible typed controls and readonly static
     assert.match(body, /<textarea[^>]*aria-describedby="data-form-field-2-after"/)
     assert.match(
       html,
-      /<textarea[^>]*>\*\*hello\*\*<\/textarea>\s*<small id="data-form-field-2-after">Plain source only<\/small>/
+      /<textarea[^>]*>\*\*hello\*\*<\/textarea>\s*<small id="data-form-field-2-after"[^>]*>Plain source only<\/small>/
     )
     assert.match(body, /<fieldset[^>]*aria-describedby="data-form-field-3-after"/)
     assert.match(
       html,
-      /<\/fieldset>\s*<small id="data-form-field-3-after">Choose one<\/small>/
+      /<\/fieldset>\s*<small id="data-form-field-3-after"[^>]*>Choose one<\/small>/
     )
     assert.doesNotMatch(body, /data-form-field-3-hint|<small[^>]*>Choose rank<\/small>/)
     assert.match(body, /<textarea[^>]*cols="80"[^>]*rows="3"[^>]*>A summary<\/textarea>/)
@@ -366,7 +366,7 @@ test("source-defined fields render accessible typed controls and readonly static
     assert.match(radioTag, /aria-describedby="data-form-field-3-after"/)
     assert.match(
       unlabeledBody,
-      /<small id="data-form-field-3-after">Radio description<\/small>/
+      /<small id="data-form-field-3-after"[^>]*>Radio description<\/small>/
     )
     assert.match(
       unlabeledBody,

@@ -28,8 +28,8 @@
         <input
           id="data-form-title"
           name="title"
-          type="text"
           size="35"
+          type="text"
           bind:value={title}
         />
       </td>
