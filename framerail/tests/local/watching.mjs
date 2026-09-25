@@ -482,7 +482,18 @@ test("local reader watches UI, sees synthetic changes, and restores account", as
   } catch (caught) {
     await writeFile(
       `${directory}/ui-failure.json`,
-      JSON.stringify({ stage, error: String(caught) }),
+      JSON.stringify({
+        stage,
+        error: String(caught),
+        watching: reader
+          ? await reader
+              .pages()
+              .at(-1)
+              ?.locator('[aria-label="Watching"]')
+              .innerText()
+              .catch(() => "unavailable")
+          : null
+      }),
       { mode: 0o600 }
     )
     error = new Error(
