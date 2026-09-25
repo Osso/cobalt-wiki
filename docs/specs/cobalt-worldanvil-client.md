@@ -1,16 +1,24 @@
 # World Anvil create-only transport
 
-`tools/cobalt_migration/worldanvil_client.py` exposes `WorldAnvilClient` with only `list_articles(world_id)`, `get_article(article_id)`, `get_world(world_id)`, and `create_article(world_id, article)`. Import selection, conversion, checkpoints, and live writes belong to the importer, not this transport.
+`tools/cobalt_migration/worldanvil_client.py` exposes `WorldAnvilClient` with only `list_articles(world_id)`, `get_article(article_id)`, `get_world(world_id)`, and `create_article(world_id, article)`. Import selection, conversion, checkpoints, and privacy decisions belong to the caller.
 
 ## Contract
 
-- Use Boromir at `https://www.worldanvil.com/api/external/boromir`. Constructor accepts application key, auth token, User-Agent and positive timeout; send both credential headers and JSON Content-Type on every request. A loopback HTTP base URL is supported for local integration tests; no redirect follows.
-- `list_articles` POSTs `/world/articles?id=WORLD` with `{"offset": 0, "limit": 50}`, reading each successful `{"success": true, "entities": [...]}` envelope and increasing offset by returned entity count until a page contains fewer than 50 entries. Exactly 50 entries require one further terminal request. Return ordered article refs. Reject malformed or failed envelopes, oversized or non-array `entities`, missing/invalid UUID or title, and duplicate IDs across or within pages.
-- `get_article` GETs `/article?id=UUID&granularity=2`; `get_world` GETs `/world?id=UUID&granularity=2`. Require JSON objects, valid UUID and nonblank title, requested identity, and no explicit `success: false`.
-- `create_article` PUTs `/article` **without an ID parameter**. It requires a nonblank title and templateType, forbids caller-supplied `id` and `world`, and adds `world: {"id": WORLD}`. Return validated created article reference. Never update or delete existing articles; no PATCH/DELETE method is exposed.
-- Retry only reads (including the read-only listing POST) on transient HTTP 408/429/5xx (500, 502, 503, 504) and connection errors, at most four attempts total with exponential delay, jitter, and Retry-After (maximum 30 seconds, otherwise fail). No automatic retry for PUT, including timeout or uncertain response: a second PUT could create another UUID. Permanent errors and malformed responses fail immediately.
-- Error messages reveal method, fixed API path and status/category only. HTTP failures retain a separate `response_body` for validation diagnostics with both credential values redacted; callers must treat provider text as potentially private and avoid printing it indiscriminately. No query values or provider body are added to the exception message.
+- Use Boromir at `https://www.worldanvil.com/api/external/boromir`. Constructor accepts application key, auth token, User-Agent, and positive timeout; send both credential headers and JSON Content-Type. Only a loopback HTTP base URL is accepted for local integration tests; redirects are not followed.
+- `list_articles` POSTs `/world/articles?id=WORLD` with `{"offset": 0, "limit": 50}`. It reads successful `{"success": true, "entities": [...]}` pages until a page has fewer than 50 entities; exactly 50 requires one terminal request. It rejects malformed envelopes, oversized/non-array entities, invalid IDs/titles, and duplicate IDs.
+- `get_article` and `get_world` GET their respective endpoint with `id` and `granularity=2`; require a valid requested identity, nonblank title, JSON object, and no explicit `success: false`.
+- `create_article` PUTs `/article` without an ID parameter. It requires nonblank title/template type, forbids caller `id` and `world`, adds `world: {"id": WORLD}`, and validates the created reference. No update/delete method exists.
+- Retry reads only, including listing POSTs, for transient 408/429/500/502/503/504 and connection failures: at most four attempts with exponential delay, jitter, and `Retry-After` capped at 30 seconds. Never retry PUT, including uncertain responses.
+- Failure messages contain only method, fixed API path, and HTTP status/category. For HTTP failures, `WorldAnvilError.response_body` retains provider text after redacting both configured credential values. It is not placed in the exception message.
 
-## Proof and boundaries
+## Caller privacy guard
 
-`tests/cobalt_migration/test_worldanvil_client.py` exercises a local HTTP server: 75 article refs across two pages, exact-50 terminal pagination, the observed `{"success": true, "entities": [...]}` listing envelope, GET granularity and credential headers, create-only effect preserving an existing article, failed PUT attempted once, read retries and Retry-After, malformed responses and duplicate IDs. No production World Anvil write has occurred as of this audit. Importer/conversion behavior and source acquisition are not covered here.
+`response_body` may contain private provider diagnostics. Callers must not print or otherwise expose it by default; inspect it only through a deliberate privacy-safe diagnostic path. The transport performs credential redaction, not general provider-data sanitization.
+
+## Tests asserting this spec
+
+`tests/cobalt_migration/test_worldanvil_client.py` uses a local HTTP server for pagination (including exact-50 terminal page), credential headers, GET granularity, create-only behavior, failed PUT once, retries/Retry-After, malformed responses, duplicate IDs, and retained redacted HTTP response bodies.
+
+## Out of scope
+
+- Source acquisition/conversion, inventory selection, journals, binary uploads, browser interaction, and all live migration policy.

@@ -1,37 +1,39 @@
 # Rendered page content for World Anvil
 
-`tools/cobalt_migration/worldanvil_html.py` converts already-rendered source HTML into World Anvil BBCode. The caller owns acquisition, page identity, content selection upstream, image uploads, and all destination mutations. This converter selects only the exact `div#page-content` subtree.
+`tools/cobalt_migration/worldanvil_html.py` converts the exact rendered `div#page-content` subtree into World Anvil BBCode. The caller owns acquisition, identity, image uploads, and destination mutation.
 
-## What it must do
+## Supported conversion matrix
 
-- [x] Exclude surrounding site chrome and reject missing, duplicate, or unclosed content wrappers.
-- [x] Preserve visible text and HTML entities with paragraphs, headings, breaks, inline emphasis, quotes, lists, rules, tables, code, and transparent divisions/spans.
-- [x] Resolve links and image URLs against the source page; emit uploaded image IDs only when the optional resolver supplies a positive ID, otherwise retain the explicit absolute source URL.
-- [x] Render observed Wikidot YUI tabsets as ordered static labeled sections, including panels hidden by the tab widget; recognize only the paired library script, navigation, panels, and matching initializer.
-- [x] Render observed Wikidot collapsible blocks as `[spoiler=label]...[/spoiler]`, preserving labels and nested content; accept only the folded/unfolded controls and hidden panel structure.
-- [x] Preserve literal bracket-bearing source text inside `[noparse]...[/noparse]` (also via `literal_text` for source-reference text); reject any text with a `[/noparse]` collision. Keep generated BBCode structural.
-- [x] Preserve children of inert `href="javascript:;"` anchors without emitting navigation. Convert only observed `wiki-standalone-button` tag-editor and publish handlers to inert visible labels; they do not edit Wikidot tags on World Anvil. Reject other actionable event attributes and JavaScript URLs.
-- [x] Convert observed titled `https://www.youtube.com/embed/<11-character video ID>` iframes (optionally with the observed `?si=` token) to `[url:exact-source]title[/url]` video references. These are links, **not embedded players**; preserve the exact source URL and title, never execute iframe content.
-- [x] Block unknown elements, scripts/forms/other frames, unknown handlers or iframe attributes/content, unmatched tabs or collapsibles, hidden content outside recognized panels, cell spans, malformed or unsafe URLs, and invalid image references rather than dropping them.
+| Source structure | Output / boundary |
+| --- | --- |
+| Paragraphs, headings, breaks, emphasis, quotes, lists, rules, tables, code, transparent `div`/`span` | Native BBCode while preserving visible text and HTML entities. |
+| Links | Resolved absolute URL with rendered link text. |
+| Images | `[img:ID]` when the optional resolver returns a positive ID; otherwise `[img:absolute-source-url]`. |
+| Observed YUI tabsets | Ordered labeled static sections, including recognized hidden panels. |
+| Observed collapsible blocks | Native `[spoiler]body\|label[/spoiler]`. The body and label may not contain `|`; nested collapsibles therefore remain unsupported. |
+| Literal bracket-bearing text | `[noparse]...[/noparse]`; a `[/noparse]` collision blocks conversion. |
+| Observed tag-editor/publish controls | Retain visible label only; no action/navigation. All other actionable attributes or JavaScript URLs block. |
+| Titled YouTube embed iframe | Exact source URL as `[url:exact-source]title[/url]`; a link, not an embedded player. Only observed 11-character `/embed/` URLs, optionally with `?si=`, are accepted. |
 
-## How it works
+## What it must reject
 
-- No separate architecture document; conversion is a pure local operation.
+- Missing, duplicate, or unclosed page-content wrappers; surrounding site chrome.
+- Unknown elements, scripts, forms, unsupported frames, malformed or unsafe URLs, invalid image resolver output, unmatched tabs/collapsibles, hidden content outside recognized panels, and table cell spans.
+- Spoiler labels or bodies with a pipe, nested spoilers, and arbitrary BBCode in spoiler labels.
 
 ## Implementation inventory
 
-- `tools/cobalt_migration/worldanvil_html.py`: wrapper parsing, strict rendered-content conversion, YUI tab and collapsible extraction, literal text helper.
+- `tools/cobalt_migration/worldanvil_html.py`: strict parser, formatting conversion, links/images, YUI tabs and collapsibles, inert controls, and YouTube link conversion.
 
 ## Tests asserting this spec
 
-- `tests/cobalt_migration/test_worldanvil_html.py`: formatting, links/images, void tags, nested tables, YUI tabs, nested collapsibles, literal brackets, inert tag controls, titled YouTube video links, and rejection boundaries.
+- `tests/cobalt_migration/test_worldanvil_html.py`: formatting, links/images, tables, tabs, native spoiler order, pipe/nested-spoiler rejection, literal text, observed controls, YouTube links, and rejection boundaries.
 
-## Known gaps (current cycle)
+## Known gaps
 
-- [ ] General source-rendered dynamic modules other than the observed YUI tabview remain unsupported.
+- [ ] Dynamic source modules outside the observed YUI tabview and collapsible structures remain unsupported.
+- [ ] The converter is not yet wired across the complete migration inventory.
 
 ## Out of scope
 
-- Fetching, selecting article fields, checking identity, uploading images, creating or modifying articles: main migration owns these.
-- Site-wide CSS reproduction or executing source scripts: static content only.
-- Arbitrary BBCode markup in source-reference titles or collapsible labels: labels containing brackets still block because `[noparse]` cannot safely be placed inside a spoiler parameter.
+- Fetching/selecting source fields, identity checks, uploads, article writes, site-wide CSS reproduction, and executing source scripts. See [World Anvil import](cobalt-worldanvil-import.md).

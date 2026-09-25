@@ -1,33 +1,31 @@
 # World Anvil source-reference articles
 
-`tools/cobalt_migration/worldanvil_reference.py` produces a pure private article payload for Wikidot templates, CSS, and admin/system source explicitly kept as reference, not execution. The caller owns selection, classification, source acquisition, identity reconciliation, and all API operations.
+`tools/cobalt_migration/worldanvil_reference.py` produces a private article payload for Wikidot templates, CSS, and admin/system source retained as reference, never execution. The caller owns selection, classification, source acquisition, identity reconciliation, and API operations.
 
 ## What it must do
 
-- [x] Return a private `article` payload titled `Source reference: <fullname>`, using canonical `fullname` rather than metadata title for identity. Retain original title and fullname in content and the `cobalt-source:<fullname>` identity tag alongside source tags.
-- [x] Accept source metadata without `title`; state in content that the original title is unavailable while retaining supplied source text and canonical fullname.
-- [x] Retain all source lines, including blank and trailing lines, via explicit `[br]` separators outside `[noparse]` wrappers. Keep Wikidot markup, brackets, and `[/code]` literal; do not turn templates, CSS, or HTML into executable formatting.
-- [x] Reject a case-insensitive `[/noparse]` collision in source or identity text instead of guessing an escape.
-- [x] HTML-escape `<`, `>`, `&`, and quotes in literal text rather than sending raw HTML markup.
-- [ ] Confirm in a saved private article that World Anvil renders escaped HTML characters as the intended visible characters while retaining line breaks and literal BBCode. No browser proof yet; the serializer does not guarantee rendered text fidelity.
-
-## How it works
-
-- World Anvil's [basic BBCode guide](https://www.worldanvil.com/learn/bbcode-tutorials/basic-bbcode) documents `[noparse]…[/noparse]` for displaying BBCode literally and `[br]` for line breaks. It does not establish how HTML entities inside `[noparse]` render for this payload.
+- [x] Return a private `article` payload titled `Source reference: <fullname>` using canonical `fullname`, not metadata title, for identity. Retain original title and fullname in the explanatory body and add `cobalt-source:<fullname>` with source tags.
+- [x] Accept metadata without `title`; the body states that the original title is unavailable.
+- [x] Store the exact supplied raw source string, unchanged, in editable native `authornotes`. This includes blank/trailing lines, markup, HTML, and parser delimiters such as `[/noparse]`.
+- [x] Keep the private article body explanatory only: it states that the source is in Author's Notes and is not rendered because body rendering changes source text.
+- [x] Reject a `[/noparse]` collision only in metadata rendered through the body literal serializer; do not apply that rendered-body limitation to `authornotes` source.
+- [x] Read back `authornotes` after creation. A missing or changed value leaves the journal entry `created_unverified` and blocks a false success.
 
 ## Implementation inventory
 
-- `tools/cobalt_migration/worldanvil_reference.py`: pure source-reference article payload serialization.
+- `tools/cobalt_migration/worldanvil_reference.py`: pure source-reference payload serialization.
+- `tools/cobalt_migration/worldanvil_import.py`: create readback, including `authornotes` when supplied in the payload.
 
 ## Tests asserting this spec
 
-- `tests/cobalt_migration/test_worldanvil_reference.py`: identity/privacy, canonical-fullname titles, missing-title handling, literal source serialization, and delimiter rejection. The five reference-payload tests passed for `80da2f7c5`; no test run is claimed for this documentation-only update.
+- `tests/cobalt_migration/test_worldanvil_reference.py`: five reference-payload tests cover canonical identity, private metadata body, exact Author's Notes storage, delimiter safety, missing metadata title, and rendered metadata rejection.
+- `tests/cobalt_migration/test_worldanvil_import.py`: one targeted missing-Author's-Notes readback test prevents a verified result.
+- These targeted tests passed for the current change; this documentation update performs no API operation or destination write.
 
-## Known gaps (current cycle)
+## Known gaps
 
-- [ ] Confirm rendered HTML-special-character fidelity in a private destination article before relying on this representation for live migration.
+- [ ] Browser proof of the editable Author's Notes UI is not recorded here; API readback establishes stored payload equality, not UI rendering behavior.
 
 ## Out of scope
 
-- Selection/classification, source parsing/acquisition, destination API calls, browser writes, uploads, inventory, operation journals, and migrating any page. See [World Anvil import](cobalt-worldanvil-import.md) for migration-operation contract and evidence.
-- Executing Wikidot functionality or guessing undocumented delimiter escaping.
+- Executing Wikidot functionality, rendering source in the article body, selection/classification, source parsing/acquisition, uploads, inventory, browser writes, and migration of any page. See [World Anvil import](cobalt-worldanvil-import.md).

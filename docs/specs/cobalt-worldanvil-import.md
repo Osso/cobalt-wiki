@@ -1,62 +1,52 @@
 # Additive World Anvil import
 
-`tools/cobalt_migration/worldanvil_import.py` provides create-only primitives. The requested migration remains **all missing Cobalt wiki pages**, preserving every existing destination article. Player conversion supports plain text and explicitly resolved portrait references. Portrait bytes were uploaded separately through the authenticated browser; other source media remains blocked.
+`tools/cobalt_migration/worldanvil_import.py` provides create-only primitives. The user-selected goal remains **all missing Cobalt wiki pages** while preserving existing destination articles; it is not complete.
 
 ## Current capability matrix
 
-| Source capability | Status | Proof / boundary |
+| Capability | Status | Boundary |
 | --- | --- | --- |
-| Existing destination articles | Supported | Caller indexes one complete live inventory per bounded batch. A matching normalized title, slug, or `cobalt-source:<fullname>` tag records `existing`; distinct matching IDs block ambiguous creates. New IDs enter the same index before readback. Local behavioral tests. |
-| Player `whoAmI`, `rpPrefs`, `contactPrefs` text | Supported | Converts plain text to Plutarch section headings and paragraphs in a private article. Local behavioral test. |
-| Player `nicknames`, `pronouns`, `battleTag`, `discordUsername`, `timezone` text | Supported | Converts plain text to sidebar definitions. Local behavioral test. |
-| Player source tags | Supported | Retains source tags and adds `player` plus `cobalt-source:<fullname>`. Local behavioral test. |
-| Create journal and readback | Supported | Writes pending before create; uncertain responses block another create; a readback mismatch remains `created_unverified`. Local behavioral test. |
-| Player portraits with resolved references | Supported in payload conversion | A nonempty source `portrait` requires a caller-supplied positive World Anvil image ID or an http(s) URL exactly matching the source field. Emits `[img:ID|none]` or `[img:URL|none]` before sidebar definitions; rejects missing, unrequested, malformed, or BBCode-delimiter-bearing references. Local behavioral tests. |
-| Seven resolved player-portrait uploads | Observed separate browser operation | Authenticated World Anvil `globaluploader` accepted batches of at most 10 files and 10 MiB. The public API has no binary-upload implementation. Creation defaulted public; only the seven new image IDs were PATCHed private through the public API. |
-| Other image/media content | Blocked | No general upload, download, linking, or source-media conversion is implemented. |
-| Wikidot-style markup in supported player text | Blocked | Detected formatting blocks conversion rather than being transformed or discarded. |
-| Unknown nonempty player fields | Blocked | Conversion fails rather than dropping data. |
-| Characters, background characters, writings, reference pages, templates, dynamic pages, and all other categories | Missing | No converter is implemented. |
-| Cross-page links and attachment preservation | Missing | No conversion or upload/link workflow is implemented. |
-| Destination-wide identity reconciliation | Partial | Title/slug and archive-ID audits exist; manual profile-name review found additional aliases. Remaining candidates are not proven absent. |
-| Pre-existing article preservation | Observed across all 11 additions | All 175 baseline article records retained identical article-owned fields; only nested world/category update timestamps changed. |
+| Caller-owned bounded-batch inventory | Supported | Caller lists once, indexes it, and passes the shared index to every `import_page`; no per-page full refetch. Successful creates enter that index before readback. |
+| Existing-article detection | Supported | Matches normalized planned payload title and `cobalt-source:<fullname>` marker. Namespace short aliases additionally apply only to `player`, `character`, and `bgc`. Multiple candidates block creation. |
+| Same-name applications and players | Supported | An application may create separately from an existing same-name player because matching uses its planned title and no application short alias. |
+| Player text | Supported | `whoAmI`, `rpPrefs`, and `contactPrefs` become private-body sections; `nicknames`, `pronouns`, `battleTag`, `discordUsername`, and `timezone` become sidebar definitions. Unknown nonempty fields and Wikidot-style markup block conversion. |
+| Resolved player portraits | Supported in payload conversion | A nonempty source portrait requires a positive World Anvil image ID or an exact matching `http(s)` source URL; emits `[img:reference|none]`. |
+| Source-reference payloads | Supported | Exact raw source is stored in `authornotes`; body is explanatory. Readback compares `authornotes` when present. |
+| Other page categories/media/link preservation | Missing | No general converter/upload/link workflow is implemented. |
 
-## Source and execution status
+## Execution evidence and limits
 
-- Audit inventory: 6,092 source pages across 18 namespaces and 1,471 media files.
-- Verified September 24, 2026: created 11 private player articles in the existing Players category. Inventory increased from 175 to 186; saved readbacks match content, sidebar, tags, privacy, category, and applicable portrait IDs. BadChemistry was rejected with HTTP 422 and reconciled absent. Its source portrait URL separately fails TLS hostname validation; this is not yet established as the rejection cause.
-- Portrait-upload evidence: `/home/osso/.local/share/cobalt-wiki/worldanvil/import-20260924/upload-journal.json` records the seven new image IDs and archived source hashes. All seven uploaded bytes were downloaded and hash-matched to their archived originals. Browser authentication was required; no source credentials were used or stored.
-- The upload operation did not modify pre-existing images or pages. The seven newly created images were made private, but their public CDN URLs remained anonymously readable; `image.state=private` is not a CDN privacy guarantee.
-- Independent media-slice verification passed 13 importer tests plus scoped Ruff checks; earlier client proof remains valid. Browser checks confirmed Gamine/Vee biographies, sidebar fields, decoded portraits, and Vee's portfolio URL. `preservation-media-proof.json` records zero article-owned changes across all 175 pre-existing articles.
-- User selected **source-reference articles** for Wikidot templates, CSS, and admin/system pages: preserve their source in private articles, without claiming those platform functions execute in World Anvil.
-- The full all-missing-pages migration remains open; this module is not an importer for the full source inventory.
+- 321 new images were uploaded and hash-verified: 8 initial uploads plus 313 profile uploads.
+- The baseline 175 articles were untouched as of the proof covering 11 player additions. This is not a claim that all later work has a new full-preservation proof.
+- Current owned additions include Abigael and Addelaine plus navigation-side and admin-CSS source references.
+- Native creation of Addelaine succeeded after scrolling the create button into the viewport. The earlier failed click was a CLI offscreen interaction failure, not evidence of a World Anvil platform bug.
+- The full all-missing-pages migration remains open.
 
 ## How it works
 
-- [Create-only transport contract](cobalt-worldanvil-client.md)
-- Caller fetches the complete live inventory once per bounded batch with `client.list_articles(world_id)`, builds `inventory = index_articles(articles)`, and passes it as the required sixth argument to `import_page(client, world_id, source, payload, journal_path, inventory)` for every page in that batch. `import_page` does not list articles. The dict-based inventory indexes normalized title/slug, source marker, and ID; successful create responses add their ID and payload immediately, even if readback then fails.
-- Caller controls when to fetch and rebuild the index between batches. Snapshot identity checks are not an atomic remote create-if-absent: another writer can create an article after the fetch. Reconcile that race externally; this module never updates existing articles.
-- A pending or unverified creation requires reconciliation, not another create request.
+1. Caller obtains one complete live inventory for a bounded batch using `client.list_articles(world_id)` and calls `index_articles(articles)`.
+2. Caller passes that shared index to `import_page(client, world_id, source, payload, journal_path, inventory)` for each page. The importer does not list articles.
+3. A source marker or supported title match records `existing`; a pending or unverified journal entry requires reconciliation, never another create request.
+4. A successful create is added to the in-memory index, then read back. Mismatched fields, including `authornotes` when supplied, remain `created_unverified`.
+
+The snapshot is not atomic remote create-if-absent; another writer can create after inventory fetch. Reconcile that race externally. This module never updates existing articles.
 
 ## Implementation inventory
 
-- `tools/cobalt_migration/worldanvil_import.py`: plain-text player payload conversion with optional resolved portrait, destination identity check, creation journal, readback checks.
-- `tools/cobalt_migration/worldanvil_client.py`: read and create transport; no binary media upload implementation.
+- `tools/cobalt_migration/worldanvil_import.py`: player payload conversion, inventory identity check, creation journal, and readback.
+- `tools/cobalt_migration/worldanvil_reference.py`: private technical source-reference payloads.
+- `tools/cobalt_migration/worldanvil_client.py`: read/create transport only.
 
 ## Tests asserting this spec
 
-- `tests/cobalt_migration/test_worldanvil_import.py`: profile content/privacy, explicit unsupported-source failures, preserved manual articles, multi-page batch index and duplicates, refreshed source-marker matching, ambiguous candidates, uncertain-response resume, readback mismatch.
-- `tests/cobalt_migration/test_worldanvil_client.py`: local HTTP pagination and create-only effects.
+- `tests/cobalt_migration/test_worldanvil_import.py`: profile fields, portrait boundaries, existing preservation, batch index behavior, title/marker identity, application/player distinction, uncertain responses, and readback mismatches including missing `authornotes`.
 
-## Known gaps (current cycle)
+## Known gaps
 
-- [ ] All non-player page-category conversions are unimplemented.
-- [ ] General media upload and linking beyond the seven separately uploaded player portraits are unimplemented.
-- [ ] Integrate the [rendered-content converter](cobalt-worldanvil-rendered-content.md) and technical source-reference representation across the full inventory.
-- [ ] Unknown player fields need explicit mappings before import.
-- [ ] No ongoing synchronization is implemented.
+- [ ] Non-player categories, rendered-content integration, general media, cross-page links, and attachment preservation remain unimplemented.
+- [ ] Unknown player fields need explicit mappings.
+- [ ] No ongoing synchronization exists.
 
 ## Out of scope
 
-- Updating or deleting pre-existing articles: explicitly prohibited by the user.
-- Deploying the local Cobalt replica or installing a change-sync hook: separate work.
+- Updating or deleting pre-existing articles, deployment, and change synchronization.
