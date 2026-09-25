@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { readFile } from "node:fs/promises"
 import { test } from "node:test"
 import { chromium, expect } from "@playwright/test"
-/** @type {typeof import("../../node_modules/.pnpm/node_modules/devalue/types/index.d.ts")} */
+/** @type {{ parse: (serialized: string) => unknown }} */
 const { parse } = await import(
   new URL("../../node_modules/.pnpm/node_modules/devalue/index.js", import.meta.url).href
 )
@@ -98,7 +98,12 @@ async function decodeSave(posted) {
   const form = await request.formData()
   const encoded = form.getAll("__superform_json")
   assert.ok(encoded.length, "save must serialize Superforms JSON")
-  return parse(encoded.join(""))
+  const payload = parse(encoded.join(""))
+  assert.ok(
+    typeof payload === "object" && payload !== null && "doNotNotifyWatchers" in payload,
+    "save must serialize watcher choice"
+  )
+  return payload
 }
 
 /**

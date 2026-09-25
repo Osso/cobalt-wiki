@@ -4,13 +4,26 @@ import { createSsrServer } from "./ssr-server.ts"
 
 const { vite, close } = await createSsrServer()
 after(close)
-const watching = await vite.ssrLoadModule("/src/lib/server/load/watching.ts")
+type WatchingLoader = typeof import("../src/lib/server/load/watching.ts")
+type PageWatching = Awaited<ReturnType<WatchingLoader["loadPageWatching"]>>
+type WatchAction = Awaited<ReturnType<WatchingLoader["setSubscriptionAction"]>>
+type PageResult = { watching: PageWatching }
+const watching: {
+  loadPageWatching: WatchingLoader["loadPageWatching"]
+  setSubscriptionAction: (event: unknown) => Promise<WatchAction>
+} = await vite.ssrLoadModule("/src/lib/server/load/watching.ts")
 const activity = await vite.ssrLoadModule("/src/routes/[x+2d]/activity/+page.server.ts")
 const unsubscribe = await vite.ssrLoadModule(
   "/src/routes/[x+2d]/watching-unsubscribe/+page.server.ts"
 )
-const editor = await vite.ssrLoadModule("/src/routes/[slug]/[...extra]/+page.server.ts")
-const homepage = await vite.ssrLoadModule("/src/routes/+page.server.ts")
+const editor: {
+  load: (event: unknown) => Promise<PageResult>
+  actions: {
+    edit: (event: unknown) => Promise<{ status?: number; data?: unknown }>
+  }
+} = await vite.ssrLoadModule("/src/routes/[slug]/[...extra]/+page.server.ts")
+const homepage: { load: (event: unknown) => Promise<PageResult> } =
+  await vite.ssrLoadModule("/src/routes/+page.server.ts")
 const { default: WatchControls } = await vite.ssrLoadModule(
   "/src/lib/component/WatchControls.svelte"
 )
@@ -184,6 +197,7 @@ test("subscription action uses current site and explicit watch state, never a us
       ]
     ]
   )
+  assert.ok("watching" in value)
   assert.equal(value.watching, false)
 })
 
@@ -195,6 +209,7 @@ test("subscription errors return visible feedback and signed-out mutations do no
         event("/article", "secret", { scope: "page", target_id: "12", watching: "true" })
       )
   )
+  assert.ok("status" in failed.value)
   assert.equal(failed.value.status, 400)
   assert.match(failed.value.data.message, /Cannot watch this page/)
   const denied = await withRpc(
@@ -206,6 +221,7 @@ test("subscription errors return visible feedback and signed-out mutations do no
         event("/article", null, { scope: "site", target_id: "6000011", watching: "true" })
       )
   )
+  assert.ok("status" in denied.value)
   assert.equal(denied.value.status, 401)
   assert.equal(denied.calls.length, 0)
 })
