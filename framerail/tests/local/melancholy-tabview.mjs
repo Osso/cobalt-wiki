@@ -115,7 +115,7 @@ test("Melancholy Relationships tabs render separate styled controls and switch p
     )
 
     for (const [label, marker] of relationships) {
-      const tab = buttons.getByRole("tab", { name: label, exact: true })
+      const tab = tabs.getByRole("tab", { name: label, exact: true })
       const panelId = await tab.getAttribute("aria-controls")
       assert.ok(panelId, `${label} must identify a panel`)
       const panel = tabs.locator(`[role="tabpanel"][id="${panelId}"]`)
