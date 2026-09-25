@@ -14,6 +14,8 @@ pub(super) struct CreatePageRequest {
     pub create: CreatePage,
     #[serde(default)]
     pub form_updates: Maybe<Mapping>,
+    #[serde(default)]
+    pub do_not_notify_watchers: bool,
 }
 
 impl CreatePageRequest {

@@ -13,6 +13,8 @@ pub(super) struct EditPageRequest<'a> {
     pub edit: EditPage<'a>,
     #[serde(default)]
     pub form_updates: Maybe<Mapping>,
+    #[serde(default)]
+    pub do_not_notify_watchers: bool,
 }
 
 impl<'a> EditPageRequest<'a> {

@@ -76,10 +76,19 @@ pub async fn page_create(
 ) -> Result<CreatePageOutput> {
     let input: CreatePageRequest = parse!(params, Page);
     info!("Creating new page in site ID {}", input.create.site_id);
+    let suppress = input.do_not_notify_watchers;
     let input = input.load_create(ctx).await?;
-    PageService::create(ctx, input)
+    let created = PageService::create(ctx, input)
         .await
-        .or_raise(|| Error::new("failed to create page", ErrorType::Page))
+        .or_raise(|| Error::new("failed to create page", ErrorType::Page))?;
+    crate::services::watching::events::record_change(
+        ctx,
+        None,
+        created.revision_id,
+        suppress,
+    )
+    .await?;
+    Ok(created)
 }
 
 pub async fn page_import(
@@ -275,10 +284,22 @@ pub async fn page_edit(
         )
         .into());
     }
+    let suppress = request.do_not_notify_watchers;
+    let previous_revision_id = request.edit.last_revision_id;
     let input = request.load_edit(ctx).await?;
-    PageService::edit(ctx, input)
+    let edited = PageService::edit(ctx, input)
         .await
-        .or_raise(|| Error::new("failed to edit page", ErrorType::Page))
+        .or_raise(|| Error::new("failed to edit page", ErrorType::Page))?;
+    if let Some(revision) = &edited {
+        crate::services::watching::events::record_change(
+            ctx,
+            Some(previous_revision_id),
+            revision.revision_id,
+            suppress,
+        )
+        .await?;
+    }
+    Ok(edited)
 }
 
 pub async fn page_edit_permission(
