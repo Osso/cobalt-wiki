@@ -352,6 +352,12 @@ def _loopback_url(url):
         raise PocImportError("transport requires an explicit HTTP loopback IP endpoint")
 
 
+def encode_rpc_request(method, params):
+    return json.dumps(
+        {"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
+    ).encode()
+
+
 class LoopbackRpc:
     """Use through an SSH forward or on the target; tokens never enter CLI argv."""
 
@@ -390,13 +396,21 @@ class LoopbackRpc:
             headers["X-Deepwell-Page"] = str(params["page"])
         request = Request(
             self.endpoint,
-            data=json.dumps(
-                {"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
-            ).encode(),
+            data=encode_rpc_request(method, params),
             headers=headers,
         )
         response = json.loads(
-            self._request(request, method in {"page_get", "file_get", "session_get"})
+            self._request(
+                request,
+                method
+                in {
+                    "page_get",
+                    "file_get",
+                    "session_get",
+                    "page_imported_history",
+                    "page_imported_revision",
+                },
+            )
         )
         if "error" in response or "result" not in response:
             raise PocImportError(

@@ -443,6 +443,79 @@ class ImportTests(unittest.TestCase):
 
 
 class TransportTests(unittest.TestCase):
+    def test_encode_rpc_request_preserves_wire_json(self):
+        self.assertEqual(
+            poc.encode_rpc_request(
+                "page_imported_history", {"page": "café", "limit": 2}
+            ),
+            b'{"jsonrpc": "2.0", "id": 1, "method": "page_imported_history", "params": {"page": "caf\\u00e9", "limit": 2}}',
+        )
+
+    def test_history_reads_retry_http_503_but_mutation_does_not(self):
+        requests = []
+
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *_):
+                pass
+
+            def do_POST(self):
+                body = self.rfile.read(int(self.headers["Content-Length"]))
+                requests.append(body)
+                if len(requests) == 1:
+                    self.send_response(503)
+                    self.end_headers()
+                    return
+                response = b'{"jsonrpc":"2.0","id":1,"result":{"revisions":[7]}}'
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(response)))
+                self.end_headers()
+                self.wfile.write(response)
+
+        with ThreadingHTTPServer(("127.0.0.1", 0), Handler) as server:
+            thread = Thread(target=server.serve_forever)
+            thread.start()
+            try:
+                client = poc.LoopbackRpc(
+                    f"http://127.0.0.1:{server.server_port}/jsonrpc", "private", 10
+                )
+                with patch.object(poc.time, "sleep"):
+                    for method in ("page_imported_history", "page_imported_revision"):
+                        requests.clear()
+                        params = {"page": "café", "limit": 2}
+                        with self.subTest(method=method):
+                            self.assertEqual(
+                                client.rpc(method, params), {"revisions": [7]}
+                            )
+                            expected = json.dumps(
+                                {
+                                    "jsonrpc": "2.0",
+                                    "id": 1,
+                                    "method": method,
+                                    "params": params,
+                                }
+                            ).encode()
+                            self.assertEqual(requests, [expected, expected])
+                    requests.clear()
+                    params = {"slug": "home:start"}
+                    with self.assertRaises(poc.PocImportError):
+                        client.rpc("page_import", params)
+                    self.assertEqual(
+                        requests,
+                        [
+                            json.dumps(
+                                {
+                                    "jsonrpc": "2.0",
+                                    "id": 1,
+                                    "method": "page_import",
+                                    "params": params,
+                                }
+                            ).encode()
+                        ],
+                    )
+            finally:
+                server.shutdown()
+                thread.join()
+
     def test_transient_reads_retry_but_writes_never_repeat(self):
         class Opener:
             def __init__(self):
