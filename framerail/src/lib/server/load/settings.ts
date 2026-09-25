@@ -5,6 +5,11 @@ import { authLogin } from "$lib/server/auth/login"
 import { authLogout } from "$lib/server/auth/logout"
 import { translate } from "$lib/server/deepwell/translate"
 import { userEdit, userView } from "$lib/server/deepwell/user"
+import {
+  watchingPreferencesGet,
+  watchingPreferencesSet,
+  watchingSubscriptions
+} from "$lib/server/deepwell/watching"
 import { loadSiteChrome } from "$lib/server/load/site-chrome"
 import { loadSiteInfo } from "$lib/server/load/site-info"
 import { userProfileFields } from "$lib/user-data"
@@ -45,11 +50,21 @@ export async function loadSettingsPage(
   })
 
   const user = parentData.user_session?.user
+  const sessionToken = cookies.get("wikijump_token")
+  const [watchingPreferences, watchingSubscriptionsList] =
+    user && sessionToken
+      ? await Promise.all([
+          watchingPreferencesGet({ sessionToken, siteId }),
+          watchingSubscriptions(siteId, { sessionToken, siteId })
+        ])
+      : [null, null]
   return {
     compiled_top_bar_html: chrome.compiled_top_bar_html,
     internationalization,
     account: user ? { name: user.name, slug: user.slug, email: user.email } : null,
-    profile: user ? userProfileFields(user) : null
+    profile: user ? userProfileFields(user) : null,
+    watchingPreferences,
+    watchingSubscriptions: watchingSubscriptionsList
   }
 }
 
@@ -69,6 +84,25 @@ export async function settingsEmailAction(event: RequestEvent) {
   const email = formText(form, "email").trim()
   if (!email) return fail(400, { section: "email", message: "Enter an email address." })
   return saveSettings(event, "email", formText(form, "currentPassword"), { email })
+}
+
+export async function settingsWatchingAction({ request, cookies }: RequestEvent) {
+  const sessionToken = cookies.get("wikijump_token")
+  if (!sessionToken)
+    return fail(401, { section: "watching", message: "You are not signed in." })
+  const form = await request.formData()
+  const preferences = {
+    email_enabled: form.get("email_enabled") === "on",
+    auto_watch: form.get("auto_watch") === "on"
+  }
+  const { siteId } = loadSiteInfo(request.headers)
+  try {
+    await watchingPreferencesSet(preferences, { sessionToken, siteId })
+    return { section: "watching", saved: true, message: "Watching preferences saved." }
+  } catch (caught) {
+    const error = requireDeepwellError(caught)
+    return fail(400, { section: "watching", message: error.message })
+  }
 }
 
 export async function settingsPasswordAction(event: RequestEvent) {

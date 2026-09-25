@@ -17,6 +17,7 @@
   } from "."
   import { resolve } from "$app/paths"
   import { clickTagButton } from "$lib/tag-buttons"
+  import WatchControls from "$lib/component/WatchControls.svelte"
 
   import type { PageProps } from "./$types"
   import type { Optional } from "$lib/types"
@@ -279,6 +280,7 @@
     </div>
 
     {#if showPageOptions}
+      <WatchControls watching={data.watching} message={props.form?.message} />
       <div id="page-options-bottom-2" class="page-options-bottom form-actions">
         <!-- svelte-ignore a11y_invalid_attribute -->
         <a

@@ -495,7 +495,8 @@ export async function pageEditAction({
       title,
       altTitle,
       tags: tagsStr,
-      layout
+      layout,
+      doNotNotifyWatchers
     } = form.data
     const tags = tagsStr.split(" ").filter((tag) => tag.length)
     const { siteId } = loadSiteInfo(request.headers)
@@ -513,6 +514,7 @@ export async function pageEditAction({
       tags,
       layout,
       formUpdates,
+      doNotNotifyWatchers,
       getRequestContext(locals)
     )
 
@@ -579,6 +581,7 @@ const pageEditSchema = pipe(
     ),
     tags: string(),
     comments: string(),
+    doNotNotifyWatchers: optional(boolean(), false),
     layout: optional(nullable(vEnum(Layout)))
   }),
   check(

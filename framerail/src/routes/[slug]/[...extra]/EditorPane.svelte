@@ -201,6 +201,14 @@
     class="editor-comments"
     placeholder={data.internationalization?.["wiki-page-revision-comments"]}
     bind:value={$form.comments}></textarea>
+  <label class="watcher-suppression">
+    <input
+      type="checkbox"
+      name="doNotNotifyWatchers"
+      bind:checked={$form.doNotNotifyWatchers}
+    />
+    Do Not Notify Watchers
+  </label>
   {#if pageLayoutState.current === Layout.WIKIDOT}
     <div class="buttons alignleft">
       <input
@@ -268,5 +276,11 @@
 
   .editor-wikitext {
     height: 60vh;
+  }
+
+  .watcher-suppression {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
   }
 </style>

@@ -59,6 +59,7 @@ export async function pageEdit(
   tags: string[],
   layout: Optional<Nullable<Layout>>,
   formUpdates?: FormValues,
+  doNotNotifyWatchers = false,
   requestContext: RequestContext = {}
 ): Promise<CreatePageRevisionOutput> {
   return client.request(
@@ -77,6 +78,7 @@ export async function pageEdit(
       title,
       alt_title: altTitle,
       tags,
+      do_not_notify_watchers: doNotNotifyWatchers,
       layout:
         layout !== undefined
           ? (Layout[layout?.toUpperCase() as keyof typeof Layout] ?? null)

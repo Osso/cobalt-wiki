@@ -73,6 +73,12 @@ function chromeResponder(rpc: Rpc) {
   if (rpc.method === "translate") {
     return { result: { "footer-license-unless": "License" } }
   }
+  if (rpc.method === "watching_preferences_get") {
+    return { result: { email_enabled: false, auto_watch: false } }
+  }
+  if (rpc.method === "watching_subscriptions") {
+    return { result: [{ scope: "page", target_id: 12 }] }
+  }
   throw new Error(`unexpected RPC ${rpc.method}`)
 }
 
@@ -263,6 +269,77 @@ test("mismatched new passwords are rejected before any backend call", async () =
   assert.equal(value.status, 400)
   assert.equal(value.data?.message, "The new passwords do not match.")
   assert.equal(calls.length, 0)
+})
+
+test("settings show opt-in preferences and let users remove subscriptions without page visibility", async () => {
+  const loaded = await loadSettings(alice)
+  assert.deepEqual(loaded.value.watchingPreferences, {
+    email_enabled: false,
+    auto_watch: false
+  })
+  assert.deepEqual(loaded.value.watchingSubscriptions, [{ scope: "page", target_id: 12 }])
+  const { body } = render(SettingsPage, { props: { data: loaded.value, form: null } })
+  assert.match(body, /name="email_enabled"/)
+  assert.match(body, /name="auto_watch"/)
+  assert.match(body, /action="\?\/watching"/)
+  assert.match(body, /action="\?\/unwatch"/)
+  assert.match(body, /name="target_id"[^>]*value="12"/)
+})
+
+test("a user can unwatch an inaccessible page through their subscription list", async () => {
+  const { value, calls } = await submit(
+    "unwatch",
+    {
+      scope: "page",
+      target_id: "12",
+      watching: "false"
+    },
+    (rpc) =>
+      rpc.method === "watching_subscription_set"
+        ? { result: { watching: false } }
+        : chromeResponder(rpc)
+  )
+  assert.equal(value.watching, false)
+  assert.deepEqual(
+    calls.map((call) => [call.method, call.params]),
+    [
+      [
+        "watching_subscription_set",
+        { site_id: 6000011, scope: "page", target_id: 12, watching: false }
+      ]
+    ]
+  )
+})
+
+test("watcher email opt-out preserves subscriptions and requires explicit Save", async () => {
+  const { value, calls } = await submit(
+    "watching",
+    { email_enabled: "", auto_watch: "on", user_id: "9" },
+    (rpc) =>
+      rpc.method === "watching_preferences_set"
+        ? { result: { email_enabled: false, auto_watch: true } }
+        : chromeResponder(rpc)
+  )
+  assert.equal(value.saved, true)
+  assert.deepEqual(
+    calls.map((call) => [call.method, call.params]),
+    [["watching_preferences_set", { email_enabled: false, auto_watch: true }]]
+  )
+})
+
+test("unverified email rejection appears beside watcher preferences", async () => {
+  const { value } = await submit("watching", { email_enabled: "on" }, (rpc) => {
+    if (rpc.method === "watching_preferences_set") {
+      return {
+        error: { code: 4000, message: "Verify your email before enabling watcher email." }
+      }
+    }
+    return chromeResponder(rpc)
+  })
+  assert.equal(value.status, 400)
+  const { value: data } = await loadSettings(alice)
+  const { body } = render(SettingsPage, { props: { data, form: value.data } })
+  assert.match(body, /Verify your email before enabling watcher email/)
 })
 
 test("backend errors on save are shown in the failed section", async () => {

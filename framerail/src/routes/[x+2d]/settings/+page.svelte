@@ -35,6 +35,51 @@
     <dd>{data.account.email || "None"}</dd>
   </dl>
 
+  {#if data.watchingPreferences}
+    <form class="settings-form" action="?/watching" method="POST">
+      <h2>Watching</h2>
+      {@render result("watching")}
+      <p>Activity stays on. Email and automatic watches are off until you opt in.</p>
+      <label class="watching-choice">
+        <input
+          type="checkbox"
+          name="email_enabled"
+          checked={data.watchingPreferences.email_enabled}
+        />
+        Email me about watched pages
+      </label>
+      <label class="watching-choice">
+        <input
+          type="checkbox"
+          name="auto_watch"
+          checked={data.watchingPreferences.auto_watch}
+        />
+        Automatically watch pages after I edit them
+      </label>
+      <button class="btn btn-primary" type="submit">Save watching preferences</button>
+    </form>
+    <h2>My subscriptions</h2>
+    {#if form?.message && !form.section}<p role="status">{form.message}</p>{/if}
+    {#if data.watchingSubscriptions?.length}
+      <ul>
+        {#each data.watchingSubscriptions as subscription}
+          <li>
+            {subscription.scope} #{subscription.target_id}
+            <form action="?/unwatch" method="POST">
+              <input type="hidden" name="scope" value={subscription.scope} />
+              <input type="hidden" name="target_id" value={subscription.target_id} />
+              <input type="hidden" name="watching" value="false" />
+              <button class="btn btn-default" type="submit">Unwatch</button>
+            </form>
+          </li>
+        {/each}
+      </ul>
+    {:else}
+      <p>No subscriptions on this site.</p>
+    {/if}
+    <p><a href={resolve("/-/activity", {})}>My Activity</a></p>
+  {/if}
+
   <form class="settings-form" action="?/profile" method="POST" use:enhance>
     <h2>Profile</h2>
     {@render result("profile")}
@@ -159,7 +204,12 @@
       gap: 0.25em;
     }
 
-    @include account-form-controls("input, textarea");
+    .watching-choice {
+      flex-direction: row;
+      align-items: center;
+    }
+
+    @include account-form-controls(".text");
   }
 
   .settings-result {
