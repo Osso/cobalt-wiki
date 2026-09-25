@@ -164,7 +164,7 @@ async function clickPreview(page, slug) {
  */
 async function fillFormattedSource(page, marker) {
   const input = page.locator('#editor [name="wikitext"]')
-  const unformatted = `+ ${marker}\n${marker}`
+  const unformatted = `+ ${marker}\n{{${marker}}}\n${marker}`
   await input.fill(unformatted)
   await input.evaluate((element, length) => {
     if (!(element instanceof HTMLTextAreaElement)) {
@@ -177,7 +177,7 @@ async function fillFormattedSource(page, marker) {
     .getByRole("toolbar", { name: "Wikitext formatting" })
     .getByRole("button", { name: "bold", exact: true })
     .click()
-  const formatted = `+ ${marker}\n**${marker}**`
+  const formatted = `+ ${marker}\n{{${marker}}}\n**${marker}**`
   await expect(input).toHaveValue(formatted)
   assert.deepEqual(
     await input.evaluate((element) => {
@@ -195,6 +195,29 @@ async function fillFormattedSource(page, marker) {
 }
 
 /**
+ * @param {import("@playwright/test").Locator} region
+ * @param {string} marker
+ */
+async function assertPreviewMonospaceSize(region, marker) {
+  const code = region.locator("p code").filter({ hasText: marker })
+  await expect(code).toHaveCount(1)
+  const sizes = await code.evaluate((element) => {
+    const paragraph = element.closest("p")
+    if (!paragraph) throw new Error("monospace preview must be in a paragraph")
+    return {
+      paragraph: parseFloat(getComputedStyle(paragraph).fontSize),
+      monospace: parseFloat(getComputedStyle(element).fontSize)
+    }
+  })
+  assert.equal(sizes.paragraph, 16, "ordinary paragraph font size must remain 16px")
+  assert.equal(
+    sizes.monospace,
+    sizes.paragraph * 0.98,
+    "preview monospace font size must be 98% of the paragraph font size"
+  )
+}
+
+/**
  * @param {import("@playwright/test").Page} page
  * @param {import("@playwright/test").APIRequestContext} request
  * @param {Fixture} fixture
@@ -207,7 +230,7 @@ async function previewExisting(page, request, fixture, token) {
   assert.ok(!before.data.wikitext.includes(fixture.rawMarker), "marker must be new")
   await openEditor(page, fixture.existingSlug)
   const title = `Preview ${fixture.rawMarker}`
-  const source = `+ ${fixture.rawMarker}\n**${fixture.rawMarker}**`
+  const source = `+ ${fixture.rawMarker}\n{{${fixture.rawMarker}}}\n**${fixture.rawMarker}**`
   await page.locator('#editor [name="title"]').fill(title)
   await fillFormattedSource(page, fixture.rawMarker)
   const { region, submitted } = await clickPreview(page, fixture.existingSlug)
@@ -217,6 +240,7 @@ async function previewExisting(page, request, fixture, token) {
   assert.ok(!Object.hasOwn(submitted, "form_updates"))
   await expect(region.locator("h1")).toContainText(fixture.rawMarker)
   await expect(region.locator("strong")).toContainText(fixture.rawMarker)
+  await assertPreviewMonospaceSize(region, fixture.rawMarker)
   await assertStoredUnchanged(request, fixture, fixture.existingSlug, token, before.data)
 }
 
@@ -231,7 +255,7 @@ async function previewMissing(page, request, fixture, token) {
   assert.equal(before?.type, "missing", "preview slug must not exist")
   await openEditor(page, fixture.missingSlug)
   const title = `Missing ${fixture.rawMarker}`
-  const source = `+ ${fixture.rawMarker}\n**${fixture.rawMarker}**`
+  const source = `+ ${fixture.rawMarker}\n{{${fixture.rawMarker}}}\n**${fixture.rawMarker}**`
   await page.locator('#editor [name="title"]').fill(title)
   await fillFormattedSource(page, fixture.rawMarker)
   const { region, submitted } = await clickPreview(page, fixture.missingSlug)
@@ -240,6 +264,7 @@ async function previewMissing(page, request, fixture, token) {
   assert.ok(!submitted.last_revision_id, "new page must not claim a stored revision")
   await expect(region.locator("h1")).toContainText(fixture.rawMarker)
   await expect(region.locator("strong")).toContainText(fixture.rawMarker)
+  await assertPreviewMonospaceSize(region, fixture.rawMarker)
   const after = await readPage(request, fixture, fixture.missingSlug, token)
   assert.equal(after?.type, "missing", "preview must not create missing page")
 }
