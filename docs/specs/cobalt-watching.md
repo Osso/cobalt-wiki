@@ -42,18 +42,21 @@ Cobalt will support Wikidot-style watching for locally created site, category, a
 - `deepwell/src/services/relation/page_watch.rs` — existing user-to-page `PageWatch` relation; no delivery flow is implemented.
 - `deepwell/src/services/email/mailgun.rs` — existing Mailgun sender to reuse; watching does not add a second mail service.
 - `deepwell/src/services/watching/diff.rs` — implemented pure, bounded rendered-text change summary; pinned `similar` 2.7.0 supplies word-level matching instead of custom quadratic matching.
-- Site and category subscription migrations and APIs are in progress with agent 792. UI, event delivery, notification persistence, and one-click unsubscribe remain unimplemented.
+- `53770642d` — local-only site/category/page subscription and preference migration, service, endpoints, and tests; the migration also reserves event/notification tables without backfill.
+- `90e439039` — registers subscription and preference RPCs.
+- `fd7d249df` — frontend wires scoped controls, Activity, preferences, unsubscribe, detail/current-page views, and editor suppression; it remains a stub/SSR client for pending backend Activity/delivery RPCs.
+- `61a20738b` removes the stale permission cache path used by subscription checks. `07ebe43d1` adds recipient-visible revision snapshots for the pending delivery path.
 
 ## Tests asserting this spec
 
-- `deepwell/src/services/watching/diff.rs` — six pure unit tests are green in retained `/tmp/cobalt-watching-diff-green.log`: separated edits, additions/removals, creation, empty/no change, Unicode creation limit, and combined 1,000-character limit. They do not cover end-to-end email, privacy, or delivery.
+- `deepwell/src/services/watching/diff.rs` — six pure tests pass in retained `/tmp/cobalt-watching-diff-green.log`; they do not cover end-to-end email, privacy, or delivery.
+- Latest agent report: `61a20738b` subscription suite 3/3 green; `07ebe43d1` visibility integration 5 green; `fd7d249df` frontend stub/SSR tests 23 green. No retained `/tmp` logs for those three results were found, so this is reported agent evidence, not independently verified proof. The older retained `/tmp/cobalt-watching-subscriptions-targeted.log` records the preceding revocation failure, not the current result.
 
 ## Known gaps (current cycle)
 
-- [ ] Complete site, category, and page subscription management; subscription migrations and APIs are in progress with agent 792.
-- [ ] Implement permission checks for subscription, Activity, and delivery across revision visibility.
-- [ ] Implement delivery/UI: committed create/edit watcher events, suppression, overlapping-watch deduplication, Activity, optional Mailgun email delivery, and one-click email unsubscribe.
-- [ ] Add behavioral tests for successful changes, rollback, privacy across revisions, suppression, self-notification exclusion, overlap deduplication, email payload limits, unsubscribe behavior, imported-page future edits, and no historical-backfill delivery.
+- [ ] Current step: integrate committed create/edit events, worker delivery, and backend Activity RPC with the committed subscription/frontend surfaces.
+- [ ] Implement Activity/email delivery behavior: revision visibility, suppression, self-notification exclusion, overlap deduplication, optional Mailgun delivery, and one-click email unsubscribe.
+- [ ] Add end-to-end behavioral tests for successful changes, rollback, privacy across revisions, suppression, deduplication, email payload limits, unsubscribe, imported-page future edits, and no historical-backfill delivery. Progress is not shipped; all end-to-end requirements remain unchecked.
 
 ## Out of scope
 
