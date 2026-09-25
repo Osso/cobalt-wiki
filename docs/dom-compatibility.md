@@ -14,8 +14,8 @@ UI where existing themes should be adapted to:
   * Page editor
   * Page options
 
-## Legacy tabview interaction
+## FTML tabview interaction
 
-Legacy-layout tabviews remain interactive without a component import or client-side widget initialization. A layout-level delegated handler activates only a tabview's matching direct-child panel, retaining the server-selected initial panel until activation. Activation updates the selected tab's `aria-selected` and `tabindex`, and the corresponding panel's visibility and ARIA state.
+Compiled `wj-tabs` tabviews use layout-level delegated handlers rather than custom-element registration. Activation shows only the matching direct-child panel, retaining the server-selected initial panel until activation. It updates sibling tabs' `aria-selected` and `tabindex` attributes and panels' `hidden` state.
 
 Tab controls support pointer activation plus keyboard navigation: Arrow keys, Home, and End move focus among sibling tabs; Enter and Space activate the focused tab. Nested or unrelated tabviews must not be affected.
