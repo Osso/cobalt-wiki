@@ -25,7 +25,8 @@ def reference_payload(source, raw_source):
         "Source reference (not an executable template, style, or system page)[br]"
         f"{title_line}"
         f"Original fullname: {_literal_lines(fullname)}[br]"
-        f"Source text:[br][code]{_literal_lines(raw_source)}[/code]"
+        "Exact original source is stored unchanged in the editable Author's Notes field."
+        " It is not rendered here because the body renderer changes source text."
     )
     tags = list(
         dict.fromkeys(
@@ -41,6 +42,7 @@ def reference_payload(source, raw_source):
         "editor": "plutarch",
         "tags": ",".join(tags),
         "content": content,
+        "authornotes": raw_source,
         "displayTitle": True,
         "displayAuthor": False,
     }

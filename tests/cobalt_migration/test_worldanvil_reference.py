@@ -1,4 +1,4 @@
-"""Pure source-reference payload contract; no API or source archive access."""
+"""Exact source storage in native Author's Notes, without body-renderer changes."""
 
 import unittest
 
@@ -15,13 +15,12 @@ SOURCE = {
 class ReferencePayloadTests(unittest.TestCase):
     def test_identity_privacy_and_source_reference_label(self):
         payload = reference_payload(SOURCE, "key: value")
+        self.assertEqual(payload["title"], "Source reference: template:infobox")
         self.assertEqual(payload["templateType"], "article")
         self.assertEqual(payload["state"], "private")
-        self.assertEqual(payload["editor"], "plutarch")
-        self.assertIn("Source reference", payload["title"])
-        self.assertEqual(payload["title"], "Source reference: template:infobox")
         self.assertIn("Infobox", payload["content"])
         self.assertIn("template:infobox", payload["content"])
+        self.assertIn("Author's Notes", payload["content"])
         self.assertEqual(
             payload["tags"].split(","),
             [
@@ -32,50 +31,29 @@ class ReferencePayloadTests(unittest.TestCase):
             ],
         )
 
-    def test_preserves_lines_and_wikidot_markup_without_executing_it(self):
-        raw = (
-            "---\n"
-            "field: [include template:infobox]\n"
-            "[code]x[/code]\n"
-            "\n"
-            "[[module CSS]]\n"
-            "<style>body {color:red}</style>\n"
-            '<widget attr="x&y">\n'
-        )
-        content = reference_payload(SOURCE, raw)["content"]
-        source_section = content.split("Source text:[br]", 1)[1]
-        self.assertEqual(
-            source_section,
-            "[code][noparse]---[/noparse][br]"
-            "[noparse]field: [include template:infobox][/noparse][br]"
-            "[noparse][code]x[/code][/noparse][br]"
-            "[br]"
-            "[noparse][[module CSS]][/noparse][br]"
-            "[noparse]&lt;style&gt;body {color:red}&lt;/style&gt;[/noparse][br]"
-            "[noparse]&lt;widget attr=&quot;x&amp;y&quot;&gt;[/noparse][br][/code]",
-        )
+    def test_source_is_verbatim_in_authornotes_not_lossy_body(self):
+        raw = '/* comment */\n     padding: 0px;\n[[code type="css"]]\n<widget attr="x&y">\n[[/code]]\n'
+        payload = reference_payload(SOURCE, raw)
+        self.assertEqual(payload["authornotes"], raw)
+        self.assertNotIn(raw, payload["content"])
+        self.assertNotIn("[code]", payload["content"])
+
+    def test_literal_parser_delimiters_are_safe_in_stored_source(self):
+        raw = "before [/noparse] [code]x[/code] [/NoParse] after"
+        self.assertEqual(reference_payload(SOURCE, raw)["authornotes"], raw)
 
     def test_reference_identity_does_not_require_unavailable_metadata_title(self):
         source = {"fullname": "player:_public", "tags": [], "status": "denied"}
-        payload = reference_payload(source, "Visible source from the supplied backup")
+        payload = reference_payload(source, "Exact supplied backup source")
         self.assertEqual(payload["title"], "Source reference: player:_public")
         self.assertIn(
             "Original title unavailable in metadata export", payload["content"]
         )
-        self.assertIn("Visible source from the supplied backup", payload["content"])
+        self.assertEqual(payload["authornotes"], "Exact supplied backup source")
 
-    def test_noparse_closer_in_source_is_rejected(self):
-        for raw in ("before [/noparse] after", "before [/NoParse] after"):
-            with (
-                self.subTest(raw=raw),
-                self.assertRaisesRegex(ValueError, "noparse closing tag"),
-            ):
-                reference_payload(SOURCE, raw)
-
-    def test_source_identity_cannot_close_literal_wrapper(self):
-        source = {**SOURCE, "title": "bad [/noparse]"}
+    def test_source_identity_cannot_close_metadata_literal_wrapper(self):
         with self.assertRaisesRegex(ValueError, "noparse closing tag"):
-            reference_payload(source, "safe")
+            reference_payload({**SOURCE, "title": "bad [/noparse]"}, "safe")
 
 
 if __name__ == "__main__":

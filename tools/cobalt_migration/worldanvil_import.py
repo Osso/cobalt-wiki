@@ -189,6 +189,7 @@ def _verify_created(client, world_id, article_id, payload):
         "state",
         "isDraft",
         "content",
+        "authornotes",
         "sidepanelcontenttop",
     ):
         if field in payload and actual.get(field) != payload[field]:

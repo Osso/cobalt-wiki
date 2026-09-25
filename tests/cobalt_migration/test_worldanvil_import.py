@@ -236,6 +236,25 @@ class ImportPageTests(unittest.TestCase):
                 )
             self.assertEqual(len(remote.articles), 1)
 
+    def test_omitted_authornotes_prevent_false_source_reference_success(self):
+        class MissingNotes(Destination):
+            def get_article(self, article_id):
+                return {**super().get_article(article_id), "authornotes": None}
+
+        remote = MissingNotes()
+        payload = {
+            **player_payload(SOURCE, FIELDS),
+            "authornotes": "/* exact source */\n  x: value;",
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            journal = Path(directory) / "journal.json"
+            with self.assertRaisesRegex(ImportBlocked, "authornotes"):
+                import_page(remote, WORLD, SOURCE, payload, journal, index_articles([]))
+            self.assertEqual(
+                json.loads(journal.read_text())["pages"]["player:anakin"]["status"],
+                "created_unverified",
+            )
+
     def test_readback_mismatch_does_not_mark_import_verified(self):
         class CorruptDestination(Destination):
             def get_article(self, article_id):
