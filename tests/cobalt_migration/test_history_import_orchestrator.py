@@ -16,7 +16,6 @@ from tools.cobalt_migration.history_acquire import _inventory
 from tools.cobalt_migration.history_export import HistoryResponse, export_history
 from tools.cobalt_migration.poc_import import _digest
 
-
 ROOT = Path(__file__).resolve().parents[2]
 SITE_ID = 6000000
 SOURCE_ORIGIN = "https://history.example.test"
@@ -214,7 +213,7 @@ class HistoryImportOrchestratorTest(unittest.TestCase):
                 '<div class="page-history"><table>' + "".join(rows) + "</table></div>"
             )
 
-            def fetch(request):
+            def fetch(request, source_id=source_id, bodies=bodies, list_html=list_html):
                 if request["moduleName"] == "history/PageRevisionListModule":
                     return HistoryResponse(200, "raw-list", list_html)
                 number = request["revision_id"] - source_id * 100

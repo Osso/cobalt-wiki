@@ -8,10 +8,10 @@ import argparse
 import hashlib
 import ipaddress
 import json
-from pathlib import Path
 import random
 import tarfile
 import time
+from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener

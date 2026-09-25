@@ -1,14 +1,14 @@
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import io
 import json
-from pathlib import Path
 import tarfile
 import tempfile
-from threading import Thread
 import unittest
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from threading import Thread
+from unittest.mock import patch
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
-from unittest.mock import patch
 
 from tools.cobalt_migration import poc_import as poc
 
