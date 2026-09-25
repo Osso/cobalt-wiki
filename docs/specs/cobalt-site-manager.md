@@ -21,11 +21,12 @@ The imported Admin menu's `/_admin` entry must reach the native site administrat
 
 ## Tests asserting this spec
 
-- `framerail/tests/local/admin-pages.mjs` — real admin login, legacy entry navigation, editor open/cancel and anonymous denial, without submitting edits.
+- `framerail/tests/local/admin-pages.mjs` — real admin login, legacy entry navigation, editor open/cancel and anonymous denial, without submitting edits. Development Site Manager coverage passed 1/1 after `62e1467e9`; this is not independent-gate or deployment proof.
 
 ## Known gaps (current cycle)
 
-- [ ] Independent local browser verification and public rollout remain pending.
+- [ ] Final local-browser result and independent gates remain pending. The local `deploy.sh` result is not yet recorded.
+- [ ] Public status is unchanged: this scope is separate from the sibling roster-only rollout.
 
 ## Out of scope
 

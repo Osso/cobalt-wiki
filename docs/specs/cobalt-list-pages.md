@@ -28,6 +28,10 @@ Imported pages carry import-time `created_at`/`updated_at`; original Wikidot cre
 - `deepwell/tests/page_list_pages.rs`: category/tag/pagetype filtering, title order, limit, prepended table, Digest Writings multi-row table, form labels, links, anonymous-denial filtering, explicit unsupported-argument error, CountPages totals beyond one page, nested listing through an include; ignored whole-archive render check.
 - `deepwell/src/services/render/list_pages.rs`: header scanning, argument grammar, selection defaults, layouts, joined Digest Writings table through FTML; ignored `every_archived_header_is_supported` parses all 81 archived ListPages/CountPages headers.
 
+## Current repair proof
+
+`1db12295f` added the exact Digest Writings joined-table regression after reproducing it RED and then passing it GREEN. Its database-backed test was blocked by the environment; independent gates, final browser result, and the local `deploy.sh` outcome remain pending. Public status is unchanged: this scope is separate from the sibling roster-only rollout.
+
 ## Out of scope
 
 Other modules (`CountPages`, `NewPage`, `Join`, ...), listing invalidation (queue fan-out: [rerender invalidation](cobalt-rerender-invalidation.md)), and deployment.

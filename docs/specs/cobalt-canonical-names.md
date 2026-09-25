@@ -24,7 +24,7 @@ The replica must preserve existing Wikidot names rather than flattening their co
 
 ## Tests asserting this spec
 
-- `framerail/tests/local/admin-pages.mjs`: local browser regression coverage for `/_applications`, legacy `/_admin`, and Digest Writings table rendering. It was RED 0/3 at `7e73ce8d4` before the current repairs: Applications and Admin returned 404; Digest Writings exposed literal `||` delimiters. This is not passing or deployment proof.
+- `framerail/tests/local/admin-pages.mjs`: local browser regression coverage for `/_applications`, legacy `/_admin`, and Digest Writings table rendering. It was RED 0/3 at `7e73ce8d4` before the repairs: Applications and Admin returned 404; Digest Writings exposed literal `||` delimiters. Development checks later passed Applications 1/1 and Site Manager 1/1; these are not independent-gate or deployment proof.
 - `deepwell/tests/page_canonical_names.rs`: native category identity and exact links despite a normalized-name collision.
 - `deepwell/tests/page_import.rs`: exact import identity and source-category behavior.
 - `deepwell/tests/page_multi_colon_slug.rs`: native create and view at the exact slug with no `redirect_page`.
@@ -32,8 +32,8 @@ The replica must preserve existing Wikidot names rather than flattening their co
 
 ## Known gaps (current cycle)
 
-- [ ] Run the three local browser regressions after the current repairs. `551d29df5` changes only the Framerail config source; it is not public-deployment or final-proof evidence.
-- [ ] Main owns the remaining general-administration repair for legacy `/_admin` and `/-/admin`; this namespace/config change does not establish complete Admin feature coverage.
+- [ ] Final local-browser result and independent gates remain pending. `551d29df5` changes the Framerail config source only; the local `deploy.sh` result is not yet recorded.
+- [ ] Public status is unchanged: this scope is separate from the sibling roster-only rollout. The namespace and Site Manager route repairs do not establish complete administration coverage.
 - [ ] Full canonical-name corpus proof. The naming code (`f5fbf4c`) is deployed with the rendering branch and existing data is reconciled.
 - [ ] Category ACL/creator metadata remains separate; source observations must not be treated as a complete permission export.
 
