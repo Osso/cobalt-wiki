@@ -117,6 +117,10 @@ After deploying: jobs already queued as `full` outdate only when their output ch
 - `[[gallery]]` renders Wikidot's gallery markup from the page's image attachments (`c8028c4`); `icons` shows all 468 images in Wikidot's order.
 - The 30 Wikidot site members are native accounts (`tools/cobalt_migration/wikidot_members.py`, run 2026-09-24): Wikidot account date on the user, site join date on the membership, roles member 30 / admin 5 / moderator 1 / root 1, unusable random passwords and `@members.invalid` placeholder emails until set-password emails are sent.
 
+## Current-page media-owner fix, 2026-09-25
+
+`62af8b88a` is committed on `main`, not yet deployed; `main` is deploying after its local proof. Bare current-page image references now retain their category and later colons in the owner path. This fixes `character:melancholy`: its six imported assets existed, but its ImageBox's bare `Melancholy_Outfits` reference rendered as the root `melancholy` owner instead of `character:melancholy`. Regression coverage includes direct bare category-page media and the live template path.
+
 ## WWS file access, 2026-09-24
 
 Committed on branch `worktree-agent-a20dbe13be5fa7c62`, not deployed. Requirements: [same-site media routing](../../specs/cobalt-media-routing.md).

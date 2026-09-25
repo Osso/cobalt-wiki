@@ -4,7 +4,7 @@ FTML must render same-site attachment references through the deployed site's pro
 
 ## What it must do
 
-- [x] Emit same-origin file URLs for current-page, same-site other-page, and explicitly same-site references.
+- [x] Emit same-origin file URLs for current-page, same-site other-page, and explicitly same-site references. A bare current-page reference retains its complete canonical page name: on `character:melancholy`, `[[image Melancholy_Outfits]]` must resolve to `/-/file/character:melancholy/Melancholy_Outfits`, never the root `melancholy` owner; later colons remain intact.
 - [x] Preserve explicit external URLs and unrelated cross-site references.
 - [x] Preserve source bytes and revision identity while refreshing derived HTML.
 - [x] Serve actual imported image bytes behind authentication and no-index controls.
@@ -29,7 +29,7 @@ FTML must render same-site attachment references through the deployed site's pro
 
 ## Tests asserting this spec
 
-- `deepwell/tests/page_media_urls.rs`: native rendering of local, explicit same-site, external and cross-site image references.
+- `deepwell/tests/page_media_urls.rs`: native rendering of local, explicit same-site, external and cross-site image references, including bare category-page media and the live `character:melancholy` ImageBox path.
 - `deepwell/tests/page_gallery.rs` and FTML `render::html::element::gallery` tests: gallery markup, sizes, order and image filtering.
 - FTML AST fixtures: image/audio/video output contracts.
 - `deepwell/tests/page_view_permission.rs` (DB): public vs private category, member vs anonymous vs banned member vs unknown token, page from another site rejected.
@@ -43,6 +43,7 @@ FTML must render same-site attachment references through the deployed site's pro
 - [ ] Two homepage images still depend on unresolved template variables; routing must not pretend their requested assets exist.
 - [x] Local full-preview image correction browser proof passed: authenticated `home:_public` (`2/2` visible images, `2/2` CSS backgrounds, `4/4` verified assets) and `home:start` (`19/19`, `3/3`, `22/22`) have no failures; unauthenticated access remains `401` and no-index remains present. The [replica-status SSOT](../wiki/systems/cobalt-replica-status.md#local-full-preview-media-routing) records causes and evidence scope.
 
+- [ ] `62af8b88a` preserves category ownership for bare current-page media. It is committed, not yet deployed; see [replica status](../wiki/systems/cobalt-replica-status.md#current-page-media-owner-fix-2026-09-25) for proof and deployment state.
 - [ ] File access and caching are committed, not deployed; see [replica status](../wiki/systems/cobalt-replica-status.md#wws-file-access-2026-09-24) for proofs and the post-deploy checks.
 - [ ] Wikidot itself serves files and text blocks of private pages to anonymous visitors (checked 2026-09-24: `admin:css` page shows "Private content", while `/local--files/admin:css/liberty-webfont.woff2` returns `200` and `/admin:css/code/1`, the site theme CSS, returns `200`). The replica deliberately refuses them; the replica's theme comes from `/-/cobalt-theme.css`, so it does not depend on `admin:css`.
 - [ ] Restricted files loaded cross-origin by CSS or scripts (fonts, `fetch`) after the redirect need a CORS policy on the R2 bucket; `<img>`, links and downloads do not.
