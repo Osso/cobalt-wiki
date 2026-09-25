@@ -6,7 +6,7 @@
 
 | Source capability | Status | Proof / boundary |
 | --- | --- | --- |
-| Existing destination articles | Supported | A matching normalized title, slug, or `cobalt-source:<fullname>` tag records `existing`; no create request follows. Local behavioral test. |
+| Existing destination articles | Supported | Caller indexes one complete live inventory per bounded batch. A matching normalized title, slug, or `cobalt-source:<fullname>` tag records `existing`; distinct matching IDs block ambiguous creates. New IDs enter the same index before readback. Local behavioral tests. |
 | Player `whoAmI`, `rpPrefs`, `contactPrefs` text | Supported | Converts plain text to Plutarch section headings and paragraphs in a private article. Local behavioral test. |
 | Player `nicknames`, `pronouns`, `battleTag`, `discordUsername`, `timezone` text | Supported | Converts plain text to sidebar definitions. Local behavioral test. |
 | Player source tags | Supported | Retains source tags and adds `player` plus `cobalt-source:<fullname>`. Local behavioral test. |
@@ -34,7 +34,8 @@
 ## How it works
 
 - [Create-only transport contract](cobalt-worldanvil-client.md)
-- The caller supplies source identity, converted payload, and journal path.
+- Caller fetches the complete live inventory once per bounded batch with `client.list_articles(world_id)`, builds `inventory = index_articles(articles)`, and passes it as the required sixth argument to `import_page(client, world_id, source, payload, journal_path, inventory)` for every page in that batch. `import_page` does not list articles. The dict-based inventory indexes normalized title/slug, source marker, and ID; successful create responses add their ID and payload immediately, even if readback then fails.
+- Caller controls when to fetch and rebuild the index between batches. Snapshot identity checks are not an atomic remote create-if-absent: another writer can create an article after the fetch. Reconcile that race externally; this module never updates existing articles.
 - A pending or unverified creation requires reconciliation, not another create request.
 
 ## Implementation inventory
@@ -44,7 +45,7 @@
 
 ## Tests asserting this spec
 
-- `tests/cobalt_migration/test_worldanvil_import.py`: profile content/privacy, explicit unsupported-source failures, preservation, uncertain-response resume, readback mismatch.
+- `tests/cobalt_migration/test_worldanvil_import.py`: profile content/privacy, explicit unsupported-source failures, preserved manual articles, multi-page batch index and duplicates, refreshed source-marker matching, ambiguous candidates, uncertain-response resume, readback mismatch.
 - `tests/cobalt_migration/test_worldanvil_client.py`: local HTTP pagination and create-only effects.
 
 ## Known gaps (current cycle)

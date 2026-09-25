@@ -133,21 +133,37 @@ def _normalize(value):
     )
 
 
-def _find_existing(source, articles):
+def _index_article(inventory, article):
+    article_id = article["id"]
+    inventory[("id", article_id)] = {article_id: article}
+    for value in (article.get("title"), article.get("slug")):
+        name = _normalize(value)
+        if name:
+            inventory.setdefault(("name", name), {})[article_id] = article
+    for tag in (article.get("tags") or "").split(","):
+        if tag.startswith("cobalt-source:"):
+            inventory.setdefault(("marker", tag), {})[article_id] = article
+
+
+def index_articles(articles):
+    """Index a caller-owned remote inventory snapshot by name, source tag, and ID."""
+    inventory = {}
+    for article in articles:
+        _index_article(inventory, article)
+    return inventory
+
+
+def _find_existing(source, inventory):
     names = {
         _normalize(source["title"]),
         _normalize(source["fullname"].partition(":")[2]),
     }
-    names.discard("")
+    matches = {}
+    for name in names - {""}:
+        matches.update(inventory.get(("name", name), {}))
     marker = "cobalt-source:" + source["fullname"]
-    return [
-        article
-        for article in articles
-        if names.intersection(
-            {_normalize(article.get("title")), _normalize(article.get("slug"))}
-        )
-        or marker in (article.get("tags") or "").split(",")
-    ]
+    matches.update(inventory.get(("marker", marker), {}))
+    return list(matches.values())
 
 
 def _load_journal(path, world_id):
@@ -184,8 +200,8 @@ def _verify_created(client, world_id, article_id, payload):
     return actual
 
 
-def import_page(client, world_id, source, payload, journal_path):
-    """Create once, then read back. A pending/uncertain result blocks all retries."""
+def import_page(client, world_id, source, payload, journal_path, inventory):
+    """Create once against a caller-owned batch inventory; never retry uncertain creates."""
     path = Path(journal_path)
     journal = _load_journal(path, world_id)
     fullname = source["fullname"]
@@ -201,7 +217,7 @@ def import_page(client, world_id, source, payload, journal_path):
                 "prior creation needs reconciliation; refusing another create"
             )
         return previous
-    existing = _find_existing(source, client.list_articles(world_id))
+    existing = _find_existing(source, inventory)
     if len(existing) > 1:
         raise ImportBlocked("multiple live identity candidates; refusing creation")
     entry = {
@@ -217,6 +233,7 @@ def import_page(client, world_id, source, payload, journal_path):
     created = client.create_article(world_id, payload)
     entry.update(status="created_unverified", id=created["id"])
     write_manifest(journal, path)
+    _index_article(inventory, {**payload, "id": created["id"]})
     _verify_created(client, world_id, created["id"], payload)
     entry["status"] = "created"
     write_manifest(journal, path)

@@ -8,6 +8,7 @@ from pathlib import Path
 from tools.cobalt_migration.worldanvil_import import (
     ImportBlocked,
     import_page,
+    index_articles,
     player_payload,
 )
 
@@ -34,12 +35,10 @@ class Destination:
         self.articles = {a["id"]: dict(a) for a in articles}
         self.lose_response = lose_response
 
-    def list_articles(self, world_id):
-        return list(self.articles.values())
-
     def create_article(self, world_id, payload):
-        article = {**payload, "id": NEW_ID, "world": {"id": world_id}}
-        self.articles[NEW_ID] = article
+        article_id = NEW_ID if NEW_ID not in self.articles else "second-created-id"
+        article = {**payload, "id": article_id, "world": {"id": world_id}}
+        self.articles[article_id] = article
         if self.lose_response:
             raise TimeoutError("response lost after remote creation")
         return article
@@ -149,7 +148,12 @@ class ImportPageTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             journal = Path(directory) / "journal.json"
             result = import_page(
-                remote, WORLD, SOURCE, player_payload(SOURCE, FIELDS), journal
+                remote,
+                WORLD,
+                SOURCE,
+                player_payload(SOURCE, FIELDS),
+                journal,
+                index_articles(remote.articles.values()),
             )
             self.assertEqual(result["status"], "created")
             self.assertEqual(remote.articles["old-id"], old)
@@ -168,17 +172,24 @@ class ImportPageTests(unittest.TestCase):
                 SOURCE,
                 player_payload(SOURCE, FIELDS),
                 Path(directory) / "journal.json",
+                index_articles(remote.articles.values()),
             )
             self.assertEqual(result["status"], "existing")
             self.assertEqual(remote.articles, {"old-id": old})
 
     def test_lost_creation_response_is_durably_blocked_on_resume(self):
         remote = Destination(lose_response=True)
+        inventory = index_articles(remote.articles.values())
         with tempfile.TemporaryDirectory() as directory:
             journal = Path(directory) / "journal.json"
             with self.assertRaises(TimeoutError):
                 import_page(
-                    remote, WORLD, SOURCE, player_payload(SOURCE, FIELDS), journal
+                    remote,
+                    WORLD,
+                    SOURCE,
+                    player_payload(SOURCE, FIELDS),
+                    journal,
+                    inventory,
                 )
             self.assertEqual(len(remote.articles), 1)
             self.assertEqual(
@@ -187,7 +198,12 @@ class ImportPageTests(unittest.TestCase):
             )
             with self.assertRaises(ImportBlocked):
                 import_page(
-                    remote, WORLD, SOURCE, player_payload(SOURCE, FIELDS), journal
+                    remote,
+                    WORLD,
+                    SOURCE,
+                    player_payload(SOURCE, FIELDS),
+                    journal,
+                    inventory,
                 )
             self.assertEqual(len(remote.articles), 1)
 
@@ -200,16 +216,98 @@ class ImportPageTests(unittest.TestCase):
                 }
 
         remote = CorruptDestination()
+        inventory = index_articles(remote.articles.values())
         with tempfile.TemporaryDirectory() as directory:
             journal = Path(directory) / "journal.json"
             with self.assertRaises(ImportBlocked):
                 import_page(
-                    remote, WORLD, SOURCE, player_payload(SOURCE, FIELDS), journal
+                    remote,
+                    WORLD,
+                    SOURCE,
+                    player_payload(SOURCE, FIELDS),
+                    journal,
+                    inventory,
                 )
             self.assertEqual(
                 json.loads(journal.read_text())["pages"]["player:anakin"]["status"],
                 "created_unverified",
             )
+            duplicate = {"fullname": "player:ani", "title": "Anakin"}
+            result = import_page(
+                remote, WORLD, duplicate, {"title": "Anakin"}, journal, inventory
+            )
+            self.assertEqual(result["status"], "existing")
+            self.assertEqual(len(remote.articles), 1)
+
+    def test_batch_creates_two_pages_then_blocks_duplicate_alias(self):
+        remote = Destination()
+        inventory = index_articles(remote.articles.values())
+        with tempfile.TemporaryDirectory() as directory:
+            journal = Path(directory) / "journal.json"
+            for name in ("Anakin", "Bail"):
+                source = {"fullname": f"player:{name.lower()}", "title": name}
+                payload = player_payload(source, FIELDS)
+                result = import_page(remote, WORLD, source, payload, journal, inventory)
+                self.assertEqual(result["status"], "created")
+            alias = {"fullname": "player:alternate", "title": "ANAKIN"}
+            result = import_page(
+                remote, WORLD, alias, {"title": alias["title"]}, journal, inventory
+            )
+            self.assertEqual(result["status"], "existing")
+            self.assertEqual(len(remote.articles), 2)
+            self.assertEqual(remote.articles[NEW_ID]["title"], "Anakin")
+            self.assertEqual(remote.articles["second-created-id"]["title"], "Bail")
+
+    def test_refreshed_snapshot_finds_new_source_marker_without_name_match(self):
+        remote = Destination()
+        inventory = index_articles(remote.articles.values())
+        article = {
+            "id": "manual-id",
+            "title": "A Different Heading",
+            "slug": "different",
+            "tags": "notes,cobalt-source:player:anakin",
+            "content": "Manual notes",
+        }
+        remote.articles["manual-id"] = article
+        inventory = index_articles(remote.articles.values())
+        with tempfile.TemporaryDirectory() as directory:
+            result = import_page(
+                remote,
+                WORLD,
+                SOURCE,
+                player_payload(SOURCE, FIELDS),
+                Path(directory) / "journal.json",
+                inventory,
+            )
+            self.assertEqual(result["status"], "existing")
+            self.assertEqual(result["id"], "manual-id")
+            self.assertEqual(remote.articles, {"manual-id": article})
+
+    def test_ambiguous_title_and_slug_candidates_block_create(self):
+        articles = [
+            {"id": "manual-a", "title": "Anakin", "content": "First notes"},
+            {
+                "id": "manual-b",
+                "title": "Other",
+                "slug": "anakin",
+                "content": "Second notes",
+            },
+        ]
+        remote = Destination(articles)
+        inventory = index_articles(remote.articles.values())
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(
+                ImportBlocked, "multiple live identity candidates"
+            ):
+                import_page(
+                    remote,
+                    WORLD,
+                    SOURCE,
+                    player_payload(SOURCE, FIELDS),
+                    Path(directory) / "journal.json",
+                    inventory,
+                )
+            self.assertEqual(remote.articles, {a["id"]: a for a in articles})
 
 
 if __name__ == "__main__":
