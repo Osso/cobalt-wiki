@@ -41,18 +41,18 @@ Cobalt will support Wikidot-style watching for locally created site, category, a
 
 - `deepwell/src/services/relation/page_watch.rs` — existing user-to-page `PageWatch` relation; no delivery flow is implemented.
 - `deepwell/src/services/email/mailgun.rs` — existing Mailgun sender to reuse; watching does not add a second mail service.
-- `deepwell/src/services/watching/diff.rs` — pure, bounded rendered-text change summary; pinned `similar` 2.7.0 supplies word-level matching instead of custom quadratic matching.
-- Site and category watch models, APIs, UI, event delivery, notification persistence, and one-click unsubscribe do not exist.
+- `deepwell/src/services/watching/diff.rs` — implemented pure, bounded rendered-text change summary; pinned `similar` 2.7.0 supplies word-level matching instead of custom quadratic matching.
+- Site and category subscription migrations and APIs are in progress with agent 792. UI, event delivery, notification persistence, and one-click unsubscribe remain unimplemented.
 
 ## Tests asserting this spec
 
-- `deepwell/src/services/watching/diff.rs` — pure diff tests cover separated edits, creation, empty/no change, Unicode, and the combined 1,000-character limit. Delivery tests do not exist yet.
+- `deepwell/src/services/watching/diff.rs` — six pure unit tests are green in retained `/tmp/cobalt-watching-diff-green.log`: separated edits, additions/removals, creation, empty/no change, Unicode creation limit, and combined 1,000-character limit. They do not cover end-to-end email, privacy, or delivery.
 
 ## Known gaps (current cycle)
 
-- [ ] Implement site, category, and page subscription management.
+- [ ] Complete site, category, and page subscription management; subscription migrations and APIs are in progress with agent 792.
 - [ ] Implement permission checks for subscription, Activity, and delivery across revision visibility.
-- [ ] Implement committed create/edit watcher events, suppression, overlapping-watch deduplication, Activity, optional Mailgun email delivery, and one-click email unsubscribe.
+- [ ] Implement delivery/UI: committed create/edit watcher events, suppression, overlapping-watch deduplication, Activity, optional Mailgun email delivery, and one-click email unsubscribe.
 - [ ] Add behavioral tests for successful changes, rollback, privacy across revisions, suppression, self-notification exclusion, overlap deduplication, email payload limits, unsubscribe behavior, imported-page future edits, and no historical-backfill delivery.
 
 ## Out of scope
