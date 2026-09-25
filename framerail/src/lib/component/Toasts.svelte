@@ -25,7 +25,7 @@
   // outro: set height and margin-top to 0
   // this causes the toasts to gracefully reposition as the list changes
 
-  function intro(evt: any) {
+  function intro(evt: CustomEvent<null>) {
     const node = evt.currentTarget as HTMLElement
     const toast = node.children[0] as HTMLElement
     const height = toast.getBoundingClientRect().height
@@ -33,7 +33,7 @@
     node.style.marginTop = "1rem"
   }
 
-  function outro(evt: any) {
+  function outro(evt: CustomEvent<null>) {
     // last toast can have a weird animation, so we skip it to avoid that
     if (listToasts.length !== 0) {
       const node = evt.currentTarget as HTMLElement
