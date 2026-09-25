@@ -94,7 +94,7 @@
     var(--font-system-mono);
 
   // Small displays (e.g. phones)
-  @include media("<=small") {
+  @media (max-width: $small-screen-max) {
     --font-content-size: 0.75;
   }
 }

@@ -1,5 +1,9 @@
 # Cobalt native runtime
 
+## Small-screen stylesheet boundary
+
+Framerail uses native media queries sharing `$small-screen-max: 850px`; typography, layout, and toast rules retain their inclusive boundary. The `include-media` package is no longer imported by Framerail styles. Its direct dependency declaration is temporarily retained because isolated pnpm removal rewrites unrelated peer resolutions; remove that metadata when a bounded lockfile update is available. Shared installed dependencies and legacy `web/resources` styles are unchanged.
+
 `install/nixos/module.nix` defines an isolated, loopback-only Wikijump runtime using the [native packages](cobalt-native-packages.md). It does not expose a website or change Sakuin services. Root `deploy.sh` updates only the existing local preview Deepwell user service; `install/dev-deploy.sh` targets production Sakuin. See the [runtime integration guide](../wiki/systems/cobalt-native-runtime.md) for deployment integration; that guide remains main-owned.
 
 Local preview deployment requires SQLx CLI on PATH (for example, `nix shell nixpkgs#sqlx-cli --command ./deploy.sh`). Root `deploy.sh` validates the protected local `environment.json` DATABASE_URL targets `cobalt_local_full` on loopback port 25432, confirms the preview unit is active, builds Deepwell, runs `sqlx migrate run` against that database from `deepwell/`, then restarts the unit only after migration success. This workflow does not deploy production Sakuin.

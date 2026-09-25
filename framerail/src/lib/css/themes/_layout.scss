@@ -26,7 +26,7 @@
   --layout-body-side-gap: 1rem;
 
   // Small displays (e.g. phones)
-  @include media("<=small") {
+  @media (max-width: $small-screen-max) {
     --layout-navbar-height: 3rem;
     --layout-body-side-gap: 0.5rem;
   }
