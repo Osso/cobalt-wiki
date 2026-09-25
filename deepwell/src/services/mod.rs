@@ -98,6 +98,7 @@ pub mod render;
 pub mod role;
 pub mod score;
 pub mod search;
+pub mod watching;
 pub mod session;
 pub mod settings;
 pub mod site;

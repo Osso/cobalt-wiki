@@ -41,11 +41,12 @@ Cobalt will support Wikidot-style watching for locally created site, category, a
 
 - `deepwell/src/services/relation/page_watch.rs` — existing user-to-page `PageWatch` relation; no delivery flow is implemented.
 - `deepwell/src/services/email/mailgun.rs` — existing Mailgun sender to reuse; watching does not add a second mail service.
+- `deepwell/src/services/watching/diff.rs` — pure, bounded rendered-text change summary; pinned `similar` 2.7.0 supplies word-level matching instead of custom quadratic matching.
 - Site and category watch models, APIs, UI, event delivery, notification persistence, and one-click unsubscribe do not exist.
 
 ## Tests asserting this spec
 
-- No watcher tests exist yet.
+- `deepwell/src/services/watching/diff.rs` — pure diff tests cover separated edits, creation, empty/no change, Unicode, and the combined 1,000-character limit. Delivery tests do not exist yet.
 
 ## Known gaps (current cycle)
 
