@@ -14,11 +14,16 @@ def _literal_lines(value: str) -> str:
 
 def reference_payload(source, raw_source):
     """Represent source as text in a private World Anvil article payload."""
-    title = source["title"]
+    title = source.get("title")
     fullname = source["fullname"]
+    title_line = (
+        f"Original title: {_literal_lines(title)}[br]"
+        if title is not None
+        else "Original title unavailable in metadata export[br]"
+    )
     content = (
         "Source reference (not an executable template, style, or system page)[br]"
-        f"Original title: {_literal_lines(title)}[br]"
+        f"{title_line}"
         f"Original fullname: {_literal_lines(fullname)}[br]"
         f"Source text:[br]{_literal_lines(raw_source)}"
     )
@@ -28,7 +33,7 @@ def reference_payload(source, raw_source):
         )
     )
     return {
-        "title": f"Source reference: {escape(title)}",
+        "title": f"Source reference: {fullname}",
         "templateType": "article",
         "state": "private",
         "isDraft": False,

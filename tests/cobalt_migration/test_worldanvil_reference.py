@@ -19,7 +19,7 @@ class ReferencePayloadTests(unittest.TestCase):
         self.assertEqual(payload["state"], "private")
         self.assertEqual(payload["editor"], "plutarch")
         self.assertIn("Source reference", payload["title"])
-        self.assertIn("Infobox", payload["title"])
+        self.assertEqual(payload["title"], "Source reference: template:infobox")
         self.assertIn("Infobox", payload["content"])
         self.assertIn("template:infobox", payload["content"])
         self.assertEqual(
@@ -54,6 +54,15 @@ class ReferencePayloadTests(unittest.TestCase):
             "[noparse]&lt;style&gt;body {color:red}&lt;/style&gt;[/noparse][br]"
             "[noparse]&lt;widget attr=&quot;x&amp;y&quot;&gt;[/noparse][br]",
         )
+
+    def test_reference_identity_does_not_require_unavailable_metadata_title(self):
+        source = {"fullname": "player:_public", "tags": [], "status": "denied"}
+        payload = reference_payload(source, "Visible source from the supplied backup")
+        self.assertEqual(payload["title"], "Source reference: player:_public")
+        self.assertIn(
+            "Original title unavailable in metadata export", payload["content"]
+        )
+        self.assertIn("Visible source from the supplied backup", payload["content"])
 
     def test_noparse_closer_in_source_is_rejected(self):
         for raw in ("before [/noparse] after", "before [/NoParse] after"):
