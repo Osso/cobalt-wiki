@@ -13,3 +13,9 @@ UI where themes and customization are not available:
 UI where existing themes should be adapted to:
   * Page editor
   * Page options
+
+## Legacy tabview interaction
+
+Legacy-layout tabviews remain interactive without a component import or client-side widget initialization. A layout-level delegated handler activates only a tabview's matching direct-child panel, retaining the server-selected initial panel until activation. Activation updates the selected tab's `aria-selected` and `tabindex`, and the corresponding panel's visibility and ARIA state.
+
+Tab controls support pointer activation plus keyboard navigation: Arrow keys, Home, and End move focus among sibling tabs; Enter and Space activate the focused tab. Nested or unrelated tabviews must not be affected.
