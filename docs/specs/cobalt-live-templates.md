@@ -19,7 +19,7 @@ Render archived Wikidot form pages through their category `_template`, as Wikido
 
 Rendering order for a published page body: live template → includes ([spec](cobalt-includes.md)) → ListPages ([spec](cobalt-list-pages.md)) → FTML. Include argument values are trimmed like Wikidot, because the archived templates pass one argument per line.
 
-Archive check (2026-09-22): 5,969 of 5,970 pages in the eight form categories parse as field records; the exception, `player:_public`, is Wikidot's plain-text non-member page and is hidden, so it is never wrapped.
+Archive check (2026-09-22): 5,969 of 5,970 pages in the eight form categories parse as field records; the exception, `player:_public`, is Wikidot's plain-text non-member page and is hidden, so it is never wrapped. Final gate `/tmp/claude/cobalt-underscore-form-final-gate.json` passed with scope limitations at implementation `6900764ce` and integration test `09da6f49e`: focused helper proof passed 4/4, retained integration proof passed 1/1, and formatter and offline locked compile passed. Root `deploy.sh` exited 0; protected local evidence at `/home/osso/.local/share/cobalt-wiki/local-full/underscore-form-fix/` records page `3000001605` Found with `form: null`, archive-exact source hash, browser HTTP 200 with zero errors or POSTs, and preserved pages/history/drafts/grants/native content. The native-content comparison excludes renderer-cache and `updated_at` fields, so it is not a full-row equality claim. This is page-specific local proof, not source-ACL parity, a permission change, production deployment, or full replica readiness.
 
 ### Rendering budgets
 
