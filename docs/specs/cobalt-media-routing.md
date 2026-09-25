@@ -9,7 +9,7 @@ FTML must render same-site attachment references through the deployed site's pro
 - [x] Preserve source bytes and revision identity while refreshing derived HTML.
 - [x] Serve actual imported image bytes behind authentication and no-index controls.
 - [x] Render Wikidot `[[gallery]]` markup: bare galleries list the page's image attachments in Wikidot's en_US name order, `: file` lists keep source order; originals are shown at Wikidot's thumbnail sizes because there is no resizer.
-- [ ] An ordinary thumbnail click opens that gallery's image viewer without navigating away. Show the original image at natural size within the viewport, its position/count, bounded Previous/Next controls, and Close/Escape dismissal with focus returned to the thumbnail. Opening/browsing/closing must not save page content; modified clicks retain normal link behavior.
+- [x] An ordinary thumbnail click opens that gallery's image viewer without navigating away. Show the original image at natural size within the viewport, its position/count, bounded Previous/Next controls, and Close/Escape dismissal with focus returned to the thumbnail. Opening/browsing/closing must not save page content; modified clicks retain normal link behavior.
 - [x] Resolve files on pages whose names have more than one colon (`/-/file/writing:2021-10-21-to-paint-a-picture:the-game/chessset.jpg`): wws normalizes page slugs with the same patched `wikidot-normalize` as Deepwell.
 - [x] Serve a page's files (`/-/file`, `/-/download`) and text blocks (`/-/code`, `/-/html`) only to viewers the page view would show the page to; others get `403` (the page view's status), `Cache-Control: private, no-store`. The viewer is the `wikijump_token` session cookie; an unknown or expired token counts as anonymous.
 - [x] Files of pages anonymous visitors may view stream from wws with `Cache-Control: public, max-age=2592000` (30 days). A file replaced under the same name can be served stale from browser/edge caches for up to 30 days.
@@ -43,6 +43,7 @@ FTML must render same-site attachment references through the deployed site's pro
 ## Known gaps (current cycle)
 
 - [x] Native routing test and all 121 FTML AST fixtures pass; fmt/check pass. Deployed and refreshed 28 affected pages, preserving source hashes and revision identity. Browser loads both homepage images backed by imported attachments, with matching hashes through public authenticated HTTPS.
+- [ ] Native gallery viewing (`cef28e93b`, `01e1bfaa4`) is local only. The main Badges browser test is green; independent verification and a Framerail deployment remain pending. Production still sends an ordinary Badges thumbnail click to the homepage.
 - [ ] Two homepage images still depend on unresolved template variables; routing must not pretend their requested assets exist.
 - [x] Local full-preview image correction browser proof passed: authenticated `home:_public` (`2/2` visible images, `2/2` CSS backgrounds, `4/4` verified assets) and `home:start` (`19/19`, `3/3`, `22/22`) have no failures; unauthenticated access remains `401` and no-index remains present. The [replica-status SSOT](../wiki/systems/cobalt-replica-status.md#local-full-preview-media-routing) records causes and evidence scope.
 
