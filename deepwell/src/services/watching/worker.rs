@@ -193,10 +193,12 @@ async fn eligible_email_recipient(
 }
 
 pub(crate) async fn actor_name(ctx: &ServiceContext<'_>, user_id: i64) -> Result<String> {
-    Ok(match UserService::get(ctx, Reference::Id(user_id)).await? {
-        User::Wikijump(user) => user.name,
-        User::Wikidot(user) => user.name,
-    })
+    match UserService::get(ctx, Reference::Id(user_id)).await? {
+        User::Wikijump(user) => Ok(user.name),
+        User::Wikidot(user) => user.name.ok_or_raise(|| {
+            Error::new("watcher change author has no display name", ErrorType::User)
+        }),
+    }
 }
 
 async fn compose_email(
