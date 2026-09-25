@@ -37,6 +37,18 @@ async function assertRevisionMetadata(row, revision) {
   assert.equal((await cells.nth(5).innerText()).trim(), revision.source_comments.trim())
 }
 
+/**
+ * @param {URL} url
+ * @param {string} origin
+ */
+function isHistoryRead(url, origin) {
+  return (
+    url.origin === origin &&
+    url.pathname === "/home:start" &&
+    ["?/history", "?/importedHistory", "?/importedRevision"].includes(url.search)
+  )
+}
+
 test("local imported history paginates and exposes preserved source without rollback", async () => {
   const passwordFile = process.env.COBALT_LOCAL_PASSWORD_FILE
   const payloadFile = process.env.COBALT_HISTORY_PILOT
@@ -80,11 +92,7 @@ test("local imported history paginates and exposes preserved source without roll
         return
       }
       const url = new URL(request.url())
-      const isHistoryRead =
-        url.origin === origin &&
-        url.pathname === "/home:start" &&
-        ["?/history", "?/importedHistory", "?/importedRevision"].includes(url.search)
-      if (isHistoryRead) {
+      if (isHistoryRead(url, origin)) {
         await route.continue()
         return
       }
