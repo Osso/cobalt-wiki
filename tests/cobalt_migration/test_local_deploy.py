@@ -29,6 +29,7 @@ record = {{
 with open(os.environ["CALL_LOG"], "a", encoding="utf-8") as log:
     log.write(json.dumps(record) + "\\n")
 if os.environ.get("FAIL_TOOL") == record["tool"]:
+    print("synthetic tool failure", file=sys.stderr)
     sys.exit(9)
 """
 
@@ -121,6 +122,19 @@ class LocalDeployTests(unittest.TestCase):
         self.assertEqual(
             [call["tool"] for call in self.calls()], ["systemctl", "cargo", "sqlx"]
         )
+
+    def test_migration_failure_retains_private_diagnostics(self):
+        result = self.deploy(fail_tool="sqlx")
+        self.assertNotEqual(result.returncode, 0)
+        diagnostics = (
+            self.home / ".local/share/cobalt-wiki/local-full/deploy-migrations.log"
+        )
+        self.assertTrue(
+            diagnostics.exists(), "migration failure diagnostics must be retained"
+        )
+        self.assertIn("synthetic tool failure", diagnostics.read_text())
+        self.assertEqual(diagnostics.stat().st_mode & 0o777, 0o600)
+        self.assertIn(str(diagnostics), result.stderr)
 
     def test_success_builds_then_migrates_then_restarts_with_local_database(self):
         result = self.deploy()

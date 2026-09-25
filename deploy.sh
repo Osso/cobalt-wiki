@@ -60,6 +60,16 @@ migration = subprocess.run(
     capture_output=True,
     check=False,
 )
+migration_log = (
+    Path.home() / ".local/share/cobalt-wiki/local-full/deploy-migrations.log"
+)
+with os.fdopen(
+    os.open(migration_log, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "wb"
+) as log:
+    os.fchmod(log.fileno(), 0o600)
+    log.write(migration.stdout + migration.stderr)
 if migration.returncode:
-    raise SystemExit("SQLx migrations failed; refusing to restart local preview unit")
+    raise SystemExit(
+        f"SQLx migrations failed; see {migration_log}; refusing to restart local preview unit"
+    )
 subprocess.run(["systemctl", "--user", "restart", unit], check=True)
