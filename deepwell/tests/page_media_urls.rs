@@ -115,9 +115,12 @@ async fn image_box_in_live_character_template_uses_character_attachment() {
         ("image-box", "[[image {$image}]]"),
         (
             "character:_template",
-            "[[include image-box | image=%%form_data{image}%%]]\n\n====\n\n[[form]]\nfields:\n  image:\n    type: text\n[[/form]]\n",
+            "%%form_raw{appearance}%%\n\n====\n\n[[form]]\nfields:\n  appearance:\n    type: wiki\n[[/form]]\n",
         ),
-        ("character:melancholy", "image: Melancholy_Outfits\n"),
+        (
+            "character:melancholy",
+            "appearance: \"[[include ImageBox\\n| image= Melancholy_Outfits\\n]]\"\n",
+        ),
     ] {
         run_endpoint!(
             runner,
