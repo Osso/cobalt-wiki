@@ -11,6 +11,12 @@ Cobalt history import must store authorized source revision history without pres
 
 The historical plan baseline remains two unresolved identities. Neither observation implies three revisions. Independent offline verification passes with these boundaries: `/tmp/claude/cobalt-source-identities-final-gate.json`.
 
+## Recent source identity outcome
+
+Offline grant inspection maps the denied numeric source identity `1312457155` to authenticated source page `PrivateContent`; it does not establish its source ACL policy. The matching local target is page `3000001605` in category `100000010`. Retained local grant rows contain three anonymous virtual-role unscoped `page:view` grants and no category-scoped `page:view` grant; retained checker source plus those rows infer allow, but the checker was not executed. The local anonymous `page_view` reaches the Found-only path and errors during form extraction before a render response. Deployed revision, runtime checker execution, and successful anonymous private-content render are unverified. This is not proof of a data leak.
+
+The `45,369` figure remains historic acquisition/import proof, not a fresh database count. The 43 unreconstructable original full-row fingerprints remain a separate preservation-proof limit. Any rendering repair must not silently reveal source-restricted content; mapping source policy to local permissions requires a user decision. Do not infer a blanket category deny from this evidence.
+
 ## What it must do
 
 ### Authorized source acquisition
