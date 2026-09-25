@@ -27,9 +27,7 @@ use crate::models::{role, role_permission, user_role};
 use crate::services::ServiceContext;
 use crate::services::audit::{AuditEvent, AuditService};
 use crate::services::permission::resolvers::resolve_category_slug;
-use crate::services::permission::{
-    CheckPermissionContext, PermissionCache, resolve_category_reference,
-};
+use crate::services::permission::{CheckPermissionContext, resolve_category_reference};
 use crate::services::role::{
     GetRolePermissionsInput, GetUserRolesInput, RoleService, UpdateRolePermissionsInput,
 };
@@ -457,10 +455,6 @@ impl PermissionService {
             user_id, site_id, resource, resource_category, action,
         );
 
-        // Category cache keys omit the page attribution used by page-context checks.
-        let cacheable = perm_ctx.page_reference.is_none()
-            && PermissionCache::is_cacheable(resource, action);
-
         // Resolve category reference to ID for permission checking
         let resource_category_id = match &resource_category {
             Some(reference) => {
@@ -468,36 +462,6 @@ impl PermissionService {
             }
             None => None,
         };
-
-        if cacheable {
-            // Check if this permission has been cached
-            let has_permission = PermissionCache::check_user_permission(
-                ctx,
-                Some(site_id),
-                user_id,
-                resource,
-                resource_category_id,
-                action,
-            )
-            .await
-            .or_raise(make_error)?;
-
-            // If we have a cached result, use it
-            if let Some(has_permission) = has_permission {
-                info!(
-                    "Cache hit for user ID {:?} on site ID {} for resource {} of category {:?} with action {}",
-                    user_id, site_id, resource, resource_category, action,
-                );
-                return Ok(has_permission);
-            } else {
-                info!(
-                    "Cache miss for user ID {:?} on site ID {} for resource {} of category {:?} with action {}",
-                    user_id, site_id, resource, resource_category, action,
-                );
-            }
-        }
-
-        // If permission is not cacheable, or is not cached, compute it fresh
 
         // Does this category have permissions scoped to it?
         let has_scoped_permissions = match resource_category_id {
@@ -523,21 +487,6 @@ impl PermissionService {
                 action,
             })
         };
-
-        // Cache result if cacheable
-        if cacheable {
-            PermissionCache::set_user_permission(
-                ctx,
-                Some(site_id),
-                user_id,
-                resource,
-                resource_category_id,
-                action,
-                has_permission,
-            )
-            .await
-            .or_raise(make_error)?;
-        }
 
         Ok(has_permission)
     }
