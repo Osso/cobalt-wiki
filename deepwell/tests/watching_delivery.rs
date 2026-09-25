@@ -17,7 +17,9 @@ use deepwell::services::role::{
 use deepwell::services::site::{CreateSite, SiteService};
 use deepwell::services::user::{CreateUser, UserService};
 use deepwell::services::watching::subscriptions::{WatchPreferences, WatchScope};
-use deepwell::services::watching::{activity, subscriptions, worker};
+use deepwell::services::watching::{
+    activity, subscriptions, visibility::visible_change, worker,
+};
 use deepwell::services::{RequestContext, ServiceContext, TextService};
 use deepwell::types::{Action, Permission, Reference, Resource, UserType};
 use sea_orm::{
@@ -407,6 +409,41 @@ async fn recursive_stored_revision_render_fails_closed_without_stopping_later_de
     let runner = TestRunner::setup_with_mailgun(sender).await;
     let tx = runner.state().database.begin().await.unwrap();
     let f = fixture(&runner, &tx).await;
+    let ctx = context(&runner, &tx, RequestContext::default());
+    let everyone = RoleService::create(
+        &ctx,
+        InternalCreateRoleInput {
+            site_id: f.site_id,
+            name: "everyone".into(),
+            description: None,
+            is_virtual: true,
+            parent_role_id: None,
+            creating_user_id: SYSTEM_USER_ID,
+            ip_address: common::IP_ADDRESS,
+        },
+    )
+    .await
+    .unwrap()
+    .role_id;
+    PermissionService::update_permissions_for_role(
+        &ctx,
+        UpdateRolePermissionsInput {
+            site_id: f.site_id,
+            role_reference: Reference::Id(everyone),
+            new_permissions: [Resource::Site, Resource::Page]
+                .map(|resource_type| Permission {
+                    resource_type,
+                    resource_category: None,
+                    action: Action::View,
+                })
+                .to_vec(),
+            cascade_removals: false,
+            updating_user_id: SYSTEM_USER_ID,
+            ip_address: common::IP_ADDRESS,
+        },
+    )
+    .await
+    .unwrap();
     subscribe(&runner, &tx, &f, WatchScope::Site, f.site_id).await;
     enable_email(&runner, &tx, &f).await;
     tx.commit().await.unwrap();
@@ -418,6 +455,21 @@ async fn recursive_stored_revision_render_fails_closed_without_stopping_later_de
             "watch-broken-new"
         };
         let tx = runner.state().database.begin().await.unwrap();
+        let helper_slug = format!("{slug}-cycle");
+        let (_, helper_revision) =
+            create(&runner, &tx, &f, &helper_slug, "Before.", true).await;
+        let ctx = context(&runner, &tx, RequestContext::default());
+        let helper_hash = TextService::create(&ctx, format!("[[include {helper_slug}]]"))
+            .await
+            .unwrap();
+        page_revision::ActiveModel {
+            revision_id: Set(helper_revision),
+            wikitext_hash: Set(helper_hash.to_vec()),
+            ..Default::default()
+        }
+        .update(&tx)
+        .await
+        .unwrap();
         let (page, created) =
             create(&runner, &tx, &f, slug, "Before.", corrupt_old).await;
         let changed = if corrupt_old {
@@ -429,7 +481,7 @@ async fn recursive_stored_revision_render_fails_closed_without_stopping_later_de
         };
         let corrupted_revision = if corrupt_old { created } else { changed };
         let ctx = context(&runner, &tx, RequestContext::default());
-        let hash = TextService::create(&ctx, format!("[[include {slug}]]"))
+        let hash = TextService::create(&ctx, format!("[[include {helper_slug}]]"))
             .await
             .unwrap();
         page_revision::ActiveModel {
@@ -442,6 +494,22 @@ async fn recursive_stored_revision_render_fails_closed_without_stopping_later_de
         .unwrap();
         tx.commit().await.unwrap();
         let event = event_id(&runner, changed).await.unwrap();
+        let tx = runner.state().database.begin().await.unwrap();
+        let ctx = context(&runner, &tx, request(f.site_id, f.reader, None));
+        assert!(
+            visible_change(
+                &ctx,
+                f.reader,
+                f.site_id,
+                page,
+                corrupt_old.then_some(created),
+                changed,
+            )
+            .await
+            .is_err(),
+            "stored revision must fail rendering before worker delivery"
+        );
+        tx.rollback().await.unwrap();
 
         assert_eq!(worker::process_one(runner.state()).await.unwrap(), 1);
         assert_eq!(
