@@ -72,47 +72,7 @@ test("Melancholy Relationships tabs render separate styled controls and switch p
     const buttons = tabs.getByRole("tab")
     await expect(buttons).toHaveCount(relationships.length)
 
-    const appearance = await buttons.evaluateAll((elements) =>
-      elements.map((button) => {
-        const style = getComputedStyle(button)
-        const box = button.getBoundingClientRect()
-        return {
-          label: button.textContent.trim(),
-          selected: button.getAttribute("aria-selected") === "true",
-          border: parseFloat(style.borderTopWidth),
-          padding: parseFloat(style.paddingLeft),
-          background: style.backgroundColor,
-          color: style.color,
-          box: { left: box.left, right: box.right, top: box.top, bottom: box.bottom }
-        }
-      })
-    )
-    assert.deepEqual(
-      appearance.map(({ label }) => label),
-      relationships.map(([label]) => label)
-    )
-    for (const { label, border, padding, box } of appearance) {
-      assert.ok(border >= 1, `${label} needs a visible border`)
-      assert.ok(padding >= 4, `${label} needs horizontal padding`)
-      assert.ok(box.right > box.left && box.bottom > box.top, `${label} needs a box`)
-    }
-    for (let i = 0; i < appearance.length; i++) {
-      for (let j = i + 1; j < appearance.length; j++) {
-        const a = appearance[i].box
-        const b = appearance[j].box
-        const overlaps =
-          a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom
-        assert.ok(!overlaps, `${appearance[i].label} overlaps ${appearance[j].label}`)
-      }
-    }
-    const selected = appearance.find(({ selected }) => selected)
-    const unselected = appearance.find(({ selected }) => !selected)
-    assert.ok(selected && unselected, "one tab must initially be selected")
-    assert.ok(
-      selected.background !== unselected.background ||
-        selected.color !== unselected.color,
-      "selected tab must be visually distinct"
-    )
+    await assertTabAppearance(buttons)
 
     for (const [label, marker] of relationships) {
       const tab = tabs.getByRole("tab", { name: label, exact: true })
@@ -139,3 +99,47 @@ test("Melancholy Relationships tabs render separate styled controls and switch p
     await api.dispose()
   }
 })
+
+/** @param {import("@playwright/test").Locator} buttons */
+async function assertTabAppearance(buttons) {
+  const appearance = await buttons.evaluateAll((elements) =>
+    elements.map((button) => {
+      const style = getComputedStyle(button)
+      const box = button.getBoundingClientRect()
+      return {
+        label: button.textContent.trim(),
+        selected: button.getAttribute("aria-selected") === "true",
+        border: parseFloat(style.borderTopWidth),
+        padding: parseFloat(style.paddingLeft),
+        background: style.backgroundColor,
+        color: style.color,
+        box: { left: box.left, right: box.right, top: box.top, bottom: box.bottom }
+      }
+    })
+  )
+  assert.deepEqual(
+    appearance.map(({ label }) => label),
+    relationships.map(([label]) => label)
+  )
+  for (const { label, border, padding, box } of appearance) {
+    assert.ok(border >= 1, `${label} needs a visible border`)
+    assert.ok(padding >= 4, `${label} needs horizontal padding`)
+    assert.ok(box.right > box.left && box.bottom > box.top, `${label} needs a box`)
+  }
+  for (let i = 0; i < appearance.length; i++) {
+    for (let j = i + 1; j < appearance.length; j++) {
+      const a = appearance[i].box
+      const b = appearance[j].box
+      const overlaps =
+        a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom
+      assert.ok(!overlaps, `${appearance[i].label} overlaps ${appearance[j].label}`)
+    }
+  }
+  const selected = appearance.find(({ selected }) => selected)
+  const unselected = appearance.find(({ selected }) => !selected)
+  assert.ok(selected && unselected, "one tab must initially be selected")
+  assert.ok(
+    selected.background !== unselected.background || selected.color !== unselected.color,
+    "selected tab must be visually distinct"
+  )
+}
