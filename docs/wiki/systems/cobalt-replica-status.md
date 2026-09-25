@@ -119,7 +119,11 @@ After deploying: jobs already queued as `full` outdate only when their output ch
 
 ## Current-page media-owner fix, 2026-09-25
 
-`62af8b88a` is committed on `main`, not yet deployed; `main` is deploying after its local proof. Bare current-page image references now retain their category and later colons in the owner path. This fixes `character:melancholy`: its six imported assets existed, but its ImageBox's bare `Melancholy_Outfits` reference rendered as the root `melancholy` owner instead of `character:melancholy`. Regression coverage includes direct bare category-page media and the live template path.
+`62af8b88a` is deployed on `main`: root `deploy.sh` completed locally with exit 0, then `main/install/dev-deploy.sh deepwell` completed with exit 0 and deployed production build `74f1e36abd76`. Framerail was deliberately not deployed; its concurrent tabview remains local. Bare current-page image references retain their category and later colons in the owner path. This fixes `character:melancholy`: its ImageBox's bare `Melancholy_Outfits` reference had rendered with root `melancholy` ownership instead of `character:melancholy`.
+
+Public browser proof: Melancholy's portrait and all six gallery assets loaded; its roster thumbnail loaded and navigated to the profile; Isla's `isla_finley`, Avrenne's three images, and Baird's `BairdMelancholyLQ.jpg` loaded. Every checked URL was category-qualified and every image had `naturalWidth > 0`. Screenshots: `/tmp/claude/melancholy-postdeploy-profile.jpg`, `/tmp/claude/melancholy-postdeploy-roster-thumbnail.jpg`, `/tmp/claude/isla-postdeploy.jpg`, `/tmp/claude/avrenne-postdeploy.jpg`, `/tmp/claude/baird-postdeploy.jpg`.
+
+A static archive audit found 59 bare ImageBox references across 32 character pages, each with an exact owner/file archive entry; this is coverage evidence, not live browser proof. `icon_tanith.jpg` remains absent: the replica returns 404 and the upstream wdfiles request returns `200 text/html` stating that the file does not exist. No substitute was introduced. Fixture corrections `13a9afcab` and `f0306352a` report the final routing test 3/3; fresh verifier log review remains pending. Existing `cargo fmt --check` and `cargo check` proof predates those test-only fixture changes.
 
 ## WWS file access, 2026-09-24
 
