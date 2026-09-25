@@ -27,6 +27,7 @@
       <td class="form-values">
         <input
           id="data-form-title"
+          class="text"
           name="title"
           size="35"
           type="text"
