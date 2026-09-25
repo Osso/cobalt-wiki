@@ -149,9 +149,9 @@
   {#if sourceForm}
     <DataFormFields
       form={sourceForm}
+      titleLabel={data.internationalization?.title}
       bind:draft
       bind:title={$form.title}
-      titleLabel={data.internationalization?.title}
     />
     <input
       name="altTitle"

@@ -191,9 +191,9 @@
       {#if createForm}
         <DataFormFields
           form={createForm}
+          titleLabel={errorData.internationalization?.title}
           bind:draft={formDraft}
           bind:title={$editForm.title}
-          titleLabel={errorData.internationalization?.title}
         />
         <input
           name="altTitle"

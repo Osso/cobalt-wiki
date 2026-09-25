@@ -203,13 +203,13 @@ test("source-defined fields render accessible typed controls and readonly static
     )
     assert.match(body, /<input[^>]*id="data-form-field-11"[^>]*type="text"/)
     assert.doesNotMatch(body, /Unsupported alias|data-form-field-11-hint/)
-    assert.match(body, /<span id="data-form-field-3-label">Rank<\/span>/)
+    assert.match(body, /<span id="data-form-field-3-label"[^>]*>Rank<\/span>/)
     assert.match(body, /<fieldset[^>]*aria-labelledby="data-form-field-3-label"/)
     assert.match(
       body,
       /<input[^>]*type="radio"[^>]*checked[^>]*\/>\s*String one<\/label>/
     )
-    assert.match(body, /<span id="data-form-field-4-label">Sex<\/span>/)
+    assert.match(body, /<span id="data-form-field-4-label"[^>]*>Sex<\/span>/)
     assert.match(body, /<fieldset[^>]*aria-labelledby="data-form-field-4-label"/)
     assert.match(body, /<input[^>]*type="radio"[^>]*checked[^>]*\/>\s*Female<\/label>/)
     assert.match(body, /<select[^>]*id="data-form-field-5"/)
