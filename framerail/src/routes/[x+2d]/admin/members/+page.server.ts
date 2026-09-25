@@ -1,5 +1,6 @@
 import {
   loadMembersPage,
+  memberApplicationDecisionAction,
   memberInviteAction,
   memberRemoveAction,
   memberRoleAction
@@ -10,6 +11,7 @@ export async function load({ request, cookies, parent }) {
 }
 
 export const actions = {
+  application: memberApplicationDecisionAction,
   role: memberRoleAction,
   remove: memberRemoveAction,
   invite: memberInviteAction

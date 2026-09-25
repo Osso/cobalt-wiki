@@ -99,6 +99,9 @@ function responder(extra: (rpc: Rpc) => unknown = () => undefined) {
         result: { type: "missing", data: { compiled_top_bar_html: "<nav>Top</nav>" } }
       }
     }
+    if (rpc.method === "member_application_list") {
+      return { result: { applications: [] } }
+    }
     if (rpc.method === "translate") {
       return { result: { "footer-license-unless": "License" } }
     }
@@ -155,6 +158,74 @@ function memberCalls(calls: Call[]) {
 function renderPage(data: MembersData, form: unknown = null) {
   return render(MembersPage, { props: { data, form } }).body
 }
+
+test("admins see pending membership messages with approve and reject actions", async () => {
+  const application = {
+    user_id: 90,
+    user_name: "New Reader",
+    message: "I'd like to contribute <script>alert(1)</script>",
+    created_at: "2026-09-25T06:00:00Z"
+  }
+  const { value: data } = await loadMembers(
+    "session-secret",
+    responder((rpc) => {
+      if (rpc.method === "member_admin_list") return { result: MEMBERS }
+      if (rpc.method === "member_application_list")
+        return { result: { applications: [application] } }
+      return undefined
+    })
+  )
+  assert.deepEqual(data.applications, [application])
+  const body = renderPage(data)
+  assert.match(body, /Membership applications/)
+  assert.match(body, /New Reader/)
+  assert.match(body, /&lt;script(?:>|&gt;)/)
+  assert.doesNotMatch(body, /<script>alert/)
+  assert.match(body, /Approve/)
+  assert.match(body, /Reject/)
+})
+
+test("admins approve or reject applications using their session and site context", async () => {
+  for (const decision of ["approve", "reject"]) {
+    const { value, calls } = await submit(
+      "application",
+      { userId: "90", decision },
+      responder((rpc) =>
+        rpc.method === "member_application_decide" ? { result: {} } : undefined
+      )
+    )
+    assert.equal(value.saved, true)
+    const call = calls.find((entry) => entry.method === "member_application_decide")!
+    assert.deepEqual(call.params, {
+      user_id: 90,
+      accept: decision === "approve",
+      ip_address: "203.0.113.9"
+    })
+    assert.equal(call.headers["X-Deepwell-Session-Token"], "session-secret")
+    assert.equal(call.headers["X-Deepwell-Site-Id"], "6000011")
+  }
+  const invalid = await submit(
+    "application",
+    { userId: "90", decision: "owner" },
+    responder()
+  )
+  assert.equal(invalid.value.status, 400)
+  assert.equal(invalid.calls.length, 0)
+  const unauth = await submit(
+    "application",
+    { userId: "90", decision: "approve" },
+    responder(),
+    null
+  )
+  assert.equal(unauth.value.status, 401)
+  assert.equal(unauth.calls.length, 0)
+  const forbidden = await submit(
+    "application",
+    { userId: "90", decision: "approve" },
+    responder(() => denied)
+  )
+  assert.equal(forbidden.value.status, 403)
+})
 
 test("signed-out visitors get a sign-in link and no member data is requested", async () => {
   const { value: data, calls } = await loadMembers(null, responder())

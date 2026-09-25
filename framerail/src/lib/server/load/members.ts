@@ -1,4 +1,9 @@
 import defaults from "$lib/defaults"
+import {
+  memberApplicationList,
+  memberApplicationDecide,
+  type PendingApplication
+} from "$lib/server/deepwell/applications"
 import { requireDeepwellError } from "$lib/deepwell-errors"
 
 import {
@@ -29,6 +34,7 @@ const ACTION_ERRORS: Record<number, string> = {
   2109: "That account is already a member of this site.",
   3110: "The site owner cannot be changed or removed.",
   3111: "You cannot change or remove your own membership.",
+  4000: "That application is no longer pending. Refresh the list.",
   4102: "Enter the email address to invite.",
   4105: "That email address is not valid.",
   4106: "That email address is not allowed.",
@@ -59,9 +65,11 @@ export async function loadMembersPage(
   const viewer = parentData.user_session?.user
   let access: Access = viewer && sessionToken ? "admin" : "signed-out"
   let members: SiteMember[] = []
+  let applications: PendingApplication[] = []
   if (access === "admin") {
     try {
       members = await memberAdminList({ sessionToken, siteId })
+      applications = (await memberApplicationList({ sessionToken, siteId })).applications
     } catch (caught) {
       if (requireDeepwellError(caught).code !== PERMISSION_DENIED) throw caught
       access = "denied"
@@ -73,8 +81,28 @@ export async function loadMembersPage(
     internationalization,
     access,
     viewerId: viewer?.user_id ?? null,
-    members
+    members,
+    applications
   }
+}
+
+export async function memberApplicationDecisionAction(event: RequestEvent) {
+  const form = await event.request.formData()
+  const userId = Number(formText(form, "userId"))
+  const decision = formText(form, "decision")
+  if (
+    !Number.isSafeInteger(userId) ||
+    userId <= 0 ||
+    !["approve", "reject"].includes(decision)
+  ) {
+    return fail(400, { message: "Choose an application and approve or reject it." })
+  }
+  return runAdminAction(event, async (ip, context) => {
+    await memberApplicationDecide(userId, decision === "approve", ip, context)
+    return decision === "approve"
+      ? "Application approved. The applicant is now a member."
+      : "Application rejected. The applicant remains a guest and may apply again."
+  })
 }
 
 export async function memberRoleAction(event: RequestEvent) {

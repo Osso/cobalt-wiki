@@ -58,6 +58,24 @@
     </p>
   {/if}
 
+  <section aria-labelledby="applications-heading">
+    <h2 id="applications-heading">Membership applications</h2>
+    {#each data.applications as application (application.user_id)}
+      <article class="membership-application">
+        <h3>{application.user_name}</h3>
+        <p>Applied {joinDate(application.created_at)}</p>
+        <p class="application-message">{application.message}</p>
+        <form action="?/application" method="POST" use:enhance>
+          <input name="userId" type="hidden" value={application.user_id} />
+          <button name="decision" value="approve" type="submit">Approve</button>
+          <button name="decision" value="reject" type="submit">Reject</button>
+        </form>
+      </article>
+    {:else}
+      <p>No pending applications.</p>
+    {/each}
+  </section>
+
   <div class="members-tabs" role="tablist">
     {#each TABS as { id, label } (id)}
       <button
@@ -148,6 +166,22 @@
 
 <style lang="scss">
   @use "../../../../lib/css/account-form" as *;
+
+  .membership-application {
+    padding: 0.75em 0;
+    border-bottom: 1px solid #8a94a6;
+
+    form {
+      display: flex;
+      gap: 0.5em;
+      @include account-form-controls;
+    }
+  }
+
+  .application-message {
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+  }
 
   .members-tabs {
     display: flex;
