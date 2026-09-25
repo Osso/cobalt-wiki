@@ -38,8 +38,8 @@ This is the shared final proof for the `551d29df5`, `62e1467e9`, `1db12295f`, an
 - Local `./deploy.sh` succeeded at `1db12295f`; Digest rerender snapshots preserved page-view source and revision identity (`/tmp/claude/cobalt-admin-digest-{before,after}.json`).
 - Frontend follow-up: ESLint, Stylelint and Prettier exited 0. `svelte-check` retained only five pre-existing `imported-history.mjs` errors at lines 87, 103, 110, 158 and 164; the new Admin-test errors were gone.
 
-The Applications dashboard still exposes a separate imported-metadata gap: `application:badchemistry` has `updated_at = null`, so the page renders literal `%%updated_at%%`; no date was fabricated. These fixes have no public deployment and do not establish full replica or legacy-admin completeness.
+The Applications dashboard still exposes a separate imported-metadata gap: `application:badchemistry` has `updated_at = null`, so the page renders literal `%%updated_at%%`; no date was fabricated. The ListPages/table fixes deployed with `all` `0d9ebcca4153` on September 25, 2026, but do not establish full replica or legacy-admin completeness.
 
 ## Out of scope
 
-Other modules (`CountPages`, `NewPage`, `Join`, ...), listing invalidation (queue fan-out: [rerender invalidation](cobalt-rerender-invalidation.md)), and deployment.
+Other modules (`CountPages`, `NewPage`, `Join`, ...) and listing invalidation (queue fan-out: [rerender invalidation](cobalt-rerender-invalidation.md)).

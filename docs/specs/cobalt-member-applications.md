@@ -19,15 +19,22 @@ A signed-in guest can request site membership with a short message. Site admins 
 
 - `deepwell/src/services/member_application.rs` — session authorization, relation lifecycle, membership acceptance.
 - `deepwell/src/endpoints/member_application.rs`, `deepwell/src/api.rs` — RPC parsing and registration.
+- `framerail/src/routes/[x+2d]/join/`, `framerail/src/routes/[x+2d]/admin/members/` — Join form and Site members approval queue.
 
 ## Tests asserting this spec
 
-- `deepwell/tests/member_application.rs` — DB-backed application lifecycle, permissions, validation, session/site isolation, and separate-transaction concurrency.
+- `deepwell/tests/member_application.rs` — DB-backed application lifecycle, permissions, validation, session/site isolation, and separate-transaction concurrency (6/6).
+- `deepwell/vendor/ftml/src/render/handle.rs::join_links_to_membership_application` — native Join link rendering (1/1).
+- `framerail/tests/join.test.ts` — signed-out, guest, pending and member Join states; validation and request context (4/4).
+- `framerail/tests/members.test.ts` — pending queue, safe messages, decisions, malformed decisions and authorization (12/12).
 
-## Known gaps (current cycle)
+## Deployment and proof
 
-- [ ] The Join form and Site members moderation queue are locally integrated with this backend. The backend DB suite passed 6/6; independent browser, lint, type, and check verification remains pending. No production deployment has occurred.
+- [x] Local end-to-end lifecycle verification passed 1/1: a guest remains pending, rejection permits reapplication, approval grants editor access, removal cleans up membership, and the flow performs no page saves. Evidence: `/tmp/claude/cobalt-membership-applications-followup-ledger-2026-09-25.md`.
+- [x] Production deployment completed September 25, 2026 at 07:30:59 UTC. `./install/dev-deploy.sh` deployed `all` at `0d9ebcca4153`; its optimized backend took 9m09, production source matched `b8127c096` before these docs edits, and both units were active.
+- [x] Anonymous production calls to `member_application_get` and `member_application_list` returned `PermissionDenied` 3106, proving the deployed RPC routes enforce their authorization boundary.
+- [ ] No public-browser lifecycle proof is claimed. Read-only anonymous RPC proof does not exercise applying, reviewing, approving, or rejecting through the public UI.
 
 ## Out of scope
 
-- Email delivery, password-based joining, application history, and UI implementation — not part of backend application lifecycle.
+- Email delivery, password-based joining, and application history.
