@@ -646,7 +646,11 @@ impl ListingFilter {
     }
 
     pub fn matches(&self, page: &ListingSubject) -> bool {
-        let has = |tag: &String| page.tags.contains(tag);
+        let has = |tag: &String| {
+            page.tags
+                .iter()
+                .any(|page_tag| page_tag.eq_ignore_ascii_case(tag))
+        };
         let hidden = page.name.starts_with('_');
         let page_type = match self.page_type {
             PageType::Normal => !hidden,

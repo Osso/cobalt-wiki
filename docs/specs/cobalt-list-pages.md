@@ -5,7 +5,7 @@ Expand archived `[[module ListPages]]` blocks into ordinary wikitext before FTML
 ## What it must do
 
 - [x] Recognize `[[module ListPages ...]]...[[/module]]` case-insensitively, including multi-line headers, stray `\` continuations and `]]` inside quoted values; unterminated modules stay text.
-- [x] Select by `category` (default current category, `*`, `.`, `+name`, `-name`), `tags`/`tag` (plain = any, `+` = required, `-` = excluded, `-` alone = untagged), `pagetype` (`normal` default excludes `_` pages, `hidden`, `*`) and `created_at="last N days"`.
+- [x] Select by `category` (default current category, `*`, `.`, `+name`, `-name`), `tags`/`tag` (plain = any, `+` = required, `-` = excluded, `-` alone = untagged; ASCII case-insensitive matching for plain, required and excluded tags, including listing invalidation), `pagetype` (`normal` default excludes `_` pages, `hidden`, `*`) and `created_at="last N days"`.
 - [x] Order by `name`, `fullname`, `title`, `created_at` or `updated_at`, `asc` default when a field is given, `created_at desc` when omitted; ties by full name.
 - [x] `perPage` defaults to 20, capped at 250.
 - [x] List only anonymously readable pages, because compiled HTML is shared.
