@@ -362,6 +362,12 @@ async fn build_module(app_state: ServerState) -> Result<RpcModule<ServerState>> 
     register!("member_admin_remove", member_admin_remove);
     register!("member_admin_invite", member_admin_invite);
 
+    // Membership applications (request session and site are authoritative)
+    register!("member_application_get", member_application_get);
+    register!("member_application_submit", member_application_submit);
+    register!("member_application_list", member_application_list);
+    register!("member_application_decide", member_application_decide);
+
     // Roles
     register!("role_list", list_site_roles);
     register!("user_role_list", get_user_roles);

@@ -63,6 +63,7 @@ pub mod all {
     pub use super::link::*;
     pub use super::locale::*;
     pub use super::member_admin::*;
+    pub use super::member_application::*;
     pub use super::message::*;
     pub use super::misc::*;
     pub use super::page::*;
@@ -103,6 +104,7 @@ pub mod info;
 pub mod link;
 pub mod locale;
 pub mod member_admin;
+pub mod member_application;
 pub mod message;
 pub mod misc;
 pub mod page;

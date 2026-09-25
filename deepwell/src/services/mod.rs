@@ -79,6 +79,7 @@ pub mod import;
 pub mod job;
 pub mod link;
 pub mod member_admin;
+pub mod member_application;
 pub mod message;
 pub mod message_report;
 pub mod mfa;
