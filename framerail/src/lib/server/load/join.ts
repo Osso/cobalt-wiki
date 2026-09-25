@@ -42,8 +42,12 @@ export async function applyForMembership({
   getClientAddress
 }: RequestEvent) {
   const sessionToken = cookies.get("wikijump_token")
-  if (!sessionToken)
-    return fail(401, { message: "Sign in before applying for membership." })
+  if (!sessionToken) {
+    return fail(401, {
+      message: "Sign in before applying for membership.",
+      applicationMessage: ""
+    })
+  }
   const form = await request.formData()
   const field = form.get("message")
   const message = typeof field === "string" ? field.trim() : ""

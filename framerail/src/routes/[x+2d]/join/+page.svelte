@@ -47,15 +47,15 @@
     <textarea
       id="application-message"
       name="message"
-      rows="6"
       required
       aria-describedby="application-limit"
+      rows="6"
       value={form?.applicationMessage ?? ""}></textarea>
     <p id="application-limit">Maximum 2,000 characters.</p>
     {#if form?.message}
       <p class="error" role="alert">{form.message}</p>
     {/if}
-    <button type="submit" disabled={submitting}
+    <button disabled={submitting} type="submit"
       >{submitting ? "Submitting…" : "Submit application"}</button
     >
   </form>
@@ -73,8 +73,8 @@
   }
 
   textarea {
-    width: 100%;
     box-sizing: border-box;
+    width: 100%;
     font: inherit;
   }
 

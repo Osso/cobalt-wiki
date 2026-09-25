@@ -67,8 +67,8 @@
         <p class="application-message">{application.message}</p>
         <form action="?/application" method="POST" use:enhance>
           <input name="userId" type="hidden" value={application.user_id} />
-          <button name="decision" value="approve" type="submit">Approve</button>
-          <button name="decision" value="reject" type="submit">Reject</button>
+          <button name="decision" type="submit" value="approve">Approve</button>
+          <button name="decision" type="submit" value="reject">Reject</button>
         </form>
       </article>
     {:else}

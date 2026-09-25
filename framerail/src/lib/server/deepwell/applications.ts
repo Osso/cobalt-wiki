@@ -16,13 +16,13 @@ export interface PendingApplication extends MembershipApplication {
   user_name: string
 }
 
-export function memberApplicationGet(
+export async function memberApplicationGet(
   context: RequestContext
 ): Promise<ApplicationStatus> {
   return client.request("member_application_get", {}, context)
 }
 
-export function memberApplicationSubmit(
+export async function memberApplicationSubmit(
   message: string,
   ipAddress: string,
   context: RequestContext
@@ -34,13 +34,13 @@ export function memberApplicationSubmit(
   )
 }
 
-export function memberApplicationList(
+export async function memberApplicationList(
   context: RequestContext
 ): Promise<PendingApplication[]> {
   return client.request("member_application_list", {}, context)
 }
 
-export function memberApplicationDecide(
+export async function memberApplicationDecide(
   userId: number,
   accept: boolean,
   ipAddress: string,
