@@ -9,7 +9,7 @@ Render archived Wikidot form pages through their category `_template`, as Wikido
 - [x] A `form_data` raw span used as a triple-link label shows its text (`[[[player:{$author}|{$author}]]]` → `Alli`, as on Wikidot); in a table cell it stays literal (Wikidot's `pre-wrap` span, checked on writing:2025-08-20-time-for-questions). Fixture `deepwell/vendor/ftml/test/link/triple-raw` (`c370654`).
 - [x] Leave ListPages item templates inside the template untouched, so their tokens describe listed pages; module headers still receive this page's tokens (`tags="+%%name%%"`).
 - [x] Substitute before include expansion, so template includes receive filled arguments.
-- [x] Keep hidden pages (`_template`, `_public`) and pages in categories without a form template rendered from their own source.
+- [x] Keep underscore-prefixed page names (`_template`, `_public`) and pages in categories without a form template rendered from their own source. Form extraction must also skip underscore-prefixed names; valid plain-text helper pages must not be parsed as field mappings. This classification does not change view permissions; malformed ordinary form instances remain errors.
 - [x] Render an explicit diagnostic for malformed form markers/definitions or a form page whose source is not a field record, without exposing its raw source or changing stored source.
 - [x] Queue only the affected category's pages for rerender when its `_template` changes, through the normal edit path without changing their records.
 - [x] Deliver queued rerenders through the local worker and refresh their compiled bodies within five seconds after a normal UI template edit.

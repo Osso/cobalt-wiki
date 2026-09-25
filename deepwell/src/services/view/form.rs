@@ -5,7 +5,7 @@ pub(crate) fn template_slug(page_slug: &str) -> Option<String> {
         Some((category, name)) => (Some(category), name),
         None => (None, page_slug),
     };
-    if name == "_template" {
+    if name.starts_with('_') {
         return None;
     }
     Some(match category {
@@ -40,6 +40,9 @@ mod tests {
         assert_eq!(template_slug("start"), Some("_template".into()));
         assert_eq!(template_slug("character:_template"), None);
         assert_eq!(template_slug("_template"), None);
+        assert_eq!(template_slug("player:_public"), None);
+        assert_eq!(template_slug("_public"), None);
+        assert_eq!(template_slug("player:_settings"), None);
     }
 
     #[test]
