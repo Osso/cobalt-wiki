@@ -729,6 +729,28 @@ impl RoleService {
         Ok(roles)
     }
 
+    async fn is_page_author(
+        ctx: &ServiceContext<'_>,
+        site_id: i64,
+        user_id: i64,
+        page_reference: &Reference<'_>,
+    ) -> Result<bool> {
+        let Some(page) =
+            PageService::get_optional(ctx, site_id, page_reference.clone()).await?
+        else {
+            return Ok(false);
+        };
+        let attributions = RelationService::get_page_attributions(
+            ctx,
+            GetPageAttributions {
+                site_id,
+                page: Reference::Id(page.page_id),
+            },
+        )
+        .await?;
+        Ok(attributions.iter().any(|attr| attr.user_id == user_id))
+    }
+
     pub async fn get_virtual_roles_for_user(
         ctx: &ServiceContext<'_>,
         input: &GetUserRolesInput<'_>,
@@ -769,19 +791,13 @@ impl RoleService {
         } else {
             false
         };
-        let is_page_author = if is_member && let Some(page_ref) = &input.page_reference {
-            let attributions = RelationService::get_page_attributions(
-                ctx,
-                GetPageAttributions {
-                    site_id: input.site_id,
-                    page: page_ref.clone(),
-                },
-            )
-            .await
-            .or_raise(make_error)?;
-            attributions
-                .iter()
-                .any(|attr| attr.user_id == input.user_id.unwrap())
+        let is_page_author = if is_member
+            && let (Some(user_id), Some(page_ref)) =
+                (input.user_id, &input.page_reference)
+        {
+            Self::is_page_author(ctx, input.site_id, user_id, page_ref)
+                .await
+                .or_raise(make_error)?
         } else {
             false
         };
