@@ -196,16 +196,47 @@ async fn attributed_page_and_template_privacy() {
         .unwrap();
     }
     page(ctx, site_id, creator, "application:own", "name: Secret\n").await;
+    let template_source = "[[form]]\nfields:\n  name:\n    type: text\n[[/form]]";
     page(
         ctx,
         site_id,
         creator,
         "application:_template",
-        "[[form]]\nfields:\n  name:\n    type: text\n[[/form]]",
+        template_source,
     )
     .await;
     page(ctx, site_id, other, "application:other", "name: Other\n").await;
     page(ctx, site_id, creator, "player:profile", "Member profile").await;
+    let public_source = "Access denied. Please sign in.\n";
+    page(ctx, site_id, creator, "application:_public", public_source).await;
+    page(
+        ctx,
+        site_id,
+        creator,
+        "application:malformed",
+        "name: [nested]",
+    )
+    .await;
+
+    let template =
+        view(ctx, site_id, Some(&creator_token), "application:_template").await;
+    match template {
+        GetPageViewOutput::Found { wikitext, form, .. } => {
+            assert_eq!(wikitext, template_source);
+            assert!(form.is_none(), "the template is not a form instance");
+        }
+        _ => panic!("attributed creator must view the category template"),
+    }
+    match view(ctx, site_id, Some(&creator_token), "application:_public").await {
+        GetPageViewOutput::Found { wikitext, form, .. } => {
+            assert_eq!(wikitext, public_source);
+            assert!(
+                form.is_none(),
+                "the private-page blueprint is not a form instance"
+            );
+        }
+        _ => panic!("attributed creator must view the private-page blueprint"),
+    }
 
     let own = view(ctx, site_id, Some(&creator_token), "application:own").await;
     match own {
@@ -222,6 +253,19 @@ async fn attributed_page_and_template_privacy() {
         ),
         _ => panic!("other creator must view own page"),
     }
+    let malformed = deepwell::endpoints::view::page_view(
+        ctx,
+        common::make_params(serde_json::json!({
+            "site_id": site_id, "session_token": creator_token, "locales": ["en"],
+            "route": {"slug": "application:malformed", "extra": ""},
+        })),
+    )
+    .await
+    .expect_err("malformed form instance must report an error");
+    assert!(
+        format!("{malformed:?}").contains("failed to extract page form"),
+        "unexpected form error: {malformed:?}"
+    );
     for token in [None, Some(other_token.as_str())] {
         assert!(matches!(
             view(ctx, site_id, token, "application:own").await,
