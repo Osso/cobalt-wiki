@@ -36,8 +36,8 @@ class RenderedContentTests(unittest.TestCase):
         self.assertEqual(
             result,
             "[quote][p]Words[/p][/quote]\n[hr]\n"
-            "[list][li]One[/li][li]Two [code]x < y[/code][/li][/list]\n"
-            "[list=1][li]Three[/li][/list]\n[code]  spaced\n  lines[/code]",
+            "[ul][li]One[/li][li]Two [code]x < y[/code][/li][/ul]\n"
+            "[ol][li]Three[/li][/ol]\n[code]  spaced\n  lines[/code]",
         )
 
     def test_void_images_links_and_nested_tables_preserve_following_content(self):

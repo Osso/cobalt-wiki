@@ -351,10 +351,6 @@ def _render(element, source_url, image_ref):
             inner = inner.strip()
     if tag in {"div", "span", "tbody", "thead", "tfoot"}:
         return inner
-    if tag == "ul":
-        return f"[list]{inner}[/list]"
-    if tag == "ol":
-        return f"[list=1]{inner}[/list]"
     name = {"blockquote": "quote", "pre": "code", **_MARKUP}.get(tag, tag)
     return f"[{name}]{inner}[/{name}]"
 
