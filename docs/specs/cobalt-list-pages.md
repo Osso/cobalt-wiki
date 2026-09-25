@@ -30,7 +30,15 @@ Imported pages carry import-time `created_at`/`updated_at`; original Wikidot cre
 
 ## Current repair proof
 
-`1db12295f` added the exact Digest Writings joined-table regression after reproducing it RED and then passing it GREEN. Its database-backed test was blocked by the environment. Local `./deploy.sh` succeeded at `1db12295f` (`/tmp/pi-tool-7c8f32f7c9abc38b.log`) with a debug build and local-only backend restart; a standalone Digest rerender completed, and page-view source/revision IDs remained unchanged in `/tmp/claude/cobalt-admin-digest-before.json` and `after.json`. Independent gates and final browser proof remain pending. Public status is unchanged: this scope is separate from the sibling roster-only rollout.
+This is the shared final proof for the `551d29df5`, `62e1467e9`, `1db12295f`, and `73356b625` repairs, including the route/asset clauses in [Canonical page names](cobalt-canonical-names.md) and [Site Manager](cobalt-site-manager.md).
+
+- Independent browser coverage: Applications plus Site Manager passed 2/2 (`/tmp/cobalt-verify-62e1467-browser.log`); Digest passed 1/1 (`/tmp/cobalt-verify-1db12295-browser-digest.log`). Main checkout inspection used `/tmp/claude/cobalt-admin-fixed-{applications,manager,digest}.png`.
+- Native checks: `cargo fmt --check` and `cargo check` exited 0 (`/tmp/claude/cobalt-admin-{fmt,check}.log`); the exact ListPages-to-FTML unit passed 1/1 (`/tmp/claude/cobalt-admin-list-pages-ftml.log`), and the isolated Redis-0 database Digest test passed 1/1 (`/tmp/claude/cobalt-admin-digest-db-isolated-redis0.log`).
+- Parser fixture runner covered 122/125 cases; advanced table and simple-table cases passed. The three remaining expected paths are unrelated basic audio, image and video inputs that omit `test:` (`/tmp/claude/cobalt-admin-ftml-table-fixtures-nocapture.log`).
+- Local `./deploy.sh` succeeded at `1db12295f`; Digest rerender snapshots preserved page-view source and revision identity (`/tmp/claude/cobalt-admin-digest-{before,after}.json`).
+- Frontend follow-up: ESLint, Stylelint and Prettier exited 0. `svelte-check` retained only five pre-existing `imported-history.mjs` errors at lines 87, 103, 110, 158 and 164; the new Admin-test errors were gone.
+
+The Applications dashboard still exposes a separate imported-metadata gap: `application:badchemistry` has `updated_at = null`, so the page renders literal `%%updated_at%%`; no date was fabricated. These fixes have no public deployment and do not establish full replica or legacy-admin completeness.
 
 ## Out of scope
 

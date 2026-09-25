@@ -8,7 +8,7 @@ The replica must preserve existing Wikidot names rather than flattening their co
 - [ ] Serve and create multi-colon pages at their exact slug, without a redirect to a dash-merged name.
 - [ ] Assign imported multi-colon pages to the first-colon category.
 - [ ] Preserve ordinary single-colon/default references, explicit labels, fragments and subpaths.
-- [ ] Serve leading-underscore page names such as `/_applications` and `/_admin` without confusing them with framework assets. Framerail's configured framework-asset path is `/-/assets`, inside the reserved system namespace.
+- [x] Serve leading-underscore page names such as `/_applications` and `/_admin` without confusing them with framework assets. Framerail's configured framework-asset path is `/-/assets`, inside the reserved system namespace.
 - [x] Reconcile affected existing category assignments without changing source bytes or revision identity. Production, 2026-09-23: 456 imported multi-colon pages moved from 438 per-prefix categories to `writing` (the only affected first segment); the emptied categories, which had no permission rows, were deleted. Only `page.page_category_id` changed. Rollback data: tables `reconcile_20260923_page_category` (page, old category) and `reconcile_20260923_categories` (deleted rows). Afterwards the replica `stats` CountPages totals match Wikidot except one RP log absent from the archive (5,385 vs 5,386).
 
 ## How it works
@@ -24,7 +24,7 @@ The replica must preserve existing Wikidot names rather than flattening their co
 
 ## Tests asserting this spec
 
-- `framerail/tests/local/admin-pages.mjs`: local browser regression coverage for `/_applications`, legacy `/_admin`, and Digest Writings table rendering. It was RED 0/3 at `7e73ce8d4` before the repairs: Applications and Admin returned 404; Digest Writings exposed literal `||` delimiters. Development checks later passed Applications 1/1 and Site Manager 1/1; these are not independent-gate or deployment proof.
+- `framerail/tests/local/admin-pages.mjs`: browser regression coverage for `/_applications`, legacy `/_admin`, and Digest Writings table rendering. It was RED 0/3 at `7e73ce8d4`: Applications and Admin returned 404; Digest Writings exposed literal `||` delimiters. Final independent Applications and Site Manager coverage passed 2/2; shared proof is in the [ListPages repair proof](cobalt-list-pages.md#current-repair-proof).
 - `deepwell/tests/page_canonical_names.rs`: native category identity and exact links despite a normalized-name collision.
 - `deepwell/tests/page_import.rs`: exact import identity and source-category behavior.
 - `deepwell/tests/page_multi_colon_slug.rs`: native create and view at the exact slug with no `redirect_page`.
@@ -32,8 +32,7 @@ The replica must preserve existing Wikidot names rather than flattening their co
 
 ## Known gaps (current cycle)
 
-- [ ] Final local-browser result and independent gates remain pending. `551d29df5` changes the Framerail config source only; confirmed local deployment/rerender evidence is tracked with the [ListPages repair proof](cobalt-list-pages.md#current-repair-proof), not final-pass evidence.
-- [ ] Public status is unchanged: this scope is separate from the sibling roster-only rollout. The namespace and Site Manager route repairs do not establish complete administration coverage.
+- [ ] Public status is unchanged: these fixes have no public deployment. The namespace and Site Manager route repairs do not establish complete administration coverage.
 - [ ] Full canonical-name corpus proof. The naming code (`f5fbf4c`) is deployed with the rendering branch and existing data is reconciled.
 - [ ] Category ACL/creator metadata remains separate; source observations must not be treated as a complete permission export.
 

@@ -4,10 +4,10 @@ The imported Admin menu's `/_admin` entry must reach the native site administrat
 
 ## What it must do
 
-- [ ] Route `/_admin` to `/-/admin` without querying a nonexistent wiki page.
-- [ ] Keep the native administration permission check: an administrator can open the editor; anonymous users remain denied.
-- [ ] Present a Site Manager heading, existing site information and a Site members link, without dumping loader/session data into a debug textarea.
-- [ ] Opening and cancelling the site-info editor must not save changes.
+- [x] Route `/_admin` to `/-/admin` without querying a nonexistent wiki page.
+- [x] Keep the native administration permission check: an administrator can open the editor; anonymous users remain denied.
+- [x] Present a Site Manager heading, existing site information and a Site members link, without dumping loader/session data into a debug textarea.
+- [x] Opening and cancelling the site-info editor must not save changes.
 
 ## How it works
 
@@ -21,12 +21,11 @@ The imported Admin menu's `/_admin` entry must reach the native site administrat
 
 ## Tests asserting this spec
 
-- `framerail/tests/local/admin-pages.mjs` — real admin login, legacy entry navigation, editor open/cancel and anonymous denial, without submitting edits. Development Site Manager coverage passed 1/1 after `62e1467e9`; this is not independent-gate or deployment proof.
+- `framerail/tests/local/admin-pages.mjs` — real admin login, legacy entry navigation, editor open/cancel and anonymous denial, without submitting edits. Final independent browser evidence passed its Applications and Site Manager cases (2/2); shared proof is in the [ListPages repair proof](cobalt-list-pages.md#current-repair-proof).
 
 ## Known gaps (current cycle)
 
-- [ ] Final local-browser result and independent gates remain pending. Confirmed local deployment/rerender evidence is tracked with the [ListPages repair proof](cobalt-list-pages.md#current-repair-proof), not final-pass evidence.
-- [ ] Public status is unchanged: this scope is separate from the sibling roster-only rollout.
+- [ ] Public status is unchanged: these fixes have no public deployment. This screen remains native site information plus member administration, not the complete legacy Site Manager suite.
 
 ## Out of scope
 
