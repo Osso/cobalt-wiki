@@ -1,6 +1,6 @@
 # Cobalt replica status
 
-Verified: 2026-09-24. This records evidence, not authorization to expose source-private content or a blanket full-replica readiness claim.
+Verified: 2026-09-25. This records evidence, not authorization to expose source-private content or a blanket full-replica readiness claim.
 
 ## Coverage
 
@@ -180,6 +180,14 @@ Protected homepage-pilot artifacts show a local-only import into site `6000011`:
 Current retained API body proof (`/tmp/claude/cobalt-history-current-api-proof.json`) reached this pilot at backend `2748` (`home:start`, page `3000000104`). `page_imported_history` returned `100/100/40` rows, with timestamps compared as instants (`Z`/`+00:00`); `page_imported_revision` matched retained display-decoded bodies for revisions 239 and 0. The separate keyset capture (`/tmp/claude/cobalt-history-current-metadata-keys.json`) shows all 240 rows had exactly the 11 required metadata keys: `representation`, `source_author_id`, `source_comments`, `source_created_at`, `source_flags`, `source_page_id`, `source_revision_id`, `source_revision_number`, `source_slug`, `source_tags`, and `source_title`.
 
 UI proof is currently blocked. Browser `3089` returned `200 text/html` for `home:start` (101,758 bytes, containing page markup), then Svelte hydration failed with `TypeError: Cannot read properties of undefined (reading 'call')` at `get_first_child`; the resulting DOM had no IDs. The `c7859d0` browser proof is historical only. Main history parity is not established.
+
+Commit `301ae8f84` adds a local history-pilot Vite configuration only. It reuses the main Vite config exports and supported flat SvelteKit plugin options while isolating Vite cache in `.vite-history-pilot` and Kit output in `.svelte-kit-history-pilot`; both paths are ignored. Main canonical configuration is unchanged. The configuration is not a runtime switch and does not itself repair hydration. Root `deploy.sh` remains unused: it builds and restarts only the local preview Deepwell backend, while this is a local frontend-runtime repair rather than a Deepwell deployment.
+
+### Pending runtime/proof
+
+- [ ] Main installs the pilot service override that selects `vite.history-pilot.config.ts`.
+- [ ] Run the actual pilot browser flow and retain a GREEN UI proof before attributing the failure to shared generated/cache state.
+- [ ] Keep the current trace (`/tmp/claude/cobalt-history-hydration-trace.json`) as partial evidence only: it observes initialized `HVRELRUH` operations before uninitialized `WCKNV63C` `get_first_child`, not complete causal proof.
 
 Verifier `673` independently passed scoped diff, offline hash, and count checks without a live rerun. The keyset capture closes the prior API returned-key proof boundary; it does not mean verifier `673` reran that capture. This remains partial local proof: current pilot availability does not establish main or production schema/API deployment. Site-wide authorized acquisition, source-backed attribution/metadata transitions, current UI access, and production import remain open. The original-native-revision byte-identity gap remains 43 unreconstructable full hashes. See the [history import requirements](../../specs/cobalt-history-import.md).
 
