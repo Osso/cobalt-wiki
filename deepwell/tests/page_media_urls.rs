@@ -112,7 +112,7 @@ async fn image_box_in_live_character_template_uses_character_attachment() {
         .site
         .site_id;
     for (slug, source) in [
-        ("image-box", "[[image {$image}]]"),
+        ("imagebox", "[[image {$image}]]"),
         (
             "character:_template",
             "%%form_raw{appearance}%%\n\n====\n\n[[form]]\nfields:\n  appearance:\n    type: wiki\n[[/form]]\n",
