@@ -135,16 +135,26 @@ async function saveAutoWatch(page, enabled) {
   else await expect(auto).not.toBeChecked()
 }
 
+async function showWatchControls(page) {
+  const controls = page.locator('[aria-label="Watching"]')
+  if (!(await controls.count())) await page.locator("#more-options-button").click()
+  await expect(controls).toBeVisible()
+}
+
 async function watchThree(page, request, token, fixture, targets) {
   await page.goto(`${origin}/${fixture.page_slug}`, { waitUntil: "networkidle" })
   const controls = page.locator('[aria-label="Watching"]')
   const labels = ["site", "category", "page"]
   for (const label of labels) {
+    await showWatchControls(page)
     await controls.getByRole("button", { name: `Watch this ${label}` }).click()
+    await page.waitForLoadState("networkidle")
+    await showWatchControls(page)
     await expect(
       controls.getByRole("button", { name: `Unwatch this ${label}` })
     ).toBeVisible()
     await page.reload({ waitUntil: "networkidle" })
+    await showWatchControls(page)
     await expect(
       controls.getByRole("button", { name: `Unwatch this ${label}` })
     ).toBeVisible()
@@ -397,6 +407,7 @@ test("local reader watches UI, sees synthetic changes, and restores account", as
     await anonymousPage.goto(`${origin}/${fixture.page_slug}`, {
       waitUntil: "networkidle"
     })
+    await anonymousPage.locator("#more-options-button").click()
     await expect(anonymousPage.locator('[aria-label="Watching"]')).toHaveCount(0)
     await expect(anonymousPage.getByRole("button", { name: /^Watch this / })).toHaveCount(
       0
@@ -468,7 +479,12 @@ test("local reader watches UI, sees synthetic changes, and restores account", as
       event_hash: hash(eventIds),
       revision_hash: hash([state.create_revision_id, state.edit_revision_id])
     }
-  } catch {
+  } catch (caught) {
+    await writeFile(
+      `${directory}/ui-failure.json`,
+      JSON.stringify({ stage, error: String(caught) }),
+      { mode: 0o600 }
+    )
     error = new Error(
       `watching acceptance failed at ${stage}; inspect protected state and reconcile before rerun`
     )
