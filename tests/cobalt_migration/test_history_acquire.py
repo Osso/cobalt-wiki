@@ -44,18 +44,18 @@ class SiteAcquisitionTest(unittest.TestCase):
             paced_fetch({"page_id": page_id})
             return {"revisions": [], "bodies": {}, "unobserved_ranges": []}
 
-        with tempfile.TemporaryDirectory() as temporary:
-            with (
-                patch("time.monotonic", clock.monotonic),
-                patch("time.sleep", clock.sleep),
-            ):
-                acquire_site_history(
-                    plan,
-                    "https://example.test",
-                    Path(temporary) / "history",
-                    fetch,
-                    exporter=exporter,
-                )
+        with (
+            tempfile.TemporaryDirectory() as temporary,
+            patch("time.monotonic", clock.monotonic),
+            patch("time.sleep", clock.sleep),
+        ):
+            acquire_site_history(
+                plan,
+                "https://example.test",
+                Path(temporary) / "history",
+                fetch,
+                exporter=exporter,
+            )
         self.assertEqual(observed, [(11, 0.0), (11, 1.75), (22, 3.0), (22, 4.25)])
 
     def test_elapsed_page_work_avoids_extra_boundary_wait(self):
@@ -79,18 +79,18 @@ class SiteAcquisitionTest(unittest.TestCase):
                 clock.sleep(1.5)
             return {"revisions": [], "bodies": {}, "unobserved_ranges": []}
 
-        with tempfile.TemporaryDirectory() as temporary:
-            with (
-                patch("time.monotonic", clock.monotonic),
-                patch("time.sleep", clock.sleep),
-            ):
-                acquire_site_history(
-                    plan,
-                    "https://example.test",
-                    Path(temporary) / "history",
-                    fetch,
-                    exporter=exporter,
-                )
+        with (
+            tempfile.TemporaryDirectory() as temporary,
+            patch("time.monotonic", clock.monotonic),
+            patch("time.sleep", clock.sleep),
+        ):
+            acquire_site_history(
+                plan,
+                "https://example.test",
+                Path(temporary) / "history",
+                fetch,
+                exporter=exporter,
+            )
         self.assertEqual(observed, [(11, 0.0), (22, 1.75)])
         self.assertEqual(clock.monotonic(), 2.0)
 
@@ -113,18 +113,18 @@ class SiteAcquisitionTest(unittest.TestCase):
                 paced_fetch({"page_id": page_id})
             return {"revisions": [], "bodies": {}, "unobserved_ranges": []}
 
-        with tempfile.TemporaryDirectory() as temporary:
-            with (
-                patch("time.monotonic", clock.monotonic),
-                patch("time.sleep", clock.sleep),
-            ):
-                acquire_site_history(
-                    plan,
-                    "https://example.test",
-                    Path(temporary) / "history",
-                    fetch,
-                    exporter=exporter,
-                )
+        with (
+            tempfile.TemporaryDirectory() as temporary,
+            patch("time.monotonic", clock.monotonic),
+            patch("time.sleep", clock.sleep),
+        ):
+            acquire_site_history(
+                plan,
+                "https://example.test",
+                Path(temporary) / "history",
+                fetch,
+                exporter=exporter,
+            )
         self.assertEqual(observed, [(22, 0.0)])
         self.assertEqual(clock.monotonic(), 0.0)
 
