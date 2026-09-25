@@ -535,7 +535,7 @@ test("local reader watches UI, sees synthetic changes, and restores account", as
   /** @type {string | undefined} */
   let token
   /** @type {Subscription[]} */
-  let subscriptions = []
+  let subscriptions
   /** @type {Targets | undefined} */
   let targets
   /** @type {Error | undefined} */

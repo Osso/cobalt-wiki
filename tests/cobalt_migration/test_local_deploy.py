@@ -8,7 +8,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
 DEPLOY = ROOT / "deploy.sh"
 URL = "postgres://preview:private-password@127.0.0.1:25432/cobalt_local_full"

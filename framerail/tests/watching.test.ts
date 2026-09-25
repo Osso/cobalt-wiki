@@ -8,22 +8,31 @@ type WatchingLoader = typeof import("../src/lib/server/load/watching.ts")
 type PageWatching = Awaited<ReturnType<WatchingLoader["loadPageWatching"]>>
 type WatchAction = Awaited<ReturnType<WatchingLoader["setSubscriptionAction"]>>
 type PageResult = { watching: PageWatching }
+const watchingModule = await vite.ssrLoadModule("/src/lib/server/load/watching.ts")
 const watching: {
   loadPageWatching: WatchingLoader["loadPageWatching"]
   setSubscriptionAction: (event: unknown) => Promise<WatchAction>
-} = await vite.ssrLoadModule("/src/lib/server/load/watching.ts")
+} = {
+  loadPageWatching: watchingModule.loadPageWatching,
+  setSubscriptionAction: watchingModule.setSubscriptionAction
+}
 const activity = await vite.ssrLoadModule("/src/routes/[x+2d]/activity/+page.server.ts")
 const unsubscribe = await vite.ssrLoadModule(
   "/src/routes/[x+2d]/watching-unsubscribe/+page.server.ts"
+)
+const editorModule = await vite.ssrLoadModule(
+  "/src/routes/[slug]/[...extra]/+page.server.ts"
 )
 const editor: {
   load: (event: unknown) => Promise<PageResult>
   actions: {
     edit: (event: unknown) => Promise<{ status?: number; data?: unknown }>
   }
-} = await vite.ssrLoadModule("/src/routes/[slug]/[...extra]/+page.server.ts")
-const homepage: { load: (event: unknown) => Promise<PageResult> } =
-  await vite.ssrLoadModule("/src/routes/+page.server.ts")
+} = { load: editorModule.load, actions: editorModule.actions }
+const homepageModule = await vite.ssrLoadModule("/src/routes/+page.server.ts")
+const homepage: { load: (event: unknown) => Promise<PageResult> } = {
+  load: homepageModule.load
+}
 const { default: WatchControls } = await vite.ssrLoadModule(
   "/src/lib/component/WatchControls.svelte"
 )
@@ -37,10 +46,10 @@ const { render } = await vite.ssrLoadModule("svelte/server")
 const headers = { "X-Wikijump-Site-Id": "6000011", "X-Wikijump-Site-Slug": "cobalt" }
 type Rpc = { method: string; params: Record<string, unknown>; id: number }
 
-async function withRpc<Callback extends () => Promise<unknown>>(
+async function withRpc<Result>(
   reply: (rpc: Rpc) => object,
-  callback: Callback
-): Promise<{ value: Awaited<ReturnType<Callback>>; calls: Rpc[] }> {
+  callback: () => Promise<Result>
+): Promise<{ value: Result; calls: Rpc[] }> {
   const previous = globalThis.fetch
   const calls: Rpc[] = []
   globalThis.fetch = async (_input, init) => {
