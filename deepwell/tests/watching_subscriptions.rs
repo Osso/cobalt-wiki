@@ -5,11 +5,11 @@ use common::TestRunner;
 use deepwell::constants::SYSTEM_USER_ID;
 use deepwell::error::ErrorType;
 use deepwell::license::License;
-use deepwell::models::user;
+use deepwell::models::{role_permission, user};
 use deepwell::services::RequestContext;
 use deepwell::services::category::CategoryService;
 use deepwell::services::page::{CreatePage, PageService};
-use deepwell::services::permission::PermissionService;
+use deepwell::services::permission::{CheckPermissionContext, PermissionService};
 use deepwell::services::relation::{
     CreateSiteMember, RelationService, SiteMemberAccepted, SiteMemberData,
 };
@@ -20,7 +20,8 @@ use deepwell::services::site::{CreateSite, SiteService};
 use deepwell::services::user::{CreateUser, UserService};
 use deepwell::types::{Action, Permission, Reference, Resource, UserType};
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ConnectionTrait, DatabaseBackend, Statement,
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, ConnectionTrait, DatabaseBackend,
+    EntityTrait, QueryFilter, Statement,
 };
 use serde_json::{Value, json};
 use time::OffsetDateTime;
@@ -364,6 +365,93 @@ async fn site_category_page_watches_dedupe_and_are_owned_by_actor() {
         );
     }
     assert_eq!(subscription_count(&runner, user_id).await, 2);
+}
+
+#[tokio::test]
+async fn page_view_without_site_view_can_watch_existing_targets() {
+    let mut runner = TestRunner::setup().await;
+    let site_id = site(&runner, "watch-page-only-site").await;
+    let user_id = member(&runner, site_id, "WatchPageOnlyMember").await;
+    let (category_id, page_id) = page(&runner, site_id, "public:readable").await;
+    role_permission::Entity::delete_many()
+        .filter(role_permission::Column::SiteId.eq(site_id))
+        .filter(role_permission::Column::ResourceType.eq(Resource::Site))
+        .filter(role_permission::Column::Action.eq(Action::View))
+        .exec(runner.context().transaction())
+        .await
+        .unwrap();
+    let permission_ctx = CheckPermissionContext {
+        user_id: Some(user_id),
+        site_id,
+        page_reference: Some(Reference::Id(page_id)),
+    };
+    assert!(
+        PermissionService::check_user_can(
+            runner.context(),
+            &permission_ctx,
+            Permission {
+                resource_type: Resource::Page,
+                resource_category: Some(Reference::Id(category_id)),
+                action: Action::View,
+            },
+        )
+        .await
+        .unwrap()
+    );
+    assert!(
+        !PermissionService::check_user_can(
+            runner.context(),
+            &permission_ctx,
+            Permission {
+                resource_type: Resource::Site,
+                resource_category: None,
+                action: Action::View,
+            },
+        )
+        .await
+        .unwrap()
+    );
+    actor(&mut runner, site_id, Some(user_id));
+    for (scope, target_id) in [
+        ("site", site_id),
+        ("category", category_id),
+        ("page", page_id),
+    ] {
+        assert_eq!(
+            json!({"watching": true}),
+            json!(run_endpoint!(
+                runner,
+                watching_subscription_set,
+                set_request(site_id, scope, target_id, true)
+            ))
+        );
+    }
+    assert_eq!(
+        json!([
+            {"scope": "site", "target_id": site_id},
+            {"scope": "category", "target_id": category_id},
+            {"scope": "page", "target_id": page_id},
+        ]),
+        json!(run_endpoint!(
+            runner,
+            watching_subscriptions,
+            json!({"site_id": site_id})
+        ))
+    );
+    for (scope, target_id) in [
+        ("site", i64::MAX),
+        ("category", i64::MAX),
+        ("page", i64::MAX),
+    ] {
+        assert_contains_error!(
+            run_endpoint_err!(
+                runner,
+                watching_subscription_set,
+                set_request(site_id, scope, target_id, true)
+            ),
+            ErrorType::PermissionDenied
+        );
+    }
 }
 
 #[tokio::test]

@@ -3,11 +3,11 @@ mod common;
 use common::TestRunner;
 use deepwell::constants::SYSTEM_USER_ID;
 use deepwell::license::License;
-use deepwell::models::{page, page_revision};
+use deepwell::models::{page, page_revision, role_permission};
 use deepwell::services::TextService;
 use deepwell::services::page::{CreatePage, EditPage, EditPageBody, PageService};
 use deepwell::services::page_revision::PageRevisionService;
-use deepwell::services::permission::PermissionService;
+use deepwell::services::permission::{CheckPermissionContext, PermissionService};
 use deepwell::services::relation::{
     CreateSiteMember, RelationService, SiteMemberAccepted, SiteMemberData,
 };
@@ -18,7 +18,7 @@ use deepwell::services::site::{CreateSite, SiteService};
 use deepwell::services::user::{CreateUser, UserService};
 use deepwell::services::watching::visibility::{ChangeRevisions, visible_change};
 use deepwell::types::{Action, Maybe, Permission, Reference, Resource, UserType};
-use sea_orm::{ActiveModelTrait, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 
 async fn site(runner: &TestRunner) -> i64 {
     let ctx = runner.context();
@@ -401,6 +401,70 @@ async fn unavailable_or_hidden_revisions_and_deleted_pages_are_skipped() {
         .unwrap()
         .is_none()
     );
+}
+
+#[tokio::test]
+async fn page_view_without_site_view_sees_both_currently_readable_revisions() {
+    let runner = TestRunner::setup().await;
+    let ctx = runner.context();
+    let site_id = site(&runner).await;
+    let user_id = member(&runner, site_id, "Watch Page Only").await;
+    let (page_id, old) = create_page(&runner, site_id, "watch-page-only", "Before").await;
+    let new = edit_page(&runner, site_id, page_id, old, "After").await;
+    role_permission::Entity::delete_many()
+        .filter(role_permission::Column::SiteId.eq(site_id))
+        .filter(role_permission::Column::ResourceType.eq(Resource::Site))
+        .filter(role_permission::Column::Action.eq(Action::View))
+        .exec(ctx.transaction())
+        .await
+        .unwrap();
+    let page = PageService::get_direct(ctx, page_id, false).await.unwrap();
+    let permission_ctx = CheckPermissionContext {
+        user_id: Some(user_id),
+        site_id,
+        page_reference: Some(Reference::Id(page_id)),
+    };
+    assert!(
+        PermissionService::check_user_can(
+            ctx,
+            &permission_ctx,
+            Permission {
+                resource_type: Resource::Page,
+                resource_category: Some(Reference::Id(page.page_category_id)),
+                action: Action::View,
+            },
+        )
+        .await
+        .unwrap()
+    );
+    assert!(
+        !PermissionService::check_user_can(
+            ctx,
+            &permission_ctx,
+            Permission {
+                resource_type: Resource::Site,
+                resource_category: None,
+                action: Action::View,
+            },
+        )
+        .await
+        .unwrap()
+    );
+    let visible = visible_change(
+        ctx,
+        user_id,
+        ChangeRevisions {
+            site_id,
+            page_id,
+            previous_revision_id: Some(old),
+            new_revision_id: new,
+        },
+    )
+    .await
+    .unwrap()
+    .expect("both revisions readable under current page view");
+    assert!(visible.before.unwrap().contains("Before"));
+    assert!(visible.after.contains("After"));
 }
 
 #[tokio::test]

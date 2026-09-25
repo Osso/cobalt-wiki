@@ -103,24 +103,17 @@ async fn recipient_can_view_page(
         site_id: change.site_id,
         page_reference: Some(Reference::Id(change.page_id)),
     };
-    let [site_allowed, page_allowed] = PermissionService::batch_check_user_can(
+    let page_allowed = PermissionService::check_user_can(
         ctx,
         &permission_ctx,
-        [
-            Permission {
-                resource_type: Resource::Site,
-                resource_category: None,
-                action: Action::View,
-            },
-            Permission {
-                resource_type: Resource::Page,
-                resource_category: Some(Reference::Id(page.page_category_id)),
-                action: Action::View,
-            },
-        ],
+        Permission {
+            resource_type: Resource::Page,
+            resource_category: Some(Reference::Id(page.page_category_id)),
+            action: Action::View,
+        },
     )
     .await?;
-    Ok((site_allowed && page_allowed).then_some(user.slug))
+    Ok(page_allowed.then_some(user.slug))
 }
 
 async fn load_change_revisions(

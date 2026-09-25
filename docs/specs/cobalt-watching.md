@@ -7,7 +7,7 @@ Cobalt will support Wikidot-style watching for locally created site, category, a
 ### Subscriptions
 
 - [ ] A signed-in user may subscribe to and unsubscribe from a site, category, or page they can read.
-- [ ] Subscribing, viewing Activity, and receiving a notification each require current read visibility for the affected page. This privacy requirement must not assume or define global role policy.
+- [ ] Subscribing, viewing Activity, and receiving a notification each require current `Page/View` visibility for the affected page, using its page/category context. Site subscriptions require an existing site and unscoped `Page/View`; they do not grant page access. `Site/View` is not required. This privacy requirement must not assume or define global role policy.
 - [ ] New local subscriptions only: imported or migrated users are not auto-enrolled, and migration tooling does not import subscriptions.
 - [ ] No automatic watches exist by default. A user may opt in to automatically watch pages after editing them.
 - [ ] The supported initial event scope is page creation and page edits. Later edits to imported pages are ordinary future events and may notify locally subscribed users.
@@ -18,7 +18,7 @@ Cobalt will support Wikidot-style watching for locally created site, category, a
 - [ ] Email is optional per user; Activity remains enabled by default and email is opt-in.
 - [ ] An email contains the page title, event type, actor, time, change link, and, for an edit, an added-and-removed rendered-text diff. It does not include raw wikitext or unapproved full source content.
 - [ ] An edit email's diff is limited to 1,000 characters total; the change link provides the complete change.
-- [ ] A recipient must have read visibility for both revisions of an edit before Activity or email is delivered. If that visibility cannot be established, delivery fails closed. A creation checks the created revision only; it has no synthetic prior revision.
+- [ ] A recipient must have current `Page/View` visibility for the page and readable stored content for both revisions of an edit before Activity or email is delivered; historical ACL snapshots are not required. If visibility cannot be established, delivery fails closed. A creation checks the created revision only; it has no synthetic prior revision.
 - [ ] The acting user receives neither Activity nor email for their own change.
 - [ ] A user with overlapping site, category, and page subscriptions receives at most one notification for one change.
 - [ ] A `Do Not Notify Watchers` choice on a create or edit suppresses both Activity and email for that change. It does not suppress revision history or audit records.

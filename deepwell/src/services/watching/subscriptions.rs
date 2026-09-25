@@ -105,31 +105,10 @@ pub async fn preferences_set(
     Ok(preferences)
 }
 
-async fn can_view_site(
-    ctx: &ServiceContext<'_>,
-    site_id: i64,
-    user_id: i64,
-) -> Result<bool> {
-    if SiteService::get_optional(ctx, Reference::Id(site_id))
+async fn site_exists(ctx: &ServiceContext<'_>, site_id: i64) -> Result<bool> {
+    Ok(SiteService::get_optional(ctx, Reference::Id(site_id))
         .await?
-        .is_none()
-    {
-        return Ok(false);
-    }
-    PermissionService::check_user_can(
-        ctx,
-        &CheckPermissionContext {
-            user_id: Some(user_id),
-            site_id,
-            page_reference: None,
-        },
-        Permission {
-            resource_type: Resource::Site,
-            resource_category: None,
-            action: Action::View,
-        },
-    )
-    .await
+        .is_some())
 }
 
 async fn can_view_target(
@@ -139,16 +118,20 @@ async fn can_view_target(
     scope: WatchScope,
     target_id: i64,
 ) -> Result<bool> {
-    if !can_view_site(ctx, site_id, user_id).await? {
+    if !site_exists(ctx, site_id).await? {
         return Ok(false);
     }
-    if matches!(scope, WatchScope::Site) {
-        return Ok(target_id == site_id);
-    }
-    let Some((category_id, page_reference)) =
-        visible_target_category(ctx, site_id, scope, target_id).await?
-    else {
-        return Ok(false);
+    let (category, page_reference) = match scope {
+        WatchScope::Site if target_id == site_id => (None, None),
+        WatchScope::Site => return Ok(false),
+        _ => {
+            let Some((category_id, page_reference)) =
+                visible_target_category(ctx, site_id, scope, target_id).await?
+            else {
+                return Ok(false);
+            };
+            (Some(Reference::Id(category_id)), page_reference)
+        }
     };
     PermissionService::check_user_can(
         ctx,
@@ -159,7 +142,7 @@ async fn can_view_target(
         },
         Permission {
             resource_type: Resource::Page,
-            resource_category: Some(Reference::Id(category_id)),
+            resource_category: category,
             action: Action::View,
         },
     )
@@ -202,7 +185,7 @@ pub async fn subscriptions(
     site_id: i64,
 ) -> Result<Vec<WatchSubscription>> {
     let user_id = request_user(ctx)?;
-    if !can_view_site(ctx, site_id, user_id).await? {
+    if !site_exists(ctx, site_id).await? {
         return Ok(Vec::new());
     }
     let rows = ctx.transaction().query_all_raw(statement(
