@@ -46,6 +46,12 @@ Cobalt provides a server-side Meilisearch-backed `search:site` result page for c
 
 - Read-only main comparison observed 6,114 live pages and 6,114 indexed site pages on 2026-09-24, over seven pagination batches (six of 1,000 and one of 114), with no broken current-revision pointers or revision-ID mismatches (`/tmp/claude/cobalt-search-revision-parity.json`). This compares current revision IDs only; it is not body-byte or ACL/authorization proof.
 
+## Current content equality evidence
+
+- Protected read-only audit on 2026-09-25 compared 6,114 database pages with 6,114 indexed documents across seven batches (six of 1,000 and one of 114). `metadata-summary.json` records zero mismatches, missing values, or extra values for each of its five checked metadata fields. `body-summary.json` and `body-results.jsonl` record exact body equality after recomputing every page body with the current Rust `plain_body` function copied to `/tmp/claude/cobalt-search-body-audit.rs`; that copy was confirmed identical to `mod.rs`.
+- `snapshot-stability.json` records identical database `compiledHTML` and source-metadata snapshots before and after the audit; `pending.log` records zero pending work. `index.json` confirms `pages` indexes `page_id`, configures `site_id` as filterable, and limits searchable fields to `title`, `slug`, `tags`, and `body`.
+- This closes the local snapshot body-equality gap. It does not establish lifecycle transition timing, ACL/authorization behavior, source-search parity, or production behavior; fake-Meilisearch lifecycle proof remains separate. Independent audit gate remains pending. The audit retains the source-search-disabled and 43 unreconstructable fingerprint/history boundaries.
+
 ## Known gaps (current cycle)
 
 - The SSR cache-isolation batch retained 22 passing tests; `20a3afc` corrected the three incomplete doctype fixtures, with their targeted group passing 4/4. Final scoped frontend checks and the bounded independent evidence audit passed.
