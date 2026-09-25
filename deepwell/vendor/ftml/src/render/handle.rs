@@ -81,9 +81,9 @@ impl Handle {
         // Modules only render to HTML
         debug!("Rendering module '{}'", module.name());
         match module {
-            // Wikidot's markup without its join dialog script, which this site lacks.
+            // Native application flow; registration alone does not grant membership.
             Module::Join { button_text, .. } => {
-                buffer.push_str("<div class=\"join-box\"><a href=\"javascript:;\">");
+                buffer.push_str("<div class=\"join-box\"><a href=\"/-/join\">");
                 escape(buffer, button_text.as_deref().unwrap_or("Join"));
                 buffer.push_str("</a></div>");
             }
@@ -789,6 +789,27 @@ mod tests {
             max_font_size: Some(cow!("225%")),
             min_color: None,
             max_color: None,
+        }
+    }
+
+    #[test]
+    fn join_links_to_membership_application() {
+        for (label, expected) in [
+            (None, "Join"),
+            (Some(cow!("Apply <now>")), "Apply &lt;now&gt;"),
+        ] {
+            let module = Module::Join {
+                button_text: label,
+                attributes: Default::default(),
+            };
+            let mut html = String::new();
+            Handle::default().render_module(&mut html, &module, ScoreValue::Integer(0));
+            assert_eq!(
+                html,
+                format!(
+                    "<div class=\"join-box\"><a href=\"/-/join\">{expected}</a></div>"
+                )
+            );
         }
     }
 
