@@ -949,6 +949,62 @@ mod tests {
     }
 
     #[test]
+    fn required_tags_match_lowercase_metadata_regardless_of_filter_case() {
+        let filter = selection(" tags=\"+Alli +Aly\"").filter();
+        let tags = ["alli".to_owned(), "aly".to_owned()];
+        let roster = ListingSubject {
+            category: "character",
+            name: "roster-member",
+            tags: &tags,
+        };
+        assert!(filter.matches(&roster));
+
+        let incomplete = ListingSubject {
+            tags: &tags[..1],
+            ..roster
+        };
+        assert!(!filter.matches(&incomplete));
+    }
+
+    #[test]
+    fn optional_tags_match_lowercase_metadata_regardless_of_filter_case() {
+        let filter = selection(" tags=\"Alli Aly Athena\"").filter();
+        let tags = ["aly".to_owned()];
+        let roster = ListingSubject {
+            category: "character",
+            name: "roster-member",
+            tags: &tags,
+        };
+        assert!(filter.matches(&roster));
+
+        let other_tags = ["inkie".to_owned()];
+        let unrelated = ListingSubject {
+            tags: &other_tags,
+            ..roster
+        };
+        assert!(!filter.matches(&unrelated));
+    }
+
+    #[test]
+    fn excluded_tags_reject_lowercase_metadata_regardless_of_filter_case() {
+        let filter = selection(" tags=\"-Athena\"").filter();
+        let tags = ["athena".to_owned()];
+        let roster = ListingSubject {
+            category: "character",
+            name: "roster-member",
+            tags: &tags,
+        };
+        assert!(!filter.matches(&roster));
+
+        let other_tags = ["alli".to_owned()];
+        let eligible = ListingSubject {
+            tags: &other_tags,
+            ..roster
+        };
+        assert!(filter.matches(&eligible));
+    }
+
+    #[test]
     fn unsupported_arguments_are_explicit_errors() {
         let parse = |header| {
             parse_selection(&parse_attributes(header).unwrap(), "character").unwrap_err()

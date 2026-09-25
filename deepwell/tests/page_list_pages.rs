@@ -247,7 +247,7 @@ async fn nested_list_pages_list_each_outer_page_with_its_own_inner_pages() {
         "[[module ListPages category=\"character\" tags=\"{$tags}\" order=\"title\"]]\n* char %%title%%\n[[/module]]",
     )
     .await;
-    let players = "[[module ListPages category=\"player\" tags=\"_completed\" order=\"title\" prependLine=\"Players:\"]]\n+ %%title%%\n[[include characterlist | tags=+%%name%%]]\n[[/module]]\nEnd";
+    let players = "[[module ListPages category=\"player\" tags=\"_completed\" order=\"title\" prependLine=\"Players:\"]]\n+ %%title%%\n[[include characterlist | tags=+%%title%%]]\n[[/module]]\nEnd";
     import_page(&runner, site_id, "testlist", players).await;
     let html = compiled_body(&runner, site_id, "testlist").await;
 
