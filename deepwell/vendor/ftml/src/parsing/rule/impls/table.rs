@@ -107,6 +107,22 @@ fn try_consume_fn<'r, 't>(
                         | Token::TableColumnRight,
                         Some(next),
                     ) => {
+                        // A space after the final delimiter belongs to the row ending,
+                        // not the next cell. Keep spaces before other content intact.
+                        let next = if next == Token::Whitespace
+                            && matches!(
+                                parser.look_ahead(1).map(|token| token.token),
+                                Some(
+                                    Token::LineBreak
+                                        | Token::ParagraphBreak
+                                        | Token::InputEnd
+                                )
+                            ) {
+                            parser.step()?;
+                            parser.look_ahead(0).unwrap().token
+                        } else {
+                            next
+                        };
                         trace!(
                             "Ending cell, row, or table (next token '{}')",
                             next.name(),

@@ -202,6 +202,36 @@ async fn list_pages_selects_orders_limits_and_fills_listed_page_tokens() {
 }
 
 #[tokio::test]
+async fn digest_writings_renders_every_joined_table_row_with_trailing_space() {
+    let runner = TestRunner::setup().await;
+    let site_id = site_id(&runner).await;
+    for (slug, title) in [
+        ("writing:alpha", "Alpha"),
+        ("writing:beta", "Beta"),
+        ("writing:gamma", "Gamma"),
+    ] {
+        import_page(&runner, site_id, slug, "Writing").await;
+        set_title_and_tags(&runner, site_id, slug, title, &["digest"]).await;
+    }
+    let source = "[[module ListPages category=\"writing\" tags=\"digest\" pagetype=\"*\" separate=\"no\" order=\"created_at\" created_at=\"last 10 days\" prependLine=\"||~ **Date Created** ||~ **Title** ||~ **Author** ||\"]]\n|| %%created_at%% || %%linked_title%% || %%title%% || \n[[/module]]";
+    import_page(&runner, site_id, "digest-writings", source).await;
+    rerender(&runner, site_id, "digest-writings").await;
+    let html = compiled_body(&runner, site_id, "digest-writings").await;
+
+    let document = scraper::Html::parse_fragment(&html);
+    let rows = scraper::Selector::parse(".list-pages-box table tr").unwrap();
+    let titles: Vec<_> = document
+        .select(&rows)
+        .map(|row| row.text().collect::<String>())
+        .collect();
+    assert_eq!(titles.len(), 4, "{html}");
+    for title in ["Alpha", "Beta", "Gamma"] {
+        assert!(titles.iter().any(|row| row.contains(title)), "{html}");
+    }
+    assert!(!html.contains("||"), "{html}");
+}
+
+#[tokio::test]
 async fn count_pages_fills_the_total_of_every_matching_page() {
     let runner = TestRunner::setup().await;
     let site_id = site_id(&runner).await;

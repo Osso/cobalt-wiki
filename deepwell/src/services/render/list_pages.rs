@@ -1040,6 +1040,43 @@ mod tests {
         assert_eq!(layout_items(&joined, &[], ""), "");
     }
 
+    #[test]
+    fn joined_digest_rows_render_as_one_table() {
+        use ftml::data::{PageInfo, ScoreValue};
+        use ftml::layout::Layout;
+        use ftml::render::{Render, html::HtmlRender};
+        use ftml::settings::{WikitextMode, WikitextSettings};
+        use std::borrow::Cow;
+
+        let selection = selection(
+            " separate=\"no\" prependLine=\"||~ Date Created ||~ Title ||~ Author ||\"",
+        );
+        let items = [
+            "|| 2026-09-23 || Alpha || Ann || ".to_owned(),
+            "|| 2026-09-24 || Beta || Bob || ".to_owned(),
+            "|| 2026-09-25 || Gamma || Cam || ".to_owned(),
+        ];
+        let mut source = layout_items(&selection, &items, "");
+        let settings = WikitextSettings::from_mode(WikitextMode::Page, Layout::Wikidot);
+        ftml::preprocess(&mut source);
+        let tokens = ftml::tokenize(&source);
+        let page_info = PageInfo {
+            page: Cow::Borrowed("digest-writings"),
+            category: None,
+            site: Cow::Borrowed("test"),
+            title: Cow::Borrowed("Digest Writings"),
+            alt_title: None,
+            score: ScoreValue::Integer(0),
+            tags: vec![],
+            language: Cow::Borrowed("default"),
+        };
+        let (tree, errors) = ftml::parse(&tokens, &page_info, &settings).into();
+        assert!(errors.is_empty(), "{errors:?}");
+        let html = HtmlRender.render(&tree, &page_info, &settings).body;
+        assert_eq!(html.matches("<tr").count(), 4, "{html}");
+        assert!(!html.contains("||"), "{html}");
+    }
+
     /// Page lists of cobalt-company.wikidot.com/writings/p/N (46 pages).
     #[test]
     fn pager_matches_wikidot_page_navigation() {
