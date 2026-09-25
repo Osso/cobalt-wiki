@@ -43,6 +43,7 @@ Cobalt history import must store authorized source revision history without pres
 - [Stock WikiComma archive reader](../../deepwell/importer/site.py)
 - [Native revision import endpoint](../../deepwell/src/endpoints/import.rs)
 - [Native revision import service](../../deepwell/src/services/import/service.rs)
+- [Current pilot proof and deployment boundaries](../wiki/systems/cobalt-replica-status.md#imported-source-history)
 
 ## Local backend history storage
 
@@ -56,9 +57,10 @@ Imported source history uses `imported_page_revision`, separate from native edit
 - [x] Import and replay history for a navigation-page fixture without enqueueing rerenders.
 - [x] Independently verify the integrated history backend and local pilot at `9c4ff20`: six history tests and one prune test passed; the existing isolated queue test remains valid at one passing test. Format and cargo check passed.
 - [x] Run the acquired 240-revision pilot through this storage path: seven cursor pages read 240 matching bodies and metadata; idempotent replay inserted zero records. No production history was imported.
-- [x] Verify the local imported-history UI. `bd9d88f` uses supported Svelte actions to load a separate 50-row paginated section, source metadata/provenance, and no rollback action. Local browser proof at `c7859d0` read all 240 records over five pages, loaded revision 0 source with a matching protected hash, retained the display-decoding marker, and reloaded the current page (`/tmp/claude/cobalt-history-ui-green.log`).
+- [x] Read the current local pilot API on backend `2748`: three cursor pages (`100/100/40`) returned all 240 matching metadata rows, including instant-equivalent `Z`/`+00:00` timestamps, and revisions 239 and 0 matched retained display-decoded bodies. Current proof is recorded in the [replica status](../wiki/systems/cobalt-replica-status.md#imported-source-history).
+- [ ] Restore a current local UI history proof. `c7859d0` is historical only; the current browser delivery hydrates unsuccessfully, so no current selector reached history and no new UI pass exists. See the [replica status](../wiki/systems/cobalt-replica-status.md#imported-source-history).
 
-`import_wikidot_history` accepts a guarded current revision ID and source records. `page_imported_history` lists at most 100 records, descending by source revision number; `before_revision` is exclusive. `page_imported_revision` retrieves a source body. These loopback backend APIs are not yet deployed.
+`import_wikidot_history` accepts a guarded current revision ID and source records. `page_imported_history` lists at most 100 records, descending by source revision number; `before_revision` is exclusive. `page_imported_revision` retrieves a source body. These loopback APIs were available to the retained pilot on backend `2748`; main `3090`/backend `2749` is separate and neither its nor production deployment availability is established.
 
 ## Implementation inventory
 
@@ -72,7 +74,7 @@ Imported source history uses `imported_page_revision`, separate from native edit
 - `tools/cobalt_migration/history_export.py`: owner-only, resumable archive for one page's list and source-body module responses; lists complete before body capture.
 - `tools/cobalt_migration/history_acquire.py`: validates the protected latest-source plan and runs the page exporter sequentially, retaining explicit metadata-unresolved records.
 - `tools/cobalt_migration/poc_import.py`: remains latest-source only; no history target write exists yet.
-- `framerail/src/routes/[slug]/[...extra]/ImportedHistory.svelte`: presents imported records separately from editable revisions, with source access and display-decoding provenance but no rollback control. Its local 240-record browser flow is proven; final lint/type/readability verification remains separate.
+- `framerail/src/routes/[slug]/[...extra]/ImportedHistory.svelte`: presents imported records separately from editable revisions, with source access and display-decoding provenance but no rollback control. Its `c7859d0` browser flow is historical; current UI proof is blocked as recorded in the [replica status](../wiki/systems/cobalt-replica-status.md#imported-source-history).
 
 - `deepwell/src/services/import/history.rs` and `history_structs.rs`: guarded import and permission-checked reads.
 - `deepwell/migrations/20260923000000_imported_page_revision.sql`: separate source-history storage.
@@ -81,7 +83,7 @@ Imported source history uses `imported_page_revision`, separate from native edit
 
 - `deepwell/tests/imported_history.rs`: native import/idempotence/current-page preservation and real two-page history reads.
 
-`tests/cobalt_migration/test_page_history.py` has nine independently verified parser tests. `tests/cobalt_migration/test_history_source.py` has five decoder tests; all 240 protected pilot responses decode. `tests/cobalt_migration/test_history_export.py` has eight synthetic tests for resumable list/body archival, protected checkpoint validation, gaps, and bounded failures. `tests/cobalt_migration/test_history_acquire.py` covers protected-plan site orchestration. These tests do not establish source-wide acquisition or live browser transport. Independent verification at `9c4ff20` passed six history tests, one prune test, the retained isolated queue test, format, and cargo check; its prior abnormal scoped run lacked `DATABASE_URL`. Protected artifacts under `/home/osso/.local/share/cobalt-wiki/source/history-pilot/` retain raw responses, metadata, decoded bodies, calibration, and local import/readback proofs. The local target proof inserted 240 records on site `6000011`, preserved current revision/source/compiled output, read all records across three cursor pages with matching bodies and metadata, and replayed idempotently with zero insertions. Revision 239's decoded payload and local API body match the archived 2,473-byte SHA-256 `eb0478369cf1cae46acb85b994c77162e3116ce7694ca7c5399ae26e46890beb`; the earlier unequal comparison is superseded by corrected-decoder evidence. This does not establish production import, local UI access, site-wide acquisition, or byte-exact recovery of older historical bodies. The user alone decides whether any future deployment is warranted; no deployment occurs without explicit approval.
+`tests/cobalt_migration/test_page_history.py` has nine independently verified parser tests. `tests/cobalt_migration/test_history_source.py` has five decoder tests; all 240 protected pilot responses decode. `tests/cobalt_migration/test_history_export.py` has eight synthetic tests for resumable list/body archival, protected checkpoint validation, gaps, and bounded failures. `tests/cobalt_migration/test_history_acquire.py` covers protected-plan site orchestration. These tests do not establish source-wide acquisition or live browser transport. Independent verification at `9c4ff20` passed six history tests, one prune test, the retained isolated queue test, format, and cargo check; its prior abnormal scoped run lacked `DATABASE_URL`. Protected artifacts under `/home/osso/.local/share/cobalt-wiki/source/history-pilot/` retain raw responses, metadata, decoded bodies, calibration, and local import/readback proofs. Current API/UI evidence and deployment boundaries are maintained in the [replica status](../wiki/systems/cobalt-replica-status.md#imported-source-history). This does not establish production import, current local UI access, site-wide acquisition, or byte-exact recovery of older historical bodies. The user alone decides whether any future deployment is warranted; no deployment occurs without explicit approval.
 
 ## Known gaps (current cycle)
 
