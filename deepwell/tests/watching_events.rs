@@ -204,6 +204,12 @@ async fn ordinary_page_changes_capture_scopes_without_self_import_or_suppressed_
     .await
     .unwrap();
     set_actor(&mut runner, site_id, author);
+    runner.set_request_context(RequestContext {
+        user_id: Some(author),
+        site_id: Some(site_id),
+        page_reference: Some(Reference::Id(created.page_id)),
+        ..Default::default()
+    });
     let edited = deepwell::endpoints::all::page_edit(runner.context(), common::make_params(json!({
         "site_id":site_id,"user_id":author,"page":created.page_id,"last_revision_id":created.revision_id,
         "wikitext":"Changed visible text","revision_comments":"changed","ip_address":common::IP_ADDRESS,
@@ -235,6 +241,12 @@ async fn ordinary_page_changes_capture_scopes_without_self_import_or_suppressed_
             .await
             .is_empty()
     );
+    runner.set_request_context(RequestContext {
+        user_id: Some(author),
+        site_id: Some(site_id),
+        page_reference: Some(Reference::Id(imported.page_id)),
+        ..Default::default()
+    });
     let future_edit = deepwell::endpoints::all::page_edit(runner.context(), common::make_params(json!({
         "site_id":site_id,"user_id":author,"page":imported.page_id,"last_revision_id":imported.revision_id,
         "wikitext":"New local change","revision_comments":"future change","ip_address":common::IP_ADDRESS,
