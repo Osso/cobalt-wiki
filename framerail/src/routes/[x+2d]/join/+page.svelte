@@ -47,8 +47,8 @@
     <textarea
       id="application-message"
       name="message"
-      required
       aria-describedby="application-limit"
+      required
       rows="6"
       value={form?.applicationMessage ?? ""}></textarea>
     <p id="application-limit">Maximum 2,000 characters.</p>
@@ -69,7 +69,7 @@
     flex-direction: column;
     gap: 0.5em;
     max-width: 40em;
-    @include account-form-controls;
+    @include account-form-controls("textarea");
   }
 
   textarea {
