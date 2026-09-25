@@ -117,6 +117,10 @@ After deploying: jobs already queued as `full` outdate only when their output ch
 - `[[gallery]]` renders Wikidot's gallery markup from the page's image attachments (`c8028c4`); `icons` shows all 468 images in Wikidot's order.
 - The 30 Wikidot site members are native accounts (`tools/cobalt_migration/wikidot_members.py`, run 2026-09-24): Wikidot account date on the user, site join date on the membership, roles member 30 / admin 5 / moderator 1 / root 1, unusable random passwords and `@members.invalid` placeholder emails until set-password emails are sent.
 
+## Framerail FTML tabview, 2026-09-25
+
+Framerail tab styling (`e2c115e56`) and compiled FTML tab selection (`611e202c2`) are deployed: the user-authorized public `install/dev-deploy.sh framerail` completed successfully from `5ba6158b3a94`; retained deploy output: `/tmp/claude/cobalt-tabview-framerail-deploy.log`. Deepwell was not deployed. Independent local Melancholy coverage is green for five-tab styling, switching, and source/revision preservation; lint, formatting, and Stylelint also pass. The scoped JSDoc/readability check for test refactor `da3471332` independently passes. Public browser acceptance remains pending with a separate browser agent; this is deployment and local-proof evidence, not public browser proof.
+
 ## Current-page media-owner fix, 2026-09-25
 
 `62af8b88a` is deployed on `main`: root `deploy.sh` completed locally with exit 0, then `main/install/dev-deploy.sh deepwell` completed with exit 0 and deployed production build `74f1e36abd76`. Framerail was deliberately not deployed; its concurrent tabview remains local. Bare current-page image references retain their category and later colons in the owner path. This fixes `character:melancholy`: its ImageBox's bare `Melancholy_Outfits` reference had rendered with root `melancholy` ownership instead of `character:melancholy`.
