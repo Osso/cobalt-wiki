@@ -3,6 +3,7 @@
 import { storeRequestContext } from "$lib/server/load/request-ctx"
 import { Layout } from "$lib/types"
 import { loadSiteInfo } from "$lib/server/load/site-info"
+import { loadPreload } from "$lib/server/load/preload"
 import type { Handle } from "@sveltejs/kit"
 
 const HTML5_DOCTYPE = "<!doctype html>"
@@ -14,7 +15,10 @@ export const handle: Handle = async ({ event, resolve }) => {
 
   // Gather common request metadata into a shared context.
   const { siteId } = loadSiteInfo(request.headers)
-  const page_slug = params.slug
+  const page_slug =
+    request.method === "POST" && event.route.id === "/"
+      ? (await loadPreload(request, cookies)).site.default_page
+      : params.slug
   const sessionToken = cookies.get("wikijump_token")
 
   storeRequestContext(locals, sessionToken, siteId, page_slug)
