@@ -12,6 +12,7 @@ Site admins manage members from `/-/admin/members`, the replica of Wikidot's `_a
 - [x] Invite by email: an address with no regular account creates one under the given name (`UserNameRequired` 4109 without a name) with a random password, adds the membership (`Invitation` by the admin) and the `member` role, then emails a set-password link through `PasswordTokenService::create_link`. An existing account only joins, without an email. A current member is refused (`SiteMemberExists` 2109) so the join date is kept. A failed email fails the whole RPC, whose transaction rolls back.
 - [x] The header account menu links to the page ("Site members") only when `preload_view` reports `site_admin`.
 - [x] A revoked role can be granted again: `user_role_grant` revives the `(user_id, role_id)` row instead of inserting a duplicate key.
+- [x] The site-themed `/-/join` page lets signed-in guests submit a trimmed 1–2,000-character application message. Signed-out visitors get sign-in/account links; pending applicants see their message and wait for review, and existing members cannot apply from the form. Account creation and application alone do not grant membership.
 - [x] Site members shows pending membership application messages with Approve/Reject actions. Only admins/root may review; approving grants membership, rejecting permits a later application. See [membership applications](cobalt-membership-applications.md) for the lifecycle.
 - [ ] Not offered: bans, Wikidot's per-member "send private message".
 
@@ -38,5 +39,6 @@ All read the acting user and site from the request headers.
 
 - `deepwell/tests/member_admin.rs` (DB-backed, `cobalt_test`): anonymous, member, moderator and restricted-admin callers refused by all four RPCs with no change; listing fields and highest role; promote/demote/re-promote (fails without the upsert); removal, root and self protection; invite creating the account and emailing a link (fake Mailgun) that redeems, existing account joining without email, current member refused; new-account invite without Mailgun fails; preload `site_admin`. 7/7 passed at `b335860`.
 - `framerail/tests/members.test.ts` (mocked Deepwell): signed-out and non-admin views, session/site headers and params of every RPC, rows and options, error messages, no backend call without a session, header link for admins only. `framerail/tests/page-layout.test.ts`: site theme. 10/10 and 2/2 passed at `7bed3c2`.
+- `framerail/tests/join.test.ts` covers signed-out, guest, pending and member page states; actor/site request context; message validation; readable backend refusals. 4/4 passed with 2/2 page-layout tests during development.
 - `framerail/tests/members.test.ts` also covers the pending application queue, safely rendered messages, approve/reject RPC context, malformed decisions, and signed-out/unauthorized review; 12/12 passed during application UI development.
 - Not proven: an application browser run, a real Mailgun send, application deployment.
