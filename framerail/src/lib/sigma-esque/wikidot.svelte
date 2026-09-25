@@ -210,6 +210,54 @@
     border-radius: 0 0 6px 6px;
   }
 
+  // Map Wikidot's base YUI tab skin to FTML's compiled tab markup.
+  // Source: common--theme/base/css/style.css (Yahoo! 2007, BSD licensed).
+  .wj-tabs {
+    display: block;
+  }
+
+  .wj-tabs > .wj-tabs-button-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 0.16em;
+    align-items: flex-end;
+    border-bottom: 5px solid #2647a0;
+  }
+
+  .wj-tabs-button-list > .wj-tabs-button {
+    box-sizing: border-box;
+    display: block;
+    max-width: 100%;
+    padding: 0.25em 0.75em;
+    color: #000;
+    cursor: pointer;
+    background: #d8d8d8
+      url("https://d3g0gp89917ko0.cloudfront.net/v--7690939296dc/common--javascript/yahooui/assets/sprite.png")
+      repeat-x;
+    border: 1px solid #a3a3a3;
+
+    &:hover,
+    &:focus-visible {
+      background-color: #bfdaff;
+      background-position: left -1300px;
+    }
+
+    &[aria-selected="true"] {
+      padding: 0.35em 0.75em;
+      color: #fff;
+      background-color: #2647a0;
+      background-position: left -1400px;
+      border-color: #243356;
+    }
+  }
+
+  .wj-tabs > .wj-tabs-panel-list {
+    padding: 0.25em 0.5em;
+    background: #f4f5ff;
+    border: 1px solid #808080;
+    border-top-color: #243356;
+  }
+
   @media (max-width: $tablet-max-width) {
     .header {
       height: initial;
