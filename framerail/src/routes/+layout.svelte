@@ -16,6 +16,7 @@
   import { submitNewPage } from "$lib/new-page"
   import { clickSiteChanges } from "$lib/site-changes"
   import { clickCollapsible } from "$lib/collapsible"
+  import { clickTabview, keydownTabview } from "$lib/tabview"
 
   let { children } = $props()
 
@@ -48,12 +49,15 @@
     const onClick = (event: MouseEvent) => {
       clickSiteChanges(event, (path) => window.location.assign(path))
       clickCollapsible(event)
+      clickTabview(event)
     }
     window.addEventListener("submit", onSubmit, true)
     window.addEventListener("click", onClick, true)
+    window.addEventListener("keydown", keydownTabview, true)
     return () => {
       window.removeEventListener("submit", onSubmit, true)
       window.removeEventListener("click", onClick, true)
+      window.removeEventListener("keydown", keydownTabview, true)
     }
   })
 </script>
