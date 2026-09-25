@@ -13,7 +13,7 @@ Site admins manage members from `/-/admin/members`, the replica of Wikidot's `_a
 - [x] The header account menu links to the page ("Site members") only when `preload_view` reports `site_admin`.
 - [x] A revoked role can be granted again: `user_role_grant` revives the `(user_id, role_id)` row instead of inserting a duplicate key.
 - [x] The existing `[[module Join]]` button links to `/-/join`, retaining its escaped custom label; it no longer relies on Wikidot's absent dialog script.
-- [ ] Membership applications have frontend support: signed-in guests can send a short message at `/-/join`; pending guests see their message; members cannot apply; Site members presents admin/root Approve/Reject controls. Rejecting permits a later application. The backend integration, local end-to-end verification, and public deployment remain pending; see [membership applications](cobalt-membership-applications.md) for the lifecycle.
+- [ ] Membership applications have frontend support: signed-in guests can send a short message at `/-/join`; pending guests see their message; members cannot apply; Site members presents admin/root Approve/Reject controls. Rejecting permits a later application. The backend integration, local end-to-end verification, and public deployment remain pending; see [membership applications](cobalt-member-applications.md) for the lifecycle.
 - [ ] Not offered: bans, Wikidot's per-member "send private message".
 
 ## RPCs
