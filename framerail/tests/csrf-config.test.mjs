@@ -23,7 +23,7 @@ function importProjectConfig(environment) {
   if (environment === undefined) delete process.env.FRAMERAIL_ENV
   else process.env.FRAMERAIL_ENV = environment
   return import(
-    new URL(`../svelte.config.js?environment=${environment}`, import.meta.url)
+    new URL(`../svelte.config.js?environment=${environment}`, import.meta.url).href
   ).finally(() => {
     if (previous === undefined) delete process.env.FRAMERAIL_ENV
     else process.env.FRAMERAIL_ENV = previous
@@ -82,7 +82,7 @@ function runFixtureProcess(directory, environment) {
 }
 
 /** @param {string} directory */
-async function buildAndRespond(directory) {
+async function buildFixture(directory) {
   const { build } = await import("vite")
   const outDir = join(directory, "kit-output")
   await build({
@@ -90,7 +90,11 @@ async function buildAndRespond(directory) {
     configFile: join(directory, "vite.config.js"),
     logLevel: "warn"
   })
-  const serverDirectory = join(outDir, "output/server")
+  return join(outDir, "output/server")
+}
+
+/** @param {string} serverDirectory */
+async function loadFixtureServer(serverDirectory) {
   const generated = readdirSync(serverDirectory)
   assert.ok(
     generated.includes("index.js") && generated.includes("manifest.js"),
@@ -102,6 +106,11 @@ async function buildAndRespond(directory) {
   )
   const server = new Server(manifest)
   await server.init({ env: process.env })
+  return server
+}
+
+/** @param {Awaited<ReturnType<typeof loadFixtureServer>>} server */
+async function postOrigins(server) {
   const responses = []
   for (const origin of ["https://fixture.test", "https://foreign.test"]) {
     const request = new Request("https://fixture.test/", {
@@ -118,6 +127,14 @@ async function buildAndRespond(directory) {
       containsMarker: (await response.text()).includes(marker)
     })
   }
+  return responses
+}
+
+/** @param {string} directory */
+async function buildAndRespond(directory) {
+  const serverDirectory = await buildFixture(directory)
+  const server = await loadFixtureServer(serverDirectory)
+  const responses = await postOrigins(server)
   writeFileSync(join(directory, "responses.json"), JSON.stringify(responses))
 }
 
