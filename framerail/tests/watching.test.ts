@@ -24,7 +24,10 @@ const { render } = await vite.ssrLoadModule("svelte/server")
 const headers = { "X-Wikijump-Site-Id": "6000011", "X-Wikijump-Site-Slug": "cobalt" }
 type Rpc = { method: string; params: Record<string, unknown>; id: number }
 
-async function withRpc<T>(reply: (rpc: Rpc) => object, callback: () => Promise<T>) {
+async function withRpc<Callback extends () => Promise<unknown>>(
+  reply: (rpc: Rpc) => object,
+  callback: Callback
+): Promise<{ value: Awaited<ReturnType<Callback>>; calls: Rpc[] }> {
   const previous = globalThis.fetch
   const calls: Rpc[] = []
   globalThis.fetch = async (_input, init) => {

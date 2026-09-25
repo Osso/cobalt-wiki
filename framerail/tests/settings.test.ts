@@ -38,6 +38,7 @@ type SettingsData = Awaited<ReturnType<typeof loadSettingsPage>>
 type SaveResult = {
   section?: string
   saved?: boolean
+  watching?: boolean
   message?: string
   status?: number
   data?: { section: string; message: string }

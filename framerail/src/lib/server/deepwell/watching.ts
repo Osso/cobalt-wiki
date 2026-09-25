@@ -31,27 +31,27 @@ export interface WatchingChange extends WatchingEvent {
   after_text: string
 }
 
-export function watchingPreferencesGet(
+export async function watchingPreferencesGet(
   context: RequestContext
 ): Promise<WatchingPreferences> {
   return client.request("watching_preferences_get", {}, context)
 }
 
-export function watchingPreferencesSet(
+export async function watchingPreferencesSet(
   preferences: WatchingPreferences,
   context: RequestContext
 ): Promise<WatchingPreferences> {
   return client.request("watching_preferences_set", preferences, context)
 }
 
-export function watchingSubscriptions(
+export async function watchingSubscriptions(
   siteId: number,
   context: RequestContext
 ): Promise<WatchSubscription[]> {
   return client.request("watching_subscriptions", { site_id: siteId }, context)
 }
 
-export function watchingSubscriptionSet(
+export async function watchingSubscriptionSet(
   siteId: number,
   scope: WatchScope,
   targetId: number,
@@ -65,7 +65,7 @@ export function watchingSubscriptionSet(
   )
 }
 
-export function watchingActivity(
+export async function watchingActivity(
   siteId: number,
   beforeEventId: number | undefined,
   limit: number,
@@ -82,13 +82,15 @@ export function watchingActivity(
   )
 }
 
-export function watchingChange(
+export async function watchingChange(
   eventId: number,
   context: RequestContext
 ): Promise<WatchingChange | null> {
   return client.request("watching_change", { event_id: eventId }, context)
 }
 
-export function watchingUnsubscribe(token: string): Promise<{ unsubscribed: boolean }> {
+export async function watchingUnsubscribe(
+  token: string
+): Promise<{ unsubscribed: boolean }> {
   return client.request("watching_unsubscribe", { token })
 }

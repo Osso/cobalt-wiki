@@ -28,9 +28,73 @@ const allowedRpc = new Set([
   "watching_subscription_set"
 ])
 
+/** @typedef {"site" | "category" | "page"} WatchScope */
+/** @typedef {{ scope: WatchScope; target_id: number }} Subscription */
+/** @typedef {Record<WatchScope, number>} Targets */
+/**
+ * @typedef {{
+ *   sacrificial: boolean
+ *   site_id: number
+ *   origin: string
+ *   page_slug: string
+ *   page_slug_for_event: string
+ *   email_must_remain_disabled: boolean
+ *   user_id: number
+ *   username: string
+ *   password: string
+ * }} Fixture
+ */
+/**
+ * @typedef {{
+ *   slug: string
+ *   site_id: number
+ *   page_id: number
+ *   create_revision_id: number
+ *   edit_revision_id?: number
+ * }} CreatedPage
+ */
+/**
+ * @typedef {{
+ *   event_id: number
+ *   event_type: "create" | "edit"
+ *   revision_id: number
+ *   page_id: number
+ *   title: string
+ * }} ActivityItem
+ */
+/**
+ * @typedef {{
+ *   login: { needs_mfa: boolean; session_token: string }
+ *   session_get: { user_id: number; restricted: boolean }
+ *   page_get: {
+ *     site_id: number
+ *     slug: string
+ *     page_id: number
+ *     page_category_id: number
+ *     revision_id: number
+ *     wikitext: string
+ *   } | null
+ *   page_create: { slug: string; page_id: number; revision_id: number }
+ *   page_edit: { revision_id: number }
+ *   watching_activity: { items: ActivityItem[] }
+ *   watching_preferences_get: {
+ *     email_enabled: boolean
+ *     auto_watch: boolean
+ *   }
+ *   watching_preferences_set: {
+ *     email_enabled: boolean
+ *     auto_watch: boolean
+ *   }
+ *   watching_subscriptions: Subscription[]
+ *   watching_subscription_set: { watching: boolean }
+ * }} RpcResults
+ */
+
+/** @param {unknown} value */
 const hash = (value) => createHash("sha256").update(JSON.stringify(value)).digest("hex")
 
 async function readFixture() {
+  /** @type {Fixture} */
   const fixture = JSON.parse(await readFile(fixturePath, "utf8"))
   assert.equal(fixture.sacrificial, true)
   assert.equal(fixture.site_id, siteId)
@@ -47,8 +111,24 @@ async function readFixture() {
   return fixture
 }
 
+/**
+ * @template {keyof RpcResults} Method
+ * @param {import("@playwright/test").APIRequestContext} request
+ * @param {Method} method
+ * @param {unknown} params
+ * @param {string} [token]
+ * @param {string} [pageSlug]
+ * @returns {Promise<RpcResults[Method]>}
+ */
 async function rpc(request, method, params, token, pageSlug) {
   assert.ok(allowedRpc.has(method), "RPC method must be on the acceptance allowlist")
+  /**
+   * @type {{
+   *   "X-Deepwell-Site-Id": string
+   *   "X-Deepwell-Session-Token"?: string
+   *   "X-Deepwell-Page"?: string
+   * }}
+   */
   const headers = { "X-Deepwell-Site-Id": String(siteId) }
   if (token) headers["X-Deepwell-Session-Token"] = token
   if (pageSlug) headers["X-Deepwell-Page"] = pageSlug
@@ -58,6 +138,7 @@ async function rpc(request, method, params, token, pageSlug) {
     timeout: 10000
   })
   assert.equal(response.status(), 200, `${method} transport status`)
+  /** @type {{ error?: { code: number }; result: RpcResults[Method] }} */
   const result = await response.json()
   assert.ok(
     !result.error,
@@ -66,6 +147,7 @@ async function rpc(request, method, params, token, pageSlug) {
   return result.result
 }
 
+/** @param {import("@playwright/test").BrowserContext} context */
 function guardBrowserPosts(context) {
   return context.route("**/*", (route) => {
     const request = route.request()
@@ -82,6 +164,10 @@ function guardBrowserPosts(context) {
   })
 }
 
+/**
+ * @param {import("@playwright/test").BrowserContext} context
+ * @param {Fixture} fixture
+ */
 async function loginReader(context, fixture) {
   const page = await context.newPage()
   await page.goto(`${origin}/-/login`, { waitUntil: "networkidle" })
@@ -101,11 +187,20 @@ async function loginReader(context, fixture) {
   return { page, token }
 }
 
+/**
+ * @param {import("@playwright/test").APIRequestContext} request
+ * @param {string} token
+ * @param {boolean} autoWatch
+ */
 async function assertEmailOff(request, token, autoWatch) {
   const preferences = await rpc(request, "watching_preferences_get", {}, token)
   assert.deepEqual(preferences, { email_enabled: false, auto_watch: autoWatch })
 }
 
+/**
+ * @param {import("@playwright/test").Page} page
+ * @param {Subscription[]} scopes
+ */
 async function assertSettings(page, scopes) {
   await page.goto(`${origin}/-/settings`, { waitUntil: "networkidle" })
   const rows = page
@@ -121,6 +216,10 @@ async function assertSettings(page, scopes) {
   return rows
 }
 
+/**
+ * @param {import("@playwright/test").Page} page
+ * @param {boolean} enabled
+ */
 async function saveAutoWatch(page, enabled) {
   const form = page.locator('form[action="?/watching"]')
   await expect(form.getByLabel("Email me about watched pages")).not.toBeChecked()
@@ -135,15 +234,24 @@ async function saveAutoWatch(page, enabled) {
   else await expect(auto).not.toBeChecked()
 }
 
+/** @param {import("@playwright/test").Page} page */
 async function showWatchControls(page) {
   const controls = page.locator('[aria-label="Watching"]')
   if (!(await controls.count())) await page.locator("#more-options-button").click()
   await expect(controls).toBeVisible()
 }
 
+/**
+ * @param {import("@playwright/test").Page} page
+ * @param {import("@playwright/test").APIRequestContext} request
+ * @param {string} token
+ * @param {Fixture} fixture
+ * @param {Targets} targets
+ */
 async function watchThree(page, request, token, fixture, targets) {
   await page.goto(`${origin}/${fixture.page_slug}`, { waitUntil: "networkidle" })
   const controls = page.locator('[aria-label="Watching"]')
+  /** @type {WatchScope[]} */
   const labels = ["site", "category", "page"]
   for (const label of labels) {
     await showWatchControls(page)
@@ -171,6 +279,11 @@ async function watchThree(page, request, token, fixture, targets) {
   return subscriptions
 }
 
+/**
+ * @param {import("@playwright/test").APIRequestContext} request
+ * @param {Fixture} fixture
+ * @param {string} password
+ */
 async function loginAdmin(request, fixture, password) {
   const login = await rpc(request, "login", {
     name_or_email: "cobalt-import",
@@ -190,6 +303,13 @@ async function loginAdmin(request, fixture, password) {
   return { token: login.session_token, userId: session.user_id }
 }
 
+/**
+ * @param {import("@playwright/test").APIRequestContext} request
+ * @param {Fixture} fixture
+ * @param {{ token: string; userId: number }} actor
+ * @param {import("@playwright/test").Page} readerPage
+ * @param {string} readerToken
+ */
 async function createAndEdit(request, fixture, actor, readerPage, readerToken) {
   const slug = fixture.page_slug_for_event
   const missing = await rpc(
@@ -229,6 +349,7 @@ async function createAndEdit(request, fixture, actor, readerPage, readerToken) {
   assert.equal(created.slug, slug)
   assert.ok(Number.isSafeInteger(created.page_id) && created.page_id > 0)
   assert.ok(Number.isSafeInteger(created.revision_id) && created.revision_id > 0)
+  /** @type {CreatedPage} */
   const state = {
     slug,
     site_id: siteId,
@@ -251,6 +372,7 @@ async function createAndEdit(request, fixture, actor, readerPage, readerToken) {
   assert.equal(current?.page_id, created.page_id)
   assert.equal(current?.revision_id, created.revision_id)
   assert.equal(current?.wikitext, before)
+  assert.ok(current, "created page must be readable before edit")
   const edited = await rpc(
     request,
     "page_edit",
@@ -271,6 +393,10 @@ async function createAndEdit(request, fixture, actor, readerPage, readerToken) {
   return state
 }
 
+/**
+ * @param {import("@playwright/test").Page} page
+ * @param {number} count
+ */
 async function waitForActivity(page, count) {
   for (let attempt = 0; attempt < 20; attempt++) {
     await page.goto(`${origin}/-/activity`, { waitUntil: "networkidle" })
@@ -281,6 +407,12 @@ async function waitForActivity(page, count) {
   assert.fail(`synthetic Activity did not reach ${count} entries within 20 attempts`)
 }
 
+/**
+ * @param {import("@playwright/test").Page} page
+ * @param {import("@playwright/test").APIRequestContext} request
+ * @param {string} token
+ * @param {CreatedPage} state
+ */
 async function assertActivityDetails(page, request, token, state) {
   const activity = await rpc(
     request,
@@ -318,6 +450,12 @@ async function assertActivityDetails(page, request, token, state) {
   return activity.items.map((item) => item.event_id)
 }
 
+/**
+ * @param {import("@playwright/test").Page} page
+ * @param {import("@playwright/test").APIRequestContext} request
+ * @param {string} token
+ * @param {Subscription[]} subscriptions
+ */
 async function unwatchViaSettings(page, request, token, subscriptions) {
   for (const entry of subscriptions) {
     const rows = await assertSettings(page, subscriptions)
@@ -335,6 +473,11 @@ async function unwatchViaSettings(page, request, token, subscriptions) {
   )
 }
 
+/**
+ * @param {import("@playwright/test").APIRequestContext} request
+ * @param {string} token
+ * @param {Targets | undefined} targets
+ */
 async function restoreReader(request, token, targets) {
   const errors = []
   try {
@@ -350,6 +493,7 @@ async function restoreReader(request, token, targets) {
   } catch {
     errors.push("preferences")
   }
+  /** @type {Subscription[]} */
   let subscriptions = []
   try {
     subscriptions = await rpc(
@@ -384,12 +528,27 @@ async function restoreReader(request, token, targets) {
 
 test("local reader watches UI, sees synthetic changes, and restores account", async () => {
   let stage = "fixture"
+  /** @type {import("@playwright/test").Browser | undefined} */
   let browser
+  /** @type {import("@playwright/test").BrowserContext | undefined} */
   let reader
+  /** @type {string | undefined} */
   let token
+  /** @type {Subscription[]} */
   let subscriptions = []
+  /** @type {Targets | undefined} */
   let targets
+  /** @type {Error | undefined} */
   let error
+  /**
+   * @type {{
+   *       subscription_count: number
+   *       event_count: number
+   *       event_hash: string
+   *       revision_hash: string
+   *     }
+   *   | undefined}
+   */
   let proof
   try {
     const fixture = await readFixture()
@@ -452,6 +611,7 @@ test("local reader watches UI, sees synthetic changes, and restores account", as
     )
     assert.equal(home?.site_id, siteId)
     assert.equal(home?.slug, fixture.page_slug)
+    assert.ok(home, "fixture home page must exist")
     targets = { site: siteId, category: home.page_category_id, page: home.page_id }
     await page.goto(`${origin}/-/activity`, { waitUntil: "networkidle" })
     await expect(page.getByText("No watched page changes here.")).toBeVisible()
@@ -473,7 +633,6 @@ test("local reader watches UI, sees synthetic changes, and restores account", as
     const eventIds = await assertActivityDetails(page, reader.request, token, state)
     stage = "unwatch"
     await unwatchViaSettings(page, reader.request, token, subscriptions)
-    subscriptions = []
     await assertEmailOff(reader.request, token, false)
     stage = "proof"
     proof = {
@@ -513,5 +672,6 @@ test("local reader watches UI, sees synthetic changes, and restores account", as
     if (browser) await browser.close()
   }
   if (error) throw error
+  assert.ok(proof, "successful acceptance must produce proof")
   await writeFile(proofPath, JSON.stringify(proof), { mode: 0o600 })
 })

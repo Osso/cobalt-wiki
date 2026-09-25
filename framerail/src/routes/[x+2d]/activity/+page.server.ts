@@ -19,7 +19,10 @@ async function loadActivity(
   headers: Headers
 ) {
   const beforeEventId = cursor === null ? undefined : Number(cursor)
-  if (cursor !== null && (!Number.isSafeInteger(beforeEventId) || beforeEventId <= 0)) {
+  if (
+    beforeEventId !== undefined &&
+    (!Number.isSafeInteger(beforeEventId) || beforeEventId <= 0)
+  ) {
     error(400, "Invalid activity cursor.")
   }
   const { siteId } = loadSiteInfo(headers)

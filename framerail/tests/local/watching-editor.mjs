@@ -2,7 +2,10 @@ import assert from "node:assert/strict"
 import { readFile } from "node:fs/promises"
 import { test } from "node:test"
 import { chromium, expect } from "@playwright/test"
-import { parse } from "../../node_modules/.pnpm/node_modules/devalue/index.js"
+/** @type {typeof import("../../node_modules/.pnpm/node_modules/devalue/types/index.d.ts")} */
+const { parse } = await import(
+  new URL("../../node_modules/.pnpm/node_modules/devalue/index.js", import.meta.url).href
+)
 
 const preview = "http://127.0.0.1:3090"
 const backend = "http://127.0.0.1:2749/jsonrpc"
@@ -155,8 +158,10 @@ async function assertEditorSendsWatcherChoice(page, slug, structured, blockedWri
       `${slug} save must serialize watcher choice ${suppress}`
     )
     await expect
-      .poll(() => blockedWrites.at(-1))
-      .toBe(posted, "save must be intercepted before server")
+      .poll(() => blockedWrites.at(-1), {
+        message: "save must be intercepted before server"
+      })
+      .toBe(posted)
   }
 }
 
