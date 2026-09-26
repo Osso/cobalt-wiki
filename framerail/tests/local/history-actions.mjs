@@ -190,8 +190,9 @@ async function assertListing(history, listing) {
       expected.created_at
     )
   }
-  if (listing.rows.length === 0)
+  if (listing.rows.length === 0) {
     await expect(history.getByText("No revisions match this selection.")).toBeVisible()
+  }
   assert.equal(new Set(listing.rows.map((row) => row.id)).size, listing.rows.length)
 }
 
@@ -313,10 +314,11 @@ async function checkDetails(history, request, token, pageId, listing, originName
     return normalized.innerHTML
   }, rendered.rendered_html)
   assert.equal(digest(previewHash), digest(expectedHash), "rendered preview hash")
-  if (originName === "wikidot")
+  if (originName === "wikidot") {
     await expect(history).toContainText(
       "Captured Wikidot source; historical whitespace may differ."
     )
+  }
 
   await history
     .getByRole("radio", { name: `Compare from revision ${second.number}` })
@@ -432,8 +434,9 @@ test("root and named homepage History read real paged source and native revision
       /** @type {HistoryOrigin[]} */
       const origins = ["wikidot", "local"]
       for (const originName of origins) {
-        if (originName === "local")
+        if (originName === "local") {
           await namedHistory.locator("#history-dataset").selectOption(originName)
+        }
         const initial = originName === "wikidot" ? imported : native
         await assertListing(namedHistory, initial)
         /** @type {Map<Filter, HistoryList>} */
@@ -465,12 +468,13 @@ test("root and named homepage History read real paged source and native revision
             meta: 0,
             files: 1
           }
-          for (const filter of filters)
+          for (const filter of filters) {
             assert.equal(
               filtered.get(filter)?.total,
               counts[filter],
               `${filter} revision count`
             )
+          }
           assert.ok(
             filtered.get("tags")?.rows.every((row) => !row.flags.includes("M")),
             "tag evidence must not be mislabeled as metadata"
@@ -526,9 +530,7 @@ test("root and named homepage History read real paged source and native revision
     } finally {
       await failure.close()
     }
-    throw new Error(
-      `History regression failed at ${stage}; details in private error file`
-    )
+    assert.fail(`History regression failed at ${stage}; details in private error file`)
   } finally {
     await browser?.close()
   }
