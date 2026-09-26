@@ -119,34 +119,45 @@ async function interceptWrites(context, fixture, allowSave) {
   const unexpectedPosts = []
   /** @type {string[]} */
   const capturedChanges = []
-  await context.route("**/*", async (route) => {
-    const request = route.request()
-    if (["GET", "HEAD", "OPTIONS"].includes(request.method())) {
-      return route.continue()
-    }
-    const url = new URL(request.url())
-    const isFixtureSave =
-      request.method() === "POST" &&
-      url.origin === origin &&
-      url.pathname === `/${fixture.existingSlug}` &&
-      url.search === "?/setTags"
-    if (!isFixtureSave) {
-      unexpectedPosts.push(`${url.origin}${url.pathname}${url.search}`)
-      return route.abort()
-    }
-    capturedChanges.push(await submittedChanges(request))
-    if (allowSave) return route.continue()
-    return route.fulfill({
+  await context.route("**/*", (route) =>
+    guardWrite(route, fixture, allowSave, unexpectedPosts, capturedChanges)
+  )
+  return { unexpectedPosts, capturedChanges }
+}
+
+/**
+ * @param {import("@playwright/test").Route} route
+ * @param {Fixture} fixture
+ * @param {boolean} allowSave
+ * @param {string[]} unexpectedPosts
+ * @param {string[]} capturedChanges
+ */
+async function guardWrite(route, fixture, allowSave, unexpectedPosts, capturedChanges) {
+  const request = route.request()
+  if (["GET", "HEAD", "OPTIONS"].includes(request.method())) {
+    return route.continue()
+  }
+  const url = new URL(request.url())
+  const isFixtureSave =
+    request.method() === "POST" &&
+    url.origin === origin &&
+    url.pathname === `/${fixture.existingSlug}` &&
+    url.search === "?/setTags"
+  if (!isFixtureSave) {
+    unexpectedPosts.push(`${url.origin}${url.pathname}${url.search}`)
+    return route.abort()
+  }
+  capturedChanges.push(await submittedChanges(request))
+  if (allowSave) return route.continue()
+  return route.fulfill({
+    status: 403,
+    contentType: "application/json",
+    body: JSON.stringify({
+      type: "failure",
       status: 403,
-      contentType: "application/json",
-      body: JSON.stringify({
-        type: "failure",
-        status: 403,
-        data: { message: "Tag save intercepted by acceptance test" }
-      })
+      data: { message: "Tag save intercepted by acceptance test" }
     })
   })
-  return { unexpectedPosts, capturedChanges }
 }
 
 /** @param {import("@playwright/test").Page} page */
@@ -278,52 +289,115 @@ async function saveAndRestore(page, context, fixture, token, baseline, capturedC
   const { form, input } = await openTags(page, baseline.tags)
   await input.fill(expected.join(" "))
   try {
-    const savedResponse = page.waitForResponse((response) =>
-      response.url().endsWith(`/${fixture.existingSlug}?/setTags`)
+    await saveFixtureTags(
+      page,
+      context,
+      fixture,
+      token,
+      form,
+      baseline.tags,
+      expected,
+      capturedChanges
     )
-    await form.locator('input[value="save tags"]').click()
-    assert.equal((await savedResponse).status(), 200, "fixture tag save HTTP status")
-    await expect
-      .poll(async () => {
-        const current = await readStoredPage(context.request, fixture, token)
-        return [...current.page_revision.tags].sort()
-      })
-      .toEqual([...expected].sort())
-    assertTagChanges(baseline.tags, capturedChanges[0], expected)
   } finally {
-    const stored = await readStoredPage(context.request, fixture, token)
-    const actual = stored.page_revision.tags
-    if ([...actual].sort().join(" ") !== [...baseline.tags].sort().join(" ")) {
-      await page.goto(`${origin}/${fixture.existingSlug}`, { waitUntil: "networkidle" })
-      const reopened = await openTags(page, actual)
-      await reopened.input.fill(baseline.tags.join(" "))
-      const restoredResponse = page.waitForResponse((response) =>
-        response.url().endsWith(`/${fixture.existingSlug}?/setTags`)
-      )
-      await reopened.form.locator('input[value="save tags"]').click()
-      assert.equal(
-        (await restoredResponse).status(),
-        200,
-        "fixture tag restore HTTP status"
-      )
-      await expect
-        .poll(async () => {
-          const restored = await readStoredPage(context.request, fixture, token)
-          return [...restored.page_revision.tags].sort()
-        })
-        .toEqual([...baseline.tags].sort())
-      const restoredChanges = capturedChanges.at(-1)
-      assert.ok(restoredChanges !== undefined, "restore must submit tag changes")
-      assertTagChanges(actual, restoredChanges, baseline.tags)
-    }
+    await restoreFixtureTags(
+      page,
+      context,
+      fixture,
+      token,
+      baseline.tags,
+      capturedChanges
+    )
   }
-  const restored = pageFingerprint(await readStoredPage(context.request, fixture, token))
+  await assertRestoredPage(context.request, fixture, token, baseline)
+}
+
+/**
+ * @param {import("@playwright/test").APIRequestContext} request
+ * @param {Fixture} fixture
+ * @param {string} token
+ * @param {ReturnType<typeof pageFingerprint>} baseline
+ */
+async function assertRestoredPage(request, fixture, token, baseline) {
+  const restored = pageFingerprint(await readStoredPage(request, fixture, token))
   assert.equal(restored.source, baseline.source, "save/restore must preserve source")
   assert.deepEqual(
     [...restored.tags].sort(),
     [...baseline.tags].sort(),
     "save/restore must preserve tags"
   )
+}
+
+/**
+ * @param {import("@playwright/test").Page} page
+ * @param {import("@playwright/test").BrowserContext} context
+ * @param {Fixture} fixture
+ * @param {string} token
+ * @param {import("@playwright/test").Locator} form
+ * @param {string[]} baselineTags
+ * @param {string[]} expected
+ * @param {string[]} capturedChanges
+ */
+async function saveFixtureTags(
+  page,
+  context,
+  fixture,
+  token,
+  form,
+  baselineTags,
+  expected,
+  capturedChanges
+) {
+  const savedResponse = page.waitForResponse((response) =>
+    response.url().endsWith(`/${fixture.existingSlug}?/setTags`)
+  )
+  await form.locator('input[value="save tags"]').click()
+  assert.equal((await savedResponse).status(), 200, "fixture tag save HTTP status")
+  await expect
+    .poll(async () => {
+      const current = await readStoredPage(context.request, fixture, token)
+      return [...current.page_revision.tags].sort()
+    })
+    .toEqual([...expected].sort())
+  assertTagChanges(baselineTags, capturedChanges[0], expected)
+}
+
+/**
+ * @param {import("@playwright/test").Page} page
+ * @param {import("@playwright/test").BrowserContext} context
+ * @param {Fixture} fixture
+ * @param {string} token
+ * @param {string[]} baselineTags
+ * @param {string[]} capturedChanges
+ */
+async function restoreFixtureTags(
+  page,
+  context,
+  fixture,
+  token,
+  baselineTags,
+  capturedChanges
+) {
+  const stored = await readStoredPage(context.request, fixture, token)
+  const actual = stored.page_revision.tags
+  if ([...actual].sort().join(" ") === [...baselineTags].sort().join(" ")) return
+  await page.goto(`${origin}/${fixture.existingSlug}`, { waitUntil: "networkidle" })
+  const reopened = await openTags(page, actual)
+  await reopened.input.fill(baselineTags.join(" "))
+  const restoredResponse = page.waitForResponse((response) =>
+    response.url().endsWith(`/${fixture.existingSlug}?/setTags`)
+  )
+  await reopened.form.locator('input[value="save tags"]').click()
+  assert.equal((await restoredResponse).status(), 200, "fixture tag restore HTTP status")
+  await expect
+    .poll(async () => {
+      const restored = await readStoredPage(context.request, fixture, token)
+      return [...restored.page_revision.tags].sort()
+    })
+    .toEqual([...baselineTags].sort())
+  const restoredChanges = capturedChanges.at(-1)
+  assert.ok(restoredChanges !== undefined, "restore must submit tag changes")
+  assertTagChanges(actual, restoredChanges, baselineTags)
 }
 
 /**

@@ -255,26 +255,30 @@ async function checkPagination(history, request, token, pageId, originName) {
  * @param {import("@playwright/test").APIRequestContext} request
  * @param {string} token
  * @param {number} pageId
- * @param {HistoryList} listing
+ * @param {number} revisionNumber
  * @param {HistoryOrigin} originName
  */
-async function checkDetails(history, request, token, pageId, listing, originName) {
-  const first = listing.rows[0]
-  const second = listing.rows[1]
-  assert.ok(first && second, "two revisions required for comparison")
+async function checkSourceAndPreview(
+  history,
+  request,
+  token,
+  pageId,
+  revisionNumber,
+  originName
+) {
   const params = { site_id: siteId, page_id: pageId, origin: originName }
   await history
-    .getByRole("button", { name: `View source of revision ${first.number}` })
+    .getByRole("button", { name: `View source of revision ${revisionNumber}` })
     .click()
   const source = /** @type {HistoryRevision} */ (
     await rpc(
       request,
       "page_history_revision",
-      { ...params, number: first.number, rendered: false },
+      { ...params, number: revisionNumber, rendered: false },
       token
     )
   )
-  assert.equal(source.number, first.number)
+  assert.equal(source.number, revisionNumber)
   const textarea = history.locator("#history-source")
   await expect(textarea).toHaveAttribute("readonly", "")
   assert.equal(
@@ -283,26 +287,59 @@ async function checkDetails(history, request, token, pageId, listing, originName
     "source text hash"
   )
   await expect(
-    history.getByRole("region", { name: `Revision ${first.number} detail` })
+    history.getByRole("region", { name: `Revision ${revisionNumber} detail` })
   ).toBeVisible()
+}
 
+/**
+ * @param {import("@playwright/test").Locator} history
+ * @param {import("@playwright/test").APIRequestContext} request
+ * @param {string} token
+ * @param {number} pageId
+ * @param {number} revisionNumber
+ * @param {HistoryOrigin} originName
+ */
+async function checkRenderedPreview(
+  history,
+  request,
+  token,
+  pageId,
+  revisionNumber,
+  originName
+) {
+  const params = { site_id: siteId, page_id: pageId, origin: originName }
   await history
-    .getByRole("button", { name: `View revision ${first.number}`, exact: true })
+    .getByRole("button", { name: `View revision ${revisionNumber}`, exact: true })
     .click()
   const rendered = /** @type {HistoryRevision} */ (
     await rpc(
       request,
       "page_history_revision",
-      { ...params, number: first.number, rendered: true },
+      { ...params, number: revisionNumber, rendered: true },
       token
     )
   )
-  const detail = history.getByRole("region", { name: `Revision ${first.number} detail` })
+  const detail = history.getByRole("region", {
+    name: `Revision ${revisionNumber} detail`
+  })
   await expect(detail).toContainText(
     "Read-only preview using current rendering context; not an original compiled snapshot."
   )
   await expect(detail.locator(".history-preview")).toBeVisible()
   assert.ok(rendered.rendered_html !== null, "rendered revision must have HTML")
+  await assertRenderedHtml(detail, rendered.rendered_html)
+  if (originName === "wikidot") {
+    await expect(history).toContainText(
+      "Captured Wikidot source; historical whitespace may differ."
+    )
+  }
+}
+
+/**
+ * @param {import("@playwright/test").Locator} detail
+ * @param {string} expectedHtml
+ */
+async function assertRenderedHtml(detail, expectedHtml) {
   const previewHash = await detail.locator(".history-preview").evaluate((element) => {
     const normalized = document.createElement("div")
     normalized.innerHTML = element.innerHTML
@@ -312,23 +349,36 @@ async function checkDetails(history, request, token, pageId, listing, originName
     const normalized = document.createElement("div")
     normalized.innerHTML = html
     return normalized.innerHTML
-  }, rendered.rendered_html)
+  }, expectedHtml)
   assert.equal(digest(previewHash), digest(expectedHash), "rendered preview hash")
-  if (originName === "wikidot") {
-    await expect(history).toContainText(
-      "Captured Wikidot source; historical whitespace may differ."
-    )
-  }
+}
 
+/**
+ * @param {import("@playwright/test").Locator} history
+ * @param {import("@playwright/test").APIRequestContext} request
+ * @param {string} token
+ * @param {number} pageId
+ * @param {number} firstNumber
+ * @param {number} secondNumber
+ * @param {HistoryOrigin} originName
+ */
+async function checkComparison(
+  history,
+  request,
+  token,
+  pageId,
+  firstNumber,
+  secondNumber,
+  originName
+) {
+  const params = { site_id: siteId, page_id: pageId, origin: originName }
   await history
-    .getByRole("radio", { name: `Compare from revision ${second.number}` })
+    .getByRole("radio", { name: `Compare from revision ${secondNumber}` })
     .check()
-  await history
-    .getByRole("radio", { name: `Compare to revision ${first.number}` })
-    .check()
+  await history.getByRole("radio", { name: `Compare to revision ${firstNumber}` }).check()
   await history.getByRole("button", { name: "Compare versions" }).click()
-  const from = Math.min(first.number, second.number)
-  const to = Math.max(first.number, second.number)
+  const from = Math.min(firstNumber, secondNumber)
+  const to = Math.max(firstNumber, secondNumber)
   const comparison = /** @type {HistoryComparison} */ (
     await rpc(request, "page_history_compare", { ...params, from, to }, token)
   )
@@ -336,6 +386,14 @@ async function checkDetails(history, request, token, pageId, listing, originName
   await expect(detailComparison.locator("h2")).toHaveText(
     `Compare revisions ${from} to ${to}`
   )
+  await assertComparisonLines(detailComparison, comparison)
+}
+
+/**
+ * @param {import("@playwright/test").Locator} detailComparison
+ * @param {HistoryComparison} comparison
+ */
+async function assertComparisonLines(detailComparison, comparison) {
   const lines = detailComparison.locator(".history-diff > span")
   await expect(lines).toHaveCount(comparison.lines.length)
   for (const [index, line] of comparison.lines.entries()) {
@@ -354,6 +412,183 @@ async function checkDetails(history, request, token, pageId, listing, originName
   )
 }
 
+/**
+ * @param {import("@playwright/test").Locator} history
+ * @param {import("@playwright/test").APIRequestContext} request
+ * @param {string} token
+ * @param {number} pageId
+ * @param {HistoryList} listing
+ * @param {HistoryOrigin} originName
+ */
+async function checkDetails(history, request, token, pageId, listing, originName) {
+  const first = listing.rows[0]
+  const second = listing.rows[1]
+  assert.ok(first && second, "two revisions required for comparison")
+  await checkSourceAndPreview(history, request, token, pageId, first.number, originName)
+  await checkRenderedPreview(history, request, token, pageId, first.number, originName)
+  await checkComparison(
+    history,
+    request,
+    token,
+    pageId,
+    first.number,
+    second.number,
+    originName
+  )
+}
+
+/** @param {string} fixturePath */
+async function readHistoryFixture(fixturePath) {
+  /**
+   * @type {{
+   *   sacrificial: boolean
+   *   siteId: number
+   *   siteSlug: string
+   *   databaseLabel: string
+   *   homeSlug?: string
+   *   username: string
+   * }}
+   */
+  const fixture = JSON.parse(await readFile(fixturePath, "utf8"))
+  assert.equal(fixture.sacrificial, true)
+  assert.equal(fixture.siteId, siteId)
+  assert.equal(fixture.siteSlug, "cobalt-company")
+  assert.equal(fixture.databaseLabel, "cobalt_local_full")
+  assert.equal(fixture.homeSlug ?? "home:_public", "home:_public")
+  assert.ok(typeof fixture.username === "string" && fixture.username.length > 0)
+  return fixture
+}
+
+/**
+ * @param {import("@playwright/test").Page} page
+ * @param {import("@playwright/test").APIRequestContext} request
+ * @param {string} token
+ * @param {string} homeSlug
+ */
+async function checkRootHomepage(page, request, token, homeSlug) {
+  const root = await readPage(request, token, null)
+  assert.equal(root.slug, homeSlug)
+  const rootResponse = await page.goto(origin, { waitUntil: "networkidle" })
+  assert.equal(rootResponse?.status(), 200, "root homepage HTTP status")
+  await page.locator("#history-button").click()
+  const history = page.getByRole("region", { name: "Page history" })
+  await expect(history).toBeVisible()
+  const rootImported = await readList(request, token, root.id, "wikidot", "all", 20)
+  assert.equal(rootImported.total, 57, "root resolved homepage imported revisions")
+  await assertListing(history, rootImported)
+  return rootImported.total
+}
+
+/**
+ * @param {import("@playwright/test").Page} page
+ * @param {import("@playwright/test").APIRequestContext} request
+ * @param {string} token
+ */
+async function checkNamedHomepage(page, request, token) {
+  const named = await readPage(request, token, "home:start")
+  const pageId = named.id
+  const namedResponse = await page.goto(`${origin}/home:start`, {
+    waitUntil: "networkidle"
+  })
+  assert.equal(namedResponse?.status(), 200, "named homepage HTTP status")
+  await page.locator("#history-button").click()
+  const history = page.getByRole("region", { name: "Page history" })
+  await expect(history).toBeVisible()
+  const imported = await readList(request, token, pageId, "wikidot", "all", 20)
+  assert.equal(imported.total, 240, "named homepage imported revision count")
+  const native = await readList(request, token, pageId, "local", "all", 20)
+  assert.ok(native.total > 0, "named homepage native revisions required")
+  await assertListing(history, imported)
+  return { history, pageId, imported, native }
+}
+
+/** @param {Map<Filter, HistoryList>} filtered */
+function assertImportedFilterCounts(filtered) {
+  /** @type {Record<Filter, number>} */
+  const counts = {
+    all: 240,
+    source: 232,
+    title: 1,
+    move: 5,
+    tags: 1,
+    meta: 0,
+    files: 1
+  }
+  /** @type {Filter[]} */
+  const filters = ["all", ...filterNames]
+  for (const filter of filters) {
+    assert.equal(filtered.get(filter)?.total, counts[filter], `${filter} revision count`)
+  }
+  assert.ok(
+    filtered.get("tags")?.rows.every((row) => !row.flags.includes("M")),
+    "tag evidence must not be mislabeled as metadata"
+  )
+}
+
+/**
+ * @param {import("@playwright/test").Locator} history
+ * @param {import("@playwright/test").APIRequestContext} request
+ * @param {string} token
+ * @param {number} pageId
+ * @param {HistoryOrigin} originName
+ * @param {HistoryList} initial
+ * @param {(stage: string) => void} setStage
+ */
+async function checkFiltersAndSizes(
+  history,
+  request,
+  token,
+  pageId,
+  originName,
+  initial,
+  setStage
+) {
+  if (originName === "local") {
+    await history.locator("#history-dataset").selectOption(originName)
+  }
+  await assertListing(history, initial)
+  /** @type {Map<Filter, HistoryList>} */
+  const filtered = new Map()
+  /** @type {Filter[]} */
+  const filters = ["all", ...filterNames]
+  for (const filter of filters) {
+    filtered.set(
+      filter,
+      await refreshList(history, request, token, pageId, originName, filter, 20)
+    )
+  }
+  if (originName === "wikidot") assertImportedFilterCounts(filtered)
+  for (const size of pageSizes) {
+    await refreshList(history, request, token, pageId, originName, "all", size)
+  }
+  if (originName === "wikidot") {
+    setStage("second page and revision details")
+    await checkPagedDetails(history, request, token, pageId, originName)
+    setStage("filters and page sizes")
+  }
+}
+
+/**
+ * @param {import("@playwright/test").Locator} history
+ * @param {import("@playwright/test").APIRequestContext} request
+ * @param {string} token
+ * @param {number} pageId
+ * @param {HistoryOrigin} originName
+ */
+async function checkPagedDetails(history, request, token, pageId, originName) {
+  await checkPagination(history, request, token, pageId, originName)
+  const selected = await refreshList(
+    history,
+    request,
+    token,
+    pageId,
+    originName,
+    "all",
+    20
+  )
+  await checkDetails(history, request, token, pageId, selected, originName)
+}
+
 test("root and named homepage History read real paged source and native revisions", async () => {
   const fixturePath = process.env.COBALT_PAGE_PREVIEW_FIXTURE
   const passwordPath = process.env.COBALT_LOCAL_ADMIN_PASSWORD_FILE
@@ -364,13 +599,7 @@ test("root and named homepage History read real paged source and native revision
   let stage = "fixture"
   let browser
   try {
-    const fixture = JSON.parse(await readFile(fixturePath, "utf8"))
-    assert.equal(fixture.sacrificial, true)
-    assert.equal(fixture.siteId, siteId)
-    assert.equal(fixture.siteSlug, "cobalt-company")
-    assert.equal(fixture.databaseLabel, "cobalt_local_full")
-    assert.equal(fixture.homeSlug ?? "home:_public", "home:_public")
-    assert.ok(typeof fixture.username === "string" && fixture.username.length > 0)
+    const fixture = await readHistoryFixture(fixturePath)
     const gatewayPath = process.env.COBALT_LOCAL_PASSWORD_FILE
     const gatewayPassword = gatewayPath
       ? (await readFile(gatewayPath, "utf8")).trim()
@@ -390,133 +619,39 @@ test("root and named homepage History read real paged source and native revision
       stage = "login"
       const { page, token } = await login(context, fixture.username, password)
       stage = "homepage identity"
-      const root = await readPage(context.request, token, null)
-      assert.equal(root.slug, fixture.homeSlug ?? "home:_public")
-      const rootResponse = await page.goto(origin, { waitUntil: "networkidle" })
-      assert.equal(rootResponse?.status(), 200, "root homepage HTTP status")
-      await page.locator("#history-button").click()
-      const history = page.getByRole("region", { name: "Page history" })
-      await expect(history).toBeVisible()
-      const rootImported = await readList(
+      const rootTotal = await checkRootHomepage(
+        page,
         context.request,
         token,
-        root.id,
-        "wikidot",
-        "all",
-        20
+        fixture.homeSlug ?? "home:_public"
       )
-      assert.equal(rootImported.total, 57, "root resolved homepage imported revisions")
-      await assertListing(history, rootImported)
 
       stage = "named homepage identity"
-      const named = await readPage(context.request, token, "home:start")
-      const pageId = named.id
-      const namedResponse = await page.goto(`${origin}/home:start`, {
-        waitUntil: "networkidle"
-      })
-      assert.equal(namedResponse?.status(), 200, "named homepage HTTP status")
-      await page.locator("#history-button").click()
-      const namedHistory = page.getByRole("region", { name: "Page history" })
-      await expect(namedHistory).toBeVisible()
-      const imported = await readList(
+      const { history, pageId, imported, native } = await checkNamedHomepage(
+        page,
         context.request,
-        token,
-        pageId,
-        "wikidot",
-        "all",
-        20
+        token
       )
-      assert.equal(imported.total, 240, "named homepage imported revision count")
-      const native = await readList(context.request, token, pageId, "local", "all", 20)
-      assert.ok(native.total > 0, "named homepage native revisions required")
-      await assertListing(namedHistory, imported)
       stage = "filters and page sizes"
       /** @type {HistoryOrigin[]} */
       const origins = ["wikidot", "local"]
       for (const originName of origins) {
-        if (originName === "local") {
-          await namedHistory.locator("#history-dataset").selectOption(originName)
-        }
         const initial = originName === "wikidot" ? imported : native
-        await assertListing(namedHistory, initial)
-        /** @type {Map<Filter, HistoryList>} */
-        const filtered = new Map()
-        /** @type {Filter[]} */
-        const filters = ["all", ...filterNames]
-        for (const filter of filters) {
-          filtered.set(
-            filter,
-            await refreshList(
-              namedHistory,
-              context.request,
-              token,
-              pageId,
-              originName,
-              filter,
-              20
-            )
-          )
-        }
-        if (originName === "wikidot") {
-          /** @type {Record<Filter, number>} */
-          const counts = {
-            all: 240,
-            source: 232,
-            title: 1,
-            move: 5,
-            tags: 1,
-            meta: 0,
-            files: 1
+        await checkFiltersAndSizes(
+          history,
+          context.request,
+          token,
+          pageId,
+          originName,
+          initial,
+          (nextStage) => {
+            stage = nextStage
           }
-          for (const filter of filters) {
-            assert.equal(
-              filtered.get(filter)?.total,
-              counts[filter],
-              `${filter} revision count`
-            )
-          }
-          assert.ok(
-            filtered.get("tags")?.rows.every((row) => !row.flags.includes("M")),
-            "tag evidence must not be mislabeled as metadata"
-          )
-        }
-        for (const size of pageSizes) {
-          await refreshList(
-            namedHistory,
-            context.request,
-            token,
-            pageId,
-            originName,
-            "all",
-            size
-          )
-        }
-        if (originName === "wikidot") {
-          stage = "second page and revision details"
-          await checkPagination(namedHistory, context.request, token, pageId, originName)
-          const selected = await refreshList(
-            namedHistory,
-            context.request,
-            token,
-            pageId,
-            originName,
-            "all",
-            20
-          )
-          await checkDetails(
-            namedHistory,
-            context.request,
-            token,
-            pageId,
-            selected,
-            originName
-          )
-          stage = "filters and page sizes"
-        }
+        )
       }
       assert.deepEqual(blocked, [], "browser must not attempt writes outside login")
       console.log(
-        `history rows: root=${rootImported.total} named=${imported.total} native=${native.total}`
+        `history rows: root=${rootTotal} named=${imported.total} native=${native.total}`
       )
     } finally {
       await context.close()
