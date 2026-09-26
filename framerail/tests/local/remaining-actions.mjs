@@ -415,6 +415,38 @@ async function readParents(request, token, stored) {
 
 /**
  * @param {import("@playwright/test").Page} page
+ * @param {import("@playwright/test").BrowserContext} context
+ * @param {string[]} parents
+ */
+async function checkParentLoading(page, context, parents) {
+  const pending = Promise.withResolvers()
+  const routePattern = /\?\/parentGet$/
+  /** @param {import("@playwright/test").Route} route */
+  const holdResponse = async (route) => {
+    await pending.promise
+    await route.fallback()
+  }
+  await context.route(routePattern, holdResponse)
+  try {
+    await page.locator("#parent-page-button").click()
+    const form = page.locator("#page-parent")
+    const input = form.getByLabel("Parent page names")
+    await expect(input).toBeDisabled()
+    await expect(form.locator('input[type="submit"]')).toBeDisabled()
+    await expect(form.locator('input[value="Clear parents"]')).toBeDisabled()
+    pending.resolve(undefined)
+    await expect(input).toBeEnabled()
+    await expect(input).toHaveValue(parents.join(" "))
+    await expect(form.locator('input[type="submit"]')).toBeEnabled()
+    await page.locator("#action-area .action-area-close").click()
+  } finally {
+    pending.resolve(undefined)
+    await context.unroute(routePattern, holdResponse)
+  }
+}
+
+/**
+ * @param {import("@playwright/test").Page} page
  * @param {string[]} parents
  */
 async function openParent(page, parents) {
@@ -423,6 +455,7 @@ async function openParent(page, parents) {
   await expect(form.getByLabel("Parent page names")).toBeVisible()
   await expect(form).toContainText("Enter multiple parent page names")
   const input = form.getByLabel("Parent page names")
+  await expect(input).toBeEnabled()
   await expect(input).toHaveValue(parents.join(" "))
   return { form, input }
 }
@@ -572,6 +605,7 @@ test(
         await visit(page, fixture.existingSlug)
         await openOptions(page)
         const baseline = await readParents(request, token, protectedPage)
+        await checkParentLoading(page, context, baseline)
         await checkParentDraft(page, request, token, protectedPage, baseline)
         const { form, input } = await openParent(page, baseline)
         await input.fill("home:start ba")

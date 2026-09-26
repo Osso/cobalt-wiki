@@ -5,6 +5,7 @@ The Parent panel edits page breadcrumb relationships in `framerail/src/routes/[s
 ## What it must do
 
 - [x] Explain breadcrumb relationships and space-separated multiple parent names in the Wikidot layout; label the input “Parent page names”.
+- [x] Keep input, Clear and Save disabled until existing parent names load; show loading or failure explicitly and keep Cancel available. Never overwrite an editable draft with the initial response.
 - [x] Offer a Clear parents button that empties the input without submitting; keep Cancel and Save.
 - [x] Look up the last typed slug token only after two characters, using the existing site- and viewer-scoped editor page lookup; suggestions retain preceding parent names.
 - [x] Ignore stale lookup results and surface current lookup failures without preventing manual entry.

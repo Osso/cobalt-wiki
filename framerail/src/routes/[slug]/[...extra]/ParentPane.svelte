@@ -40,6 +40,7 @@
   import type { PageProps } from "./$types"
 
   let pageParents = $state<string>("")
+  let parentLoadState = $state<"loading" | "ready" | "error">("loading")
   let parentMatches = $state<{ slug: string; title: string }[]>([])
   let parentLookupError = $state("")
 
@@ -83,7 +84,7 @@
     }
   )
 
-  async function fetchParents() {
+  async function readParentNames() {
     const res = await fetch(`?/parentGet`, {
       method: "POST",
       body: JSON.stringify({
@@ -98,15 +99,27 @@
       { message: string; code: string; data: Record<string, unknown> }
     >(res)
 
-    if (result.type === "failure" && result.data?.message) {
+    if (result.type === "success" && result.data?.res) return result.data.res
+    throw new Error(
+      result.type === "failure"
+        ? (result.data?.message ?? "Unable to load parent pages")
+        : "Unable to load parent pages"
+    )
+  }
+
+  async function fetchParents() {
+    parentLoadState = "loading"
+    try {
+      pageParents = (await readParentNames()).join(" ")
+      $form.parents = pageParents
+      parentLoadState = "ready"
+    } catch (cause) {
+      parentLoadState = "error"
       errorPopupState.current = {
         state: true,
-        message: result.data.message,
-        data: result.data.data
+        message: cause instanceof Error ? cause.message : "Unable to load parent pages",
+        data: null
       }
-    } else if (result.type === "success" && result.data?.res) {
-      pageParents = result.data.res.join(" ")
-      $form.parents = pageParents
     }
   }
 
@@ -147,6 +160,11 @@
 {/if}
 
 <form id="page-parent" class="page-parent" action="?/parentSet" method="POST" use:enhance>
+  {#if parentLoadState === "loading"}
+    <p role="status">Loading parent pages…</p>
+  {:else if parentLoadState === "error"}
+    <p role="alert">Parent pages could not be loaded.</p>
+  {/if}
   {#if pageLayoutState.current === Layout.WIKIDOT}
     <p>
       Parent pages organize breadcrumbs for this page. Enter multiple parent page names as
@@ -158,6 +176,7 @@
     id={pageLayoutState.current === Layout.WIKIDOT ? "parent-page-names" : undefined}
     class="page-parent-new-parents"
     autocomplete="off"
+    disabled={parentLoadState !== "ready"}
     list={pageLayoutState.current === Layout.WIKIDOT
       ? "parent-page-suggestions"
       : undefined}
@@ -179,6 +198,7 @@
     <div class="buttons">
       <input
         class="btn btn-secondary"
+        disabled={parentLoadState !== "ready"}
         onclick={() => ($form.parents = "")}
         type="button"
         value="Clear parents"
@@ -191,6 +211,7 @@
       />
       <input
         class="btn btn-primary"
+        disabled={parentLoadState !== "ready"}
         type="submit"
         value={data.internationalization?.save}
       />
@@ -206,6 +227,7 @@
       </button>
       <button
         class="action-button page-parent-button button-save clickable"
+        disabled={parentLoadState !== "ready"}
         type="submit"
       >
         {data.internationalization?.save}
