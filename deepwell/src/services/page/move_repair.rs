@@ -54,7 +54,19 @@ pub(super) async fn repair_selected_dependencies(
                 || types.contains(&ConnectionType::IncludeElements)
         })
     });
+    update_moved_source_slug(&mut remaining, &change);
     Ok((repaired, remaining))
+}
+
+fn update_moved_source_slug(
+    remaining: &mut GetPageBacklinksOutput,
+    change: &MoveRepair<'_>,
+) {
+    for source in remaining.links.iter_mut().chain(&mut remaining.inclusions) {
+        if source.slug == change.old_slug {
+            source.slug = change.new_slug.to_owned();
+        }
+    }
 }
 
 async fn load_editable_dependency(

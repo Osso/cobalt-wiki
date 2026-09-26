@@ -171,6 +171,35 @@ async fn move_input(
     })
 }
 
+#[tokio::test]
+async fn remaining_self_link_reports_the_moved_source_location() {
+    let (runner, site_id, target) = fixture().await;
+    let revision = PageService::get(runner.context(), site_id, Reference::Id(target))
+        .await
+        .unwrap()
+        .latest_revision_id
+        .unwrap();
+    run_endpoint!(runner, page_edit, json!({"site_id":site_id,"page":target,"user_id":SAMPLE_USER_ID,"last_revision_id":revision,"wikitext":"[[[old-page|self]]]","revision_comments":"Self link","ip_address":common::IP_ADDRESS})).unwrap();
+    let moved = serde_json::to_value(run_endpoint!(
+        runner,
+        page_move,
+        move_input(&runner, site_id, target, &[]).await
+    ))
+    .unwrap();
+    assert_eq!(
+        moved["remaining_dependencies"]["links"][0]["page_id"],
+        target
+    );
+    assert_eq!(
+        moved["remaining_dependencies"]["links"][0]["slug"],
+        "new-page"
+    );
+    assert_eq!(
+        source(&runner, site_id, target).await,
+        "[[[old-page|self]]]"
+    );
+}
+
 fn request_as(runner: &mut TestRunner, site_id: i64, page_id: i64) {
     runner.set_request_context(RequestContext {
         user_id: Some(SAMPLE_USER_ID),
