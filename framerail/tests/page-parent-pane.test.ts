@@ -13,13 +13,13 @@ const {
 const { render } = await vite.ssrLoadModule("svelte/server")
 const { readable } = await vite.ssrLoadModule("svelte/store")
 const { pageLayoutState } = await vite.ssrLoadModule("/src/lib/stores.svelte.ts")
-const { Layout, PagePane } = await vite.ssrLoadModule("/src/lib/types.ts")
+const { Layout } = await vite.ssrLoadModule("/src/lib/types.ts")
 
 function renderParent(layout: string) {
   pageLayoutState.current = layout
   return render(ParentPane, {
     props: {
-      pagePaneState: PagePane.Parent,
+      close() {},
       data: {
         site: { site_id: 1 },
         page: { page_id: 2, slug: "child" },

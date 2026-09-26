@@ -10,7 +10,7 @@
 
 <main class="print-page">
   <div class="print-controls">
-    <button type="button" onclick={() => window.print()}>Print the page</button>
+    <button onclick={() => window.print()} type="button">Print the page</button>
   </div>
   <p class="source">Source page: <a href={data.sourceUrl}>{data.sourceUrl}</a></p>
   {#if data.page_revision.title}
@@ -28,12 +28,12 @@
   .print-page {
     box-sizing: border-box;
     max-width: 70ch;
-    margin: 2rem auto;
     padding: 0 1rem;
-    color: #111;
+    margin: 2rem auto;
     font:
       1rem/1.6 Georgia,
       serif;
+    color: #111;
     overflow-wrap: anywhere;
   }
 
@@ -62,16 +62,16 @@
   }
 
   .license-area {
-    margin-top: 2rem;
     padding-top: 1rem;
+    margin-top: 2rem;
     border-top: 1px solid currentColor;
   }
 
   @media print {
     .print-page {
       max-width: none;
-      margin: 0;
       padding: 0;
+      margin: 0;
     }
 
     .print-controls {

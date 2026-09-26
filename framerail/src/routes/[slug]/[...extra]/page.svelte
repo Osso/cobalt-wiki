@@ -392,7 +392,7 @@
       {:else if pagePaneState === PagePane.Layout}
         <LayoutPane bind:pagePaneState {...props} />
       {:else if pagePaneState === PagePane.Parent}
-        <ParentPane bind:pagePaneState {...props} />
+        <ParentPane close={() => (pagePaneState = PagePane.None)} {...props} />
       {:else if pagePaneState === PagePane.Lock}
         <LockPane bind:pagePaneState {...props} />
       {:else if pagePaneState === PagePane.File}
@@ -400,7 +400,7 @@
       {:else if pagePaneState === PagePane.History}
         <HistoryPane {setRevision} {setShowRevision} {...props} />
       {:else if pagePaneState === PagePane.Delete}
-        <DeletePane bind:pagePaneState {...props} />
+        <DeletePane close={() => (pagePaneState = PagePane.None)} {...props} />
       {:else if pagePaneState === PagePane.Tags}
         <TagsPane
           close={() => (pagePaneState = PagePane.None)}
@@ -550,7 +550,7 @@
   {:else if pagePaneState === PagePane.Layout}
     <LayoutPane bind:pagePaneState {...props} />
   {:else if pagePaneState === PagePane.Parent}
-    <ParentPane bind:pagePaneState {...props} />
+    <ParentPane close={() => (pagePaneState = PagePane.None)} {...props} />
   {:else if pagePaneState === PagePane.Lock}
     <LockPane bind:pagePaneState {...props} />
   {:else if pagePaneState === PagePane.Vote}
@@ -560,7 +560,7 @@
   {:else if pagePaneState === PagePane.History}
     <HistoryPane {setRevision} {setShowRevision} {...props} />
   {:else if pagePaneState === PagePane.Delete}
-    <DeletePane bind:pagePaneState {...props} />
+    <DeletePane close={() => (pagePaneState = PagePane.None)} {...props} />
   {/if}
 {/if}
 

@@ -1,4 +1,4 @@
-<script module lang="ts">
+<script lang="ts" module>
   export function parentLookupQuery(input: string): string {
     const token = input.slice(input.lastIndexOf(" ") + 1)
     return token.length >= 2 ? token : ""
@@ -31,7 +31,7 @@
   import { deserialize } from "$app/forms"
   import { invalidateAll } from "$app/navigation"
   import { errorPopupState, pageLayoutState } from "$lib/stores.svelte"
-  import { Layout, PagePane, ToastType } from "$lib/types"
+  import { Layout, ToastType } from "$lib/types"
   import { toast } from "$lib/component/scripts/toasts"
   import { lookupEditorPages } from "$lib/editor-lookup"
   import { superForm } from "sveltekit-superforms"
@@ -43,8 +43,7 @@
   let parentMatches = $state<{ slug: string; title: string }[]>([])
   let parentLookupError = $state("")
 
-  let { pagePaneState = $bindable(), data }: PageProps & { pagePaneState: PagePane } =
-    $props()
+  let { close, data }: PageProps & { close: () => void } = $props()
 
   const { form, enhance } = superForm(
     untrack(() => data.forms.pageParentForm),
@@ -70,7 +69,7 @@
         if (result.type === "success" && result.data) {
           toast(ToastType.Success, data.internationalization!["wiki-page-parent.toast"]!)
           cancel()
-          pagePaneState = PagePane.None
+          close()
           invalidateAll()
         }
         if (result.type === "failure" && result.data) {
@@ -156,12 +155,12 @@
     <label for="parent-page-names">Parent page names</label>
   {/if}
   <input
-    class="page-parent-new-parents"
     id={pageLayoutState.current === Layout.WIKIDOT ? "parent-page-names" : undefined}
+    class="page-parent-new-parents"
+    autocomplete="off"
     list={pageLayoutState.current === Layout.WIKIDOT
       ? "parent-page-suggestions"
       : undefined}
-    autocomplete="off"
     placeholder={data.internationalization?.parents}
     type="text"
     bind:value={$form.parents}
@@ -186,7 +185,7 @@
       />
       <input
         class="btn btn-danger"
-        onclick={() => (pagePaneState = PagePane.None)}
+        onclick={close}
         type="button"
         value={data.internationalization?.cancel}
       />
@@ -200,7 +199,7 @@
     <div class="action-row page-parent-actions">
       <button
         class="action-button page-parent-button button-cancel clickable"
-        onclick={() => (pagePaneState = PagePane.None)}
+        onclick={close}
         type="button"
       >
         {data.internationalization?.cancel}
