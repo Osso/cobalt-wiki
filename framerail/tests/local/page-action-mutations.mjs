@@ -292,11 +292,18 @@ async function deleteInBrowser(page, guard, slug) {
   await form.locator('[type="submit"]').click()
   const dialog = page.getByRole("dialog", { name: "Delete page?" })
   await expect(dialog).toBeVisible()
-  const expectedWrites = guard.writes.length + 1
+  const responsePromise = page.waitForResponse(
+    (response) =>
+      response.url() === `${origin}/${slug}?/delete` &&
+      response.request().method() === "POST"
+  )
   guard.allow(slug, "delete")
   await dialog.getByRole("button", { name: "Delete page" }).click()
-  await expect.poll(() => guard.writes.length).toBe(expectedWrites)
-  await expect(dialog).not.toBeVisible()
+  const response = await responsePromise
+  assert.equal(response.status(), 200, "Delete HTTP status")
+  const result = await response.json()
+  assert.equal(result.type, "success", `Delete action failed: ${result.status}`)
+  await expect(form).toHaveCount(0)
   guard.assertConsumed()
 }
 
