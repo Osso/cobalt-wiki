@@ -95,10 +95,10 @@
       id="file-upload-files"
       name="file"
       class="file-attribute file"
-      type="file"
-      multiple
       disabled={uploading}
+      multiple
       onchange={selectFiles}
+      type="file"
     />
   </div>
   {#if files.length <= 1}
@@ -110,10 +110,10 @@
         id="file-upload-name"
         name="name"
         class="file-attribute name"
+        disabled={uploading}
         placeholder={files[0]?.name}
         type="text"
         bind:value={name}
-        disabled={uploading}
       />
     </div>
   {/if}
@@ -125,8 +125,8 @@
       id="file-upload-comments"
       name="comments"
       class="file-comments"
-      bind:value={comments}
-      disabled={uploading}></textarea>
+      disabled={uploading}
+      bind:value={comments}></textarea>
   </div>
   {#if rows.length > 0}
     <p role="status">{uploaded} uploaded, {failed} failed of {rows.length}</p>
@@ -150,34 +150,34 @@
     <div class="buttons">
       <input
         class="btn btn-default"
+        disabled={uploading}
         onclick={onClose}
         type="button"
         value={submitted && files.length > 1
           ? "Close"
           : data.internationalization?.cancel}
-        disabled={uploading}
       />
       <input
         class="btn btn-primary"
+        disabled={uploading || submitted || files.length === 0}
         type="submit"
         value={data.internationalization?.upload}
-        disabled={uploading || submitted || files.length === 0}
       />
     </div>
   {:else}
     <div class="action-row file-upload-actions">
       <button
         class="action-button file-upload-button button-cancel clickable"
+        disabled={uploading}
         onclick={onClose}
         type="button"
-        disabled={uploading}
       >
         {submitted && files.length > 1 ? "Close" : data.internationalization?.cancel}
       </button>
       <button
         class="action-button file-upload-button button-upload clickable"
-        type="submit"
         disabled={uploading || submitted || files.length === 0}
+        type="submit"
       >
         {data.internationalization?.upload}
       </button>
@@ -194,8 +194,8 @@
     width: 100%;
   }
   .upload-results {
-    margin: 0;
     padding-left: 1.5em;
+    margin: 0;
     overflow-wrap: anywhere;
   }
   .upload-error {

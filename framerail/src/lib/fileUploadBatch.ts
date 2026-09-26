@@ -82,10 +82,18 @@ async function sendUpload(
         : "Upload response did not identify a stored file."
     }
     if (result.type === "failure") return uploadError(result.data, result.status)
-    return uploadError(result.type === "error" ? result.error : null, result.status)
+    return uploadError(result.type === "error" ? result.error : null, response.status)
   } catch (error) {
     return error instanceof Error ? error.message : String(error)
   }
+}
+
+function updateUploadRow(
+  rows: UploadRow[],
+  index: number,
+  update: Pick<UploadRow, "state" | "error">
+): UploadRow[] {
+  return rows.map((row, current) => (current === index ? { ...row, ...update } : row))
 }
 
 export async function uploadFiles(options: UploadOptions): Promise<UploadRow[]> {
@@ -93,20 +101,14 @@ export async function uploadFiles(options: UploadOptions): Promise<UploadRow[]> 
   options.onStatus(rows)
   for (const [index, file] of options.files.entries()) {
     if (!options.isActive()) break
-    rows = rows.map((row, current) =>
-      current === index ? { ...row, state: "uploading" } : row
-    )
+    rows = updateUploadRow(rows, index, { state: "uploading" })
     options.onStatus(rows)
     const name = options.files.length === 1 ? options.name : file.name
     const form = buildUploadFormData(file, options.identity, name, options.comments)
     const error = await sendUpload(options.url, form, options.fetchUpload)
-    rows = rows.map((row, current) =>
-      current === index
-        ? error !== undefined
-          ? { ...row, state: "failed", error }
-          : { ...row, state: "uploaded" }
-        : row
-    )
+    const outcome: Pick<UploadRow, "state" | "error"> =
+      error === undefined ? { state: "uploaded" } : { state: "failed", error }
+    rows = updateUploadRow(rows, index, outcome)
     options.onStatus(rows)
   }
   if (rows.some((row) => row.state === "uploaded")) await options.onUploaded()

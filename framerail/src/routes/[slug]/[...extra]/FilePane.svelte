@@ -505,8 +505,8 @@
   {#if activeFileAction === "upload"}
     <FileUploadForm
       {data}
-      onUploaded={() => getFileList()}
       onClose={() => (activeFileAction = null)}
+      onUploaded={() => getFileList()}
     />
   {/if}
 

@@ -63,7 +63,7 @@ test("multipart payload carries actual bytes, page identity, actual revision and
 
 test("three sequential uploads retain success around middle action failure and refresh once", async () => {
   const calls: { url: string; init: RequestInit }[] = []
-  const snapshots: Array<Array<{ state: string; error?: string }>> = []
+  const snapshots: { state: string; error?: string }[][] = []
   let outstanding = 0
   let refreshes = 0
   const responses = [
@@ -86,7 +86,7 @@ test("three sequential uploads retain success around middle action failure and r
     url: "https://wiki.example/source:page?/fileUpload",
     fetchUpload,
     isActive: () => true,
-    onStatus: (rows: Array<{ state: string; error?: string }>) => snapshots.push(rows),
+    onStatus: (rows: { state: string; error?: string }[]) => snapshots.push(rows),
     onUploaded: async () => {
       refreshes++
     }
@@ -201,6 +201,26 @@ test("empty transport errors and missing file receipts are not reported as uploa
     ["failed", "failed"]
   )
   assert.equal(refreshed, false)
+})
+
+test("error responses without an action status preserve the server error", async () => {
+  const results = await uploadFiles({
+    files: files.slice(0, 1),
+    identity,
+    name: "",
+    comments: "",
+    url: "https://wiki.example/source:page?/fileUpload",
+    fetchUpload: async () =>
+      new Response(
+        JSON.stringify({ type: "error", error: { message: "Service unavailable" } }),
+        { status: 503 }
+      ),
+    isActive: () => true,
+    onStatus: () => {},
+    onUploaded: async () => assert.fail("failed uploads cannot refresh as success")
+  })
+  assert.equal(results[0].state, "failed")
+  assert.equal(results[0].error, "Service unavailable")
 })
 
 test("upload form retains Files layout hooks and multiple file selection", () => {
