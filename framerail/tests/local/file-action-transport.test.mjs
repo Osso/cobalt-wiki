@@ -22,6 +22,7 @@ function nativeUploadForm() {
   return form
 }
 
+/** @param {FormData} form @param {string} [url] */
 async function formRequest(
   form,
   url = `${origin}/local-action-proof:source?/fileUpload`
@@ -65,6 +66,7 @@ test("native fileUpload rejects wrong identity and noncanonical ID strings", asy
 
 test("native fileUpload rejects duplicate, missing, extra, or wrongly typed fields", async () => {
   const permitted = { fileId: null, name: "ui-file-run.txt" }
+  /** @type {((form: FormData) => void)[]} */
   const mutations = [
     (form) => form.append("siteId", String(siteId)),
     (form) => form.append("file", new File(["extra"], "ui-file-run.txt")),

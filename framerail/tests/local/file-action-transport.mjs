@@ -154,7 +154,12 @@ async function decodeMutation(request) {
     contentType = supportedType ?? (header ? "other" : "missing")
     if (contentType === "application/json" || header === "text/plain;charset=UTF-8") {
       stage = "json"
-      return { data: JSON.parse(bytes.toString()), file: null, files: [] }
+      return {
+        encoding: "legacy",
+        data: JSON.parse(bytes.toString()),
+        file: null,
+        files: []
+      }
     }
     const isMultipart = contentType === "multipart/form-data"
     assert.ok(isMultipart || contentType === "application/x-www-form-urlencoded")
@@ -197,7 +202,7 @@ async function decodeMutation(request) {
     const files = [...form.entries()].flatMap(([field, file]) =>
       file instanceof File ? [{ field, name: file.name, type: file.type }] : []
     )
-    return { data, file: form.get("__superform_file_file"), files }
+    return { encoding: "legacy", data, file: form.get("__superform_file_file"), files }
   } catch (error) {
     const errorType = classifyDecodeError(error)
     throw new Error(

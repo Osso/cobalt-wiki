@@ -126,6 +126,65 @@ async function assertNativeUpload(request, revisionId, uploads) {
 }
 
 /**
+ * @param {BrowserRequest} request @param {URL} url @param {Fixture}
+ *   fixture
+ */
+function isAllowedRead(request, url, fixture) {
+  const method = request.method()
+  const path = `${url.pathname}${url.search}`
+  return (
+    (url.origin === "https://d3g0gp89917ko0.cloudfront.net" &&
+      method === "GET" &&
+      request.resourceType() === "stylesheet") ||
+    (url.origin === origin && ["GET", "HEAD", "OPTIONS"].includes(method)) ||
+    (url.origin === origin &&
+      method === "POST" &&
+      ["/-/login", "/-/login?/login", `/${fixture.sourceSlug}?/fileList`].includes(path))
+  )
+}
+
+/**
+ * @param {BrowserRequest} request @param {URL} url @param {Fixture}
+ *   fixture
+ * @param {number} revisionId @param {Upload[]} uploads @param {Upload[]}
+ *   posted
+ * @param {string[]} blocked
+ */
+async function authorizeUpload(
+  request,
+  url,
+  fixture,
+  revisionId,
+  uploads,
+  posted,
+  blocked
+) {
+  const path = `${url.pathname}${url.search}`
+  if (
+    url.origin === origin &&
+    request.method() === "POST" &&
+    path === `/${fixture.sourceSlug}?/fileUpload` &&
+    posted.length < uploads.length
+  ) {
+    try {
+      const upload = await assertNativeUpload(request, revisionId, uploads)
+      assert.equal(upload, uploads[posted.length], "upload order / duplicate attempt")
+      posted.push(upload)
+      return true
+    } catch (error) {
+      blocked.push(
+        `invalid fixture upload: ${error instanceof Error ? error.name : "Error"}`
+      )
+      return false
+    }
+  }
+  blocked.push(
+    `blocked ${request.method()} ${url.origin === origin ? path : "foreign origin"}`
+  )
+  return false
+}
+
+/**
  * @param {BrowserContext} context @param {Fixture} fixture @param {number}
  *   revisionId
  * @param {Upload[]} uploads
@@ -138,42 +197,17 @@ async function guardWrites(context, fixture, revisionId, uploads) {
   await context.route("**/*", async (route) => {
     const request = route.request()
     const url = new URL(request.url())
-    const method = request.method()
-    if (
-      url.origin === "https://d3g0gp89917ko0.cloudfront.net" &&
-      method === "GET" &&
-      request.resourceType() === "stylesheet"
+    if (isAllowedRead(request, url, fixture)) return route.continue()
+    const authorized = await authorizeUpload(
+      request,
+      url,
+      fixture,
+      revisionId,
+      uploads,
+      posted,
+      blocked
     )
-      return route.continue()
-    if (url.origin === origin && ["GET", "HEAD", "OPTIONS"].includes(method)) {
-      return route.continue()
-    }
-    const path = `${url.pathname}${url.search}`
-    if (
-      url.origin === origin &&
-      method === "POST" &&
-      ["/-/login", "/-/login?/login", `/${fixture.sourceSlug}?/fileList`].includes(path)
-    )
-      return route.continue()
-    if (
-      url.origin === origin &&
-      method === "POST" &&
-      path === `/${fixture.sourceSlug}?/fileUpload` &&
-      posted.length < uploads.length
-    ) {
-      try {
-        const upload = await assertNativeUpload(request, revisionId, uploads)
-        assert.equal(upload, uploads[posted.length], "upload order / duplicate attempt")
-        posted.push(upload)
-        return route.continue()
-      } catch (error) {
-        blocked.push(
-          `invalid fixture upload: ${error instanceof Error ? error.name : "Error"}`
-        )
-      }
-    } else {
-      blocked.push(`blocked ${method} ${url.origin === origin ? path : "foreign origin"}`)
-    }
+    if (authorized) return route.continue()
     await route.abort()
   })
   return { posted, blocked }
@@ -206,6 +240,83 @@ async function cleanup(request, token, fixture, baseline, names) {
   }
 }
 
+/** @param {Page} page @param {Fixture} fixture @param {Upload[]} uploads */
+async function submitUploadsAndAssertRows(page, fixture, uploads) {
+  const pane = await openFiles(page, fixture.sourceSlug)
+  await pane.locator(".upload-file, .buttons input[value='Upload']").click()
+  const form = pane.locator("#file-upload")
+  const input = form.locator('[name="file"]')
+  await expect(input).toHaveAttribute("multiple", "")
+  await input.setInputFiles(
+    uploads.map(({ name, bytes }) => ({
+      name,
+      mimeType: "text/plain",
+      buffer: bytes
+    }))
+  )
+  await form.locator('[name="comments"]').fill("Batch proof")
+  await form.evaluate((element) => {
+    assert.ok(element instanceof HTMLFormElement)
+    /** @type {HTMLFormElement & { uploadStates?: string[] }} */
+    const observed = element
+    observed.uploadStates = []
+    const capture = () => {
+      for (const row of observed.querySelectorAll("[data-upload-index]")) {
+        const status = row.textContent ?? ""
+        if (/uploading/i.test(status)) observed.uploadStates?.push(status)
+      }
+    }
+    new MutationObserver(capture).observe(observed, {
+      childList: true,
+      characterData: true,
+      subtree: true
+    })
+  })
+  await form.locator('[type="submit"]').click()
+  const rows = form.locator("[data-upload-index]")
+  await expect(rows).toHaveCount(3)
+  for (const [index, upload] of uploads.entries()) {
+    const row = form.locator(`[data-upload-index="${index}"]`)
+    await expect(row).toContainText(upload.name)
+    await expect(row).toContainText(index === 1 ? /failed/i : /uploaded/i)
+  }
+  await expect(rows.nth(1)).toContainText(/already exists|duplicate|collision/i)
+  const uploadingStates = await form.evaluate(
+    (element) =>
+      /** @type {HTMLFormElement & { uploadStates?: string[] }} */ (element)
+        .uploadStates ?? []
+  )
+  assert.ok(uploadingStates.length > 0, "uploading status must be visible")
+  await page.waitForTimeout(500)
+}
+
+/**
+ * @param {APIRequestContext} request @param {string} token @param
+ *   {Fixture} fixture
+ * @param {Map<number, PageFile>} baseline @param {Upload[]} uploads
+ */
+async function assertStoredUploads(request, token, fixture, baseline, uploads) {
+  const files = await listFiles(request, token, fixture.sourceSlug, pageId, false)
+  const created = files.filter((file) => !baseline.has(file.file_id))
+  assert.equal(
+    created.length,
+    2,
+    "both successful files retained; collision not overwritten"
+  )
+  for (const upload of [uploads[0], uploads[2]]) {
+    const matches = created.filter((file) => file.name === upload.name)
+    assert.equal(matches.length, 1)
+    const result = await readFileBytes(
+      request,
+      token,
+      fixture.sourceSlug,
+      pageId,
+      matches[0].file_id
+    )
+    assert.deepEqual(result.bytes, upload.bytes)
+  }
+}
+
 /**
  * @param {Page} page @param {APIRequestContext} request @param {string}
  *   token
@@ -234,72 +345,10 @@ async function exercise(page, request, token, fixture) {
   /** @type {unknown} */
   let failure
   try {
-    const pane = await openFiles(page, fixture.sourceSlug)
-    await pane.locator(".upload-file, .buttons input[value='Upload']").click()
-    const form = pane.locator("#file-upload")
-    const input = form.locator('[name="file"]')
-    await expect(input).toHaveAttribute("multiple", "")
-    await input.setInputFiles(
-      uploads.map(({ name, bytes }) => ({
-        name,
-        mimeType: "text/plain",
-        buffer: bytes
-      }))
-    )
-    await form.locator('[name="comments"]').fill("Batch proof")
-    await form.evaluate((element) => {
-      /** @type {HTMLFormElement & { uploadStates?: string[] }} */
-      const observed = element
-      observed.uploadStates = []
-      const capture = () => {
-        for (const row of observed.querySelectorAll("[data-upload-index]")) {
-          const status = row.textContent ?? ""
-          if (/uploading/i.test(status)) observed.uploadStates?.push(status)
-        }
-      }
-      new MutationObserver(capture).observe(observed, {
-        childList: true,
-        characterData: true,
-        subtree: true
-      })
-    })
-    await form.locator('[type="submit"]').click()
-    const rows = form.locator("[data-upload-index]")
-    await expect(rows).toHaveCount(3)
-    for (const [index, upload] of uploads.entries()) {
-      const row = form.locator(`[data-upload-index="${index}"]`)
-      await expect(row).toContainText(upload.name)
-      await expect(row).toContainText(index === 1 ? /failed/i : /uploaded/i)
-    }
-    await expect(rows.nth(1)).toContainText(/already exists|duplicate|collision/i)
-    const uploadingStates = await form.evaluate(
-      (element) =>
-        /** @type {HTMLFormElement & { uploadStates?: string[] }} */ (element)
-          .uploadStates ?? []
-    )
-    assert.ok(uploadingStates.length > 0, "uploading status must be visible")
-    await page.waitForTimeout(500)
+    await submitUploadsAndAssertRows(page, fixture, uploads)
     assert.deepEqual(guardState.posted, uploads, "exactly three ordered upload POSTs")
     assert.deepEqual(guardState.blocked, [], "unexpected write or foreign request")
-    const files = await listFiles(request, token, fixture.sourceSlug, pageId, false)
-    const created = files.filter((file) => !baseline.has(file.file_id))
-    assert.equal(
-      created.length,
-      2,
-      "both successful files retained; collision not overwritten"
-    )
-    for (const upload of [uploads[0], uploads[2]]) {
-      const matches = created.filter((file) => file.name === upload.name)
-      assert.equal(matches.length, 1)
-      const result = await readFileBytes(
-        request,
-        token,
-        fixture.sourceSlug,
-        pageId,
-        matches[0].file_id
-      )
-      assert.deepEqual(result.bytes, upload.bytes)
-    }
+    await assertStoredUploads(request, token, fixture, baseline, uploads)
   } catch (error) {
     failure = error
   }
@@ -307,15 +356,23 @@ async function exercise(page, request, token, fixture) {
     await cleanup(request, token, fixture, baseline, new Set([name, thirdName]))
     const remaining = await listFiles(request, token, fixture.sourceSlug, pageId, false)
     const tombstones = await listFiles(request, token, fixture.sourceSlug, pageId, true)
-    for (const [files, label] of [
-      [remaining, "active"],
-      [tombstones, "deleted"]
-    ]) {
+    /**
+     * @type {{
+     *   files: PageFile[]
+     *   original: PageFile[]
+     *   label: string
+     * }[]}
+     */
+    const snapshots = [
+      { files: remaining, original: active, label: "active" },
+      { files: tombstones, original: deleted, label: "deleted" }
+    ]
+    for (const { files, original, label } of snapshots) {
       assert.deepEqual(
         files
           .filter((file) => baseline.has(file.file_id))
           .sort((a, b) => a.file_id - b.file_id),
-        (label === "active" ? active : deleted).sort((a, b) => a.file_id - b.file_id),
+        original.sort((a, b) => a.file_id - b.file_id),
         `${label} baseline files unchanged`
       )
     }
@@ -327,7 +384,9 @@ async function exercise(page, request, token, fixture) {
     assert.equal(pageAfter.wikitext, originalPage.wikitext)
   } catch (error) {
     if (failure)
-      throw new AggregateError([failure, error], "batch proof and cleanup failed")
+      throw new AggregateError([failure, error], "batch proof and cleanup failed", {
+        cause: error
+      })
     throw error
   }
   if (failure) throw failure
