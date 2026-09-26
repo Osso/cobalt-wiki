@@ -50,17 +50,23 @@ async fn can_view(
     .await
 }
 
-/// Never return an incoming connection before validating the target and every source.
-pub async fn get_page_backlinks(
+async fn authorize_target(
     ctx: &ServiceContext<'_>,
-    GetPageBacklinks { site_id, page_id }: GetPageBacklinks,
-) -> Result<GetPageBacklinksOutput> {
+    site_id: i64,
+    page_id: i64,
+) -> Result<()> {
     let target = PageService::get(ctx, site_id, Reference::Id(page_id)).await?;
     if !can_view(ctx, site_id, &target).await? {
         bail!(Error::new("page view denied", ErrorType::PermissionDenied));
     }
+    Ok(())
+}
 
-    let connections = PageConnection::find()
+async fn load_connections(
+    ctx: &ServiceContext<'_>,
+    page_id: i64,
+) -> Result<Vec<page_connection::Model>> {
+    PageConnection::find()
         .filter(page_connection::Column::ToPageId.eq(page_id))
         .filter(page_connection::Column::ConnectionType.is_in([
             ConnectionType::Link,
@@ -74,14 +80,14 @@ pub async fn get_page_backlinks(
                 "failed to fetch incoming page connections",
                 ErrorType::PageLink,
             )
-        })?;
-    if connections.is_empty() {
-        return Ok(GetPageBacklinksOutput {
-            links: vec![],
-            inclusions: vec![],
-        });
-    }
+        })
+}
 
+async fn load_viewable_sources(
+    ctx: &ServiceContext<'_>,
+    site_id: i64,
+    connections: &[page_connection::Model],
+) -> Result<Vec<page::Model>> {
     let source_ids: HashSet<_> = connections.iter().map(|row| row.from_page_id).collect();
     let sources = page::Entity::find()
         .filter(page::Column::PageId.is_in(source_ids))
@@ -98,11 +104,19 @@ pub async fn get_page_backlinks(
             visible.push(source);
         }
     }
-    let revision_ids: Vec<_> = visible
+    Ok(visible)
+}
+
+async fn load_current_titles(
+    ctx: &ServiceContext<'_>,
+    site_id: i64,
+    sources: &[page::Model],
+) -> Result<HashMap<i64, page_revision::Model>> {
+    let revision_ids: Vec<_> = sources
         .iter()
         .filter_map(|page| page.latest_revision_id)
         .collect();
-    let revisions: HashMap<_, _> = page_revision::Entity::find()
+    let revisions = page_revision::Entity::find()
         .filter(page_revision::Column::RevisionId.is_in(revision_ids))
         .filter(page_revision::Column::SiteId.eq(site_id))
         .all(ctx.transaction())
@@ -112,13 +126,19 @@ pub async fn get_page_backlinks(
                 "failed to fetch current backlink titles",
                 ErrorType::PageLink,
             )
-        })?
+        })?;
+    Ok(revisions
         .into_iter()
         .map(|revision| (revision.revision_id, revision))
-        .collect();
+        .collect())
+}
 
+fn identify_current_sources(
+    sources: Vec<page::Model>,
+    revisions: &HashMap<i64, page_revision::Model>,
+) -> HashMap<i64, BacklinkPage> {
     let mut pages = HashMap::new();
-    for source in visible {
+    for source in sources {
         let Some(title) = source.latest_revision_id.and_then(|id| revisions.get(&id))
         else {
             continue;
@@ -135,6 +155,19 @@ pub async fn get_page_backlinks(
             },
         );
     }
+    pages
+}
+
+fn sort_backlink_pages(pages: HashMap<i64, BacklinkPage>) -> Vec<BacklinkPage> {
+    let mut pages: Vec<_> = pages.into_values().collect();
+    pages.sort_by(|a, b| a.slug.cmp(&b.slug).then(a.page_id.cmp(&b.page_id)));
+    pages
+}
+
+fn group_links_and_inclusions(
+    connections: Vec<page_connection::Model>,
+    pages: &HashMap<i64, BacklinkPage>,
+) -> GetPageBacklinksOutput {
     let mut links = HashMap::new();
     let mut inclusions = HashMap::new();
     for connection in connections {
@@ -153,9 +186,27 @@ pub async fn get_page_backlinks(
             }
         }
     }
-    let mut links: Vec<_> = links.into_values().collect();
-    let mut inclusions: Vec<_> = inclusions.into_values().collect();
-    links.sort_by(|a, b| a.slug.cmp(&b.slug).then(a.page_id.cmp(&b.page_id)));
-    inclusions.sort_by(|a, b| a.slug.cmp(&b.slug).then(a.page_id.cmp(&b.page_id)));
-    Ok(GetPageBacklinksOutput { links, inclusions })
+    GetPageBacklinksOutput {
+        links: sort_backlink_pages(links),
+        inclusions: sort_backlink_pages(inclusions),
+    }
+}
+
+/// Never return an incoming connection before validating the target and every source.
+pub async fn get_page_backlinks(
+    ctx: &ServiceContext<'_>,
+    GetPageBacklinks { site_id, page_id }: GetPageBacklinks,
+) -> Result<GetPageBacklinksOutput> {
+    authorize_target(ctx, site_id, page_id).await?;
+    let connections = load_connections(ctx, page_id).await?;
+    if connections.is_empty() {
+        return Ok(GetPageBacklinksOutput {
+            links: vec![],
+            inclusions: vec![],
+        });
+    }
+    let sources = load_viewable_sources(ctx, site_id, &connections).await?;
+    let revisions = load_current_titles(ctx, site_id, &sources).await?;
+    let pages = identify_current_sources(sources, &revisions);
+    Ok(group_links_and_inclusions(connections, &pages))
 }
