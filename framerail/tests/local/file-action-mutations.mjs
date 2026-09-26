@@ -19,6 +19,13 @@ const fixturePath =
 /** @typedef {Awaited<ReturnType<typeof guardBrowserWrites>>} WriteGuard */
 /**
  * @typedef {{
+ *   headers: () => { [key: string]: string }
+ *   postDataBuffer: () => Buffer | null
+ *   url?: () => string
+ * }} MutationRequest
+ */
+/**
+ * @typedef {{
  *   sacrificial: true
  *   siteId: number
  *   siteSlug: string
@@ -42,7 +49,7 @@ async function readFixture(path) {
   assert.equal(fixture.databaseLabel, "cobalt_local_full")
   assert.equal(fixture.username, "cobalt-import")
   const match = /^local-action-proof:source-([a-f0-9]{16})$/.exec(fixture.sourceSlug)
-  assert.ok(match, "unique disposable source required")
+  if (!match) assert.fail("unique disposable source required")
   assert.equal(fixture.destinationSlug, `local-action-proof:destination-${match[1]}`)
   assert.equal(fixture.pageId, 3000006134)
   assert.equal(fixture.destinationPageId, 3000006135)
@@ -79,6 +86,7 @@ async function rpc(request, token, slug, method, params) {
 /**
  * @param {import("@playwright/test").APIRequestContext} request @param
  *   {string} token @param {string} slug
+ * @returns {Promise<PageView>}
  */
 async function readPage(request, token, slug) {
   /** @type {PageView} */
@@ -107,6 +115,7 @@ async function assertLivePage(request, token, slug, pageId) {
  * @param {import("@playwright/test").APIRequestContext} request @param
  *   {string} token @param {string} slug @param {number} pageId @param
  *   {boolean} deleted
+ * @returns {Promise<PageFile[]>}
  */
 async function listFiles(request, token, slug, pageId, deleted) {
   /** @type {PageFile[]} */
@@ -142,7 +151,7 @@ async function readFileBytes(request, token, slug, pageId, fileId) {
   return { file, bytes }
 }
 
-/** @param {import("@playwright/test").Request} request */
+/** @param {MutationRequest} request */
 async function decodeMutation(request) {
   const bytes = request.postDataBuffer()
   assert.ok(bytes, "mutation body required")
@@ -151,6 +160,7 @@ async function decodeMutation(request) {
     return { data: JSON.parse(bytes.toString()), file: null }
   }
   assert.ok(headers["content-type"]?.startsWith("multipart/form-data"))
+  if (!request.url) assert.fail("multipart mutation URL required")
   const body = new Request(request.url(), {
     method: "POST",
     headers,
@@ -164,9 +174,8 @@ async function decodeMutation(request) {
 }
 
 /**
- * @param {import("@playwright/test").Request} request @param {{ fileId:
- *   number | null; name: string | null }} permitted @param {number}
- *   pageId
+ * @param {MutationRequest} request @param {{ fileId: number | null; name:
+ *   string | null }} permitted @param {number} pageId
  */
 async function mutationMatches(request, permitted, pageId) {
   const { data, file } = await decodeMutation(request)
@@ -305,7 +314,7 @@ async function login(context, username, password) {
   const cookie = (await context.cookies()).find(
     (item) => item.name === "wikijump_token" && item.domain === "127.0.0.1"
   )
-  assert.ok(cookie, "browser login required")
+  if (!cookie) assert.fail("browser login required")
   return { page, token: decodeURIComponent(cookie.value) }
 }
 
@@ -327,9 +336,10 @@ async function openFiles(page, slug) {
 }
 
 /**
- * @param {import("@playwright/test").Page} page @param {object} guard
+ * @param {import("@playwright/test").Page} page @param {WriteGuard} guard
  * @param {string} slug @param {string} action @param
  *   {import("@playwright/test").Locator} control
+ * @param {number | null} [fileId] @param {string | null} [name]
  */
 async function clickMutation(
   page,
@@ -355,8 +365,8 @@ async function clickMutation(
 }
 
 /**
- * @param {import("@playwright/test").Response} response @param {string}
- *   action
+ * @param {Pick<import("@playwright/test").Response, "status" | "json">} response
+ *   @param {string} action
  */
 async function assertActionSuccess(response, action) {
   assert.equal(response.status(), 200, `${action} HTTP status`)
@@ -404,10 +414,12 @@ async function assertFile(
  *   {Map<string, PageFile[]>} baseline
  */
 async function assertOriginalFiles(request, token, fixture, fileId, baseline) {
-  for (const [pageId, slug] of [
+  /** @type {[number, string][]} */
+  const pages = [
     [fixture.pageId, fixture.sourceSlug],
     [fixture.destinationPageId, fixture.destinationSlug]
-  ]) {
+  ]
+  for (const [pageId, slug] of pages) {
     for (const deleted of [false, true]) {
       const key = `${pageId}:${deleted}`
       const current = await listFiles(request, token, slug, pageId, deleted)
@@ -425,12 +437,15 @@ async function assertOriginalFiles(request, token, fixture, fileId, baseline) {
 /**
  * @param {import("@playwright/test").APIRequestContext} request @param
  *   {string} token @param {Fixture} fixture @param {number} fileId
+ * @param {string[]} names
  */
 async function recoverFile(request, token, fixture, fileId, names) {
+  /** @type {[number, string][]} */
   const pages = [
     [fixture.pageId, fixture.sourceSlug],
     [fixture.destinationPageId, fixture.destinationSlug]
   ]
+  /** @type {PageFile[]} */
   const found = []
   for (const [pageId, slug] of pages) {
     for (const deleted of [false, true]) {
@@ -465,7 +480,7 @@ async function recoverFile(request, token, fixture, fileId, names) {
 }
 
 /**
- * @param {import("@playwright/test").Page} page @param {object} guard
+ * @param {import("@playwright/test").Page} page @param {WriteGuard} guard
  * @param {string} slug @param {number} fileId @param {string} action
  */
 async function openFileAction(page, guard, slug, fileId, action) {
@@ -487,7 +502,7 @@ async function openFileAction(page, guard, slug, fileId, action) {
 }
 
 /**
- * @param {import("@playwright/test").Page} page @param {object} guard
+ * @param {import("@playwright/test").Page} page @param {WriteGuard} guard
  * @param {string} slug @param {number} fileId @param {string} name
  * @param {Buffer | null} bytes
  */
@@ -515,7 +530,7 @@ async function editInBrowser(page, guard, slug, fileId, name, bytes) {
 }
 
 /**
- * @param {import("@playwright/test").Page} page @param {object} guard
+ * @param {import("@playwright/test").Page} page @param {WriteGuard} guard
  * @param {string} slug @param {number} fileId @param {string} destination
  */
 async function moveInBrowser(page, guard, slug, fileId, destination) {
@@ -534,7 +549,7 @@ async function moveInBrowser(page, guard, slug, fileId, destination) {
 }
 
 /**
- * @param {import("@playwright/test").Page} page @param {object} guard
+ * @param {import("@playwright/test").Page} page @param {WriteGuard} guard
  * @param {string} slug @param {number} fileId
  */
 async function deleteInBrowser(page, guard, slug, fileId) {
@@ -547,7 +562,7 @@ async function deleteInBrowser(page, guard, slug, fileId) {
 }
 
 /**
- * @param {import("@playwright/test").Page} page @param {object} guard
+ * @param {import("@playwright/test").Page} page @param {WriteGuard} guard
  * @param {string} slug @param {number} fileId
  */
 async function restoreInBrowser(page, guard, slug, fileId) {
@@ -570,7 +585,7 @@ async function restoreInBrowser(page, guard, slug, fileId) {
 }
 
 /**
- * @param {import("@playwright/test").Page} page @param {object} guard
+ * @param {import("@playwright/test").Page} page @param {WriteGuard} guard
  * @param {string} slug @param {number} fileId @param {number}
  *   revisionNumber
  */
@@ -590,11 +605,14 @@ async function rollbackInBrowser(page, guard, slug, fileId, revisionNumber) {
  *   {string} token @param {Fixture} fixture
  */
 async function captureFileBaseline(request, token, fixture) {
+  /** @type {Map<string, PageFile[]>} */
   const baseline = new Map()
-  for (const [pageId, slug] of [
+  /** @type {[number, string][]} */
+  const pages = [
     [fixture.pageId, fixture.sourceSlug],
     [fixture.destinationPageId, fixture.destinationSlug]
-  ]) {
+  ]
+  for (const [pageId, slug] of pages) {
     for (const deleted of [false, true]) {
       const files = await listFiles(request, token, slug, pageId, deleted)
       baseline.set(
@@ -614,9 +632,9 @@ async function captureFileBaseline(request, token, fixture) {
  */
 async function findCreatedFile(request, token, fixture, baseline, name) {
   const files = await listFiles(request, token, fixture.sourceSlug, fixture.pageId, false)
-  const originalIds = new Set(
-    baseline.get(`${fixture.pageId}:false`).map((file) => file.file_id)
-  )
+  const originalFiles = baseline.get(`${fixture.pageId}:false`)
+  if (!originalFiles) assert.fail("source file baseline required")
+  const originalIds = new Set(originalFiles.map((file) => file.file_id))
   const created = files.filter(
     (file) => file.name === name && !originalIds.has(file.file_id)
   )
@@ -651,10 +669,11 @@ async function exercise(page, request, token, fixture, guard) {
   assert.ok(
     ![...baseline.values()].flat().some((file) => [name, renamed].includes(file.name))
   )
+  /** @type {number | null} */
   let fileId = null
   let stage = "upload"
   try {
-    fileId = await uploadFixtureFile(
+    const createdFileId = await uploadFixtureFile(
       page,
       request,
       token,
@@ -664,6 +683,7 @@ async function exercise(page, request, token, fixture, guard) {
       name,
       original
     )
+    fileId = createdFileId
     let current = await assertFile(
       request,
       token,
@@ -807,6 +827,16 @@ async function exercise(page, request, token, fixture, guard) {
   }
 }
 
+/**
+ * @param {import("@playwright/test").Page} page
+ * @param {import("@playwright/test").APIRequestContext} request
+ * @param {string} token
+ * @param {Fixture} fixture
+ * @param {WriteGuard} guard
+ * @param {Map<string, PageFile[]>} baseline
+ * @param {string} name
+ * @param {Buffer} original
+ */
 async function uploadFixtureFile(
   page,
   request,
@@ -841,6 +871,15 @@ async function uploadFixtureFile(
   return fileId
 }
 
+/**
+ * @param {import("@playwright/test").APIRequestContext} request
+ * @param {string} token
+ * @param {Fixture} fixture
+ * @param {number | null} fileId
+ * @param {string[]} names
+ * @param {string} stage
+ * @param {unknown} error
+ */
 async function recoverFailedFile(request, token, fixture, fileId, names, stage, error) {
   if (fileId !== null) {
     try {
@@ -856,17 +895,27 @@ async function recoverFailedFile(request, token, fixture, fileId, names, stage, 
   throw new Error(`${stage}: file action failed`, { cause: error })
 }
 
+/**
+ * @param {import("@playwright/test").APIRequestContext} request
+ * @param {string} token
+ * @param {Fixture} fixture
+ * @param {number[]} revisions
+ * @param {string[]} hashes
+ */
 async function assertOriginalPages(request, token, fixture, revisions, hashes) {
-  for (const [index, [pageId, slug]] of [
+  /** @type {[number, string][]} */
+  const pages = [
     [fixture.pageId, fixture.sourceSlug],
     [fixture.destinationPageId, fixture.destinationSlug]
-  ].entries()) {
+  ]
+  for (const [index, [pageId, slug]] of pages.entries()) {
     const view = await assertLivePage(request, token, slug, pageId)
     assert.equal(view.page_revision.revision_id, revisions[index])
     assert.equal(view.wikitext, hashes[index])
   }
 }
 
+/** @param {WriteGuard} guard @param {Fixture} fixture */
 function assertWriteSequence(guard, fixture) {
   guard.assertConsumed()
   assert.deepEqual(guard.writes, [
@@ -949,6 +998,7 @@ test("JSON file mutations require exact file and page identity", async () => {
 })
 
 test("action completion rejects failed results even with HTTP 200", async () => {
+  /** @param {"success" | "failure"} type @param {unknown} data */
   const response = (type, data) => ({
     status: () => 200,
     json: async () => ({ type, status: 200, data: stringify(data) })
