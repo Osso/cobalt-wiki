@@ -415,7 +415,8 @@ export async function pageDeleteAction({
         lastRevisionId,
         newSlug,
         comments,
-        getRequestContext(locals)
+        getRequestContext(locals),
+        []
       )
       return { form, res, option: DeleteOptions.Move }
     } else {
@@ -838,7 +839,7 @@ const pageFileRestoreSchema = object({
 })
 
 /* ----- Page File History ----- */
-export async function pageFileHistoryAction({ request }: RequestEvent) {
+export async function pageFileHistoryAction({ request, locals }: RequestEvent) {
   try {
     const requestData: {
       siteId: number
@@ -850,11 +851,18 @@ export async function pageFileHistoryAction({ request }: RequestEvent) {
 
     const { siteId, pageId, fileId, revisionNumber, limit } = requestData
 
-    const res = await pageFileHistory(siteId, pageId, fileId, revisionNumber, limit)
+    const res = await pageFileHistory(
+      siteId,
+      pageId,
+      fileId,
+      revisionNumber,
+      limit,
+      getRequestContext(locals)
+    )
     return { res }
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(500, {
+    return fail(error.code === 3106 ? 403 : 500, {
       message: error.message,
       code: error.code,
       data: error.data
