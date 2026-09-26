@@ -22,8 +22,17 @@ use super::prelude::*;
 use crate::services::link::{
     GetLinksExternalFrom, GetLinksExternalFromOutput, GetLinksExternalTo,
     GetLinksExternalToOutput, GetLinksFrom, GetLinksFromOutput, GetLinksTo,
-    GetLinksToMissing, GetLinksToMissingOutput, GetLinksToOutput,
+    GetLinksToMissing, GetLinksToMissingOutput, GetLinksToOutput, GetPageBacklinks,
+    GetPageBacklinksOutput, get_page_backlinks,
 };
+
+pub async fn page_backlinks(
+    ctx: &ServiceContext<'_>,
+    params: Params<'static>,
+) -> Result<GetPageBacklinksOutput> {
+    let input: GetPageBacklinks = parse!(params, Page);
+    get_page_backlinks(ctx, input).await
+}
 
 pub async fn page_links_from_get(
     ctx: &ServiceContext<'_>,

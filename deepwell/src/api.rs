@@ -429,6 +429,7 @@ async fn build_module(app_state: ServerState) -> Result<RpcModule<ServerState>> 
     register!("page_revision_range", page_revision_range);
 
     // Page links
+    register!("page_backlinks", page_backlinks);
     register!("page_get_links_from", page_links_from_get);
     register!("page_get_links_to", page_links_to_get);
     register!("page_get_links_to_missing", page_links_to_missing_get);

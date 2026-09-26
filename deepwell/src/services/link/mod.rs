@@ -41,8 +41,10 @@ mod prelude {
     pub use super::structs::*;
 }
 
+mod backlinks;
 mod service;
 mod structs;
 
+pub use self::backlinks::{GetPageBacklinks, GetPageBacklinksOutput, get_page_backlinks};
 pub use self::service::LinkService;
 pub use self::structs::*;
