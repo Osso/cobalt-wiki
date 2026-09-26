@@ -139,7 +139,7 @@ async function guardBrowserWrites(context, fixture, allowSave) {
         "?/fileList",
         "?/parentGet",
         "?/editorPages",
-        "?/lockHistory"
+        "?/blockGet"
       ].includes(action)
     const fixtureSave =
       url.pathname === `/${fixture.existingSlug}` && action === "?/parentSet"
@@ -195,7 +195,7 @@ async function checkSourceAndPanels(page, source) {
   for (const [button, pane] of [
     ["rename-move-button", "page-move"],
     ["delete-button", "page-delete"],
-    ["lock-page-button", "page-lock"],
+    ["lock-page-button", "page-block-checkbox"],
     ["layout-button", "page-layout"]
   ]) {
     await options.locator(`#${button}`).click()
