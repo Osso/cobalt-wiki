@@ -7,6 +7,9 @@ after(close)
 const { pageFileEditAction, pageFileRollbackAction } = await vite.ssrLoadModule(
   "/src/lib/server/load/page.ts"
 )
+const { actions } = await vite.ssrLoadModule(
+  "/src/routes/[slug]/[...extra]/+page.server.ts"
+)
 
 const identity = { siteId: 6000000, pageId: 314, fileId: 1474, lastRevisionId: 902 }
 
@@ -71,6 +74,24 @@ test("file edit sends actual request IP in serialized RPC and accepts the revisi
     revision_comments: "Rename",
     bypass_filter: false
   })
+  assert.deepEqual((result as { res: unknown }).res, {
+    file_id: 1474,
+    file_revision_id: 903
+  })
+})
+
+test("page route dispatches file rollback to its RPC", async () => {
+  const request = new Request("http://local.test/page?/fileRollback", {
+    method: "POST",
+    body: JSON.stringify({ ...identity, revisionNumber: 1, comments: "Restore bytes" })
+  })
+  const { result, calls } = await withRpc(() =>
+    actions.fileRollback(event(request, "198.51.100.27") as never)
+  )
+  assert.deepEqual(
+    calls.map(({ method }) => method),
+    ["session_get", "file_rollback"]
+  )
   assert.deepEqual((result as { res: unknown }).res, {
     file_id: 1474,
     file_revision_id: 903
