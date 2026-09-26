@@ -386,7 +386,8 @@ export async function pageDeleteAction({
   request,
   params,
   getClientAddress,
-  cookies
+  cookies,
+  locals
 }: RequestEvent) {
   const form = await superValidate(request, valibot(pageDeleteSchema))
   if (!form.valid) {
@@ -411,7 +412,8 @@ export async function pageDeleteAction({
         slug,
         lastRevisionId,
         newSlug,
-        comments
+        comments,
+        getRequestContext(locals)
       )
       return { form, res, option: DeleteOptions.Move }
     } else {
@@ -422,13 +424,14 @@ export async function pageDeleteAction({
         ipAddress,
         slug,
         lastRevisionId,
-        comments
+        comments,
+        getRequestContext(locals)
       )
       return { form, res, option: DeleteOptions.Delete }
     }
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(500, {
+    return fail(error.code === 3106 ? 403 : 500, {
       form,
       message: error.message,
       code: error.code,
@@ -614,7 +617,8 @@ export async function pageFileListAction({ request }: RequestEvent) {
 export async function pageFileUploadAction({
   request,
   cookies,
-  getClientAddress
+  getClientAddress,
+  locals
 }: RequestEvent) {
   const form = await superValidate(request, valibot(pageFileUploadSchema))
   if (!form.valid) {
@@ -634,13 +638,14 @@ export async function pageFileUploadAction({
       ipAddress,
       name === "" ? undefined : name,
       file,
-      comments
+      comments,
+      getRequestContext(locals)
     )
 
     return withFiles({ form, res })
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(500, {
+    return fail(error.code === 3106 ? 403 : 500, {
       form,
       message: error.message,
       code: error.code,
@@ -657,7 +662,7 @@ const pageFileUploadSchema = object({
 })
 
 /* ----- Page File Delete ----- */
-export async function pageFileDeleteAction({ request, cookies }: RequestEvent) {
+export async function pageFileDeleteAction({ request, cookies, locals }: RequestEvent) {
   const sessionToken = cookies.get("wikijump_token")
   const session = await authGetSession(sessionToken)
 
@@ -678,12 +683,13 @@ export async function pageFileDeleteAction({ request, cookies }: RequestEvent) {
       session?.user_id,
       fileId,
       lastRevisionId,
-      comments ?? ""
+      comments ?? "",
+      getRequestContext(locals)
     )
     return { res }
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(500, {
+    return fail(error.code === 3106 ? 403 : 500, {
       message: error.message,
       code: error.code,
       data: error.data
@@ -695,7 +701,8 @@ export async function pageFileDeleteAction({ request, cookies }: RequestEvent) {
 export async function pageFileEditAction({
   request,
   cookies,
-  getClientAddress
+  getClientAddress,
+  locals
 }: RequestEvent) {
   const form = await superValidate(request, valibot(pageFileEditSchema))
   if (!form.valid) {
@@ -716,13 +723,14 @@ export async function pageFileEditAction({
       name === "" ? undefined : name,
       file,
       lastRevisionId,
-      comments
+      comments,
+      getRequestContext(locals)
     )
 
     return withFiles({ form, res })
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(500, {
+    return fail(error.code === 3106 ? 403 : 500, {
       form,
       message: error.message,
       code: error.code,
@@ -740,7 +748,7 @@ const pageFileEditSchema = object({
 })
 
 /* ----- Page File Move ----- */
-export async function pageFileMoveAction({ request, cookies }: RequestEvent) {
+export async function pageFileMoveAction({ request, cookies, locals }: RequestEvent) {
   const form = await superValidate(request, valibot(pageFileMoveSchema))
   if (!form.valid) {
     return fail(400, { form })
@@ -760,13 +768,14 @@ export async function pageFileMoveAction({ request, cookies }: RequestEvent) {
       fileId,
       lastRevisionId,
       name === "" ? undefined : name,
-      comments
+      comments,
+      getRequestContext(locals)
     )
 
     return { form, res }
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(500, {
+    return fail(error.code === 3106 ? 403 : 500, {
       form,
       message: error.message,
       code: error.code,
@@ -784,7 +793,7 @@ const pageFileMoveSchema = object({
 })
 
 /* ----- Page File Restore ----- */
-export async function pageFileRestoreAction({ request, cookies }: RequestEvent) {
+export async function pageFileRestoreAction({ request, cookies, locals }: RequestEvent) {
   const form = await superValidate(request, valibot(pageFileRestoreSchema))
   if (!form.valid) {
     return fail(400, { form })
@@ -802,13 +811,14 @@ export async function pageFileRestoreAction({ request, cookies }: RequestEvent) 
       fileId,
       newPage === "" ? undefined : newPage,
       newName === "" ? undefined : newName,
-      comments
+      comments,
+      getRequestContext(locals)
     )
 
     return { form, res }
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(500, {
+    return fail(error.code === 3106 ? 403 : 500, {
       form,
       message: error.message,
       code: error.code,
@@ -854,7 +864,8 @@ export async function pageFileHistoryAction({ request }: RequestEvent) {
 export async function pageFileRollbackAction({
   request,
   cookies,
-  getClientAddress
+  getClientAddress,
+  locals
 }: RequestEvent) {
   const sessionToken = cookies.get("wikijump_token")
   const session = await authGetSession(sessionToken)
@@ -880,12 +891,12 @@ export async function pageFileRollbackAction({
       lastRevisionId,
       revisionNumber,
       comments,
-      false
+      getRequestContext(locals)
     )
     return { res }
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(500, {
+    return fail(error.code === 3106 ? 403 : 500, {
       message: error.message,
       code: error.code,
       data: error.data
@@ -1130,7 +1141,8 @@ export async function pageMoveAction({
   request,
   cookies,
   params,
-  getClientAddress
+  getClientAddress,
+  locals
 }: RequestEvent) {
   const form = await superValidate(request, valibot(pageMoveSchema))
   if (!form.valid) {
@@ -1151,12 +1163,13 @@ export async function pageMoveAction({
       slug,
       lastRevisionId,
       newSlug,
-      comments
+      comments,
+      getRequestContext(locals)
     )
     return { form, res }
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(500, {
+    return fail(error.code === 3106 ? 403 : 500, {
       form,
       message: error.message,
       code: error.code,
@@ -1172,7 +1185,7 @@ const pageMoveSchema = object({
 })
 
 /* ----- Page Parent Set ----- */
-export async function pageParentSetAction({ request, cookies }: RequestEvent) {
+export async function pageParentSetAction({ request, cookies, locals }: RequestEvent) {
   const form = await superValidate(request, valibot(pageParentSchema))
   if (!form.valid) {
     return fail(400, { form })
@@ -1188,12 +1201,13 @@ export async function pageParentSetAction({ request, cookies }: RequestEvent) {
       pageId,
       session?.user_id,
       addParents,
-      removeParents
+      removeParents,
+      getRequestContext(locals)
     )
     return { form, res }
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(500, {
+    return fail(error.code === 3106 ? 403 : 500, {
       form,
       message: error.message,
       code: error.code,
@@ -1343,7 +1357,8 @@ export async function pageDeletedGetAction({ request }: RequestEvent) {
 export async function pageRestoreAction({
   request,
   cookies,
-  getClientAddress
+  getClientAddress,
+  locals
 }: RequestEvent) {
   const form = await superValidate(request, valibot(pageRestoreSchema))
   if (!form.valid) {
@@ -1356,11 +1371,18 @@ export async function pageRestoreAction({
 
   try {
     const { siteId, pageId, comments } = form.data
-    const res = await pageRestore(siteId, pageId, session?.user_id, ipAddress, comments)
+    const res = await pageRestore(
+      siteId,
+      pageId,
+      session?.user_id,
+      ipAddress,
+      comments,
+      getRequestContext(locals)
+    )
     return { form, res }
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(500, {
+    return fail(error.code === 3106 ? 403 : 500, {
       form,
       message: error.message,
       code: error.code,

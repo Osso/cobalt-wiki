@@ -2,6 +2,7 @@ import defaults from "$lib/defaults"
 
 import { client } from "$lib/server/deepwell"
 import { startBlobUpload, uploadToPresignUrl } from "$lib/server/deepwell/file"
+import type { RequestContext } from "../load/request-ctx"
 
 import type { FileRevisionModel, FileRevisionType, Nullable, Optional } from "$lib/types"
 
@@ -72,21 +73,26 @@ export async function pageFileCreate(
   name: Optional<string>,
   file: File,
   revisionComments: Optional<string>,
+  requestContext: RequestContext,
   bypass_filter = false
 ): Promise<PageFileCreate> {
   const presign = await startBlobUpload(userId, file.size)
   await uploadToPresignUrl(presign.presign_url, file)
 
-  return await client.request("file_create", {
-    site_id: siteId,
-    page_id: pageId,
-    user_id: userId,
-    ip_address: ipAddress,
-    name: name ?? file.name,
-    uploaded_blob_id: presign.pending_blob_id,
-    revision_comments: revisionComments ?? "",
-    bypass_filter: bypass_filter
-  })
+  return await client.request(
+    "file_create",
+    {
+      site_id: siteId,
+      page_id: pageId,
+      user_id: userId,
+      ip_address: ipAddress,
+      name: name ?? file.name,
+      uploaded_blob_id: presign.pending_blob_id,
+      revision_comments: revisionComments ?? "",
+      bypass_filter: bypass_filter
+    },
+    requestContext
+  )
 }
 
 /* ----- Page File Delete ----- */
@@ -101,16 +107,21 @@ export async function pageFileDelete(
   userId: number,
   fileId: number,
   lastRevisionId: number,
-  revisionComments: string
+  revisionComments: string,
+  requestContext: RequestContext
 ): Promise<PageFileDelete> {
-  return await client.request("file_delete", {
-    site_id: siteId,
-    page_id: pageId,
-    user_id: userId,
-    file: fileId,
-    last_revision_id: lastRevisionId,
-    revision_comments: revisionComments
-  })
+  return await client.request(
+    "file_delete",
+    {
+      site_id: siteId,
+      page_id: pageId,
+      user_id: userId,
+      file: fileId,
+      last_revision_id: lastRevisionId,
+      revision_comments: revisionComments
+    },
+    requestContext
+  )
 }
 
 /* ----- Page File Edit ----- */
@@ -124,6 +135,7 @@ export async function pageFileEdit(
   file: Optional<File>,
   lastRevisionId: number,
   revisionComments: Optional<string>,
+  requestContext: RequestContext,
   bypassFilter = false
 ): Promise<PageFileCreate> {
   let presignId
@@ -133,18 +145,22 @@ export async function pageFileEdit(
     presignId = presign.pending_blob_id
   }
 
-  return await client.request("file_edit", {
-    site_id: siteId,
-    page_id: pageId,
-    user_id: userId,
-    ip_address: ipAddress,
-    file_id: fileId,
-    last_revision_id: lastRevisionId,
-    name,
-    uploaded_blob_id: presignId,
-    revision_comments: revisionComments,
-    bypass_filter: bypassFilter
-  })
+  return await client.request(
+    "file_edit",
+    {
+      site_id: siteId,
+      page_id: pageId,
+      user_id: userId,
+      ip_address: ipAddress,
+      file_id: fileId,
+      last_revision_id: lastRevisionId,
+      name,
+      uploaded_blob_id: presignId,
+      revision_comments: revisionComments,
+      bypass_filter: bypassFilter
+    },
+    requestContext
+  )
 }
 
 /* ----- Page File Move ----- */
@@ -156,18 +172,23 @@ export async function pageFileMove(
   fileId: number,
   lastRevisionId: number,
   name: Optional<string>,
-  revisionComments: Optional<string>
+  revisionComments: Optional<string>,
+  requestContext: RequestContext
 ): Promise<PageFileCreate> {
-  return await client.request("file_move", {
-    site_id: siteId,
-    current_page_id: currentPageId,
-    destination_page: destinationPage,
-    user_id: userId,
-    file_id: fileId,
-    last_revision_id: lastRevisionId,
-    name,
-    revision_comments: revisionComments
-  })
+  return await client.request(
+    "file_move",
+    {
+      site_id: siteId,
+      current_page_id: currentPageId,
+      destination_page: destinationPage,
+      user_id: userId,
+      file_id: fileId,
+      last_revision_id: lastRevisionId,
+      name,
+      revision_comments: revisionComments
+    },
+    requestContext
+  )
 }
 
 /* ----- Page File Restore ----- */
@@ -185,17 +206,22 @@ export async function pageFileRestore(
   fileId: number,
   newPage: Optional<string | number>,
   newName: Optional<string>,
-  revisionComments: string
+  revisionComments: string,
+  requestContext: RequestContext
 ): Promise<PageFileRestore> {
-  return client.request("file_restore", {
-    site_id: siteId,
-    page_id: pageId,
-    user_id: userId,
-    file_id: fileId,
-    new_page: newPage,
-    new_name: newName,
-    revision_comments: revisionComments
-  })
+  return client.request(
+    "file_restore",
+    {
+      site_id: siteId,
+      page_id: pageId,
+      user_id: userId,
+      file_id: fileId,
+      new_page: newPage,
+      new_name: newName,
+      revision_comments: revisionComments
+    },
+    requestContext
+  )
 }
 
 /* ----- Page File History ----- */
@@ -226,19 +252,24 @@ export async function pageFileRollback(
   lastRevisionId: number,
   revisionNumber: number,
   revisionComments: Optional<string>,
+  requestContext: RequestContext,
   bypassFilter = false
 ): Promise<Nullable<PageFile>> {
-  return client.request("file_rollback", {
-    site_id: siteId,
-    page_id: pageId,
-    user_id: userId,
-    ip_address: ipAddress,
-    file: fileId,
-    last_revision_id: lastRevisionId,
-    revision_number: revisionNumber,
-    revision_comments: revisionComments ?? "",
-    bypass_filter: bypassFilter
-  })
+  return client.request(
+    "file_rollback",
+    {
+      site_id: siteId,
+      page_id: pageId,
+      user_id: userId,
+      ip_address: ipAddress,
+      file: fileId,
+      last_revision_id: lastRevisionId,
+      revision_number: revisionNumber,
+      revision_comments: revisionComments ?? "",
+      bypass_filter: bypassFilter
+    },
+    requestContext
+  )
 }
 
 /* ----- Page File Revision ----- */

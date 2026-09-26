@@ -4,27 +4,37 @@ import { createSsrServer } from "./ssr-server.ts"
 
 const { vite, close } = await createSsrServer()
 after(close)
-const { pageFileEditAction, pageFileRollbackAction } = await vite.ssrLoadModule(
-  "/src/lib/server/load/page.ts"
-)
+const pageActions = await vite.ssrLoadModule("/src/lib/server/load/page.ts")
+const { pageFileEditAction, pageFileRollbackAction } = pageActions
 const { actions } = await vite.ssrLoadModule(
   "/src/routes/[slug]/[...extra]/+page.server.ts"
 )
 
 const identity = { siteId: 6000000, pageId: 314, fileId: 1474, lastRevisionId: 902 }
 
-async function withRpc(action: () => Promise<unknown>) {
+async function withRpc(action: () => Promise<unknown>, deny = false) {
   const previousFetch = globalThis.fetch
-  const calls: { method: string; params: Record<string, unknown> }[] = []
+  const calls: { method: string; params: Record<string, unknown>; headers: Headers }[] =
+    []
   globalThis.fetch = async (_input, init) => {
+    if (init?.method === "PUT") return new Response(null, { status: 200 })
     const request = JSON.parse(String(init?.body))
-    calls.push(request)
+    calls.push({ ...request, headers: new Headers(init?.headers) })
     const response =
       request.method === "session_get"
         ? { result: { user_id: 51 } }
-        : request.params.ip_address
-          ? { result: { file_id: 1474, file_revision_id: 903 } }
-          : { error: { code: -32602, message: "missing field `ip_address`" } }
+        : request.method === "blob_upload"
+          ? {
+              result: {
+                presign_url: "http://local.test/upload",
+                pending_blob_id: "blob-1"
+              }
+            }
+          : deny
+            ? { error: { code: 3106, message: "Permission denied" } }
+            : request.params.ip_address
+              ? { result: { file_id: 1474, file_revision_id: 903 } }
+              : { error: { code: -32602, message: "missing field `ip_address`" } }
     return new Response(JSON.stringify({ jsonrpc: "2.0", id: request.id, ...response }), {
       headers: { "content-type": "application/json" }
     })
@@ -40,7 +50,15 @@ function event(request: Request, ipAddress: string) {
   return {
     request,
     cookies: { get: () => "test-session" },
-    getClientAddress: () => ipAddress
+    getClientAddress: () => ipAddress,
+    params: { slug: "source:page" },
+    locals: {
+      requestContext: {
+        sessionToken: "test-session",
+        siteId: 6000000,
+        page: "source:page"
+      }
+    }
   }
 }
 
@@ -140,4 +158,123 @@ test("file rollback preserves request IP in serialized RPC and accepts the revis
     file_id: 1474,
     file_revision_id: 903
   })
+})
+
+const mutationCases = [
+  ["pageDeleteAction", "page_delete", { option: "delete", comments: "Delete" }],
+  [
+    "pageDeleteAction",
+    "page_move",
+    { option: "move", newSlug: "source:moved", comments: "Move" }
+  ],
+  ["pageMoveAction", "page_move", { newSlug: "source:moved", comments: "Move" }],
+  [
+    "pageParentSetAction",
+    "parent_update",
+    { parents: "", addParents: ["source:parent"] }
+  ],
+  ["pageRestoreAction", "page_restore", { comments: "Restore" }],
+  ["pageFileDeleteAction", "file_delete", { ...identity, comments: "Delete" }],
+  [
+    "pageFileEditAction",
+    "file_edit",
+    { ...identity, name: "renamed.txt", comments: "Rename" }
+  ],
+  [
+    "pageFileMoveAction",
+    "file_move",
+    { ...identity, destinationPage: "source:target", name: "", comments: "Move" }
+  ],
+  [
+    "pageFileRestoreAction",
+    "file_restore",
+    { ...identity, newPage: "", newName: "", comments: "Restore" }
+  ],
+  [
+    "pageFileRollbackAction",
+    "file_rollback",
+    { ...identity, revisionNumber: 1, comments: "Rollback" }
+  ]
+] as const
+
+for (const [actionName, rpcMethod, extra] of mutationCases) {
+  test(`${actionName} ${rpcMethod} forwards authenticated headers and returns permission-denied 403`, async () => {
+    const fields = { ...identity, ...extra }
+    const formAction = [
+      "pageDeleteAction",
+      "pageMoveAction",
+      "pageParentSetAction",
+      "pageRestoreAction",
+      "pageFileEditAction",
+      "pageFileMoveAction",
+      "pageFileRestoreAction"
+    ].includes(actionName)
+    const body = formAction
+      ? new URLSearchParams(
+          Object.entries(fields).flatMap(([key, value]) =>
+            Array.isArray(value)
+              ? value.map((entry) => [key, String(entry)])
+              : [[key, String(value)]]
+          )
+        )
+      : JSON.stringify(fields)
+    const request = new Request(`http://local.test/source:page?/${rpcMethod}`, {
+      method: "POST",
+      body
+    })
+    const { result, calls } = await withRpc(
+      () => pageActions[actionName](event(request, "198.51.100.27") as never),
+      true
+    )
+    const mutation = calls.find(({ method }) => method === rpcMethod)
+    assert.ok(mutation, `${rpcMethod} sent`)
+    assert.equal(mutation.headers.get("X-Deepwell-Session-Token"), "test-session")
+    assert.equal(mutation.headers.get("X-Deepwell-Site-Id"), "6000000")
+    assert.equal(mutation.headers.get("X-Deepwell-Page"), "source:page")
+    assert.equal((result as { status: number }).status, 403)
+  })
+}
+
+test("mutation uses session identity and request site instead of forged body identity", async () => {
+  const request = new Request("http://local.test/source:page?/fileDelete", {
+    method: "POST",
+    body: JSON.stringify({
+      ...identity,
+      siteId: 6000001,
+      userId: 999,
+      comments: "Delete"
+    })
+  })
+  const { calls } = await withRpc(
+    () => pageActions.pageFileDeleteAction(event(request, "198.51.100.27") as never),
+    true
+  )
+  const mutation = calls.find(({ method }) => method === "file_delete")
+  assert.ok(mutation)
+  assert.equal(mutation.params.user_id, 51)
+  assert.equal(mutation.params.site_id, 6000001)
+  assert.equal(mutation.headers.get("X-Deepwell-Site-Id"), "6000000")
+  assert.equal(mutation.headers.get("X-Deepwell-Page"), "source:page")
+})
+
+test("file upload forwards authenticated context and returns permission-denied 403", async () => {
+  const body = new FormData()
+  for (const [key, value] of Object.entries(identity)) body.set(key, String(value))
+  body.set("file", new File(["contents"], "report.txt"))
+  body.set("name", "report.txt")
+  body.set("comments", "Upload")
+  const request = new Request("http://local.test/source:page?/fileUpload", {
+    method: "POST",
+    body
+  })
+  const { result, calls } = await withRpc(
+    () => pageActions.pageFileUploadAction(event(request, "198.51.100.27") as never),
+    true
+  )
+  const mutation = calls.find(({ method }) => method === "file_create")
+  assert.ok(mutation)
+  assert.equal(mutation.headers.get("X-Deepwell-Session-Token"), "test-session")
+  assert.equal(mutation.headers.get("X-Deepwell-Site-Id"), "6000000")
+  assert.equal(mutation.headers.get("X-Deepwell-Page"), "source:page")
+  assert.equal((result as { status: number }).status, 403)
 })
