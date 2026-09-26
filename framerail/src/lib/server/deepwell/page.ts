@@ -353,15 +353,20 @@ export async function pageLayout(
   pageId: number,
   userId: number,
   userIpAddr: string,
-  layout: Optional<Nullable<Layout>>
+  layout: Optional<Nullable<Layout>>,
+  requestContext: RequestContext
 ): Promise<void> {
-  return client.request("page_set_layout", {
-    site_id: siteId,
-    page_id: pageId,
-    user_id: userId,
-    ip_address: userIpAddr,
-    layout: Layout[layout?.toUpperCase() as keyof typeof Layout] ?? null
-  })
+  return client.request(
+    "page_set_layout",
+    {
+      site_id: siteId,
+      page_id: pageId,
+      user_id: userId,
+      ip_address: userIpAddr,
+      layout: Layout[layout?.toUpperCase() as keyof typeof Layout] ?? null
+    },
+    requestContext
+  )
 }
 
 /* ----- Page Parent Update ----- */

@@ -14,7 +14,7 @@ Bottom-page controls follow supplied Tags/History screenshots and retained Wikid
 - [x] Delete uses a native dialog rather than `window.confirm`, with explicit close callbacks; Cancel, Escape, and accepted confirmation are covered while the DELETE request is intercepted, and Move remains immediate.
 - [x] Show viewer-filtered Backlinks links and inclusions, including an empty inclusions result.
 - [x] Require explicit Delete confirmation before its POST path; both acceptance and dismissal are exercised with every mutation intercepted, so no page is deleted.
-- [ ] Apart from guarded Tags and Parent save/readback/restore, panel mutations and authorization remain unproven. A disposable-page mutation run completed its first Move but failed its four blocked-foreign-GET assertion; error-free recovery is not lifecycle proof. Accepted Delete does not delete because its request is intercepted.
+- [ ] Apart from guarded Tags and Parent save/readback/restore, panel mutations and authorization remain unproven. Layout now requires the authenticated actor's Page/Edit permission on the actual target page and site; browser denial must be rechecked after integration. A disposable-page mutation run completed its first Move but failed its four blocked-foreign-GET assertion; error-free recovery is not lifecycle proof. Accepted Delete does not delete because its request is intercepted.
 
 ### Tags
 
@@ -37,6 +37,7 @@ Bottom-page controls follow supplied Tags/History screenshots and retained Wikid
 
 ## Tests asserting this spec
 
+- `deepwell/tests/page_layout_permission.rs` — isolated Layout authorization, target binding, and default-layout reset; execution pending cold build.
 - `framerail/tests/page-bottom-tags.test.ts` — SSR bottom-action and Tags behavior.
 - `framerail/tests/local/page-bottom-actions.mjs` — Tags save/readback/restore with a fixture-only write guard.
 - `framerail/tests/local/history-actions.mjs` — local History browser coverage.
@@ -56,7 +57,7 @@ Bottom-page controls follow supplied Tags/History screenshots and retained Wikid
 
 ## Known gaps (current cycle)
 
-- [ ] Full Move dependency repair, source Block parity, file mutations, and action-specific denials remain unverified/incomplete. Source, Lock, and Layout mutations and authorization also remain unproven. The disposable-page run did not complete its lifecycle after the blocked-foreign-GET assertion failure; recovery alone is not proof. Delete acceptance is intercepted; it is not delete proof. Clear-then-Save is not separately proved beyond Parent’s two-value save/readback/restore.
+- [ ] Full Move dependency repair, source Block parity, file mutations, and action-specific denials remain unverified/incomplete. Source and Lock mutations and authorization remain unproven; Layout's backend guard awaits the independent build and browser denial proof. The disposable-page run did not complete its lifecycle after the blocked-foreign-GET assertion failure; recovery alone is not proof. Delete acceptance is intercepted; it is not delete proof. Clear-then-Save is not separately proved beyond Parent’s two-value save/readback/restore.
 - [x] Independent frontend gate passes at `40714b041`: lint, format, style, type checks and scoped behavioral evidence; `/tmp/claude/cobalt-remaining-frontend-gate.json`. Backend gate passes independently. This is not full-replica parity evidence.
 
 ## Out of scope

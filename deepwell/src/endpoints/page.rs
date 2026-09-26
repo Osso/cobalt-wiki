@@ -414,9 +414,7 @@ pub async fn page_set_layout(
         input.user_id,
     );
 
-    PageService::set_layout(ctx, input)
-        .await
-        .or_raise(|| Error::new("failed to set layout for page", ErrorType::Page))
+    PageService::set_layout(ctx, input).await
 }
 
 async fn build_page_output(

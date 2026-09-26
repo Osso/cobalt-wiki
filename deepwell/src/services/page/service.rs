@@ -921,6 +921,35 @@ impl PageService {
     ) -> Result<()> {
         debug!("Setting page layout for site ID {site_id} page ID {page_id}");
 
+        let request = ctx.request();
+        if request.user_id != Some(user_id) || request.site_id != Some(site_id) {
+            bail!(Error::new(
+                "user does not have permission to set this page's layout",
+                ErrorType::PermissionDenied,
+            ));
+        }
+        let page = Self::get(ctx, site_id, Reference::Id(page_id)).await?;
+        let can_edit = PermissionService::check_user_can(
+            ctx,
+            &CheckPermissionContext {
+                user_id: request.user_id,
+                site_id,
+                page_reference: Some(Reference::Id(page_id)),
+            },
+            Permission {
+                resource_type: Resource::Page,
+                resource_category: Some(Reference::Id(page.page_category_id)),
+                action: Action::Edit,
+            },
+        )
+        .await?;
+        if !can_edit {
+            bail!(Error::new(
+                "user does not have permission to set this page's layout",
+                ErrorType::PermissionDenied,
+            ));
+        }
+
         let make_error = || {
             Error::new(
                 format!(

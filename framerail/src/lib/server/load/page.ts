@@ -1072,7 +1072,12 @@ export async function pageRollbackAction({
 }
 
 /* ----- Page Layout ----- */
-export async function layoutAction({ request, cookies, getClientAddress }: RequestEvent) {
+export async function layoutAction({
+  request,
+  cookies,
+  getClientAddress,
+  locals
+}: RequestEvent) {
   const form = await superValidate(request, valibot(layoutSchema))
   if (!form.valid) {
     return fail(400, { form })
@@ -1084,12 +1089,19 @@ export async function layoutAction({ request, cookies, getClientAddress }: Reque
 
   try {
     const { siteId, pageId, layout } = form.data
-    await pageLayout(siteId, pageId, session?.user_id, ipAddress, layout)
+    await pageLayout(
+      siteId,
+      pageId,
+      session?.user_id,
+      ipAddress,
+      layout,
+      getRequestContext(locals)
+    )
 
     return { form }
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(500, {
+    return fail(error.code === 3106 ? 403 : 500, {
       form,
       message: error.message,
       code: error.code,
