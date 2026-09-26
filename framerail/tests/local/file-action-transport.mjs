@@ -110,6 +110,7 @@ async function readFileBytes(request, token, slug, pageId, fileId) {
 async function decodeMutation(request) {
   let stage = "body"
   let contentType = "missing"
+  /** @type {string[]} */
   let fields = []
   let chunkCount = null
   try {
@@ -175,7 +176,8 @@ async function decodeMutation(request) {
           ? "SyntaxError"
           : "Error"
     throw new Error(
-      `mutation decode failed (${errorType}; stage=${stage}; contentType=${contentType}; fields=${JSON.stringify(fields)}; chunks=${chunkCount ?? "unknown"})`
+      `mutation decode failed (${errorType}; stage=${stage}; contentType=${contentType}; fields=${JSON.stringify(fields)}; chunks=${chunkCount ?? "unknown"})`,
+      { cause: error }
     )
   }
 }
@@ -295,9 +297,11 @@ async function routeBrowserRequest(route, slugs, state) {
 async function abortForeignRequest(route, slugs, state, url) {
   const request = route.request()
   const label = `${request.method()} ${url.origin}`
-  if (["GET", "HEAD", "OPTIONS"].includes(request.method()))
+  if (["GET", "HEAD", "OPTIONS"].includes(request.method())) {
     state.externalReads.push(label)
-  else state.blocked.push(`foreign origin ${requestLabel(request, slugs)}`)
+  } else {
+    state.blocked.push(`foreign origin ${requestLabel(request, slugs)}`)
+  }
   await route.abort()
 }
 
