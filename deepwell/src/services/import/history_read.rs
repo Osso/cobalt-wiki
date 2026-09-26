@@ -39,7 +39,7 @@ pub struct ReadHistoryCompare {
     pub to: i32,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct HistoryRevisionOutput {
     pub id: i64,
     pub number: i32,
@@ -48,7 +48,7 @@ pub struct HistoryRevisionOutput {
     pub representation: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct HistoryCompareOutput {
     pub from: i32,
     pub to: i32,
@@ -56,7 +56,7 @@ pub struct HistoryCompareOutput {
     pub representation: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct HistoryDiffLine {
     pub kind: &'static str,
     pub text: String,
