@@ -108,37 +108,70 @@ async function readFileBytes(request, token, slug, pageId, fileId) {
 
 /** @param {MutationRequest} request */
 async function decodeMutation(request) {
+  let stage = "body"
+  let contentType = "missing"
+  let fields = []
+  let chunkCount = null
   try {
     const bytes = request.postDataBuffer()
     assert.ok(bytes, "mutation body required")
+    stage = "content-type"
     const headers = request.headers()
-    if (
-      headers["content-type"]?.startsWith("application/json") ||
-      headers["content-type"] === "text/plain;charset=UTF-8"
-    ) {
+    const header = headers["content-type"]
+    const supportedType = ["application/json", "text/plain", "multipart/form-data"].find(
+      (type) => header?.startsWith(type)
+    )
+    contentType = supportedType ?? (header ? "other" : "missing")
+    if (contentType === "application/json" || header === "text/plain;charset=UTF-8") {
+      stage = "json"
       return { data: JSON.parse(bytes.toString()), file: null, files: [] }
     }
-    assert.ok(headers["content-type"]?.startsWith("multipart/form-data"))
+    assert.equal(contentType, "multipart/form-data")
     if (!request.url) assert.fail("multipart mutation URL required")
     const body = new Request(request.url(), {
       method: "POST",
       headers,
       body: new Uint8Array(bytes)
     })
+    stage = "multipart-form"
     const form = await body.formData()
+    const knownFields = new Set([
+      "__superform_json",
+      "__superform_file_file",
+      "__superform_id",
+      "siteId",
+      "pageId",
+      "lastRevisionId",
+      "fileId",
+      "destinationPage",
+      "name",
+      "comments",
+      "file"
+    ])
+    fields = [
+      ...new Set(
+        [...form.keys()].map((field) => (knownFields.has(field) ? field : "(other)"))
+      )
+    ]
+    stage = "superform-json"
     const chunks = form.getAll("__superform_json")
-    assert.ok(chunks.length, "Superforms JSON required")
+    chunkCount = chunks.length
+    assert.ok(chunkCount, "Superforms JSON required")
+    stage = "devalue"
     const data = parse(chunks.join(""))
     const files = [...form.entries()].flatMap(([field, file]) =>
       file instanceof File ? [{ field, name: file.name, type: file.type }] : []
     )
     return { data, file: form.get("__superform_file_file"), files }
   } catch (error) {
+    const errorType =
+      error instanceof assert.AssertionError
+        ? "AssertionError"
+        : error instanceof SyntaxError
+          ? "SyntaxError"
+          : "Error"
     throw new Error(
-      `mutation decode failed (${error instanceof Error ? error.name : "unknown"})`,
-      {
-        cause: error
-      }
+      `mutation decode failed (${errorType}; stage=${stage}; contentType=${contentType}; fields=${JSON.stringify(fields)}; chunks=${chunkCount ?? "unknown"})`
     )
   }
 }
