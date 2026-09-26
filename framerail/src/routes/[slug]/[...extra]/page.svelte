@@ -215,19 +215,6 @@
         </a>
         <!-- svelte-ignore a11y_invalid_attribute -->
         <a
-          id="pagerate-button"
-          class="btn btn-default"
-          href="javascript:;"
-          onclick={() => {
-            showSource = false
-            pagePaneState = PagePane.Vote
-          }}
-          type="button"
-        >
-          {data.internationalization?.vote}
-        </a>
-        <!-- svelte-ignore a11y_invalid_attribute -->
-        <a
           id="tags-button"
           class="btn btn-default"
           href="javascript:;"
@@ -361,10 +348,10 @@
     {/if}
 
     <div id="action-area" class:hidden={!showSource && pagePaneState === PagePane.None}>
-      {#if showSource || pagePaneState !== PagePane.None}
+      {#if showSource || (pagePaneState !== PagePane.None && pagePaneState !== PagePane.Tags)}
         <!-- svelte-ignore a11y_invalid_attribute -->
         <a
-          class="action-area-close btn btn-danger"
+          class="action-area-close btn btn-default"
           href="javascript:;"
           onclick={() => {
             showSource = false
@@ -389,8 +376,6 @@
         <ParentPane bind:pagePaneState {...props} />
       {:else if pagePaneState === PagePane.Lock}
         <LockPane bind:pagePaneState {...props} />
-      {:else if pagePaneState === PagePane.Vote}
-        <VotePane {...props} />
       {:else if pagePaneState === PagePane.File}
         <FilePane {...props} />
       {:else if pagePaneState === PagePane.History}
