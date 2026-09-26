@@ -9,7 +9,8 @@ Cobalt page actions render the bottom-page controls and the Wiki-only Tags pane.
 - [x] In the Wiki layout, render Edit, Tags, History, Files, and More options in the bottom action inventory.
 - [x] Omit Vote from the Wiki layout. Vote is not required in Cobalt's Wiki layout.
 - [x] Preserve the existing Vote control and Tags layout outside the Wiki layout.
-- [ ] Dispatch each retained Wiki bottom action to its live pane and verify it in the main browser. Backlinks and Print are absent; Files, + Options, Parent, Source, Move, Delete, and Lock are wired but lack second-pass browser proof.
+- [x] Exercise History in the main local browser for root `home:_public` (57 rows), named `home:start` (240 rows), and two native rows. The exercised page uses seven filters, five page sizes, a second page, and separate source, read-only render, and same-origin compare controls.
+- [ ] Backlinks and Print remain absent. Files, + Options, Parent, Source, Move, Delete, and Lock remain uncertified in the second-pass browser.
 
 ### Tags
 
@@ -24,7 +25,12 @@ Cobalt page actions render the bottom-page controls and the Wiki-only Tags pane.
 
 - [x] SSR proves the scoped Wiki markup and action inventory, plus preserved alternate-layout controls, in four tests.
 - [x] `/tmp/claude/cobalt-bottom-tags-save-green.log` records one local Tags save/restore browser pass.
-- [ ] The supplied-reference visual comparison, close/clear behavior, permissioned readback, and second-pass verification of the wired action panels remain incomplete. Do not infer all-panel or pixel parity from the scoped evidence.
+- [x] `/tmp/claude/cobalt-history-actions-postdeploy.log` records one local History browser pass after `3537f8435`: root 57, named 240, and native 2 rows.
+- [x] `/tmp/claude/cobalt-bottom-backend-final-gate.json` independently passes backend authorization, origin, read-only, pagination, and mapping evidence for the History listing refactor.
+- [x] `/tmp/claude/cobalt-bottom-local-runtime.json` binds the running main local runtime hash to the built Deepwell executable.
+- [x] `/tmp/claude/cobalt-bottom-preservation-result.json` preserves identical hashes for 6,116 pages, 45,369 history rows, 10,091 native-content rows, zero drafts, and 32 grants; it excludes only the sacrificial Tags fixture and native renderer-cache fields.
+- [x] Final local captures compare the main History panel with the supplied source and capture the local Tags panel (`/tmp/claude/cobalt-history-panel-final.jpg`, `/tmp/claude/cobalt-tags-panel-local.png`). This is scoped visual evidence, not pixel-perfect or full-replica parity.
+- [ ] Close/clear behavior, permissioned Tags readback, and second-pass verification of other wired action panels remain incomplete. Do not infer all-panel or pixel parity from the scoped evidence.
 
 ## How it works
 
@@ -44,8 +50,9 @@ Cobalt page actions render the bottom-page controls and the Wiki-only Tags pane.
 ## Known gaps (current cycle)
 
 - [ ] Main browser: exercise close and clear; verify they make no write, and expand permissioned save/readback coverage.
-- [ ] Main browser: compare scoped controls and spacing with the supplied second-pass reference; verify the wired action panels individually.
-- [ ] Independent type, lint, and readability corrections remain pending before the current gate can close.
+- [ ] Main browser: verify the other wired action panels individually; Backlinks and Print are absent.
+- [x] Frontend type check reports zero errors and warnings; style check reports zero issues. Four lint warnings were fixed at `de229645c`.
+- [ ] Final scoped lint recheck remains pending; do not treat the earlier independent recheck as completed proof.
 - [ ] History UI remains owned by the in-progress [history listing](cobalt-history-listing.md) work.
 
 ## Out of scope
