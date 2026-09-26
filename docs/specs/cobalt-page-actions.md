@@ -55,7 +55,7 @@ Bottom-page controls follow supplied Tags/History screenshots and retained Wikid
 ## Known gaps (current cycle)
 
 - [ ] Source, Files, Move, Lock, and Layout mutations and authorization remain unproven. Delete acceptance is intercepted; it is not delete proof. Clear-then-Save is not separately proved beyond Parent’s two-value save/readback/restore.
-- [ ] Final frontend follow-up remains ongoing. Earlier full type proof was 0 errors/0 warnings; the reported later items were two markup warnings and the hidden-comment condition now fixed. This is not full-replica parity evidence.
+- [x] Independent frontend gate passes at `40714b041`: lint, format, style, type checks and scoped behavioral evidence; `/tmp/claude/cobalt-remaining-frontend-gate.json`. Backend gate passes independently. This is not full-replica parity evidence.
 
 ## Out of scope
 

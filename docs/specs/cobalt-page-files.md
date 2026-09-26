@@ -34,7 +34,7 @@ The Wikidot-layout Files pane presents attached-file information using the exist
 ## Known gaps (current cycle)
 
 - [ ] Upload, restore, and file-mutation authorization remain unproven.
-- [ ] The final frontend gate remains pending; no frontend PASS is claimed. The bounded preservation record excludes only the sacrificial Tags/Parent fixture and native cache fields.
+- [x] The independent frontend gate passes, including the hidden-comment fixture; see [page actions](cobalt-page-actions.md). The bounded preservation record excludes only the sacrificial Tags/Parent fixture and native cache fields.
 
 ## Out of scope
 

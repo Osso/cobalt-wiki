@@ -33,7 +33,7 @@ Deepwell's `page_backlinks` read API returns incoming page links and inclusions 
 
 ## Known gaps (current cycle)
 
-- [ ] Final independent checks remain ongoing. The bounded preservation record excludes only the sacrificial Tags/Parent fixture and native cache fields; no full-replica parity claim follows.
+- [x] Independent frontend and backend gates pass; see [page actions](cobalt-page-actions.md). Preservation excludes only the sacrificial Tags/Parent fixture and native cache fields; no full-replica parity claim follows.
 
 ## Out of scope
 

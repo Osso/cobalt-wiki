@@ -36,7 +36,7 @@ The Parent panel edits page breadcrumb relationships in `framerail/src/routes/[s
 
 ## Known gaps (current cycle)
 
-- [ ] Clear-then-Save remains unproved as a separate mutation; two-parent save/readback/restore is proved. Authorization denial and the final frontend gate remain pending; no frontend PASS is claimed. The bounded preservation record excludes only this sacrificial fixture, the Tags fixture, and native cache fields.
+- [ ] Clear-then-Save remains unproved as a separate mutation; two-parent save/readback/restore is proved. Authorization denial remains unproved. The independent frontend gate passes; see [page actions](cobalt-page-actions.md). The bounded preservation record excludes only this sacrificial fixture, the Tags fixture, and native cache fields.
 
 ## Out of scope
 

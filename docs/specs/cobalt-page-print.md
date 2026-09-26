@@ -31,8 +31,8 @@ The print view at `/printer--friendly/<slug>` presents an existing page without 
 
 ## Known gaps (current cycle)
 
-- [ ] Confirm bottom-page print-link target/new-tab contract in separately owned registration.
-- [ ] Final independent checks remain ongoing; the bounded preservation record excludes only the sacrificial Tags/Parent fixture and native cache fields.
+- [x] Actual browser checks the canonical link and new tab, named/root body equivalence and missing-page status.
+- [x] Independent checks pass; see [page actions](cobalt-page-actions.md). Preservation excludes only the sacrificial Tags/Parent fixture and native cache fields.
 
 ## Out of scope
 
