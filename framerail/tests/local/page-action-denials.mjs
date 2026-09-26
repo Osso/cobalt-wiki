@@ -29,7 +29,13 @@ const observerPath =
 /** @typedef {Awaited<ReturnType<typeof readFixtures>>["fixture"]} Fixture */
 /** @typedef {Awaited<ReturnType<typeof guardObserverWrites>>} ObserverGuard */
 /** @typedef {Awaited<ReturnType<typeof guardBrowserWrites>>} AdminGuard */
-/** @typedef {{action: string; body: Record<string, string | number | boolean | string[] | number[]>; format?: "superform" | "json" | "form"}} DenialCase */
+/**
+ * @typedef {{
+ *   action: string
+ *   body: Record<string, string | number | boolean | string[] | number[]>
+ *   format?: "superform" | "json" | "form"
+ * }} DenialCase
+ */
 
 const allowedDenials = new Set([
   "move",
