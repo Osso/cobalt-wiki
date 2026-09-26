@@ -10,7 +10,7 @@ use crate::types::PageRevisionType;
 use sea_orm::sea_query::Expr;
 use sea_orm::{
     ColumnTrait, Condition, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
-    QuerySelect,
+    QuerySelect, Select,
 };
 use std::collections::HashMap;
 
@@ -26,132 +26,14 @@ impl HistoryListingService {
         ctx: &ServiceContext<'_>,
         input: ReadPageHistory,
     ) -> Result<HistoryListing> {
-        if input.page < 1 {
-            return Err(invalid("history page must be positive"));
-        }
-        if ![10, 20, 50, 100, 200].contains(&input.per_page) {
-            return Err(invalid(
-                "history per_page must be one of 10, 20, 50, 100, 200",
-            ));
-        }
-        let offset = (input.page - 1)
-            .checked_mul(input.per_page)
-            .ok_or_else(|| invalid("history page offset exceeds supported range"))?;
+        let offset = validate_pagination(&input)?;
         authorize_read(ctx, input.site_id, input.page_id).await?;
-        let current = page::Entity::find()
-            .filter(page::Column::SiteId.eq(input.site_id))
-            .filter(page::Column::PageId.eq(input.page_id))
-            .one(ctx.transaction())
-            .await
-            .or_raise(|| {
-                Error::new("failed to read current page", ErrorType::DatabaseImport)
-            })?
-            .ok_or_else(|| invalid("history target page does not exist"))?;
-
-        let imported = imported_page_revision::Entity::find()
-            .filter(imported_page_revision::Column::SiteId.eq(input.site_id))
-            .filter(imported_page_revision::Column::PageId.eq(input.page_id));
-        let native = page_revision::Entity::find()
-            .filter(page_revision::Column::SiteId.eq(input.site_id))
-            .filter(page_revision::Column::PageId.eq(input.page_id));
-        let (imported_available, native_available) = (
-            imported
-                .clone()
-                .count(ctx.transaction())
-                .await
-                .or_raise(|| {
-                    Error::new(
-                        "failed to count imported history",
-                        ErrorType::DatabaseImport,
-                    )
-                })?
-                > 0,
-            native.clone().count(ctx.transaction()).await.or_raise(|| {
-                Error::new("failed to count native history", ErrorType::DatabaseImport)
-            })? > 0,
-        );
-        let filters = &input.filters;
-        let filtered = filters.all
-            || ![
-                filters.source,
-                filters.title,
-                filters.r#move,
-                filters.tags,
-                filters.meta,
-                filters.files,
-            ]
-            .contains(&true);
+        let latest_revision_id = load_current_revision_id(ctx, &input).await?;
+        let available = query_history_availability(ctx, &input).await?;
         let (total, rows) = match input.origin {
-            HistoryOrigin::Wikidot => {
-                let mut query = imported;
-                if !filtered {
-                    query = query.filter(imported_condition(filters));
-                }
-                let total =
-                    query.clone().count(ctx.transaction()).await.or_raise(|| {
-                        Error::new(
-                            "failed to count filtered imported history",
-                            ErrorType::DatabaseImport,
-                        )
-                    })?;
-                use imported_page_revision::Column as HistoryColumn;
-                let models = query
-                    .select_only()
-                    .columns([
-                        HistoryColumn::SourcePageId,
-                        HistoryColumn::SourceRevisionId,
-                        HistoryColumn::SourceRevisionNumber,
-                        HistoryColumn::SourceAuthorId,
-                        HistoryColumn::SourceCreatedAt,
-                        HistoryColumn::SourceComments,
-                        HistoryColumn::SourceFlags,
-                        HistoryColumn::SourceTitle,
-                        HistoryColumn::SourceSlug,
-                        HistoryColumn::SourceTags,
-                        HistoryColumn::Representation,
-                    ])
-                    .order_by_desc(HistoryColumn::SourceRevisionNumber)
-                    .limit(input.per_page as u64)
-                    .offset(offset as u64)
-                    .into_model::<ImportedRevisionSummary>()
-                    .all(ctx.transaction())
-                    .await
-                    .or_raise(|| {
-                        Error::new(
-                            "failed to list imported history",
-                            ErrorType::DatabaseImport,
-                        )
-                    })?;
-                (total, imported_rows(ctx, models).await?)
-            }
+            HistoryOrigin::Wikidot => query_imported_history(ctx, &input, offset).await?,
             HistoryOrigin::Local => {
-                let mut query = native;
-                if !filtered {
-                    query = query.filter(native_condition(filters));
-                }
-                let total =
-                    query.clone().count(ctx.transaction()).await.or_raise(|| {
-                        Error::new(
-                            "failed to count filtered native history",
-                            ErrorType::DatabaseImport,
-                        )
-                    })?;
-                let models = query
-                    .order_by_desc(page_revision::Column::RevisionNumber)
-                    .limit(input.per_page as u64)
-                    .offset(offset as u64)
-                    .all(ctx.transaction())
-                    .await
-                    .or_raise(|| {
-                        Error::new(
-                            "failed to list native history",
-                            ErrorType::DatabaseImport,
-                        )
-                    })?;
-                (
-                    total,
-                    native_rows(ctx, models, current.latest_revision_id).await?,
-                )
+                query_native_history(ctx, &input, offset, latest_revision_id).await?
             }
         };
         Ok(HistoryListing {
@@ -160,13 +42,159 @@ impl HistoryListingService {
             per_page: input.per_page,
             total,
             total_pages: total.div_ceil(input.per_page as u64),
-            available: HistoryAvailability {
-                wikidot: imported_available,
-                local: native_available,
-            },
+            available,
             rows,
         })
     }
+}
+
+fn validate_pagination(input: &ReadPageHistory) -> Result<i64> {
+    if input.page < 1 {
+        return Err(invalid("history page must be positive"));
+    }
+    if ![10, 20, 50, 100, 200].contains(&input.per_page) {
+        return Err(invalid(
+            "history per_page must be one of 10, 20, 50, 100, 200",
+        ));
+    }
+    (input.page - 1)
+        .checked_mul(input.per_page)
+        .ok_or_else(|| invalid("history page offset exceeds supported range"))
+}
+
+async fn load_current_revision_id(
+    ctx: &ServiceContext<'_>,
+    input: &ReadPageHistory,
+) -> Result<Option<i64>> {
+    let current = page::Entity::find()
+        .filter(page::Column::SiteId.eq(input.site_id))
+        .filter(page::Column::PageId.eq(input.page_id))
+        .one(ctx.transaction())
+        .await
+        .or_raise(|| {
+            Error::new("failed to read current page", ErrorType::DatabaseImport)
+        })?
+        .ok_or_else(|| invalid("history target page does not exist"))?;
+    Ok(current.latest_revision_id)
+}
+
+async fn query_history_availability(
+    ctx: &ServiceContext<'_>,
+    input: &ReadPageHistory,
+) -> Result<HistoryAvailability> {
+    let imported = imported_page_revision::Entity::find()
+        .filter(imported_page_revision::Column::SiteId.eq(input.site_id))
+        .filter(imported_page_revision::Column::PageId.eq(input.page_id));
+    let native = page_revision::Entity::find()
+        .filter(page_revision::Column::SiteId.eq(input.site_id))
+        .filter(page_revision::Column::PageId.eq(input.page_id));
+    let wikidot = imported.count(ctx.transaction()).await.or_raise(|| {
+        Error::new(
+            "failed to count imported history",
+            ErrorType::DatabaseImport,
+        )
+    })? > 0;
+    let local = native.count(ctx.transaction()).await.or_raise(|| {
+        Error::new("failed to count native history", ErrorType::DatabaseImport)
+    })? > 0;
+    Ok(HistoryAvailability { wikidot, local })
+}
+
+fn is_unfiltered(filters: &HistoryFilters) -> bool {
+    filters.all
+        || ![
+            filters.source,
+            filters.title,
+            filters.r#move,
+            filters.tags,
+            filters.meta,
+            filters.files,
+        ]
+        .contains(&true)
+}
+
+async fn query_imported_history(
+    ctx: &ServiceContext<'_>,
+    input: &ReadPageHistory,
+    offset: i64,
+) -> Result<(u64, Vec<HistoryListingRow>)> {
+    let mut query = imported_page_revision::Entity::find()
+        .filter(imported_page_revision::Column::SiteId.eq(input.site_id))
+        .filter(imported_page_revision::Column::PageId.eq(input.page_id));
+    if !is_unfiltered(&input.filters) {
+        query = query.filter(imported_condition(&input.filters));
+    }
+    let total = query.clone().count(ctx.transaction()).await.or_raise(|| {
+        Error::new(
+            "failed to count filtered imported history",
+            ErrorType::DatabaseImport,
+        )
+    })?;
+    let models = query_imported_summaries(ctx, query, input.per_page, offset).await?;
+    Ok((total, imported_rows(ctx, models).await?))
+}
+
+async fn query_imported_summaries(
+    ctx: &ServiceContext<'_>,
+    query: Select<imported_page_revision::Entity>,
+    per_page: i64,
+    offset: i64,
+) -> Result<Vec<ImportedRevisionSummary>> {
+    use imported_page_revision::Column as HistoryColumn;
+    query
+        .select_only()
+        .columns([
+            HistoryColumn::SourcePageId,
+            HistoryColumn::SourceRevisionId,
+            HistoryColumn::SourceRevisionNumber,
+            HistoryColumn::SourceAuthorId,
+            HistoryColumn::SourceCreatedAt,
+            HistoryColumn::SourceComments,
+            HistoryColumn::SourceFlags,
+            HistoryColumn::SourceTitle,
+            HistoryColumn::SourceSlug,
+            HistoryColumn::SourceTags,
+            HistoryColumn::Representation,
+        ])
+        .order_by_desc(HistoryColumn::SourceRevisionNumber)
+        .limit(per_page as u64)
+        .offset(offset as u64)
+        .into_model::<ImportedRevisionSummary>()
+        .all(ctx.transaction())
+        .await
+        .or_raise(|| {
+            Error::new("failed to list imported history", ErrorType::DatabaseImport)
+        })
+}
+
+async fn query_native_history(
+    ctx: &ServiceContext<'_>,
+    input: &ReadPageHistory,
+    offset: i64,
+    latest_revision_id: Option<i64>,
+) -> Result<(u64, Vec<HistoryListingRow>)> {
+    let mut query = page_revision::Entity::find()
+        .filter(page_revision::Column::SiteId.eq(input.site_id))
+        .filter(page_revision::Column::PageId.eq(input.page_id));
+    if !is_unfiltered(&input.filters) {
+        query = query.filter(native_condition(&input.filters));
+    }
+    let total = query.clone().count(ctx.transaction()).await.or_raise(|| {
+        Error::new(
+            "failed to count filtered native history",
+            ErrorType::DatabaseImport,
+        )
+    })?;
+    let models = query
+        .order_by_desc(page_revision::Column::RevisionNumber)
+        .limit(input.per_page as u64)
+        .offset(offset as u64)
+        .all(ctx.transaction())
+        .await
+        .or_raise(|| {
+            Error::new("failed to list native history", ErrorType::DatabaseImport)
+        })?;
+    Ok((total, native_rows(ctx, models, latest_revision_id).await?))
 }
 
 fn imported_condition(filters: &HistoryFilters) -> Condition {
