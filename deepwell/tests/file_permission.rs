@@ -308,7 +308,7 @@ async fn authorized_lifecycle_and_destination_denial() {
     let (editable_file, first) = create(&runner, site_id, editable).await;
     actor(&mut runner, site_id, protected, SAMPLE_USER_ID);
     let edited = run_endpoint!(runner, file_edit, json!({"site_id":site_id,"page_id":editable,"file_id":editable_file,"user_id":SAMPLE_USER_ID,"last_revision_id":first,"name":"renamed.txt","revision_comments":"Edit","ip_address":"127.0.0.1"})).unwrap();
-    let rolled_back = run_endpoint!(runner, file_rollback, json!({"site_id":site_id,"page_id":editable,"file":editable_file,"user_id":SAMPLE_USER_ID,"last_revision_id":edited.file_revision_id,"revision_number":1,"revision_comments":"Rollback","ip_address":"127.0.0.1"})).unwrap();
+    let rolled_back = run_endpoint!(runner, file_rollback, json!({"site_id":site_id,"page_id":editable,"file":editable_file,"user_id":SAMPLE_USER_ID,"last_revision_id":edited.file_revision_id,"revision_number":0,"revision_comments":"Rollback","ip_address":"127.0.0.1"})).unwrap();
     assert_eq!(
         run_endpoint!(
             runner,
