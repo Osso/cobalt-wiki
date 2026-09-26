@@ -223,12 +223,21 @@ async function visit(page, slug) {
   assert.equal(response?.status(), 200, `${slug} HTTP status`)
 }
 
-/** @param {import("@playwright/test").Page} page @param {string} button */
-async function openPane(page, button) {
-  const options = page.locator("#page-options-bottom-2")
-  if (!(await options.isVisible())) await page.locator("#more-options-button").click()
-  await expect(options).toBeVisible()
-  await options.locator(`#${button}`).click()
+/**
+ * @param {import("@playwright/test").Page} page
+ * @param {string} wikidotButton
+ * @param {string} wikijumpButton
+ */
+async function openPane(page, wikidotButton, wikijumpButton) {
+  const moreOptions = page.locator("#more-options-button")
+  if (await moreOptions.isVisible()) {
+    const options = page.locator("#page-options-bottom-2")
+    if (!(await options.isVisible())) await moreOptions.click()
+    await expect(options).toBeVisible()
+    await options.locator(`#${wikidotButton}`).click()
+    return
+  }
+  await page.locator(`.editor-actions .${wikijumpButton}`).click()
 }
 
 /**
@@ -239,7 +248,7 @@ async function openPane(page, button) {
  */
 async function moveInBrowser(page, guard, from, to) {
   await visit(page, from)
-  await openPane(page, "rename-move-button")
+  await openPane(page, "rename-move-button", "button-move")
   const form = page.locator("#page-move")
   await expect(form).toBeVisible()
   await form.locator('[name="new-slug"]').fill(to)
@@ -257,7 +266,7 @@ async function moveInBrowser(page, guard, from, to) {
  */
 async function selectLayout(page, guard, slug, layout) {
   await visit(page, slug)
-  await openPane(page, "layout-button")
+  await openPane(page, "layout-button", "button-layout")
   const form = page.locator("#page-layout")
   await expect(form).toBeVisible()
   await form
@@ -276,7 +285,7 @@ async function selectLayout(page, guard, slug, layout) {
  */
 async function deleteInBrowser(page, guard, slug) {
   await visit(page, slug)
-  await openPane(page, "delete-button")
+  await openPane(page, "delete-button", "button-delete")
   const form = page.locator("#page-delete")
   await expect(form).toBeVisible()
   await form.locator("#page-delete-option-delete").check()
