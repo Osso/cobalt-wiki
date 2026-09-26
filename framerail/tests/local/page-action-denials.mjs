@@ -484,6 +484,7 @@ async function assertDenied(
 
 /** @param {Actor} admin @param {Fixture} fixture */
 async function readFileLists(admin, fixture) {
+  /** @type {[string, number][]} */
   const pages = [
     [fixture.sourceSlug, fixture.pageId],
     [fixture.destinationSlug, fixture.destinationPageId]
