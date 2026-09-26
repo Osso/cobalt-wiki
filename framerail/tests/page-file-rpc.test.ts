@@ -186,6 +186,11 @@ test("file rollback preserves request IP in serialized RPC and accepts the revis
 })
 
 const mutationCases = [
+  [
+    "pageRollbackAction",
+    "page_rollback",
+    { ...identity, revisionNumber: 0, comments: "Rollback" }
+  ],
   ["pageFileHistoryAction", "file_revision_range", { ...identity, limit: 10 }],
   ["pageDeleteAction", "page_delete", { option: "delete", comments: "Delete" }],
   [

@@ -299,17 +299,22 @@ export async function pageRollback(
   slug: string,
   lastRevisionId: number,
   revisionNumber: Optional<number>,
-  revisionComments: Optional<string>
+  revisionComments: Optional<string>,
+  requestContext: RequestContext
 ): Promise<Nullable<CreatePageRevisionOutput>> {
-  return client.request("page_rollback", {
-    site_id: siteId,
-    page: pageId ?? slug,
-    user_id: userId,
-    ip_address: userIpAddr,
-    last_revision_id: lastRevisionId,
-    revision_number: revisionNumber ?? defaults.page.history.revisionNumber,
-    revision_comments: revisionComments
-  })
+  return client.request(
+    "page_rollback",
+    {
+      site_id: siteId,
+      page: pageId ?? slug,
+      user_id: userId,
+      ip_address: userIpAddr,
+      last_revision_id: lastRevisionId,
+      revision_number: revisionNumber ?? defaults.page.history.revisionNumber,
+      revision_comments: revisionComments
+    },
+    requestContext
+  )
 }
 
 /* ----- Page Vote List ----- */
