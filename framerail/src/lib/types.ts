@@ -212,7 +212,8 @@ export enum PagePane {
   Vote = "vote",
   Delete = "delete",
   Lock = "lock",
-  Tags = "tags"
+  Tags = "tags",
+  Backlinks = "backlinks"
 }
 export enum UserType {
   Regular = "regular",

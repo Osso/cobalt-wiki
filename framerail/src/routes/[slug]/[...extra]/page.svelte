@@ -18,6 +18,7 @@
   import { resolve } from "$app/paths"
   import { clickTagButton } from "$lib/tag-buttons"
   import WatchControls from "$lib/component/WatchControls.svelte"
+  import BacklinksPane from "./BacklinksPane.svelte"
 
   import type { PageProps } from "./$types"
   import type { Optional } from "$lib/types"
@@ -269,6 +270,22 @@
     {#if showPageOptions}
       <WatchControls message={props.form?.message} watching={data.watching} />
       <div id="page-options-bottom-2" class="page-options-bottom form-actions">
+        <button
+          id="backlinks-button"
+          class="btn btn-default"
+          onclick={() => {
+            showSource = false
+            pagePaneState = PagePane.Backlinks
+          }}
+          type="button">Backlinks</button
+        >
+        <a
+          id="print-page-button"
+          class="btn btn-default"
+          href={`/printer--friendly/${data.page?.slug ?? ""}`}
+          rel="noopener noreferrer"
+          target="_blank">Print</a
+        >
         <!-- svelte-ignore a11y_invalid_attribute -->
         <a
           id="view-source-button"
@@ -368,6 +385,8 @@
           {data.internationalization?.["wiki-page-source"]}
         </h1>
         <div class="page-source">{data.wikitext ?? ""}</div>
+      {:else if pagePaneState === PagePane.Backlinks}
+        <BacklinksPane />
       {:else if pagePaneState === PagePane.Move}
         <MovePane bind:pagePaneState {...props} />
       {:else if pagePaneState === PagePane.Layout}

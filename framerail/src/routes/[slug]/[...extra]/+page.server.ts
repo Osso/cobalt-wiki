@@ -31,6 +31,7 @@ import {
   pageVoteGetAction
 } from "$lib/server/load/page"
 import { pagePreviewAction } from "$lib/server/load/page-preview"
+import { pageBacklinksAction } from "$lib/server/load/page-backlinks"
 import {
   historyListAction,
   historyRevisionAction,
@@ -83,6 +84,7 @@ export const actions = {
   fileMove: pageFileMoveAction,
   fileRestore: pageFileRestoreAction,
   fileHistory: pageFileHistoryAction,
+  backlinks: pageBacklinksAction,
   history: pageHistoryAction,
   historyList: historyListAction,
   historyRevision: historyRevisionAction,
