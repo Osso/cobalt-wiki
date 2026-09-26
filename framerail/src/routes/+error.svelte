@@ -363,6 +363,7 @@
                   checked={$restoreForm.pageId === deletedPage.page_id}
                   type="radio"
                   value={deletedPage.page_id}
+                  bind:group={$restoreForm.pageId}
                 />
                 <label for={`restore-page-id-${deletedPage.page_id}`}>
                   <span class="page-restore-title">{deletedPage.title}</span>
