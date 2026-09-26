@@ -1,7 +1,8 @@
 import assert from "node:assert/strict"
 import { createHash, randomBytes } from "node:crypto"
 import { readFile } from "node:fs/promises"
-import { test, expect, chromium } from "@playwright/test"
+import { test } from "node:test"
+import { expect, chromium } from "@playwright/test"
 import {
   rpc,
   origin,
@@ -19,9 +20,133 @@ const fixturePath =
   "/home/osso/.local/share/cobalt-wiki/local-full/page-action-fixture.json"
 const observerPath =
   "/home/osso/.local/share/cobalt-wiki/local-full/watching-proof/browser-fixture.json"
-const adminPasswordPath = "/home/osso/.local/share/cobalt-wiki/local-full/admin-password"
+/** @typedef {import("../../src/lib/server/deepwell/views").PageView} PageView */
+/** @typedef {Extract<PageView, { type: "found" }>["data"]} PageData */
+/** @typedef {import("../../src/lib/server/deepwell/pageFile").PageFile} PageFile */
+/** @typedef {Awaited<ReturnType<typeof login>>} Actor */
+/** @typedef {ReturnType<typeof fingerprint>} Fingerprint */
+/** @typedef {Awaited<ReturnType<typeof readFileLists>>} FileLists */
+/** @typedef {Awaited<ReturnType<typeof readFixtures>>["fixture"]} Fixture */
+/** @typedef {Awaited<ReturnType<typeof guardObserverWrites>>} ObserverGuard */
+/** @typedef {Awaited<ReturnType<typeof guardBrowserWrites>>} AdminGuard */
+
+const allowedDenials = new Set([
+  "move",
+  "delete",
+  "parentSet",
+  "layout",
+  "setTags",
+  "blockSet",
+  "fileDelete",
+  "fileEdit",
+  "fileMove"
+])
+
+/**
+ * @param {import("@playwright/test").BrowserContext} context @param
+ *   {Fixture} fixture
+ */
+async function guardObserverWrites(context, fixture) {
+  /** @type {{ action: string; payload: string } | null} */
+  let permitted = null
+  /** @type {number | null} */
+  let disposableFileId = null
+  /** @type {string[]} */
+  const blocked = []
+  await context.route("**/*", (route) => {
+    const request = route.request()
+    const url = new URL(request.url())
+    const stylesheet =
+      url.origin === "https://d3g0gp89917ko0.cloudfront.net" &&
+      request.method() === "GET" &&
+      request.resourceType() === "stylesheet"
+    if (stylesheet) return route.continue()
+    if (url.origin === origin && ["GET", "HEAD", "OPTIONS"].includes(request.method())) {
+      return route.continue()
+    }
+    const path = `${url.pathname}${url.search}`
+    const login = path === "/-/login" || path === "/-/login?/login"
+    const read = ["fileList", "fileHistory"].some(
+      (action) => path === `/${fixture.sourceSlug}?/${action}`
+    )
+    if (url.origin === origin && request.method() === "POST" && (login || read)) {
+      return route.continue()
+    }
+    if (
+      url.origin === origin &&
+      request.method() === "POST" &&
+      permitted &&
+      path === `/${fixture.sourceSlug}?/${permitted.action}` &&
+      request.postDataBuffer()?.toString() === permitted.payload
+    ) {
+      permitted = null
+      return route.continue()
+    }
+    blocked.push(`${request.method()} ${url.origin}${path}`)
+    return route.abort()
+  })
+  return {
+    /** @param {number} fileId */
+    setFileId(fileId) {
+      assert.ok(Number.isSafeInteger(fileId) && fileId > 0)
+      disposableFileId = fileId
+    },
+    /**
+     * @param {string} action @param {Record<string, string | number |
+     *   boolean | string[] | number[]>} body @param {string} payload
+     */
+    allow(action, body, payload) {
+      assert.equal(permitted, null, "previous observer POST not consumed")
+      assert.ok(allowedDenials.has(action), "unlisted observer action")
+      if (action !== "setTags" && action !== "blockSet") {
+        assert.equal(body.siteId, siteId, "observer action site identity")
+      }
+      if (action !== "setTags") {
+        assert.equal(body.pageId, fixture.pageId, "observer action page identity")
+      }
+      if (action.startsWith("file")) {
+        assert.ok(disposableFileId !== null, "owned file ID required")
+        assert.equal(body.fileId, disposableFileId, "observer action file identity")
+      }
+      permitted = { action, payload }
+    },
+    assertConsumed() {
+      assert.equal(permitted, null, "observer action POST not sent")
+      assert.deepEqual(blocked, [], "unexpected observer browser request")
+    }
+  }
+}
+
+async function readPasswords() {
+  const fixtureFile = process.env.COBALT_PAGE_ACTION_FIXTURE
+  const adminFile = process.env.COBALT_LOCAL_ADMIN_PASSWORD_FILE
+  const gatewayFile = process.env.COBALT_LOCAL_PASSWORD_FILE
+  assert.ok(
+    fixtureFile === fixturePath && adminFile && gatewayFile,
+    "COBALT_PAGE_ACTION_FIXTURE must name disposable fixture; admin and gateway password files required"
+  )
+  return {
+    adminPassword: (await readFile(adminFile, "utf8")).trim(),
+    gatewayPassword: (await readFile(gatewayFile, "utf8")).trim()
+  }
+}
 
 async function readFixtures() {
+  /**
+   * @type {{
+   *   sacrificial: boolean
+   *   siteId: number
+   *   siteSlug: string
+   *   databaseLabel: string
+   *   username: string
+   *   sourceSlug: string
+   *   movedSlug: string
+   *   destinationSlug: string
+   *   pageId: number
+   *   destinationPageId: number
+   *   created: { slug: string; pageId: number; revisionId: number }[]
+   * }}
+   */
   const fixture = JSON.parse(await readFile(fixturePath, "utf8"))
   const observer = JSON.parse(await readFile(observerPath, "utf8"))
   assert.equal(fixture.sacrificial, true)
@@ -59,6 +184,10 @@ async function readFixtures() {
   return { fixture, observer }
 }
 
+/**
+ * @param {import("@playwright/test").BrowserContext} context @param
+ *   {string} username @param {string} password
+ */
 async function login(context, username, password) {
   const page = await context.newPage()
   await page.goto(`${origin}/-/login`, { waitUntil: "networkidle" })
@@ -74,7 +203,12 @@ async function login(context, username, password) {
   return { page, context, token: decodeURIComponent(cookie.value) }
 }
 
+/**
+ * @param {Actor} actor @param {string} slug @param {number} pageId
+ * @returns {Promise<PageData>}
+ */
 async function readPage(actor, slug, pageId) {
+  /** @type {PageView} */
   const view = await rpc(actor.context.request, actor.token, slug, "page_view", {
     site_id: siteId,
     locales: ["en"],
@@ -82,11 +216,16 @@ async function readPage(actor, slug, pageId) {
     route: { slug, extra: "" }
   })
   assert.equal(view.type, "found", `${slug} must remain live`)
+  if (view.type !== "found") assert.fail("fixture page missing")
   assert.equal(view.data.page.page_id, pageId, "only manifest ID allowed")
   assert.equal(view.data.page.slug, slug)
   return view.data
 }
 
+/**
+ * @param {Actor} actor @param {string} slug @param {number} pageId
+ * @returns {Promise<number[]>}
+ */
 async function readParents(actor, slug, pageId) {
   return rpc(actor.context.request, actor.token, slug, "parent_get_all", {
     site_id: siteId,
@@ -94,6 +233,7 @@ async function readParents(actor, slug, pageId) {
   })
 }
 
+/** @param {PageData} page @param {number[]} parents */
 function fingerprint(page, parents) {
   return {
     pageId: page.page.page_id,
@@ -106,36 +246,56 @@ function fingerprint(page, parents) {
   }
 }
 
+/** @param {Actor} actor @param {string} slug @param {number} pageId */
 async function readFingerprint(actor, slug, pageId) {
   const page = await readPage(actor, slug, pageId)
   const parents = await readParents(actor, slug, pageId)
   return fingerprint(page, parents)
 }
 
-async function postAction(page, slug, action, body, format = "superform") {
-  const encoded = format === "superform" ? stringify(body) : body
-  return page.evaluate(
-    async ({ slug, action, encoded, format }) => {
-      const payload =
-        format === "json"
-          ? JSON.stringify(encoded)
-          : new URLSearchParams(
-              format === "superform" ? { __superform_json: encoded } : encoded
-            )
-      const headers = { accept: "application/json", "x-sveltekit-action": "true" }
-      if (format === "json") headers["content-type"] = "application/json"
+/**
+ * @param {import("@playwright/test").Page} page @param {ObserverGuard}
+ *   guard @param {string} slug @param {string} action @param
+ *   {Record<string, string | number | boolean | string[] | number[]>}
+ *   body
+ * @param {"superform" | "json" | "form"} [format]
+ */
+async function postAction(page, guard, slug, action, body, format = "superform") {
+  const payload =
+    format === "json"
+      ? JSON.stringify(body)
+      : new URLSearchParams(
+          format === "superform"
+            ? { __superform_json: stringify(body) }
+            : { changes: String(body.changes) }
+        ).toString()
+  guard.allow(action, body, payload)
+  const result = await page.evaluate(
+    async ({ slug, action, payload, format }) => {
+      const headers = {
+        accept: "application/json",
+        "x-sveltekit-action": "true",
+        ...(format === "json" ? { "content-type": "application/json" } : {})
+      }
       const response = await fetch(`/${slug}?/${action}`, {
         method: "POST",
         headers,
-        body: payload
+        body: format === "json" ? payload : new URLSearchParams(payload)
       })
       const result = await response.json()
       return { status: response.status, type: result.type, actionStatus: result.status }
     },
-    { slug, action, encoded, format }
+    { slug, action, payload, format }
   )
+  guard.assertConsumed()
+  return result
 }
 
+/**
+ * @param {Actor} admin @param {Fixture} fixture @param {Fingerprint}
+ *   baseline @param {boolean} originalBlocked @param {string} action
+ * @param {PageView} current
+ */
 async function recoverPage(admin, fixture, baseline, originalBlocked, action, current) {
   const slug = fixture.sourceSlug
   const actor = {
@@ -184,6 +344,7 @@ async function recoverPage(admin, fixture, baseline, originalBlocked, action, cu
     return
   }
   assert.equal(current.type, "found", "unexpected missing fixture page")
+  if (current.type !== "found") assert.fail("fixture page missing")
   assert.equal(current.data.page.page_id, fixture.pageId)
   const now = fingerprint(current.data, await readParents(admin, slug, fixture.pageId))
   assert.equal(now.sourceHash, baseline.sourceHash, "refuse recovery after source change")
@@ -228,9 +389,20 @@ async function recoverPage(admin, fixture, baseline, originalBlocked, action, cu
   }
 }
 
+/**
+ * @param {Actor} admin @param {Actor} observer @param {ObserverGuard}
+ *   observerGuard @param {Fixture} fixture @param {Fingerprint} baseline
+ * @param {Fingerprint} destination @param {boolean} originalBlocked
+ * @param {{
+ *   action: string
+ *   body: Record<string, string | number | boolean | string[] | number[]>
+ *   format?: "superform" | "json" | "form"
+ * }} entry
+ */
 async function assertDenied(
   admin,
   observer,
+  observerGuard,
   fixture,
   baseline,
   destination,
@@ -241,8 +413,16 @@ async function assertDenied(
   let result
   let observedChange = false
   try {
-    result = await postAction(observer.page, fixture.sourceSlug, action, body, format)
+    result = await postAction(
+      observer.page,
+      observerGuard,
+      fixture.sourceSlug,
+      action,
+      body,
+      format
+    )
   } finally {
+    /** @type {PageView} */
     const current = await rpc(
       admin.context.request,
       admin.token,
@@ -302,11 +482,20 @@ async function assertDenied(
   assert.equal(block.blocked, originalBlocked, `${action} Block state unchanged`)
 }
 
+/** @param {Actor} admin @param {Fixture} fixture */
 async function readFileLists(admin, fixture) {
   const pages = [
     [fixture.sourceSlug, fixture.pageId],
     [fixture.destinationSlug, fixture.destinationPageId]
   ]
+  /**
+   * @type {{
+   *   slug: string
+   *   pageId: number
+   *   deleted: boolean
+   *   files: PageFile[]
+   * }[]}
+   */
   const lists = []
   for (const [slug, pageId] of pages) {
     for (const deleted of [false, true]) {
@@ -328,6 +517,10 @@ async function readFileLists(admin, fixture) {
   return lists
 }
 
+/**
+ * @param {Actor} admin @param {Fixture} fixture @param {FileLists} before
+ * @param {string} name
+ */
 async function findNewFile(admin, fixture, before, name) {
   const source = (await readFileLists(admin, fixture)).find(
     (list) => list.pageId === fixture.pageId && !list.deleted
@@ -342,6 +535,10 @@ async function findNewFile(admin, fixture, before, name) {
   return created[0] ?? null
 }
 
+/**
+ * @param {Actor} admin @param {Fixture} fixture @param {FileLists} before
+ * @param {AdminGuard} guard @param {string} name @param {Buffer} bytes
+ */
 async function uploadDisposableFile(admin, fixture, before, guard, name, bytes) {
   const pane = await openFiles(admin.page, fixture.sourceSlug)
   await pane.locator(".upload-file, .buttons input[value='Upload']").click()
@@ -366,6 +563,10 @@ async function uploadDisposableFile(admin, fixture, before, guard, name, bytes) 
   return created
 }
 
+/**
+ * @param {Actor} admin @param {Fixture} fixture @param {FileLists} before
+ * @param {number | null} fileId
+ */
 async function assertOriginalFiles(admin, fixture, before, fileId) {
   const current = await readFileLists(admin, fixture)
   for (let index = 0; index < before.length; index++) {
@@ -378,6 +579,10 @@ async function assertOriginalFiles(admin, fixture, before, fileId) {
   return current
 }
 
+/**
+ * @param {Actor} admin @param {Fixture} fixture @param {FileLists} before
+ * @param {PageFile} created @param {Buffer} bytes
+ */
 async function assertDisposableFile(admin, fixture, before, created, bytes) {
   const lists = await assertOriginalFiles(admin, fixture, before, created.file_id)
   const owned = lists.flatMap((list) =>
@@ -395,6 +600,10 @@ async function assertDisposableFile(admin, fixture, before, created, bytes) {
   assert.deepEqual(current.bytes, bytes, "disposable file bytes unchanged")
 }
 
+/**
+ * @param {Actor} admin @param {Fixture} fixture @param {FileLists} before
+ * @param {string} name @param {number | null} fileId
+ */
 async function tombstoneDisposableFile(admin, fixture, before, name, fileId) {
   const lists = await readFileLists(admin, fixture)
   const originalIds = new Set(
@@ -441,6 +650,10 @@ test(
   { timeout: 120_000 },
   async () => {
     const { fixture, observer } = await readFixtures()
+    const { adminPassword, gatewayPassword } = await readPasswords()
+    const credentials = {
+      httpCredentials: { username: "cobalt", password: gatewayPassword, origin }
+    }
     const name = `observer-denial-${randomBytes(8).toString("hex")}.txt`
     const bytes = Buffer.from(`Disposable observer-denial file ${name}\n`)
     const browser = await chromium.launch({
@@ -448,18 +661,15 @@ test(
       headless: true
     })
     try {
-      const adminContext = await browser.newContext()
-      const observerContext = await browser.newContext()
+      const adminContext = await browser.newContext(credentials)
+      const observerContext = await browser.newContext(credentials)
       try {
         const guard = await guardBrowserWrites(adminContext, [
           fixture.sourceSlug,
           fixture.destinationSlug
         ])
-        const admin = await login(
-          adminContext,
-          fixture.username,
-          (await readFile(adminPasswordPath, "utf8")).trim()
-        )
+        const observerGuard = await guardObserverWrites(observerContext, fixture)
+        const admin = await login(adminContext, fixture.username, adminPassword)
         const denied = await login(observerContext, observer.username, observer.password)
         const session = await rpc(
           denied.context.request,
@@ -471,6 +681,7 @@ test(
         assert.equal(session.user_id, observer.user_id)
         const before = await readFileLists(admin, fixture)
         assert.ok(before.every((list) => list.files.every((file) => file.name !== name)))
+        /** @type {number | null} */
         let fileId = null
         try {
           const created = await uploadDisposableFile(
@@ -483,6 +694,7 @@ test(
           )
           fileId = created.file_id
           assert.ok(Number.isSafeInteger(fileId) && fileId > 0)
+          observerGuard.setFileId(fileId)
           await assertDisposableFile(admin, fixture, before, created, bytes)
           const sourcePage = await readFingerprint(
             admin,
@@ -516,6 +728,7 @@ test(
           for (const entry of cases) {
             const response = await postAction(
               denied.page,
+              observerGuard,
               fixture.sourceSlug,
               entry.action,
               entry.body,
@@ -545,6 +758,8 @@ test(
         } finally {
           await tombstoneDisposableFile(admin, fixture, before, name, fileId)
         }
+        guard.assertConsumed()
+        observerGuard.assertConsumed()
       } finally {
         await observerContext.close()
         await adminContext.close()
@@ -560,19 +775,24 @@ test(
   { timeout: 120_000 },
   async () => {
     const { fixture, observer } = await readFixtures()
+    const { adminPassword, gatewayPassword } = await readPasswords()
+    const credentials = {
+      httpCredentials: { username: "cobalt", password: gatewayPassword, origin }
+    }
     const browser = await chromium.launch({
       executablePath: "/usr/bin/chromium",
       headless: true
     })
     try {
-      const adminContext = await browser.newContext()
-      const observerContext = await browser.newContext()
+      const adminContext = await browser.newContext(credentials)
+      const observerContext = await browser.newContext(credentials)
       try {
-        const admin = await login(
-          adminContext,
-          fixture.username,
-          (await readFile(adminPasswordPath, "utf8")).trim()
-        )
+        const adminGuard = await guardBrowserWrites(adminContext, [
+          fixture.sourceSlug,
+          fixture.destinationSlug
+        ])
+        const observerGuard = await guardObserverWrites(observerContext, fixture)
+        const admin = await login(adminContext, fixture.username, adminPassword)
         const denied = await login(observerContext, observer.username, observer.password)
         const session = await rpc(
           denied.context.request,
@@ -660,7 +880,7 @@ test(
             action: "blockSet",
             body: {
               pageId: fixture.pageId,
-              blocked: !baseline.blocked
+              blocked: !block.blocked
             },
             format: "json"
           }
@@ -669,6 +889,7 @@ test(
           await assertDenied(
             admin,
             denied,
+            observerGuard,
             fixture,
             baseline,
             destination,
@@ -676,6 +897,8 @@ test(
             entry
           )
         }
+        adminGuard.assertConsumed()
+        observerGuard.assertConsumed()
       } finally {
         await observerContext.close()
         await adminContext.close()
