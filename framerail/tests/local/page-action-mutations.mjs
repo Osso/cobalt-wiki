@@ -3,6 +3,9 @@ import { createHash } from "node:crypto"
 import { open, readFile } from "node:fs/promises"
 import { test } from "node:test"
 import { chromium, expect } from "@playwright/test"
+const { parse } = await import(
+  new URL("../../node_modules/.pnpm/node_modules/devalue/index.js", import.meta.url).href
+)
 
 const origin = "http://127.0.0.1:3090"
 const backend = "http://127.0.0.1:2749/jsonrpc"
@@ -10,6 +13,9 @@ const siteId = 6000000
 
 /** @typedef {import("../../src/lib/server/deepwell/views").PageView} PageView */
 /** @typedef {Extract<PageView, { type: "found" }>["data"]} StoredPage */
+/** @typedef {Awaited<ReturnType<typeof guardBrowserWrites>>} WriteGuard */
+/** @typedef {import("../../src/lib/server/deepwell/page").PageDeletedGet} PageDeletedGet */
+/** @typedef {import("../../src/lib/types").SessionModel} SessionModel */
 /**
  * @typedef {{
  *   sacrificial: true
@@ -41,7 +47,7 @@ async function readFixture(path) {
   assert.equal(fixture.databaseLabel, "cobalt_local_full")
   assert.equal(fixture.username, "cobalt-import")
   const match = /^local-action-proof:source-([a-f0-9]{16})$/.exec(fixture.sourceSlug)
-  assert.ok(match, "unique disposable source slug required")
+  if (!match) assert.fail("unique disposable source slug required")
   assert.equal(fixture.movedSlug, `local-action-proof:moved-${match[1]}`)
   assert.equal(fixture.destinationSlug, `local-action-proof:destination-${match[1]}`)
   assert.ok(Number.isSafeInteger(fixture.pageId) && fixture.pageId > 0)
@@ -113,8 +119,7 @@ async function readPage(request, token, slug) {
  */
 async function assertOwnedPage(request, token, fixture, slug, sourceHash) {
   const view = await readPage(request, token, slug)
-  assert.equal(view?.type, "found", `fixture ${slug} must be live`)
-  if (view.type !== "found") assert.fail("fixture must be found")
+  if (view.type !== "found") assert.fail(`fixture ${slug} must be live`)
   assert.equal(view.data.page.page_id, fixture.pageId, "only manifest page ID allowed")
   assert.equal(view.data.page.slug, slug)
   assert.equal(
@@ -213,7 +218,7 @@ async function login(context, fixture, password) {
   const cookie = (await context.cookies()).find(
     (entry) => entry.name === "wikijump_token" && entry.domain === "127.0.0.1"
   )
-  assert.ok(cookie, "real browser login must establish session")
+  if (!cookie) assert.fail("real browser login must establish session")
   return { page, token: decodeURIComponent(cookie.value) }
 }
 
@@ -242,7 +247,7 @@ async function openPane(page, wikidotButton, wikijumpButton) {
 
 /**
  * @param {import("@playwright/test").Page} page
- * @param {ReturnType<typeof guardBrowserWrites>} guard
+ * @param {WriteGuard} guard
  * @param {string} from
  * @param {string} to
  */
@@ -260,7 +265,7 @@ async function moveInBrowser(page, guard, from, to) {
 
 /**
  * @param {import("@playwright/test").Page} page
- * @param {ReturnType<typeof guardBrowserWrites>} guard
+ * @param {WriteGuard} guard
  * @param {string} slug
  * @param {string | null} layout
  */
@@ -280,7 +285,7 @@ async function selectLayout(page, guard, slug, layout) {
 
 /**
  * @param {import("@playwright/test").Page} page
- * @param {ReturnType<typeof guardBrowserWrites>} guard
+ * @param {WriteGuard} guard
  * @param {string} slug
  */
 async function deleteInBrowser(page, guard, slug) {
@@ -314,6 +319,7 @@ async function deleteInBrowser(page, guard, slug) {
  */
 async function assertDeleted(request, token, fixture) {
   await assertMissing(request, token, fixture.movedSlug)
+  /** @type {PageDeletedGet[]} */
   const deleted = await rpc(request, token, fixture.movedSlug, "page_get_deleted", {
     site_id: siteId,
     slug: fixture.movedSlug
@@ -328,7 +334,7 @@ async function assertDeleted(request, token, fixture) {
 
 /**
  * @param {import("@playwright/test").Page} page
- * @param {ReturnType<typeof guardBrowserWrites>} guard
+ * @param {WriteGuard} guard
  * @param {import("@playwright/test").APIRequestContext} request
  * @param {string} token
  * @param {Fixture} fixture
@@ -355,9 +361,45 @@ async function restoreInBrowser(page, guard, request, token, fixture) {
     await form.locator('input[name="pageId"]:checked').inputValue(),
     String(fixture.pageId)
   )
+  const responsePromise = page.waitForResponse(
+    (response) =>
+      response.url() === `${origin}/${fixture.movedSlug}?/restore` &&
+      response.request().method() === "POST"
+  )
   guard.allow(fixture.movedSlug, "restore")
   await form.locator('[type="submit"]').click()
-  await expect(form).toHaveCount(0)
+  const actionResponse = await responsePromise
+  const postRequest = actionResponse.request()
+  const body = postRequest.postDataBuffer()
+  if (!body) assert.fail("Restore POST body required")
+  const contentType = postRequest.headers()["content-type"]
+  const submitted = contentType?.startsWith("application/json")
+    ? JSON.parse(body.toString())
+    : parse(
+        (
+          await new Request(postRequest.url(), {
+            method: "POST",
+            headers: postRequest.headers(),
+            body: new Uint8Array(body)
+          }).formData()
+        )
+          .getAll("__superform_json")
+          .join("")
+      )
+  const sentPageId =
+    typeof submitted === "object" && submitted !== null && "pageId" in submitted
+      ? submitted.pageId
+      : null
+  const result = await actionResponse.json()
+  const evidence = JSON.stringify({ sentPageId, status: actionResponse.status(), result })
+  assert.equal(sentPageId, fixture.pageId, `Restore sent wrong pageId: ${evidence}`)
+  assert.equal(actionResponse.status(), 200, `Restore HTTP failure: ${evidence}`)
+  assert.equal(result.type, "success", `Restore action failed: ${evidence}`)
+  try {
+    await expect(form).toHaveCount(0)
+  } catch (error) {
+    throw new Error(`Restore form remained: ${evidence}`, { cause: error })
+  }
   guard.assertConsumed()
 }
 
@@ -375,6 +417,7 @@ async function restoreInBrowser(page, guard, request, token, fixture) {
 async function recoverFixture(request, token, fixture, sourceHash, originalLayout) {
   let moved = await readPage(request, token, fixture.movedSlug)
   if (moved.type === "missing") {
+    /** @type {PageDeletedGet[]} */
     const deleted = await rpc(request, token, fixture.movedSlug, "page_get_deleted", {
       site_id: siteId,
       slug: fixture.movedSlug
@@ -384,6 +427,7 @@ async function recoverFixture(request, token, fixture, sourceHash, originalLayou
         (item) => item.page_id === fixture.pageId && item.slug === fixture.movedSlug
       )
     ) {
+      /** @type {SessionModel} */
       const session = await rpc(request, token, fixture.movedSlug, "session_get", [token])
       assert.ok(Number.isSafeInteger(session?.user_id), "recovery actor required")
       await rpc(request, token, fixture.movedSlug, "page_restore", {
@@ -406,6 +450,7 @@ async function recoverFixture(request, token, fixture, sourceHash, originalLayou
       fixture.movedSlug,
       sourceHash
     )
+    /** @type {SessionModel} */
     const session = await rpc(request, token, fixture.movedSlug, "session_get", [token])
     assert.ok(Number.isSafeInteger(session?.user_id), "recovery actor required")
     const actor = { site_id: siteId, user_id: session.user_id, ip_address: "127.0.0.1" }
@@ -433,6 +478,7 @@ async function recoverFixture(request, token, fixture, sourceHash, originalLayou
     sourceHash
   )
   if (final.page.layout !== originalLayout) {
+    /** @type {SessionModel} */
     const session = await rpc(request, token, fixture.sourceSlug, "session_get", [token])
     assert.ok(Number.isSafeInteger(session?.user_id), "recovery actor required")
     await rpc(request, token, fixture.sourceSlug, "page_set_layout", {
@@ -478,12 +524,11 @@ async function writePrivateFailure(stage, fixture, sourceHash, error) {
  * @param {import("@playwright/test").APIRequestContext} request
  * @param {string} token
  * @param {Fixture} fixture
- * @param {ReturnType<typeof guardBrowserWrites>} guard
+ * @param {WriteGuard} guard
  */
 async function exercise(page, request, token, fixture, guard) {
   const initial = await readPage(request, token, fixture.sourceSlug)
-  assert.equal(initial?.type, "found", "newly created fixture required")
-  if (initial.type !== "found") assert.fail("fixture page must exist")
+  if (initial.type !== "found") assert.fail("newly created fixture page must exist")
   assert.equal(initial.data.page.page_id, fixture.pageId)
   assert.equal(initial.data.page.slug, fixture.sourceSlug)
   assert.ok(
@@ -495,8 +540,7 @@ async function exercise(page, request, token, fixture, guard) {
   assert.ok([null, "wikidot", "wikijump"].includes(originalLayout))
   await assertMissing(request, token, fixture.movedSlug)
   const destination = await readPage(request, token, fixture.destinationSlug)
-  assert.equal(destination?.type, "found", "protected destination page required")
-  if (destination.type !== "found") assert.fail("destination page must exist")
+  if (destination.type !== "found") assert.fail("protected destination page must exist")
   assert.equal(destination.data.page.page_id, fixture.destinationPageId)
   assert.equal(destination.data.page.slug, fixture.destinationSlug)
   assert.ok(
