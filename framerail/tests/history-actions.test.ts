@@ -7,7 +7,10 @@ after(close)
 const { historyListAction, historyRevisionAction, historyCompareAction } =
   await vite.ssrLoadModule("/src/lib/server/load/history.ts")
 
-function event(payload: unknown) {
+function event(
+  payload: unknown,
+  params: { slug?: string; extra?: string } = { slug: "home:start" }
+) {
   return {
     request: new Request("http://local.test/home:start?/historyList", {
       method: "POST",
@@ -17,7 +20,7 @@ function event(payload: unknown) {
       },
       body: JSON.stringify(payload)
     }),
-    params: { slug: "home:start" },
+    params,
     cookies: { get: () => "session" },
     locals: {
       requestContext: { siteId: 6000011, page: "home:start", sessionToken: "session" }
@@ -51,6 +54,7 @@ const filters = {
   source: true,
   title: false,
   move: false,
+  tags: true,
   meta: false,
   files: true
 }
@@ -62,7 +66,7 @@ test("paged history binds trusted route identity, filters and maximum page size"
     per_page: 200,
     total: 401,
     total_pages: 3,
-    available: { wikidot: 401, local: 0 },
+    available: { wikidot: true, local: false },
     rows: []
   }
   const { result, calls } = await rpc(
@@ -92,6 +96,24 @@ test("paged history binds trusted route identity, filters and maximum page size"
     per_page: 200,
     filters
   })
+})
+
+test("root history action resolves the root route without an undefined slug", async () => {
+  const listing = {
+    origin: "wikidot",
+    page: 1,
+    per_page: 20,
+    total: 0,
+    total_pages: 0,
+    available: { wikidot: false, local: false },
+    rows: []
+  }
+  const { result, calls } = await rpc(
+    (method) => (method === "page_view" ? found : listing),
+    () => historyListAction(event({ origin: "wikidot" }, {}) as never)
+  )
+  assert.deepEqual(result, { res: listing })
+  assert.equal(calls[0].params.route, null)
 })
 
 test("source and comparison use separate read-only RPCs with route identity", async () => {
@@ -145,6 +167,7 @@ test("invalid input and missing or restricted pages never access history RPCs", 
     { origin: "wikidot", page: 0 },
     { origin: "wikidot", per_page: 201 },
     { origin: "wikidot", filters: { ...filters, files: "yes" } },
+    { origin: "wikidot", filters: { ...filters, tags: "yes" } },
     { origin: "other" }
   ]) {
     const { result, calls } = await rpc(

@@ -22,14 +22,28 @@
   } = $props()
 </script>
 
-<h1>Page history of changes</h1>
 <p>{listing.total} revisions · Page {listing.page} of {listing.total_pages}</p>
+{#if listing.total_pages > 1}
+  <nav aria-label="History pages" class="history-pages">
+    {#each Array.from({ length: listing.total_pages }, (_, index) => index + 1) as pageNumber}
+      <button
+        type="button"
+        aria-label={`Go to page ${pageNumber}`}
+        aria-current={pageNumber === listing.page ? "page" : undefined}
+        disabled={busy || pageNumber === listing.page}
+        onclick={() => changePage(pageNumber)}>{pageNumber}</button
+      >
+    {/each}
+  </nav>
+{/if}
 {#if listing.rows.length}
   <div class="history-table">
     <table class="page-history">
       <thead
         ><tr>
-          <th scope="col">rev.</th><th scope="col">compare</th><th scope="col">flags</th>
+          <th scope="col">rev.</th><th scope="col" aria-label="Compare revisions"></th><th
+            scope="col">flags</th
+          >
           <th scope="col">actions</th><th scope="col">by</th><th scope="col">date</th>
           <th scope="col">comments</th>
         </tr></thead
@@ -46,7 +60,7 @@
                   checked={from === row.number}
                   onchange={() => selectFrom(row.number)}
                   aria-label={`Compare from revision ${row.number}`}
-                />from</label
+                /></label
               >
               <label
                 ><input
@@ -55,7 +69,7 @@
                   checked={to === row.number}
                   onchange={() => selectTo(row.number)}
                   aria-label={`Compare to revision ${row.number}`}
-                />to</label
+                /></label
               >
             </td>
             <td>{row.flags.join(" ") || "—"}</td>
@@ -85,7 +99,12 @@
             >
             <td
               ><time datetime={row.created_at}
-                >{new Date(row.created_at).toLocaleString()}</time
+                >{new Intl.DateTimeFormat("en-US", {
+                  year: "numeric",
+                  month: "short",
+                  day: "numeric",
+                  timeZone: "UTC"
+                }).format(new Date(row.created_at))}</time
               ></td
             >
             <td>{row.comments}</td>
@@ -96,19 +115,6 @@
   </div>
 {:else}
   <p>No revisions match this selection.</p>
-{/if}
-{#if listing.total_pages > 1}
-  <nav aria-label="History pages" class="history-pages">
-    {#each Array.from({ length: listing.total_pages }, (_, index) => index + 1) as pageNumber}
-      <button
-        type="button"
-        aria-label={`Go to page ${pageNumber}`}
-        aria-current={pageNumber === listing.page ? "page" : undefined}
-        disabled={busy || pageNumber === listing.page}
-        onclick={() => changePage(pageNumber)}>{pageNumber}</button
-      >
-    {/each}
-  </nav>
 {/if}
 
 <style>
@@ -121,7 +127,7 @@
   }
   td,
   th {
-    padding: 0.4rem;
+    padding: 0.25rem 0.4rem;
     text-align: left;
     vertical-align: top;
   }
@@ -135,7 +141,17 @@
     align-items: center;
     margin-right: 0.35rem;
   }
-  .actions button,
+  .actions button {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--link-color, #06c);
+    text-decoration: underline;
+    cursor: pointer;
+  }
+  .actions button:disabled {
+    cursor: default;
+  }
   .history-pages button {
     min-width: 2rem;
   }

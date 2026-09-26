@@ -32,23 +32,27 @@ test("Wikidot pane replaces stacked imported and legacy history tables", () => {
   assert.equal((body.match(/page-revision-header/g) ?? []).length, 0)
 })
 
-test("Wikidot history presents one dataset selector and original filter/page-size controls", () => {
+test("Wikidot history puts the heading before centered original controls", () => {
   const body = render(WikidotHistory).body
+  assert.match(body, /Page history of changes/)
+  assert.ok(body.indexOf("Page history of changes") < body.indexOf("Show page changes"))
   assert.match(body, /Show page changes/)
   for (const label of [
     "ALL",
     "source changes",
-    "title",
-    "move\/rename",
-    "meta data",
-    "attachments"
+    "title changes",
+    "page name changes",
+    "tags changes",
+    "metadata changes",
+    "files changes"
   ])
     assert.match(body, new RegExp(label))
+  assert.equal((body.match(/type="checkbox"/g) ?? []).length, 7)
   for (const size of [10, 20, 50, 100, 200])
     assert.match(body, new RegExp(`value="${size}"`))
   assert.match(body, /value="20"[^>]*selected/)
-  assert.match(body, /update list/)
-  assert.match(body, /compare versions/)
+  assert.match(body, /Update list/)
+  assert.match(body, /Compare versions/)
   assert.match(body, /History dataset/)
   assert.doesNotMatch(body, /Imported Wikidot history|Load older revisions/)
 })

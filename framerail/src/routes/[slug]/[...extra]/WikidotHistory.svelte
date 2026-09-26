@@ -16,16 +16,18 @@
   const filterLabels: { key: keyof HistoryFilters; label: string }[] = [
     { key: "all", label: "ALL" },
     { key: "source", label: "source changes" },
-    { key: "title", label: "title" },
-    { key: "move", label: "move/rename" },
-    { key: "meta", label: "meta data" },
-    { key: "files", label: "attachments (files)" }
+    { key: "title", label: "title changes" },
+    { key: "move", label: "page name changes" },
+    { key: "tags", label: "tags changes" },
+    { key: "meta", label: "metadata changes" },
+    { key: "files", label: "files changes" }
   ]
   let filters = $state<HistoryFilters>({
     all: true,
     source: false,
     title: false,
     move: false,
+    tags: false,
     meta: false,
     files: false
   })
@@ -79,8 +81,8 @@
       })
       if (
         nextOrigin === "wikidot" &&
-        result.available.wikidot === 0 &&
-        result.available.local > 0
+        !result.available.wikidot &&
+        result.available.local
       ) {
         listing = await postHistory<HistoryList>("historyList", {
           origin: "local",
@@ -161,8 +163,9 @@
 </script>
 
 <section aria-busy={busy} aria-label="Page history">
+  <h1>Page history of changes</h1>
   <div class="history-controls">
-    {#if listing && listing.available.wikidot > 0 && listing.available.local > 0}
+    {#if listing && listing.available.wikidot && listing.available.local}
       <label for="history-dataset">History dataset</label>
       <select
         id="history-dataset"
@@ -170,8 +173,8 @@
         onchange={(event) => selectOrigin(event.currentTarget.value as HistoryOrigin)}
         disabled={busy}
       >
-        <option value="wikidot">Wikidot source ({listing.available.wikidot})</option>
-        <option value="local">Local revisions ({listing.available.local})</option>
+        <option value="wikidot">Wikidot source</option>
+        <option value="local">Local revisions</option>
       </select>
     {:else}
       <span
@@ -192,27 +195,29 @@
         >
       {/each}
     </fieldset>
-    <label for="history-perpage">Revisions per page:</label>
-    <select
-      id="history-perpage"
-      bind:value={perPage}
-      onchange={() => {
-        page = 1
-      }}
-    >
-      <option value={10}>10</option><option value={20}>20</option><option value={50}
-        >50</option
+    <div class="history-page-size">
+      <label for="history-perpage">Revisions per page:</label>
+      <select
+        id="history-perpage"
+        bind:value={perPage}
+        onchange={() => {
+          page = 1
+        }}
       >
-      <option value={100}>100</option><option value={200}>200</option>
-    </select>
+        <option value={10}>10</option><option value={20}>20</option><option value={50}
+          >50</option
+        >
+        <option value={100}>100</option><option value={200}>200</option>
+      </select>
+    </div>
     <div class="history-buttons">
       <button type="button" disabled={busy} onclick={() => loadList(1)}
-        >update list</button
+        >Update list</button
       >
       <button
         type="button"
         disabled={busy || from === null || to === null || from === to}
-        onclick={compareVersions}>compare versions</button
+        onclick={compareVersions}>Compare versions</button
       >
     </div>
   </div>
@@ -239,21 +244,38 @@
 
 <style>
   .history-controls {
-    margin-block: 1rem;
+    width: fit-content;
+    max-width: 100%;
+    margin: 1rem auto;
   }
   fieldset {
+    display: grid;
+    grid-template-columns: minmax(10rem, auto) auto;
+    gap: 0.75rem;
     margin-block: 0.75rem;
     border: 0;
     padding: 0;
   }
+  fieldset legend {
+    float: left;
+    width: 10rem;
+  }
   fieldset label {
     display: block;
+    grid-column: 2;
   }
   fieldset input {
     margin-right: 0.4rem;
   }
+  .history-page-size {
+    display: grid;
+    grid-template-columns: minmax(10rem, auto) auto;
+    gap: 0.75rem;
+    align-items: center;
+  }
   .history-buttons {
     display: flex;
+    justify-content: center;
     flex-wrap: wrap;
     gap: 0.5rem;
     margin-block: 0.75rem;

@@ -9,7 +9,7 @@ import type { RequestEvent } from "@sveltejs/kit"
 
 export type HistoryOrigin = "wikidot" | "local"
 export type HistoryFilters = Record<
-  "all" | "source" | "title" | "move" | "meta" | "files",
+  "all" | "source" | "title" | "move" | "tags" | "meta" | "files",
   boolean
 >
 export interface HistoryRow {
@@ -29,7 +29,7 @@ export interface HistoryList {
   per_page: number
   total: number
   total_pages: number
-  available: { wikidot: number; local: number }
+  available: { wikidot: boolean; local: boolean }
   rows: HistoryRow[]
 }
 export interface HistoryRevision {
@@ -46,13 +46,14 @@ export interface HistoryComparison {
   representation: string | null
 }
 
-const filterNames = ["all", "source", "title", "move", "meta", "files"] as const
+const filterNames = ["all", "source", "title", "move", "tags", "meta", "files"] as const
 const pageSizes = [10, 20, 50, 100, 200]
 const defaultFilters: HistoryFilters = {
   all: true,
   source: false,
   title: false,
   move: false,
+  tags: false,
   meta: false,
   files: false
 }
@@ -114,7 +115,7 @@ async function resolvePage(event: RequestEvent) {
   const view = await pageView(
     siteId,
     [],
-    { slug: event.params.slug, extra: event.params.extra },
+    event.params.slug ? { slug: event.params.slug, extra: event.params.extra } : null,
     event.cookies.get("wikijump_token")
   )
   if (view.type === "permissions") return { status: 403 as const }

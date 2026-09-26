@@ -42,7 +42,7 @@ function display(overrides: Record<string, unknown> = {}) {
         per_page: 20,
         total: 41,
         total_pages: 3,
-        available: { wikidot: 41, local: 3 },
+        available: { wikidot: true, local: true },
         rows
       },
       from: 8,
@@ -59,13 +59,18 @@ function display(overrides: Record<string, unknown> = {}) {
 
 test("one table labels revision actions and unknown Wikidot authors without invented metadata", () => {
   const body = display()
-  assert.match(body, /Page history of changes/)
+  assert.doesNotMatch(body, /Page history of changes|<th[^>]*>compare<\/th>/)
   assert.match(body, /Wikidot ID 12/)
   assert.match(body, /Unknown/)
   assert.match(body, /View revision 9/)
   assert.match(body, /View source of revision 9/)
   assert.match(body, /name="from"/)
   assert.match(body, /name="to"/)
+  assert.match(body, /Compare from revision 9/)
+  assert.match(body, /Compare to revision 9/)
+  assert.doesNotMatch(body, />from<\/label>|>to<\/label>/)
+  assert.match(body, /Jan 2, 2020/)
+  assert.doesNotMatch(body, /<time[^>]*>[^<]*:[^<]*<\/time>/)
   assert.doesNotMatch(body, /<script>/)
   assert.match(body, /&lt;script>alert\(1\)&lt;\/script>/)
   assert.doesNotMatch(body, /rollback|avatar/i)
@@ -78,6 +83,7 @@ test("numbered pager exposes all pages and total, including page two", () => {
   assert.match(body, /Go to page 1/)
   assert.match(body, /Go to page 2/)
   assert.match(body, /Go to page 3/)
+  assert.ok(body.indexOf('aria-label="History pages"') < body.indexOf("<table"))
   assert.match(body, /aria-current="page"/)
 })
 
@@ -89,7 +95,7 @@ test("local dataset keeps local provenance rather than Wikidot author IDs", () =
       per_page: 20,
       total: 1,
       total_pages: 1,
-      available: { wikidot: 2, local: 1 },
+      available: { wikidot: true, local: true },
       rows: [{ ...rows[1], author_name: "Ada" }]
     }
   })
