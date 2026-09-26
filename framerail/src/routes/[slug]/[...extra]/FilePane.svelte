@@ -12,12 +12,18 @@
   import type { PageFile, PageFileDelete } from "$lib/server/deepwell/pageFile"
   import type { FileRevisionModel, Optional } from "$lib/types"
 
-  let { data }: PageProps = $props()
+  let { data, initialFiles = [] }: PageProps & { initialFiles?: PageFile[] } = $props()
 
   type FileAction = "upload" | "edit" | "move" | "restore" | "history"
   let activeFileAction = $state<FileAction | null>(null)
 
-  let fileMap = new SvelteMap<number, PageFile>()
+  let fileMap = new SvelteMap<number, PageFile>(
+    initialFiles.map((file) => [file.file_id, file])
+  )
+  let listedFiles = $derived(
+    [...fileMap.values()].filter((file) => file.revision_type !== "delete")
+  )
+  let totalFileSize = $derived(listedFiles.reduce((total, file) => total + file.size, 0))
   let fileEditId = $state<number>(0)
   let fileRevisionMap = new SvelteMap<number, FileRevisionModel>()
 
@@ -360,12 +366,10 @@
         <div class="file-attribute action"></div>
       </div>
       {#each [...fileMap].sort((a, b) => b[0] - a[0]) as [id, file] (id)}
+        {@const fileUrl = `//${data.site_file_domain}/-/file/${data.page?.slug}/${file.name}`}
         <div class="file-row" data-id={id}>
           <div class="file-attribute name">
-            <a
-              href={`//${data.site_file_domain}/-/file/${data.page?.slug}/${file.name}`}
-              rel="external"
-            >
+            <a href={fileUrl} rel="external">
               {file.name}
             </a>
           </div>
@@ -398,6 +402,30 @@
                   {data.internationalization?.restore}
                 </a>
               {:else}
+                <details class="file-information">
+                  <summary>info</summary>
+                  <div class="file-information-content">
+                    <h2>File Information</h2>
+                    <dl>
+                      <dt>File name</dt>
+                      <dd>{file.name}</dd>
+                      <dt>Full file URL</dt>
+                      <dd>
+                        <a href={fileUrl} rel="external">{fileUrl}</a>
+                      </dd>
+                      <dt>File size</dt>
+                      <dd>{file.size.toLocaleString("en-US")} Bytes</dd>
+                      <dt>MIME type</dt>
+                      <dd>{file.mime}</dd>
+                      <dt>Upload date</dt>
+                      <dd>{new Date(file.file_created_at).toLocaleString()}</dd>
+                      {#if file.revision_comments}
+                        <dt>Revision comment</dt>
+                        <dd>{file.revision_comments}</dd>
+                      {/if}
+                    </dl>
+                  </div>
+                </details>
                 <!-- svelte-ignore a11y_invalid_attribute -->
                 <a
                   class="btn btn-primary btn-sm btn-small"
@@ -495,6 +523,9 @@
           </div>
         </div>
       {/each}
+      {#if pageLayoutState.current === Layout.WIKIDOT && listedFiles.length > 0}
+        <p>Total files size: {totalFileSize.toLocaleString("en-US")} Bytes</p>
+      {/if}
     </div>
   {:else}
     <div class="file-list">
@@ -908,6 +939,35 @@
       .file-attribute {
         display: table-cell;
       }
+    }
+  }
+
+  .file-information {
+    position: relative;
+    display: inline-block;
+    margin-right: 0.5em;
+
+    summary {
+      cursor: pointer;
+    }
+
+    .file-information-content {
+      position: absolute;
+      z-index: 1;
+      width: max-content;
+      max-width: min(28rem, 80vw);
+      padding: 1em;
+      overflow-wrap: anywhere;
+      background: white;
+      border: 1px solid currentColor;
+    }
+
+    dt {
+      font-weight: bold;
+    }
+
+    dd {
+      margin: 0 0 0.5em;
     }
   }
 
