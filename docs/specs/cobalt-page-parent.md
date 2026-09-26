@@ -35,10 +35,11 @@ The Parent panel edits page breadcrumb relationships in `framerail/src/routes/[s
 - `/tmp/claude/cobalt-remaining-actions-parent-ready.log` — controlled delayed-GET local browser pass (1/1) for lookup, two-parent save/readback/restore, and fixture restoration.
 - `/tmp/claude/cobalt-parent-final.png` — local captured parent state; presentation evidence only.
 - `ba73f942f` — binds parent updates to the request actor/site and checks `Page/Edit` for the body child. The isolated `deepwell/tests/page_layout_permission.rs` coverage passed 9/9 for allowed plural updates, denied actor, forged actor, site mismatch, and header/body target separation. It has not been deployed or exercised in a browser.
+- `/tmp/claude/cobalt-action-preservation-gate.json` — read-only preservation PASS for its bounded non-Files streams; it excludes three page identities, five native cache fields, Files, and 43 unreconstructable original full-row fingerprints.
 
 ## Known gaps (current cycle)
 
-- [ ] Clear-then-Save remains unproved as a separate mutation; two-parent save/readback/restore is proved. Parent authorization has isolated 9/9 coverage only; deployment and browser proof remain absent. The independent frontend gate passes; see [page actions](cobalt-page-actions.md). The bounded preservation record excludes only this sacrificial fixture, the Tags fixture, and native cache fields.
+- [ ] Clear-then-Save remains unproved as a separate mutation; two-parent save/readback/restore is proved. Parent authorization has isolated 9/9 coverage only; deployment and browser proof remain absent. The independent frontend gate passes; see [page actions](cobalt-page-actions.md). The newer bounded preservation PASS excludes three page identities, five native cache fields, Files, and 43 unreconstructable original full-row fingerprints.
 
 ## Out of scope
 
