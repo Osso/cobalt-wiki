@@ -66,6 +66,27 @@
     message = cause instanceof Error ? cause.message : "History request failed"
   }
 
+  async function readHistoryListing(
+    nextPage: number,
+    nextOrigin: HistoryOrigin
+  ): Promise<HistoryList> {
+    const result = await postHistory<HistoryList>("historyList", {
+      origin: nextOrigin,
+      page: nextPage,
+      per_page: perPage,
+      filters
+    })
+    if (nextOrigin === "wikidot" && !result.available.wikidot && result.available.local) {
+      return postHistory<HistoryList>("historyList", {
+        origin: "local",
+        page: 1,
+        per_page: perPage,
+        filters
+      })
+    }
+    return result
+  }
+
   async function loadList(nextPage = page, nextOrigin = origin) {
     if (busy) return
     busy = true
@@ -73,26 +94,7 @@
     revision = null
     comparison = null
     try {
-      const result = await postHistory<HistoryList>("historyList", {
-        origin: nextOrigin,
-        page: nextPage,
-        per_page: perPage,
-        filters
-      })
-      if (
-        nextOrigin === "wikidot" &&
-        !result.available.wikidot &&
-        result.available.local
-      ) {
-        listing = await postHistory<HistoryList>("historyList", {
-          origin: "local",
-          page: 1,
-          per_page: perPage,
-          filters
-        })
-      } else {
-        listing = result
-      }
+      listing = await readHistoryListing(nextPage, nextOrigin)
       origin = listing.origin
       page = listing.page
       to = listing.rows[0]?.number ?? null
