@@ -312,7 +312,9 @@ async function saveAndRestore(page, context, fixture, token, baseline, capturedC
           return [...restored.page_revision.tags].sort()
         })
         .toEqual([...baseline.tags].sort())
-      assertTagChanges(actual, capturedChanges.at(-1), baseline.tags)
+      const restoredChanges = capturedChanges.at(-1)
+      assert.ok(restoredChanges !== undefined, "restore must submit tag changes")
+      assertTagChanges(actual, restoredChanges, baseline.tags)
     }
   }
   const restored = pageFingerprint(await readStoredPage(context.request, fixture, token))
@@ -324,7 +326,10 @@ async function saveAndRestore(page, context, fixture, token, baseline, capturedC
   )
 }
 
-/** @param {unknown} error */
+/**
+ * @param {unknown} error
+ * @param {string} stage
+ */
 async function reportFailure(error, stage) {
   const detail = `${stage}: ${error instanceof Error ? error.stack : String(error)}\n`
   if (errorFile) await writeFile(errorFile, detail, { mode: 0o600 })
@@ -387,8 +392,9 @@ test("local Wikidot bottom actions and Tags preserve fixture by default", async 
         [...baseline.tags].sort(),
         "stored tags must remain unchanged"
       )
-      if (!allowSave)
+      if (!allowSave) {
         assert.equal(after.revision, baseline.revision, "revision unchanged")
+      }
       assert.deepEqual(unexpectedPosts, [], "only fixture tag saves may POST after login")
     } finally {
       await context.close()
