@@ -14,8 +14,8 @@ Bottom-page controls follow supplied Tags/History screenshots and retained Wikid
 - [x] Delete uses a native dialog rather than `window.confirm`, with explicit close callbacks; Cancel, Escape, and accepted confirmation are covered while the DELETE request is intercepted, and Move remains immediate.
 - [x] Show viewer-filtered Backlinks links and inclusions, including an empty inclusions result.
 - [x] Require explicit Delete confirmation before its POST path; both acceptance and dismissal are exercised with every mutation intercepted, so no page is deleted.
-- [x] Layout changes require the authenticated actor's Page/Edit permission on the actual target page and site. After local deployment of `3fa1838a3`, a denied editor's real browser action returns Svelte failure `403`; the disposable target's layout, source, and revision remain unchanged. The isolated authorization test passed 4/4 before its test-only `unused_mut` cleanup; its targeted recheck is pending.
-- [ ] Apart from guarded Tags and Parent save/readback/restore, isolated Delete/Restore authorization, the bounded Layout denial, the complete disposable Files lifecycle, and the scoped Move/Layout/Delete/Native Restore roundtrip below, panel mutations and authorization remain unproven. The styled lifecycle GREEN 1/1 has no blocked external stylesheet reads and restores its disposable fixture, but it does not prove full Move dependency repair, all actions, or authorization. The separate Delete-dialog acceptance remains intercepted.
+- [x] Layout changes require the authenticated actor's `Page/Edit` permission on the actual target page and site. A denied editor's browser action returns `403` without changing the disposable target's layout, source, or revision.
+- [x] The disposable page-action lifecycle moves, changes layout, deletes, and restores only its manifest page, then restores its baseline; no external reads are blocked. This is bounded lifecycle proof, not proof of every action or full Move dependency repair.
 - [x] Native Restore UI: the existing control on a deleted-page `404` persists recovery. The pre-fix selected radio posted `pageId: 0` and returned `500`/`Page does not exist`; `eb1384e4a` binds the selected radio to the submitted page ID. The saved lifecycle GREEN is 1/1: it asserts the manifest page ID in the Restore POST, HTTP `200` success, disappearance only after that response, and persisted source/layout/slug/revision readback. Reconstructing Wikidot's alternate Restore radio is not this contract.
 - [x] Use one `Page/Edit` permission for page delete and restore. `c5262aae2` has isolated 6/6 authorization proof; its initial RED was environment-blocked, not a behavioral RED.
 - [x] Require `Page/Edit` for every file mutation: upload, rename/edit, byte replacement, revision-history read, rollback, move, delete, and restore; `fileMove` requires it on both source and destination pages. No distinct File grant exists or is required. `deepwell/tests/file_permission.rs` passes 3/3 after `e974e6f84` initializes the rollback creation revision at `0` (`/tmp/claude/cobalt-move-file-targeted.log`).
@@ -23,9 +23,9 @@ Bottom-page controls follow supplied Tags/History screenshots and retained Wikid
 
 ### Block
 
-- [ ] An active Wikidot lock must deny protected mutations unless the actual site role is moderator, administrator, or root. Native `PermissionOnly` and `AuthorOr` lock behavior must remain unchanged. There is no global supermoderator representation claim.
-- [ ] Offer one Block checkbox in the Wikidot action pane. Its displayed action and checked state must reflect the current page lock.
-- [ ] Block must guard page edit, rollback, Move, Delete, Restore, Layout, every file mutation, and Parent. This includes the formerly bypassing single lock set/remove endpoints. Normal authorization remains the target page's `Page/Edit` permission; Block is an additional denial policy.
+- [x] An active Wikidot lock denies protected mutations unless the actual site role is moderator, administrator, or root. Native `PermissionOnly` and `AuthorOr` lock behavior remain unchanged; no nonexistent global supermoderator representation is claimed.
+- [x] Offer one Block checkbox in the Wikidot action pane; its action and checked state reflect the current page lock, and browser proof persists both set and clear.
+- [x] Block guards page edit, rollback, Move, Delete, Restore, Layout, every file mutation, and Parent, including the formerly bypassing single lock set/remove endpoints. `Page/Edit` remains the normal target-page authorization; Block is additional policy.
 
 ### Tags
 
@@ -38,7 +38,7 @@ Bottom-page controls follow supplied Tags/History screenshots and retained Wikid
 ## How it works
 
 - [Page backlinks](cobalt-page-backlinks.md) defines the permission-filtered incoming-link read API.
-- [Page files](cobalt-page-files.md), [page parents](cobalt-page-parent.md), and [page print view](cobalt-page-print.md) define their respective pane and route contracts. File guards have targeted 3/3 proof; `c5262aae2` Delete/Restore guards have isolated 6/6 proof; and the parent update’s actual request actor/site and body-child `Page/Edit` check has isolated 9/9 proof at `ba73f942f`. Parent authorization has not been deployed or exercised in a browser. Block is an additional Wikidot-layout policy, not a replacement for these `Page/Edit` checks.
+- [Page files](cobalt-page-files.md), [page parents](cobalt-page-parent.md), and [page print view](cobalt-page-print.md) define their respective pane and route contracts. File guards have targeted 3/3 proof, Delete/Restore guards isolated 6/6, and Parent actor/site/body-child authorization isolated 9/9 plus current browser coverage. Block is additional Wikidot-layout policy, not a replacement for `Page/Edit`.
 
 ## Implementation inventory
 
@@ -53,7 +53,7 @@ Bottom-page controls follow supplied Tags/History screenshots and retained Wikid
 - `deepwell/tests/page_delete_restore_permission.rs` — isolated Delete/Restore authorization 6/6 at `c5262aae2`; its initial RED was blocked by the environment, not behavioral evidence.
 - `deepwell/tests/file_permission.rs` — file endpoint `Page/Edit` coverage; targeted 3/3 GREEN after `e974e6f84` initializes rollback creation revision `0`.
 - `deepwell/tests/page_move_dependencies.rs` — selected Move dependency authorization, preservation, native-lock skip, duplicate-source revision, direct-revision/draft, and split-leftover coverage; targeted 4/4 GREEN.
-- Block policy targeted tests — author-reported 27/27; independent review and gate evidence are pending.
+- Block policy targeted tests — 27/27 pass; coverage includes protected targets and native-lock preservation.
 - `framerail/tests/page-bottom-tags.test.ts` — SSR bottom-action and Tags behavior.
 - `framerail/tests/local/page-bottom-actions.mjs` — Tags save/readback/restore with a fixture-only write guard.
 - `framerail/tests/local/history-actions.mjs` — local History browser coverage.
@@ -79,18 +79,22 @@ Bottom-page controls follow supplied Tags/History screenshots and retained Wikid
 - `/tmp/claude/cobalt-native-restore-gate.json` — independent scoped audit at `a81fed8e0dc4c6bd1f4dacfd97f6de28d206f985`: the restore binding and lifecycle-test sources are unchanged from their commits; scoped Prettier, ESLint, Stylelint, and diff checks pass. It deliberately excludes a browser rerun, runtime/deploy work, whole-project typecheck, other actions, Move/Block, and denials.
 - `/tmp/claude/cobalt-move-file-targeted.log` — Move dependency tests 4/4 and file authorization tests 3/3 GREEN after `e974e6f84` creates rollback revisions with creation revision `0`.
 - `/tmp/claude/cobalt-move-rpc-serialized-red.log` — corrected serialized RED 2/2: required Move fields were absent. The prior initial RED used an invalid form and is not behavioral evidence.
-- `/tmp/claude/cobalt-move-rpc-final-green.log` — Move RPC/UI serialization GREEN 18/18 after `facf4cf28`; `4367827bc` supplies authenticated request context. The local auth deployment predates Move commits (`/tmp/claude/cobalt-page-file-auth-runtime.json`). Browser Delete previously failed `500` because request context was absent; no browser GREEN followed the fix.
-- `/tmp/claude/cobalt-locked-mutation-targeted.log` — author-reported Block-policy targeted GREEN 27/27. This is not an independent backend/frontend gate or an end-to-end authorization result.
-- `/tmp/claude/cobalt-move-self-link-green.log` — Move self-slug GREEN 1/1.
-- `/tmp/claude/cobalt-page-rollback-context-green.log` — current rollback request-context GREEN 20/20.
-- `/tmp/claude/cobalt-move-block-runtime.json` — local deploy exit `0`; runtime/build identity matches at `d9b70e1f0`. It is not a production deployment or authorization proof.
+- `/tmp/claude/cobalt-move-rpc-final-green.log` — historical Move RPC/UI serialization GREEN 18/18 after `facf4cf28`; `4367827bc` supplies authenticated request context.
+- `/tmp/claude/cobalt-final-backend-followup.json` — independent backend follow-up PASS at `09cf405b7`: isolated environment, `cargo fmt --check`, offline locked `cargo check`, and `member_admin` 12/12; reused unaffected proof includes locked mutations 27/27, self-slug 1/1, and file-history authorization 3/3. Rust readability refactors `be35c3ec3`/`cff164092` do not change browser transport or UI.
+- `/tmp/claude/cobalt-final-actions-runtime.json` — local runtime and build SHA-256 match at `09cf405b7`; explicitly not production.
+- `/tmp/claude/cobalt-current-page-action-mutations.log` — current disposable page lifecycle GREEN 1/1; manifest-only Move/Layout/Delete/Native Restore returns to baseline with no blocked external reads.
+- `/tmp/claude/cobalt-move-block-first-browser.log` — current browser GREEN 1/1 for selected Move link repair/leftovers and Block set/clear.
+- `/tmp/claude/cobalt-parent-postauth-browser.log` — current browser GREEN 1/1 for remaining authorized page actions, including Parent fixture restoration.
+- `/tmp/claude/cobalt-page-action-denials-textplain.log` — observer browser denials GREEN 2/2: page Move/Delete/Parent/Layout/Tags/Block and file Delete/Edit/Move. Other file-denial actions have isolated proof only.
+- `/tmp/claude/cobalt-final-helper-tests.log` — current helper/transport assertions GREEN 28/28.
+- `/tmp/claude/cobalt-final-action-preservation.json` — refreshed SQL comparison preserves equal hashes/counts for 6,116 pages, 45,369 imported history rows, 10,091 native-content rows, 32 grants, and zero drafts. It excludes three page identities, documented renderer fields, 43 unreconstructable original full-row fingerprints, and all Files; browser lifecycles separately preserve original fixture files.
 
 ## Known gaps (current cycle)
 
-- [ ] Move has selected dependency repair and targeted service/UI/RPC proof, but native regex rewriting remains limited. Browser and independent gates have not run; issue `997` expands denial and draft coverage.
-- [ ] File endpoint authorization has targeted 3/3 proof, but browser GREEN has not run after `4367827bc` supplies request context. Source and Lock mutations and authorization remain unproven. The styled Move/Layout/Delete/Native Restore roundtrip and complete Files lifecycle are bounded disposable-fixture proof, not full action authorization. The separate Delete-dialog acceptance is intercepted; it is not delete proof. Native Restore is proved only for its selected existing-control recovery scope. Clear-then-Save is not separately proved beyond Parent’s two-value save/readback/restore. Parent authorization has isolated 9/9 proof only; deployment/browser proof remains absent.
-- [ ] The `3fa1838a3` Layout gate is bounded, not clean: Rust format/check and 4/4 isolated tests pass, but the test-only `6f3d99463` warning cleanup needs its targeted recheck. Scoped Prettier and ESLint pass; the current frontend gate remains pending. This is not full-replica parity evidence.
-- [ ] Block is implemented at `ab328f672` (policy/toggle) and `b18b0cbe1` (protected mutation wiring), with frontend context at `4151d056b`, file revision owner/Edit context at `960f5001e`, and page rollback context at `5aa6a8dcb`. Targeted authors report 27/27, but independent backend and frontend gates, browser move/block-actions, page-action denials, end-to-end integration, and preservation proof remain pending. Newly authored browser scenarios have not run.
+- [ ] Move source rewriting remains limited: its include regex does not support colons or parameters, and unsupported references are reported rather than rewritten. Current browser proof covers selected link repair and leftovers, not complete dependency repair.
+- [ ] Browser observer denial covers page Move/Delete/Parent/Layout/Tags/Block and file Delete/Edit/Move only. Remaining file-denial actions are isolated proof, not browser proof. Lifecycle runs and SQL preservation remain bounded as stated above.
+- [ ] Clear-then-Save is not separately proved beyond Parent’s two-value save/readback/restore. Delete-dialog acceptance remains intercepted; Native Restore covers only the selected existing-control recovery scope.
+- [ ] The current frontend final gate is pending agent `1014` at `/tmp/claude/cobalt-current-frontend-final-gate.json`; do not call this slice clean until its result is supplied. These local results do not establish full-replica parity.
 
 ## Out of scope
 

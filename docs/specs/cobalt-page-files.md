@@ -13,7 +13,7 @@ The Wikidot-layout Files pane presents attached-file information using the exist
 - [x] Serialize an omitted rollback comment as an empty string for the RPC wire contract.
 - [x] Complete the disposable Files lifecycle: upload, rename, byte replacement, revision-history read, rollback, move, delete, restore, and final deletion. The run preserves original fixture files and pages.
 - [x] Govern upload, rename/edit, byte replacement, revision-history read, rollback, delete, and restore with the page's `Page/Edit` permission. `fileMove` requires `Page/Edit` on both its source and destination pages. No distinct File grant exists or is required. `deepwell/tests/file_permission.rs` passes 3/3 after `e974e6f84` initializes rollback creation revision at `0` (`/tmp/claude/cobalt-move-file-targeted.log`).
-- [ ] Apply the additional active Wikidot Block policy to every file mutation, including revision-history read, range/count access, and rollback. The reported file revision owner/Edit request context is `960f5001e`; independent denial, browser, integration, and preservation proof remains pending.
+- [x] Apply the additional active Wikidot Block policy to every file mutation, including revision-history read, range/count access, and rollback. `Page/Edit` remains the normal authorization; Block is additional policy.
 - [x] Omit revision comments marked hidden from the information view; this does not change the existing backend file-list payload.
 
 ## How it works
@@ -52,12 +52,17 @@ The Wikidot-layout Files pane presents attached-file information using the exist
 - `/tmp/claude/cobalt-action-preservation-gate.json` — read-only preservation PASS for pages, history, drafts, grants, and native content; Files are explicitly not covered.
 - `/tmp/claude/cobalt-move-file-targeted.log` — file authorization GREEN 3/3, alongside Move dependency coverage 4/4, after `e974e6f84` fixes rollback creation revision initialization.
 - `/tmp/claude/cobalt-page-file-auth-runtime.json` — local auth deployment receipt predating Move commits. It is runtime identity evidence, not a post-change browser authorization proof.
-- `/tmp/claude/cobalt-move-rpc-final-green.log` — 18/18 Move RPC/UI serialization GREEN after `facf4cf28` and `4367827bc`. The latter provides request context that an earlier browser Delete had lacked (`500`); no browser GREEN followed.
+- `/tmp/claude/cobalt-move-rpc-final-green.log` — historical Move RPC/UI serialization GREEN 18/18 after `facf4cf28` and `4367827bc`.
+- `/tmp/claude/cobalt-current-file-action-mutations.log` — current browser lifecycle GREEN 1/1: upload, rename, byte replacement, history read, rollback, move, delete, restore, final deletion, and original fixture file/page preservation.
+- `/tmp/claude/cobalt-page-action-denials-textplain.log` — observer browser denial covers file Delete/Edit/Move only; the remaining file-denial actions are not browser claims.
+- `/tmp/claude/cobalt-final-backend-followup.json` — current independent backend follow-up PASS reuses file-history authorization 3/3 and Block policy 27/27; local runtime/build identity is recorded in `/tmp/claude/cobalt-final-actions-runtime.json` and is not production.
+- `/tmp/claude/cobalt-final-action-preservation.json` — refreshed SQL preservation preserves pages, imported history, native content, grants, and drafts, but excludes Files; this lifecycle separately asserts original fixture file/page preservation.
 
 ## Known gaps (current cycle)
 
-- [ ] The `cb61f5543` edit/rollback request-IP fix has targeted RED/GREEN 2/2 RPC proof, `90df39567` has targeted RED/GREEN self-conflict proof, and `2d9d9989a`/`fc90bbe98` have targeted rollback route/wire proof. Main browser proof covers the complete disposable Files lifecycle. File `Page/Edit` enforcement has targeted 3/3 proof, but browser GREEN has not run after `4367827bc` supplies request context; action-specific denial expansion is tracked in issue `997`. Lifecycle proof does not establish authorization. Block wiring is author-reported in the targeted 27/27 policy run only; no independent file-denial, browser, integration, or preservation gate has passed.
-- [ ] The scoped frontend gate passes at `e09e5ae7f`; it proves whole-project type validation plus changed transport-test lint, formatting, and readability, and reuses the unchanged actual Files browser GREEN. It does not prove file-mutation authorization or action-specific denials. `/tmp/claude/cobalt-action-preservation-gate.json` passes for its bounded non-Files streams, but explicitly excludes Files, three page identities, five native cache fields, and 43 unreconstructable original full-row fingerprints; this lifecycle's original-fixture invariants do not refresh that broader record.
+- [ ] Browser observer denial proves only file Delete/Edit/Move. Upload, revision-history read, rollback, restore, and other file-denial actions retain isolated authorization proof; do not represent them as browser proof.
+- [ ] The lifecycle preserves only disposable/original fixture files and pages. The refreshed SQL comparison excludes Files and also excludes three page identities, renderer fields, and 43 unreconstructable original full-row fingerprints.
+- [ ] Current frontend final evidence is pending agent `1014` at `/tmp/claude/cobalt-current-frontend-final-gate.json`; do not call this slice clean until it arrives. It would not expand this action-specific authorization boundary.
 
 ## Out of scope
 

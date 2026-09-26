@@ -10,8 +10,8 @@ The Parent panel edits page breadcrumb relationships in `framerail/src/routes/[s
 - [x] Look up the last typed slug token only after two characters, using the existing site- and viewer-scoped editor page lookup; suggestions retain preceding parent names.
 - [x] Ignore stale lookup results and surface current lookup failures without preventing manual entry.
 - [x] Save two real parent values, read them back, and restore the original parent set after a controlled delayed baseline load, without replacing Cobalt’s plural write with a single-parent write.
-- [x] Authorize a parent update against the actual request actor and site, then the body-selected child page’s `Page/Edit` permission; never borrow the header page’s permission.
-- [ ] Apply the additional active Wikidot Block policy to every Parent mutation. Block does not replace the body-child `Page/Edit` check; targeted author-reported coverage is not independent browser, denial, integration, or preservation proof.
+- [x] Authorize a parent update against the actual request actor and site, then the body-selected child page’s `Page/Edit` permission; never borrow the header page’s permission. Current browser coverage uses authorized data and restores the fixture.
+- [x] Apply the additional active Wikidot Block policy to every Parent mutation. Block does not replace the body-child `Page/Edit` check; active bypass roles are site moderator, administrator, and root only.
 - [ ] Clear-then-Save is not separately proved.
 
 ## How it works
@@ -35,12 +35,16 @@ The Parent panel edits page breadcrumb relationships in `framerail/src/routes/[s
 - `/tmp/claude/cobalt-parent-loading-red.json` — pre-baseline editable-input race reproduced (`typedRetained: false`, `afterEmpty: true`); `71ce6afa2` disables editing until the baseline loads.
 - `/tmp/claude/cobalt-remaining-actions-parent-ready.log` — controlled delayed-GET local browser pass (1/1) for lookup, two-parent save/readback/restore, and fixture restoration.
 - `/tmp/claude/cobalt-parent-final.png` — local captured parent state; presentation evidence only.
-- `ba73f942f` — binds parent updates to the request actor/site and checks `Page/Edit` for the body child. The isolated `deepwell/tests/page_layout_permission.rs` coverage passed 9/9 for allowed plural updates, denied actor, forged actor, site mismatch, and header/body target separation. It has not been deployed or exercised in a browser.
-- `/tmp/claude/cobalt-action-preservation-gate.json` — read-only preservation PASS for its bounded non-Files streams; it excludes three page identities, five native cache fields, Files, and 43 unreconstructable original full-row fingerprints.
+- `ba73f942f` — binds parent updates to the request actor/site and checks `Page/Edit` for the body child. Isolated coverage passed 9/9 for allowed plural updates, denied actor, forged actor, site mismatch, and header/body target separation.
+- `/tmp/claude/cobalt-parent-postauth-browser.log` — current authorized browser GREEN 1/1 for remaining page actions, including Parent lookup, save/readback/restore, and fixture restoration.
+- `/tmp/claude/cobalt-final-backend-followup.json` — current independent backend follow-up PASS reuses Block policy 27/27; local runtime/build identity is recorded in `/tmp/claude/cobalt-final-actions-runtime.json`, not production.
+- `/tmp/claude/cobalt-final-action-preservation.json` — refreshed SQL preservation preserves pages, imported history, native content, grants, and drafts; excludes three page identities, renderer fields, 43 unreconstructable original full-row fingerprints, and Files.
 
 ## Known gaps (current cycle)
 
-- [ ] Clear-then-Save remains unproved as a separate mutation; two-parent save/readback/restore is proved. Parent authorization has isolated 9/9 coverage only; deployment and browser proof remain absent. The independent frontend gate passes; see [page actions](cobalt-page-actions.md). The newer bounded preservation PASS excludes three page identities, five native cache fields, Files, and 43 unreconstructable original full-row fingerprints. Block policy integration is author-reported only and has no independent Parent denial, browser, integration, or preservation proof.
+- [ ] Clear-then-Save remains unproved as a separate mutation; two-parent save/readback/restore is proved.
+- [ ] Browser observer denial includes Parent but does not replace complete action-specific denial coverage. The current frontend final gate is pending agent `1014` at `/tmp/claude/cobalt-current-frontend-final-gate.json`; do not call this slice clean until its result is supplied.
+- [ ] SQL preservation is bounded: three page identities, documented renderer fields, 43 unreconstructable original full-row fingerprints, and Files are excluded.
 
 ## Out of scope
 
