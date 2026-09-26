@@ -2,6 +2,7 @@
 
 use super::history::authorize_read;
 use super::history_listing_structs::*;
+use super::history_structs::ImportedRevisionSummary;
 use crate::error::prelude::*;
 use crate::models::{imported_page_revision, page, page_revision, user, wikidot_user};
 use crate::services::ServiceContext;
@@ -92,10 +93,26 @@ impl HistoryListingService {
                             ErrorType::DatabaseImport,
                         )
                     })?;
+                use imported_page_revision::Column as HistoryColumn;
                 let models = query
-                    .order_by_desc(imported_page_revision::Column::SourceRevisionNumber)
+                    .select_only()
+                    .columns([
+                        HistoryColumn::SourcePageId,
+                        HistoryColumn::SourceRevisionId,
+                        HistoryColumn::SourceRevisionNumber,
+                        HistoryColumn::SourceAuthorId,
+                        HistoryColumn::SourceCreatedAt,
+                        HistoryColumn::SourceComments,
+                        HistoryColumn::SourceFlags,
+                        HistoryColumn::SourceTitle,
+                        HistoryColumn::SourceSlug,
+                        HistoryColumn::SourceTags,
+                        HistoryColumn::Representation,
+                    ])
+                    .order_by_desc(HistoryColumn::SourceRevisionNumber)
                     .limit(input.per_page as u64)
                     .offset(offset as u64)
+                    .into_model::<ImportedRevisionSummary>()
                     .all(ctx.transaction())
                     .await
                     .or_raise(|| {
@@ -195,7 +212,7 @@ fn native_condition(filters: &HistoryFilters) -> Condition {
 
 async fn imported_rows(
     ctx: &ServiceContext<'_>,
-    models: Vec<imported_page_revision::Model>,
+    models: Vec<ImportedRevisionSummary>,
 ) -> Result<Vec<HistoryListingRow>> {
     let ids: Vec<i32> = models
         .iter()
