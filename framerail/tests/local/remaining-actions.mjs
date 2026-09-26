@@ -375,7 +375,7 @@ async function checkFiles(page, request, token, badges) {
     await expect(
       details
         .locator("dt", { hasText: "Full file URL" })
-        .locator("xpath=following-sibling::dd[1] a")
+        .locator("xpath=following-sibling::dd[1]/a")
     ).toHaveAttribute("href", fileUrl)
     if (file.revision_comments) {
       await expect(
