@@ -32,11 +32,11 @@ The Wikidot-layout Files pane presents attached-file information using the exist
 - `/tmp/claude/cobalt-file-info-final.png` — local captured file-information state; presentation evidence only.
 - `cb61f5543` — file edit and rollback now send `getClientAddress()` as RPC `ip_address`. `framerail/tests/page-file-rpc.test.ts` recorded targeted RED then GREEN 2/2 for serialized edit/rollback request IP and accepted revisions; this is server/RPC proof, not a browser lifecycle pass.
 - `ca141f0b3` — separates file-action transport assertions from the browser lifecycle test. This readability split supplies no browser proof.
-- `/tmp/claude/cobalt-file-action-ip-fixed.log` — after the IP fix, browser lifecycle upload and rename pass with exact fixture identity; replacement `fileEdit` returns `500`/failure. Recovery succeeds without `AggregateError`, but the full lifecycle is not green.
+- `/tmp/claude/cobalt-file-action-ip-fixed.log` — after the IP fix, browser lifecycle upload and rename pass with exact fixture identity; replacement `fileEdit` returns `500`/failure. Recovery succeeds without `AggregateError`, but the full lifecycle is not green. The confirmed boundary is backend self-conflict for an unchanged replacement name, not blob storage; remediation is pending.
 
 ## Known gaps (current cycle)
 
-- [ ] The `cb61f5543` edit/rollback request-IP fix has targeted RED/GREEN 2/2 RPC proof, but upload, restore, file-mutation authorization, and the full Files lifecycle remain unproven. The saved browser run reaches upload and rename but fails replacement `fileEdit` with `500`; successful recovery is not lifecycle proof.
+- [ ] The `cb61f5543` edit/rollback request-IP fix has targeted RED/GREEN 2/2 RPC proof, but upload, restore, file-mutation authorization, and the full Files lifecycle remain unproven. The saved browser run reaches upload and rename but fails replacement `fileEdit` with `500` from a backend self-conflict on an unchanged name, not blob storage; successful recovery is not lifecycle proof. Remediation is pending.
 - [x] The independent frontend gate passes, including the hidden-comment fixture; see [page actions](cobalt-page-actions.md). The bounded preservation record excludes only the sacrificial Tags/Parent fixture and native cache fields.
 
 ## Out of scope

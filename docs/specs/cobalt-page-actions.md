@@ -15,7 +15,7 @@ Bottom-page controls follow supplied Tags/History screenshots and retained Wikid
 - [x] Show viewer-filtered Backlinks links and inclusions, including an empty inclusions result.
 - [x] Require explicit Delete confirmation before its POST path; both acceptance and dismissal are exercised with every mutation intercepted, so no page is deleted.
 - [x] Layout changes require the authenticated actor's Page/Edit permission on the actual target page and site. After local deployment of `3fa1838a3`, a denied editor's real browser action returns Svelte failure `403`; the disposable target's layout, source, and revision remain unchanged. The isolated authorization test passed 4/4 before its test-only `unused_mut` cleanup; its targeted recheck is pending.
-- [ ] Apart from guarded Tags and Parent save/readback/restore and the bounded Layout denial above, panel mutations and authorization remain unproven. A disposable-page mutation run completed its first Move but failed its four blocked-foreign-GET assertion; error-free recovery is not lifecycle proof. Accepted Delete does not delete because its request is intercepted.
+- [ ] Apart from guarded Tags and Parent save/readback/restore, the bounded Layout denial, and the scoped Move/Layout/Delete/Native Restore roundtrip below, panel mutations and authorization remain unproven. The styled lifecycle GREEN 1/1 has no blocked external stylesheet reads and restores its disposable fixture, but it does not prove full Move dependency repair, all actions, or authorization. The separate Delete-dialog acceptance remains intercepted.
 - [x] Native Restore UI: the existing control on a deleted-page `404` persists recovery. The pre-fix selected radio posted `pageId: 0` and returned `500`/`Page does not exist`; `eb1384e4a` binds the selected radio to the submitted page ID. The saved lifecycle GREEN is 1/1: it asserts the manifest page ID in the Restore POST, HTTP `200` success, disappearance only after that response, and persisted source/layout/slug/revision readback. Reconstructing Wikidot's alternate Restore radio is not this contract.
 
 ### Tags
@@ -45,13 +45,14 @@ Bottom-page controls follow supplied Tags/History screenshots and retained Wikid
 - `framerail/tests/local/history-actions.mjs` — local History browser coverage.
 - `framerail/tests/local/remaining-actions.mjs` — local panel, Files, Parent, Backlinks, and Print browser coverage.
 - `framerail/tests/local/delete-confirmation.mjs` — native Delete dialog Cancel/Escape/acceptance with mutation interception; Move remains immediate.
-- `framerail/tests/local/page-action-mutations.mjs` — disposable-page mutation lifecycle regression; Native Restore scoped lifecycle passes 1/1, while the broader Move-dependent run is not a pass.
+- `framerail/tests/local/page-action-mutations.mjs` — disposable-page mutation lifecycle regression; scoped Native Restore and styled Move/Layout/Delete/Native Restore roundtrips each pass 1/1. Full Move dependency repair remains outside that scope.
 
 ## Evidence
 
 - `/tmp/claude/cobalt-remaining-actions-parent-ready.log` — controlled delayed-GET local coverage; 1/1 pass for Source options/passive panels, parent lookup, two-parent save/readback/restore, and all remaining Files, Backlinks, and Print panels.
 - `/tmp/claude/cobalt-delete-dialog-browser.log` — native Delete dialog Cancel/Escape/acceptance with the accepted DELETE intercepted; Move remains immediate; 1/1 pass at `931ca6f78`.
-- `/tmp/claude/cobalt-page-action-mutations-browser.log` — main disposable-page run after `2e815055d`: first Move succeeded, then the four blocked foreign GET assertion failed; recovery returned without error. This is not a lifecycle pass.
+- `/tmp/claude/cobalt-page-action-mutations-browser.log` — earlier main disposable-page run after `2e815055d`: first Move succeeded, then the four blocked foreign GET assertion failed; recovery returned without error. Superseded for the styled action scope by the later GREEN below; it remains evidence that full Move dependency repair was not proved.
+- `/tmp/claude/cobalt-page-action-styled.log` — actual styled lifecycle GREEN 1/1 at `ca141f0b3`: the stylesheet-GET guard permits no external reads, and Move, Layout, Delete, and Native Restore complete a persisted disposable-fixture roundtrip.
 - `/tmp/claude/cobalt-{delete-dialog,backlinks,print}-final.png` — local captures of the exercised Delete, Backlinks, and Print states; captures record presentation only, not mutation proof.
 - `/tmp/claude/cobalt-parent-loading-red.json` — reproduced pre-baseline editable-input race (`typedRetained: false`, `afterEmpty: true`); `71ce6afa2` disables editing until the baseline loads.
 - `/tmp/claude/cobalt-remaining-preservation.json` — preserved: 6,116 original pages, 45,369 imported records, 10,091 native-content rows, 32 grants, and zero drafts. This proof predates sacrificial pages `3000006134` and `3000006135`, so its original-page count does not cover those fixtures; it excludes the earlier sacrificial Tags/Parent fixture and native cache fields.
@@ -65,7 +66,7 @@ Bottom-page controls follow supplied Tags/History screenshots and retained Wikid
 
 ## Known gaps (current cycle)
 
-- [ ] Full Move dependency repair, source Block parity, file mutations, and action-specific denials remain unverified/incomplete. Source and Lock mutations and authorization remain unproven. The disposable-page run did not complete its broader lifecycle after the blocked-foreign-GET assertion failure; recovery alone is not proof. Delete acceptance is intercepted; it is not delete proof. Native Restore is proved only for its selected existing-control recovery scope. Clear-then-Save is not separately proved beyond Parent’s two-value save/readback/restore.
+- [ ] Full Move dependency repair, source Block parity, file mutations, and action-specific denials remain unverified/incomplete. Source and Lock mutations and authorization remain unproven. The styled Move/Layout/Delete/Native Restore roundtrip is bounded fixture proof, not full dependency or authorization proof. The separate Delete-dialog acceptance is intercepted; it is not delete proof. Native Restore is proved only for its selected existing-control recovery scope. Clear-then-Save is not separately proved beyond Parent’s two-value save/readback/restore.
 - [ ] The `3fa1838a3` Layout gate is bounded, not clean: Rust format/check and 4/4 isolated tests pass, but the test-only `6f3d99463` warning cleanup needs its targeted recheck. Scoped Prettier and ESLint pass; frontend type errors in the new lifecycle tests remain pending. This is not full-replica parity evidence.
 
 ## Out of scope
