@@ -8,6 +8,7 @@
   import { SvelteMap } from "svelte/reactivity"
   import { fileProxy, superForm } from "sveltekit-superforms"
   import { untrack } from "svelte"
+  import FileUploadForm from "./FileUploadForm.svelte"
 
   import type { PageProps } from "./$types"
   import type { PageFile, PageFileDelete } from "$lib/server/deepwell/pageFile"
@@ -56,44 +57,6 @@
       })
     }
   }
-
-  const {
-    form: uploadForm,
-    enhance: uploadEnhance,
-    reset: uploadReset
-  } = superForm(
-    untrack(() => data.forms.fileUploadForm),
-    {
-      dataType: "json",
-      onSubmit: async ({ jsonData }) => {
-        const submitForm = {
-          ...$uploadForm,
-          siteId: data.site.site_id,
-          pageId: data.page?.page_id
-        }
-        jsonData(submitForm)
-      },
-      onResult: async ({ result }) => {
-        if (result.type === "success" && result.data) {
-          toast(
-            ToastType.Success,
-            data.internationalization!["wiki-page-file-upload.toast"]!
-          )
-          uploadReset()
-          activeFileAction = null
-          await getFileList()
-        }
-        if (result.type === "failure" && result.data) {
-          errorPopupState.current = {
-            state: true,
-            message: result.data.message,
-            data: result.data.data
-          }
-        }
-      }
-    }
-  )
-  const uploadFile = fileProxy(uploadForm, "file")
 
   async function deleteFile(fileId: number, lastRevisionId: number) {
     const res = await fetch("?/fileDelete", {
@@ -540,80 +503,11 @@
   {/if}
 
   {#if activeFileAction === "upload"}
-    <form
-      id="file-upload"
-      class="file-upload"
-      action="?/fileUpload"
-      enctype="multipart/form-data"
-      method="POST"
-      use:uploadEnhance
-    >
-      <div class="file-form-field">
-        <label for="file">
-          {data.internationalization?.["wiki-page-file-upload.select"]}
-        </label>
-        <input
-          name="file"
-          class="file-attribute file"
-          type="file"
-          bind:files={$uploadFile}
-        />
-      </div>
-      <div class="file-form-field">
-        <label for="name">
-          {data.internationalization?.["wiki-page-file-upload.name"]}
-        </label>
-        <input
-          name="name"
-          class="file-attribute name"
-          placeholder={$uploadFile?.[0]?.name}
-          type="text"
-          bind:value={$uploadForm.name}
-        />
-      </div>
-      <textarea
-        name="comments"
-        class="file-form-field file-comments"
-        placeholder={data.internationalization?.["wiki-page-revision-comments"]}
-        bind:value={$uploadForm.comments}></textarea>
-      {#if pageLayoutState.current === Layout.WIKIDOT}
-        <div class="buttons">
-          <input
-            class="btn btn-default"
-            onclick={() => {
-              uploadReset()
-              activeFileAction = null
-            }}
-            type="button"
-            value={data.internationalization?.cancel}
-          />
-          <input
-            class="btn btn-primary"
-            type="submit"
-            value={data.internationalization?.upload}
-          />
-        </div>
-      {:else}
-        <div class="action-row file-upload-actions">
-          <button
-            class="action-button file-upload-button button-cancel clickable"
-            onclick={() => {
-              uploadReset()
-              activeFileAction = null
-            }}
-            type="button"
-          >
-            {data.internationalization?.cancel}
-          </button>
-          <button
-            class="action-button file-upload-button button-upload clickable"
-            type="submit"
-          >
-            {data.internationalization?.upload}
-          </button>
-        </div>
-      {/if}
-    </form>
+    <FileUploadForm
+      {data}
+      onUploaded={() => getFileList()}
+      onClose={() => (activeFileAction = null)}
+    />
   {/if}
 
   {#if activeFileAction === "edit"}
@@ -919,7 +813,6 @@
 </div>
 
 <style lang="scss">
-  .file-upload,
   .file-edit,
   .file-move,
   .file-restore {
