@@ -270,11 +270,11 @@ async fn authorized_lifecycle_and_destination_denial() {
     assert_eq!(original_revision.revision_id, uploaded.file_revision_id);
     assert_eq!(move_revision.revision_id, relocated.file_revision_id);
     assert_ne!(original_revision.revision_id, move_revision.revision_id);
-    actor(&mut runner, site_id, protected, ADMIN_USER_ID);
+    actor(&mut runner, site_id, destination, SAMPLE_USER_ID);
     run_endpoint!(
         runner,
         file_delete,
-        json!({"site_id":site_id,"page_id":destination,"file":uploaded.file_id,"user_id":ADMIN_USER_ID,"last_revision_id":relocated.file_revision_id,"revision_comments":"Delete"})
+        json!({"site_id":site_id,"page_id":destination,"file":uploaded.file_id,"user_id":SAMPLE_USER_ID,"last_revision_id":relocated.file_revision_id,"revision_comments":"Delete"})
     );
     actor(&mut runner, site_id, protected, SAMPLE_USER_ID);
     let error = run_endpoint_err!(
