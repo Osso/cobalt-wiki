@@ -18,12 +18,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+use super::move_repair::{MoveRepair, repair_selected_dependencies};
 use super::prelude::*;
 use crate::models::page::{self, Entity as Page, Model as PageModel};
 use crate::models::page_category::Model as PageCategoryModel;
 use crate::models::page_revision::Model as PageRevisionModel;
 use crate::services::audit::{AuditEvent, AuditService, ObjectScope};
 use crate::services::filter::{FilterClass, FilterType};
+use crate::services::link::{GetPageBacklinks, get_page_backlinks};
 use crate::services::page_revision::{
     CreateFirstPageRevision, CreateFirstPageRevisionOutput, CreatePageRevision,
     CreatePageRevisionBody, CreatePageRevisionOutput, CreateResurrectionPageRevision,
@@ -369,6 +371,7 @@ impl PageService {
     pub async fn r#move(
         ctx: &ServiceContext<'_>,
         MovePage {
+            fix_dependencies,
             site_id,
             page: reference,
             mut new_slug,
@@ -390,6 +393,10 @@ impl PageService {
         } = Self::get(ctx, site_id, reference)
             .await
             .or_raise(|| Error::new("failed to move page", ErrorType::Page))?;
+
+        Self::require_page_edit(ctx, site_id, user_id, page_id, category_id).await?;
+        let dependencies =
+            get_page_backlinks(ctx, GetPageBacklinks { site_id, page_id }).await?;
 
         let make_error = || {
             Error::new(
@@ -432,6 +439,7 @@ impl PageService {
             CategoryService::get_or_create(ctx, site_id, get_category_name(&new_slug))
                 .await
                 .or_raise(make_error)?;
+        Self::require_page_edit(ctx, site_id, user_id, page_id, category_id).await?;
 
         // Get latest revision
         let last_revision = PageRevisionService::get_latest(ctx, site_id, page_id)
@@ -500,7 +508,23 @@ impl PageService {
                 .await
                 .or_raise(make_error)?;
 
+                let (repaired_dependencies, remaining_dependencies) =
+                    repair_selected_dependencies(
+                        ctx,
+                        MoveRepair {
+                            site_id,
+                            user_id,
+                            ip_address,
+                            old_slug: &old_slug,
+                            new_slug: &new_slug,
+                            selected: &fix_dependencies,
+                        },
+                        dependencies,
+                    )
+                    .await?;
                 Ok(MovePageOutput {
+                    repaired_dependencies,
+                    remaining_dependencies,
                     old_slug,
                     new_slug,
                     revision_id,

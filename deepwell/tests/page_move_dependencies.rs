@@ -248,7 +248,7 @@ async fn active_lock_and_non_candidate_ids_do_not_mutate_sources() {
     PageLockService::create(
         runner.context(),
         site_id,
-        SYSTEM_USER_ID,
+        SAMPLE_USER_ID,
         Reference::Id(locked),
         CreatePageLockInput {
             page: Reference::Id(locked),

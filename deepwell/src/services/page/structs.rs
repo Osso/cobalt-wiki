@@ -180,6 +180,8 @@ pub struct EditPageBody {
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct MovePage<'a> {
+    #[serde(default)]
+    pub fix_dependencies: Vec<i64>,
     pub site_id: i64,
     pub page: Reference<'a>,
     pub last_revision_id: i64,
@@ -192,6 +194,8 @@ pub struct MovePage<'a> {
 
 #[derive(Serialize, Debug, Clone)]
 pub struct MovePageOutput {
+    pub repaired_dependencies: Vec<i64>,
+    pub remaining_dependencies: crate::services::link::GetPageBacklinksOutput,
     pub old_slug: String,
     pub new_slug: String,
     pub revision_id: i64,

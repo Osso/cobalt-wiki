@@ -25,6 +25,7 @@ mod prelude {
 }
 
 pub mod move_dependencies;
+mod move_repair;
 mod service;
 mod structs;
 
