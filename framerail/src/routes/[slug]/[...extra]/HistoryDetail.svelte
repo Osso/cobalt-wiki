@@ -43,7 +43,8 @@
   <section aria-label="Revision comparison">
     <h2>Compare revisions {comparison.from} to {comparison.to}</h2>
     {#if comparison.representation}<p>Representation: {comparison.representation}</p>{/if}
-    <pre class="history-diff">{#each comparison.lines as line}<span class={line.kind}
+    <pre class="history-diff">{#each comparison.lines as line, index (index)}<span
+          class={line.kind}
           >{#if line.kind === "insert"}<ins>{line.text}</ins
             >{:else if line.kind === "delete"}<del>{line.text}</del
             >{:else}{line.text}{/if}</span
@@ -59,8 +60,8 @@
     font-family: monospace;
   }
   .history-preview {
-    border: 1px solid currentColor;
     padding: 0.75rem;
+    border: 1px solid currentColor;
   }
   .history-diff {
     overflow-x: auto;

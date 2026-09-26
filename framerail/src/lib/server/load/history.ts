@@ -77,8 +77,9 @@ function parseFilters(value: unknown): HistoryFilters | null {
     Object.keys(value).some(
       (key) => !filterNames.includes(key as (typeof filterNames)[number])
     )
-  )
+  ) {
     return null
+  }
   if (filterNames.some((key) => typeof value[key] !== "boolean")) return null
   return value as unknown as HistoryFilters
 }
@@ -105,12 +106,15 @@ function parseCompare(value: unknown) {
     !integer(value.from, 0) ||
     !integer(value.to, 0) ||
     value.from >= value.to
-  )
+  ) {
     return null
+  }
   return { origin: value.origin, from: value.from, to: value.to }
 }
 
-async function resolvePage(event: RequestEvent) {
+async function resolvePage(
+  event: RequestEvent
+): Promise<{ status: 403 | 404 } | { site_id: number; page_id: number }> {
   const { siteId } = loadSiteInfo(event.request.headers)
   const view = await pageView(
     siteId,
@@ -130,8 +134,9 @@ async function readHistory<T>(
 ) {
   try {
     const page = await resolvePage(event)
-    if ("status" in page)
+    if ("status" in page) {
       return fail(page.status, { message: "Page history unavailable" })
+    }
     const res: T = await client.request(
       method,
       { ...page, ...input },
