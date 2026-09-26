@@ -32,6 +32,7 @@ pub struct ParentDescription<'a> {
 #[derive(Deserialize, Debug, Clone)]
 pub struct UpdateParents<'a> {
     pub site_id: i64,
+    pub user_id: i64,
     pub child: Reference<'a>,
     pub add: Option<Vec<Reference<'a>>>,
     pub remove: Option<Vec<Reference<'a>>>,

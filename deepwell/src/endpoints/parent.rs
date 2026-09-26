@@ -25,7 +25,8 @@ use crate::services::parent::{
     GetParentRelationships, ParentDescription, RemoveParentOutput, UpdateParents,
     UpdateParentsOutput,
 };
-use crate::types::Reference;
+use crate::services::permission::{CheckPermissionContext, PermissionService};
+use crate::types::{Action, Permission, Reference, Resource};
 use futures::future::try_join_all;
 
 pub async fn parent_relationships_get(
@@ -154,6 +155,35 @@ pub async fn parent_update(
         "Updating multiple parental relationships for child {:?} in site ID {}",
         input.child, input.site_id,
     );
+
+    let request = ctx.request();
+    if request.user_id != Some(input.user_id) || request.site_id != Some(input.site_id) {
+        bail!(Error::new(
+            "user does not have permission to update this page's parents",
+            ErrorType::PermissionDenied,
+        ));
+    }
+    let child = PageService::get(ctx, input.site_id, input.child.borrow()).await?;
+    let can_edit = PermissionService::check_user_can(
+        ctx,
+        &CheckPermissionContext {
+            user_id: request.user_id,
+            site_id: input.site_id,
+            page_reference: Some(Reference::Id(child.page_id)),
+        },
+        Permission {
+            resource_type: Resource::Page,
+            resource_category: Some(Reference::Id(child.page_category_id)),
+            action: Action::Edit,
+        },
+    )
+    .await?;
+    if !can_edit {
+        bail!(Error::new(
+            "user does not have permission to update this page's parents",
+            ErrorType::PermissionDenied,
+        ));
+    }
 
     let make_error = || {
         Error::new(

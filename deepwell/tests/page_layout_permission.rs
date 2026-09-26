@@ -6,6 +6,7 @@ use deepwell::constants::{ADMIN_USER_ID, SAMPLE_USER_ID, SYSTEM_USER_ID};
 use deepwell::error::ErrorType;
 use deepwell::services::RequestContext;
 use deepwell::services::page::{CreatePage, PageService};
+use deepwell::services::parent::ParentService;
 use deepwell::services::permission::PermissionService;
 use deepwell::services::role::{
     GrantUserRoleInput, InternalCreateRoleInput, RoleService, UpdateRolePermissionsInput,
@@ -187,4 +188,146 @@ async fn body_target_cannot_borrow_header_page_permission() {
     );
     assert_contains_error!(error, ErrorType::PermissionDenied);
     assert_eq!(layout(&runner, site_id, protected).await, None);
+}
+
+fn parents_input(
+    site_id: i64,
+    child: i64,
+    user_id: i64,
+    add: &[i64],
+    remove: &[i64],
+) -> serde_json::Value {
+    json!({
+        "site_id": site_id,
+        "child": child,
+        "user_id": user_id,
+        "add": add,
+        "remove": remove,
+    })
+}
+
+async fn parent_ids(runner: &TestRunner, site_id: i64, child: i64) -> Vec<i64> {
+    let mut ids: Vec<_> =
+        ParentService::get_parents(runner.context(), site_id, Reference::Id(child))
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|relationship| relationship.parent_page_id)
+            .collect();
+    ids.sort_unstable();
+    ids
+}
+
+#[tokio::test]
+async fn denied_actor_cannot_add_or_remove_parents() {
+    let (mut runner, site_id, editable, protected) = setup().await;
+    let other = create_page(&runner, site_id, "other:parent").await;
+    target(&mut runner, site_id, protected, Some(ADMIN_USER_ID));
+    run_endpoint!(
+        runner,
+        parent_update,
+        parents_input(site_id, protected, ADMIN_USER_ID, &[editable], &[])
+    );
+    target(&mut runner, site_id, protected, Some(SAMPLE_USER_ID));
+
+    let error = run_endpoint_err!(
+        runner,
+        parent_update,
+        parents_input(site_id, protected, SAMPLE_USER_ID, &[other], &[editable])
+    );
+    assert_contains_error!(error, ErrorType::PermissionDenied);
+    assert_eq!(
+        parent_ids(&runner, site_id, protected).await,
+        vec![editable]
+    );
+}
+
+#[tokio::test]
+async fn forged_actor_cannot_update_parents() {
+    let (mut runner, site_id, _, protected) = setup().await;
+    let parent = create_page(&runner, site_id, "forged:parent").await;
+    target(&mut runner, site_id, protected, Some(SAMPLE_USER_ID));
+
+    let error = run_endpoint_err!(
+        runner,
+        parent_update,
+        parents_input(site_id, protected, ADMIN_USER_ID, &[parent], &[])
+    );
+    assert_contains_error!(error, ErrorType::PermissionDenied);
+    assert!(parent_ids(&runner, site_id, protected).await.is_empty());
+}
+
+#[tokio::test]
+async fn request_site_must_match_parent_update_site() {
+    let (mut runner, site_id, editable, _) = setup().await;
+    let parent = create_page(&runner, site_id, "site:parent").await;
+    target(&mut runner, site_id + 1, editable, Some(SAMPLE_USER_ID));
+
+    let error = run_endpoint_err!(
+        runner,
+        parent_update,
+        parents_input(site_id, editable, SAMPLE_USER_ID, &[parent], &[])
+    );
+    assert_contains_error!(error, ErrorType::PermissionDenied);
+    assert!(parent_ids(&runner, site_id, editable).await.is_empty());
+}
+
+#[tokio::test]
+async fn body_child_cannot_borrow_header_page_permission_for_parents() {
+    let (mut runner, site_id, editable, protected) = setup().await;
+    let parent = create_page(&runner, site_id, "body:parent").await;
+    target(&mut runner, site_id, editable, Some(SAMPLE_USER_ID));
+
+    let error = run_endpoint_err!(
+        runner,
+        parent_update,
+        parents_input(site_id, protected, SAMPLE_USER_ID, &[parent], &[])
+    );
+    assert_contains_error!(error, ErrorType::PermissionDenied);
+    assert!(parent_ids(&runner, site_id, protected).await.is_empty());
+}
+
+#[tokio::test]
+async fn authorized_actor_can_update_plural_parents_despite_different_header_page() {
+    let (mut runner, site_id, editable, protected) = setup().await;
+    let first = create_page(&runner, site_id, "first:parent").await;
+    let second = create_page(&runner, site_id, "second:parent").await;
+    let third = create_page(&runner, site_id, "third:parent").await;
+    target(&mut runner, site_id, protected, Some(SAMPLE_USER_ID));
+
+    let created = run_endpoint!(
+        runner,
+        parent_update,
+        parents_input(site_id, editable, SAMPLE_USER_ID, &[first, second], &[])
+    );
+    assert_eq!(created.added, Some(vec![first, second]));
+    assert_eq!(created.removed, Some(vec![]));
+    assert_eq!(
+        parent_ids(&runner, site_id, editable).await,
+        vec![first, second]
+    );
+
+    let changed = run_endpoint!(
+        runner,
+        parent_update,
+        parents_input(
+            site_id,
+            editable,
+            SAMPLE_USER_ID,
+            &[third],
+            &[first, second]
+        )
+    );
+    assert_eq!(changed.added, Some(vec![third]));
+    assert_eq!(changed.removed, Some(vec![true, true]));
+    assert_eq!(parent_ids(&runner, site_id, editable).await, vec![third]);
+
+    let unchanged = run_endpoint!(
+        runner,
+        parent_update,
+        json!({ "site_id": site_id, "child": editable, "user_id": SAMPLE_USER_ID })
+    );
+    assert_eq!(unchanged.added, None);
+    assert_eq!(unchanged.removed, None);
+    assert_eq!(parent_ids(&runner, site_id, editable).await, vec![third]);
 }
