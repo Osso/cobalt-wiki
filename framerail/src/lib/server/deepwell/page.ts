@@ -476,6 +476,32 @@ export async function pageRestore(
   )
 }
 
+/* ----- Page Block ----- */
+export interface PageBlockState {
+  blocked: boolean
+  can_manage: boolean
+}
+
+export async function pageBlockGet(
+  pageId: number,
+  reqContext: RequestContext
+): Promise<PageBlockState> {
+  return client.request("page_block_get", { page: pageId }, reqContext)
+}
+
+export async function pageBlockSet(
+  pageId: number,
+  blocked: boolean,
+  userIpAddr: string,
+  reqContext: RequestContext
+): Promise<void> {
+  return client.request(
+    "page_block_set",
+    { page: pageId, blocked, ip_address: userIpAddr },
+    reqContext
+  )
+}
+
 /* ----- Page Lock History ----- */
 export interface PageLockModel {
   page_lock_id: number

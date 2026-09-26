@@ -5,6 +5,8 @@ import {
   pageDelete,
   pageDeletedGet,
   pageCreatePermission,
+  pageBlockGet,
+  pageBlockSet,
   pageEdit,
   pageEditPermission,
   pageGetTags,
@@ -1398,6 +1400,53 @@ const pageRestoreSchema = object({
   ...baseSchema,
   comments: string()
 })
+
+/* ----- Page Block ----- */
+async function readBlockRequest(request: Request): Promise<Record<string, unknown>> {
+  const body: unknown = await request.json().catch(() => null)
+  return typeof body === "object" && body !== null && !Array.isArray(body)
+    ? (body as Record<string, unknown>)
+    : {}
+}
+
+export async function pageBlockGetAction({ request, locals }: RequestEvent) {
+  const { pageId } = await readBlockRequest(request)
+  if (typeof pageId !== "number" || !Number.isSafeInteger(pageId) || pageId <= 0) {
+    return fail(400, { message: "Invalid page ID" })
+  }
+
+  try {
+    const res = await pageBlockGet(pageId, getRequestContext(locals))
+    return { res }
+  } catch (e) {
+    const rpcError = requireDeepwellError(e)
+    return fail(rpcError.code === 3106 ? 403 : 500, rpcError)
+  }
+}
+
+export async function pageBlockSetAction({
+  request,
+  getClientAddress,
+  locals
+}: RequestEvent) {
+  const { pageId, blocked } = await readBlockRequest(request)
+  if (
+    typeof pageId !== "number" ||
+    !Number.isSafeInteger(pageId) ||
+    pageId <= 0 ||
+    typeof blocked !== "boolean"
+  ) {
+    return fail(400, { message: "Invalid page ID or Block state" })
+  }
+
+  try {
+    await pageBlockSet(pageId, blocked, getClientAddress(), getRequestContext(locals))
+    return {}
+  } catch (e) {
+    const rpcError = requireDeepwellError(e)
+    return fail(rpcError.code === 3106 ? 403 : 500, rpcError)
+  }
+}
 
 /* ----- Page Lock Create ----- */
 export async function pageLockCreateAction({

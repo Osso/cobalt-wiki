@@ -19,6 +19,7 @@
   import { clickTagButton } from "$lib/tag-buttons"
   import WatchControls from "$lib/component/WatchControls.svelte"
   import BacklinksPane from "./BacklinksPane.svelte"
+  import BlockPane from "./BlockPane.svelte"
 
   import type { PageProps } from "./$types"
   import type { Optional } from "$lib/types"
@@ -333,7 +334,7 @@
           }}
           type="button"
         >
-          {data.internationalization?.["wiki-page-lock"]}
+          Block
         </a>
         <!-- svelte-ignore a11y_invalid_attribute -->
         <a
@@ -394,7 +395,7 @@
       {:else if pagePaneState === PagePane.Parent}
         <ParentPane close={() => (pagePaneState = PagePane.None)} {...props} />
       {:else if pagePaneState === PagePane.Lock}
-        <LockPane bind:pagePaneState {...props} />
+        <BlockPane bind:pagePaneState {...props} />
       {:else if pagePaneState === PagePane.File}
         <FilePane {...props} />
       {:else if pagePaneState === PagePane.History}
