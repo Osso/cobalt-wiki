@@ -171,7 +171,7 @@ async fn compares_full_unicode_source_lines_and_validates_inputs() {
     let lines: Vec<_> = diff
         .lines
         .iter()
-        .map(|line| (line.kind.as_str(), line.text.as_str()))
+        .map(|line| (line.kind, line.text.as_str()))
         .collect();
     assert_eq!(
         lines,
