@@ -202,9 +202,11 @@ impl FileService {
 
             check_file_name(name).or_raise(make_error)?;
 
-            Self::check_conflicts(ctx, page_id, name, "update")
-                .await
-                .or_raise(make_error)?;
+            if name.as_str() != last_revision.name.as_str() {
+                Self::check_conflicts(ctx, page_id, name, "update")
+                    .await
+                    .or_raise(make_error)?;
+            }
 
             if !bypass_filter {
                 Self::run_filter(ctx, site_id, Some(file_id), Some(name), ip_address)
