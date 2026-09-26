@@ -1,16 +1,43 @@
 <script lang="ts">
   import { goto, invalidateAll } from "$app/navigation"
   import { errorPopupState, pageLayoutState } from "$lib/stores.svelte"
-  import { DeleteOptions, Layout, PagePane, ToastType } from "$lib/types"
+  import { DeleteOptions, Layout, ToastType } from "$lib/types"
   import { toast } from "$lib/component/scripts/toasts"
   import { resolve } from "$app/paths"
   import { superForm } from "sveltekit-superforms"
-  import { untrack } from "svelte"
+  import { onDestroy, untrack } from "svelte"
 
   import type { PageProps } from "./$types"
 
-  let { pagePaneState = $bindable(), data }: PageProps & { pagePaneState: PagePane } =
-    $props()
+  let { close, data }: PageProps & { close: () => void } = $props()
+  let confirmationDialog: HTMLDialogElement | undefined = $state()
+  let dismissConfirmation: (() => void) | undefined
+
+  function confirmDeletion(): Promise<boolean> {
+    const dialog = confirmationDialog
+    if (!dialog) throw new Error("Delete confirmation dialog unavailable")
+    if (dialog.open) return Promise.resolve(false)
+
+    dialog.returnValue = ""
+    return new Promise((resolve) => {
+      const onClose = () => {
+        dismissConfirmation = undefined
+        resolve(dialog.returnValue === "delete")
+      }
+      dismissConfirmation = () => {
+        dialog.removeEventListener("close", onClose)
+        dismissConfirmation = undefined
+        resolve(false)
+      }
+      dialog.addEventListener("close", onClose, { once: true })
+      dialog.showModal()
+    })
+  }
+
+  onDestroy(() => {
+    dismissConfirmation?.()
+    confirmationDialog?.close()
+  })
 
   const { form, enhance } = superForm(
     untrack(() => data.forms.pageDeleteForm),
@@ -20,9 +47,7 @@
         if (
           pageLayoutState.current === Layout.WIKIDOT &&
           $form.option === DeleteOptions.Delete &&
-          !window.confirm(
-            "Are you sure you want to completely wipe out this page?\n(Sorry, just wanted to make sure...)"
-          )
+          !(await confirmDeletion())
         ) {
           cancel()
           return
@@ -43,13 +68,13 @@
             goto(resolve(`/${result.data.res.new_slug}`, {}), {
               noScroll: true
             })
-            pagePaneState = PagePane.None
+            close()
           } else if (result.data.option === DeleteOptions.Delete) {
             toast(
               ToastType.Success,
               data.internationalization!["wiki-page-delete.toast"]!
             )
-            pagePaneState = PagePane.None
+            close()
             invalidateAll()
           }
         }
@@ -124,7 +149,7 @@
     <div class="buttons">
       <input
         class="btn btn-danger"
-        onclick={() => (pagePaneState = PagePane.None)}
+        onclick={close}
         type="button"
         value={data.internationalization?.cancel}
       />
@@ -152,7 +177,7 @@
     <div class="action-row page-delete-actions">
       <button
         class="action-button page-delete-button button-cancel clickable"
-        onclick={() => (pagePaneState = PagePane.None)}
+        onclick={close}
         type="button"
       >
         {data.internationalization?.cancel}
@@ -167,7 +192,32 @@
   {/if}
 </form>
 
+<dialog bind:this={confirmationDialog} aria-labelledby="delete-confirmation-title">
+  <h2 id="delete-confirmation-title">Delete page?</h2>
+  <p>Are you sure you want to completely wipe out this page?</p>
+  <form method="dialog" class="confirmation-actions">
+    <button type="submit" value="cancel">Cancel</button>
+    <button type="submit" value="delete" class="btn btn-danger">Delete page</button>
+  </form>
+</dialog>
+
 <style lang="scss">
+  dialog {
+    max-width: min(28rem, calc(100vw - 2rem));
+    padding: 1.5rem;
+    border: 1px solid currentColor;
+  }
+
+  dialog::backdrop {
+    background: rgb(0 0 0 / 50%);
+  }
+
+  .confirmation-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+  }
+
   .page-delete {
     display: flex;
     flex-direction: column;

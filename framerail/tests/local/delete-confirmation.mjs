@@ -133,27 +133,31 @@ test("Wikidot direct Delete confirms before POST; Move remains immediate", async
       const token = decodeURIComponent(cookie.value)
       const before = await readPageFingerprint(context.request, fixture, token)
 
-      /** @type {string[]} */
-      const dialogs = []
-      let acceptDialog = false
-      page.on("dialog", async (dialog) => {
-        dialogs.push(dialog.message())
-        if (acceptDialog) await dialog.accept()
-        else await dialog.dismiss()
-      })
       await page.goto(`${origin}/${fixture.existingSlug}`, { waitUntil: "networkidle" })
       await openDeletePane(page)
       await page.locator("#page-delete-option-delete").check()
+      const confirmation = page.getByRole("dialog", { name: "Delete page?" })
       await page.locator('#page-delete input[type="submit"]').click()
-      await expect.poll(() => dialogs.length).toBe(1)
-      assert.match(dialogs[0], /Are you sure you want to completely wipe out this page\?/)
-      await page.waitForTimeout(300)
-      assert.deepEqual(intercepted, [], "dismissed Delete must not POST")
+      await expect(confirmation).toBeVisible()
+      await expect(confirmation).toContainText(
+        "Are you sure you want to completely wipe out this page?"
+      )
+      assert.deepEqual(intercepted, [], "Delete must wait for confirmation")
+      await confirmation.getByRole("button", { name: "Cancel" }).click()
+      await expect(confirmation).not.toBeVisible()
+      assert.deepEqual(intercepted, [], "cancelled Delete must not POST")
 
-      acceptDialog = true
       await page.locator('#page-delete input[type="submit"]').click()
+      await expect(confirmation).toBeVisible()
+      await page.keyboard.press("Escape")
+      await expect(confirmation).not.toBeVisible()
+      assert.deepEqual(intercepted, [], "Escape must not POST")
+
+      await page.locator('#page-delete input[type="submit"]').click()
+      await expect(confirmation).toBeVisible()
+      await confirmation.getByRole("button", { name: "Delete page" }).click()
+      await expect(confirmation).not.toBeVisible()
       await expect.poll(() => intercepted.length).toBe(1)
-      assert.equal(dialogs.length, 2, "accepted Delete must confirm once")
       assert.deepEqual(intercepted, [`${origin}/${fixture.existingSlug}?/delete`])
 
       await page.goto(`${origin}/${fixture.existingSlug}`, { waitUntil: "networkidle" })
@@ -161,7 +165,8 @@ test("Wikidot direct Delete confirms before POST; Move remains immediate", async
       await expect(page.locator("#page-delete-option-move")).toBeChecked()
       await page.locator('#page-delete input[type="submit"]').click()
       await expect.poll(() => intercepted.length).toBe(2)
-      assert.equal(dialogs.length, 2, "Move must not request Delete confirmation")
+      await expect(page.getByRole("dialog", { name: "Delete page?" })).toHaveCount(1)
+      await expect(page.getByRole("dialog", { name: "Delete page?" })).not.toBeVisible()
       assert.deepEqual(intercepted, [
         `${origin}/${fixture.existingSlug}?/delete`,
         `${origin}/${fixture.existingSlug}?/delete`
