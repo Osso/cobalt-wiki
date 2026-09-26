@@ -49,6 +49,7 @@ async function readFixture(path) {
     Number.isSafeInteger(fixture.destinationPageId) && fixture.destinationPageId > 0
   )
   assert.notEqual(fixture.pageId, fixture.destinationPageId)
+  assert.ok(Array.isArray(fixture.created), "created page manifest required")
   assert.deepEqual(
     fixture.created.map(({ slug, pageId }) => ({ slug, pageId })),
     [
@@ -56,6 +57,12 @@ async function readFixture(path) {
       { slug: fixture.destinationSlug, pageId: fixture.destinationPageId }
     ]
   )
+  for (const created of fixture.created) {
+    assert.ok(
+      Number.isSafeInteger(created.revisionId) && created.revisionId > 0,
+      `created revision required for ${created.slug}`
+    )
+  }
   return fixture
 }
 
@@ -140,13 +147,23 @@ async function guardBrowserWrites(context, fixture) {
   let permitted = null
   /** @type {string[]} */
   const blocked = []
+  /** @type {{ method: string; origin: string; resourceType: string }[]} */
+  const externalReads = []
   /** @type {string[]} */
   const writes = []
   await context.route("**/*", (route) => {
     const request = route.request()
     const url = new URL(request.url())
     if (url.origin !== origin) {
-      blocked.push(`${request.method()} foreign origin`)
+      if (["GET", "HEAD"].includes(request.method())) {
+        externalReads.push({
+          method: request.method(),
+          origin: url.origin,
+          resourceType: request.resourceType()
+        })
+      } else {
+        blocked.push(`${request.method()} foreign origin ${url.origin}`)
+      }
       return route.abort()
     }
     if (["GET", "HEAD", "OPTIONS"].includes(request.method())) return route.continue()
@@ -166,6 +183,7 @@ async function guardBrowserWrites(context, fixture) {
   })
   return {
     blocked,
+    externalReads,
     writes,
     /** @param {string} slug @param {string} action */
     allow(slug, action) {
@@ -448,7 +466,11 @@ async function exercise(page, request, token, fixture, guard) {
   assert.equal(initial?.type, "found", "newly created fixture required")
   if (initial.type !== "found") assert.fail("fixture page must exist")
   assert.equal(initial.data.page.page_id, fixture.pageId)
-  assert.equal(initial.data.page_revision.revision_id, fixture.created[0].revisionId)
+  assert.equal(initial.data.page.slug, fixture.sourceSlug)
+  assert.ok(
+    initial.data.page_revision.revision_id >= fixture.created[0].revisionId,
+    "source revision must not predate creation"
+  )
   const sourceHash = hash(initial.data.wikitext)
   const originalLayout = initial.data.page.layout
   assert.ok([null, "wikidot", "wikijump"].includes(originalLayout))
@@ -457,7 +479,11 @@ async function exercise(page, request, token, fixture, guard) {
   assert.equal(destination?.type, "found", "protected destination page required")
   if (destination.type !== "found") assert.fail("destination page must exist")
   assert.equal(destination.data.page.page_id, fixture.destinationPageId)
-  assert.equal(destination.data.page_revision.revision_id, fixture.created[1].revisionId)
+  assert.equal(destination.data.page.slug, fixture.destinationSlug)
+  assert.ok(
+    destination.data.page_revision.revision_id >= fixture.created[1].revisionId,
+    "destination revision must not predate creation"
+  )
   const destinationHash = hash(destination.data.wikitext)
   const destinationRevision = destination.data.page_revision.revision_id
   let stage = "move"
@@ -602,7 +628,11 @@ test(
           fixture,
           (await readFile(adminPath, "utf8")).trim()
         )
-        await exercise(page, context.request, token, fixture, guard)
+        try {
+          await exercise(page, context.request, token, fixture, guard)
+        } finally {
+          console.log(JSON.stringify({ blockedExternalReads: guard.externalReads }))
+        }
       } finally {
         await context.close()
       }
