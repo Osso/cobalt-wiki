@@ -32,11 +32,13 @@ The Wikidot-layout Files pane presents attached-file information using the exist
 - `/tmp/claude/cobalt-file-info-final.png` — local captured file-information state; presentation evidence only.
 - `cb61f5543` — file edit and rollback now send `getClientAddress()` as RPC `ip_address`. `framerail/tests/page-file-rpc.test.ts` recorded targeted RED then GREEN 2/2 for serialized edit/rollback request IP and accepted revisions; this is server/RPC proof, not a browser lifecycle pass.
 - `ca141f0b3` — separates file-action transport assertions from the browser lifecycle test. This readability split supplies no browser proof.
-- `/tmp/claude/cobalt-file-action-ip-fixed.log` — after the IP fix, browser lifecycle upload and rename pass with exact fixture identity; replacement `fileEdit` returns `500`/failure. Recovery succeeds without `AggregateError`, but the full lifecycle is not green. The confirmed boundary is backend self-conflict for an unchanged replacement name, not blob storage; remediation is pending.
+- `90df39567` — permits byte replacement when the supplied name equals that file's current revision name; a different file's same-page name still conflicts.
+- `/tmp/claude/cobalt-file-self-conflict-{red,green}.log` — targeted regression RED then GREEN: unchanged-name replacement previously failed with the file's own conflict; it now stores replacement bytes and preserves another file-name conflict.
+- `/tmp/claude/cobalt-file-self-conflict-deploy.log` — local deploy exited `0`; this is not browser lifecycle proof.
 
 ## Known gaps (current cycle)
 
-- [ ] The `cb61f5543` edit/rollback request-IP fix has targeted RED/GREEN 2/2 RPC proof, but upload, restore, file-mutation authorization, and the full Files lifecycle remain unproven. The saved browser run reaches upload and rename but fails replacement `fileEdit` with `500` from a backend self-conflict on an unchanged name, not blob storage; successful recovery is not lifecycle proof. Remediation is pending.
+- [ ] The `cb61f5543` edit/rollback request-IP fix has targeted RED/GREEN 2/2 RPC proof, and `90df39567` has targeted RED/GREEN proof for unchanged-name byte replacement while preserving a different-file conflict. Upload, restore, file-mutation authorization, and the full Files browser lifecycle remain unproven; local deployment is not lifecycle proof.
 - [x] The independent frontend gate passes, including the hidden-comment fixture; see [page actions](cobalt-page-actions.md). The bounded preservation record excludes only the sacrificial Tags/Parent fixture and native cache fields.
 
 ## Out of scope
