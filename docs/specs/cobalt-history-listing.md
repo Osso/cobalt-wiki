@@ -28,7 +28,7 @@ The `page_history_list` read RPC lists preserved Wikidot history or native local
 
 ## Known gaps (current cycle)
 
-- [ ] End-to-end RPC integration and frontend usage are owned separately.
+- [ ] Local-runtime browser proof for History controls remains pending. Targeted frontend tests reported 11/11 and backend listing tests 3/3; neither establishes browser behavior or visual parity.
 
 ## Out of scope
 

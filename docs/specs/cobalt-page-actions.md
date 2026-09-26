@@ -21,7 +21,7 @@ Cobalt page actions render the bottom-page controls and the Wiki-only Tags pane.
 ### Evidence boundaries
 
 - [x] SSR proves the scoped Wiki markup and action inventory, plus preserved alternate-layout controls, in four tests.
-- [ ] Main-browser interaction and visual confirmation against the supplied reference remain pending. No pixel-parity claim follows from SSR.
+- [ ] Main-browser interaction and visual confirmation against the supplied reference remain incomplete. One observed Tags no-write browser pass (1/1) does not establish close, clear, save, permissioned persistence, readback, or pixel parity.
 
 ## How it works
 
