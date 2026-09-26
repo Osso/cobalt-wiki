@@ -335,7 +335,10 @@ async function assertDeleted(request, token, fixture) {
  */
 async function restoreInBrowser(page, guard, request, token, fixture) {
   await assertDeleted(request, token, fixture)
-  await visit(page, fixture.movedSlug)
+  const response = await page.goto(`${origin}/${fixture.movedSlug}`, {
+    waitUntil: "networkidle"
+  })
+  assert.equal(response?.status(), 404, "deleted-page Restore view HTTP status")
   const restoreButton = page.locator("#restore-button, .editor-button.button-restore")
   if (!(await restoreButton.isVisible())) {
     assert.fail(
