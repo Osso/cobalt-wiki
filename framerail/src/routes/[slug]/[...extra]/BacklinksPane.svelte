@@ -8,7 +8,7 @@
 
   async function loadBacklinks() {
     try {
-      const response = await fetch("?/backlinks", { method: "POST" })
+      const response = await fetch("?/backlinks", { method: "POST", body: "" })
       const result = deserialize<{ res: PageBacklinks }, { message?: string }>(
         await response.text()
       )
