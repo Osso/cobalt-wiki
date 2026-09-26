@@ -126,20 +126,24 @@ async function decodeMutation(request) {
     const chunks = form.getAll("__superform_json")
     assert.ok(chunks.length, "Superforms JSON required")
     const data = parse(chunks.join(""))
-    const files = [...form.entries()]
-      .filter((entry) => entry[1] instanceof File)
-      .map(([field, file]) => ({ field, name: file.name, type: file.type }))
+    const files = [...form.entries()].flatMap(([field, file]) =>
+      file instanceof File ? [{ field, name: file.name, type: file.type }] : []
+    )
     return { data, file: form.get("__superform_file_file"), files }
   } catch (error) {
-    throw new Error(`mutation decode failed (${error?.name ?? "unknown"})`, {
-      cause: error
-    })
+    throw new Error(
+      `mutation decode failed (${error instanceof Error ? error.name : "unknown"})`,
+      {
+        cause: error
+      }
+    )
   }
 }
 
 /**
  * @param {MutationRequest} request @param {{ fileId: number | null; name:
  *   string | null }} permitted @param {number} pageId
+ * @param {object[] | null} [diagnostics]
  */
 async function mutationMatches(request, permitted, pageId, diagnostics = null) {
   const { data, file, files } = await decodeMutation(request)
@@ -185,25 +189,27 @@ function requestLabel(request, slugs) {
 }
 
 /**
- * @param {import("@playwright/test").Route} route @param {string[]} slugs
- * @param {{
+ * @typedef {{
  *   slug: string
  *   action: string
  *   fileId: number | null
  *   name: string | null
- * } | null} permitted
- * @param {string[]} writes @param {string[]} blocked @param {string[]}
- *   externalReads @param {object[]} decoded
+ * }} PermittedWrite
+ *
+ * @typedef {{
+ *   permitted: PermittedWrite | null
+ *   writes: string[]
+ *   blocked: string[]
+ *   externalReads: string[]
+ *   decoded: object[]
+ * }} WriteState
  */
-async function routeBrowserRequest(
-  route,
-  slugs,
-  permitted,
-  writes,
-  blocked,
-  externalReads,
-  decoded
-) {
+
+/**
+ * @param {import("@playwright/test").Route} route @param {string[]} slugs
+ * @param {WriteState} state
+ */
+async function routeBrowserRequest(route, slugs, state) {
   const request = route.request()
   const url = new URL(request.url())
   const isBaseStylesheet =
@@ -215,10 +221,7 @@ async function routeBrowserRequest(
     return false
   }
   if (url.origin !== origin) {
-    const label = `${request.method()} ${url.origin}`
-    if (["GET", "HEAD", "OPTIONS"].includes(request.method())) externalReads.push(label)
-    else blocked.push(`foreign origin ${requestLabel(request, slugs)}`)
-    await route.abort()
+    await abortForeignRequest(route, slugs, state, url)
     return false
   }
   if (["GET", "HEAD", "OPTIONS"].includes(request.method())) {
@@ -230,30 +233,53 @@ async function routeBrowserRequest(
   const read = slugs.some((slug) =>
     ["fileList", "fileHistory"].some((action) => path === `/${slug}?/${action}`)
   )
-  const mutation = permitted && path === `/${permitted.slug}?/${permitted.action}`
+  const mutation =
+    state.permitted && path === `/${state.permitted.slug}?/${state.permitted.action}`
   if (request.method() === "POST" && (login || read)) {
     await route.continue()
     return false
   }
-  if (request.method() === "POST" && mutation) {
-    const pageId = slugs.indexOf(permitted.slug) === 0 ? 3000006134 : 3000006135
-    try {
-      assert.ok(
-        await mutationMatches(request, permitted, pageId, decoded),
-        "wrong fixture identity"
-      )
-    } catch (error) {
-      blocked.push(`POST ${url.pathname}?/${permitted.action} ${String(error)}`)
-      await route.abort()
-      return false
-    }
-    writes.push(path)
-    await route.continue()
-    return true
+  if (request.method() === "POST" && mutation && state.permitted) {
+    return routePermittedMutation(route, slugs, state, url, path, state.permitted)
   }
-  blocked.push(requestLabel(request, slugs))
+  state.blocked.push(requestLabel(request, slugs))
   await route.abort()
   return false
+}
+
+/**
+ * @param {import("@playwright/test").Route} route @param {string[]} slugs
+ * @param {WriteState} state @param {URL} url
+ */
+async function abortForeignRequest(route, slugs, state, url) {
+  const request = route.request()
+  const label = `${request.method()} ${url.origin}`
+  if (["GET", "HEAD", "OPTIONS"].includes(request.method()))
+    state.externalReads.push(label)
+  else state.blocked.push(`foreign origin ${requestLabel(request, slugs)}`)
+  await route.abort()
+}
+
+/**
+ * @param {import("@playwright/test").Route} route @param {string[]} slugs
+ * @param {WriteState} state @param {URL} url @param {string} path
+ * @param {PermittedWrite} permitted
+ */
+async function routePermittedMutation(route, slugs, state, url, path, permitted) {
+  const pageId = slugs.indexOf(permitted.slug) === 0 ? 3000006134 : 3000006135
+  try {
+    assert.ok(
+      await mutationMatches(route.request(), permitted, pageId, state.decoded),
+      "wrong fixture identity"
+    )
+  } catch (error) {
+    state.blocked.push(`POST ${url.pathname}?/${permitted.action} ${String(error)}`)
+    await route.abort()
+    return false
+  }
+  state.writes.push(path)
+  await route.continue()
+  return true
 }
 
 /**
@@ -261,52 +287,35 @@ async function routeBrowserRequest(
  *   {string[]} slugs
  */
 async function guardBrowserWrites(context, slugs) {
-  /**
-   * @type {{
-   *   slug: string
-   *   action: string
-   *   fileId: number | null
-   *   name: string | null
-   * } | null}
-   */
-  let permitted = null
-  /** @type {string[]} */
-  const writes = []
-  /** @type {string[]} */
-  const blocked = []
-  /** @type {string[]} */
-  const externalReads = []
-  /** @type {object[]} */
-  const decoded = []
+  /** @type {WriteState} */
+  const state = {
+    permitted: null,
+    writes: [],
+    blocked: [],
+    externalReads: [],
+    decoded: []
+  }
   await context.route("**/*", async (route) => {
-    const consumed = await routeBrowserRequest(
-      route,
-      slugs,
-      permitted,
-      writes,
-      blocked,
-      externalReads,
-      decoded
-    )
-    if (consumed) permitted = null
+    const consumed = await routeBrowserRequest(route, slugs, state)
+    if (consumed) state.permitted = null
   })
   return {
-    writes,
-    blocked,
-    externalReads,
-    decoded,
+    writes: state.writes,
+    blocked: state.blocked,
+    externalReads: state.externalReads,
+    decoded: state.decoded,
     /**
      * @param {string} slug @param {string} action @param {number | null}
      *   fileId @param {string | null} name
      */
     allow(slug, action, fileId, name = null) {
       assert.ok(slugs.includes(slug))
-      assert.equal(permitted, null, "previous write not consumed")
-      permitted = { slug, action, fileId, name }
+      assert.equal(state.permitted, null, "previous write not consumed")
+      state.permitted = { slug, action, fileId, name }
     },
     assertConsumed() {
-      assert.equal(permitted, null, "UI did not send expected mutation")
-      assert.deepEqual(blocked, [], "unexpected browser write blocked")
+      assert.equal(state.permitted, null, "UI did not send expected mutation")
+      assert.deepEqual(state.blocked, [], "unexpected browser write blocked")
     }
   }
 }

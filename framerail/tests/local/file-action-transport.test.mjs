@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 import {
   assertActionSuccess,
+  guardBrowserWrites,
   mutationMatches,
   origin,
   siteId
@@ -75,6 +76,80 @@ test("JSON file mutations require exact file and page identity", async () => {
     await mutationMatches(request, { fileId: 87, name: null }, 3000006134),
     false
   )
+})
+
+test("browser guard permits only fixture writes and records blocked requests", async () => {
+  /** @type {(route: import("@playwright/test").Route) => Promise<void>} */
+  let intercept = async () => assert.fail("route not registered")
+  const context = {
+    /** @param {string} pattern @param {typeof intercept} handler */
+    async route(pattern, handler) {
+      assert.equal(pattern, "**/*")
+      intercept = handler
+    }
+  }
+  // Only route registration is used by the guard.
+  const guard = await guardBrowserWrites(
+    /** @type {import("@playwright/test").BrowserContext} */ (
+      /** @type {unknown} */ (context)
+    ),
+    ["local-action-proof:source", "local-action-proof:destination"]
+  )
+  /**
+   * @param {string} url @param {string} method @param {string}
+   *   resourceType @param {object} [data]
+   */
+  async function dispatch(url, method, resourceType, data = {}) {
+    /** @type {string[]} */
+    const actions = []
+    const request = {
+      url: () => url,
+      method: () => method,
+      resourceType: () => resourceType,
+      headers: () => ({ "content-type": "application/json" }),
+      postDataBuffer: () => Buffer.from(JSON.stringify(data))
+    }
+    const route = {
+      request: () => request,
+      continue: async () => {
+        actions.push("continue")
+      },
+      abort: async () => {
+        actions.push("abort")
+      }
+    }
+    await intercept(
+      /** @type {import("@playwright/test").Route} */ (/** @type {unknown} */ (route))
+    )
+    return actions
+  }
+  assert.deepEqual(
+    await dispatch("https://d3g0gp89917ko0.cloudfront.net/base.css", "GET", "stylesheet"),
+    ["continue"]
+  )
+  assert.deepEqual(await dispatch("https://example.org/image", "GET", "image"), ["abort"])
+  assert.deepEqual(await dispatch("https://example.org/write", "POST", "fetch"), [
+    "abort"
+  ])
+  assert.deepEqual(await dispatch(`${origin}/-/login`, "POST", "fetch"), ["continue"])
+  guard.allow("local-action-proof:source", "fileEdit", 87)
+  const action = `${origin}/local-action-proof:source?/fileEdit`
+  assert.deepEqual(
+    await dispatch(action, "POST", "fetch", { siteId, pageId: 3000006135, fileId: 87 }),
+    ["abort"]
+  )
+  assert.deepEqual(
+    await dispatch(action, "POST", "fetch", { siteId, pageId: 3000006134, fileId: 87 }),
+    ["continue"]
+  )
+  assert.deepEqual(
+    await dispatch(action, "POST", "fetch", { siteId, pageId: 3000006134, fileId: 87 }),
+    ["abort"]
+  )
+  assert.deepEqual(guard.writes, ["/local-action-proof:source?/fileEdit"])
+  assert.equal(guard.externalReads.length, 1)
+  assert.equal(guard.blocked.length, 3)
+  assert.equal(guard.decoded.length, 2)
 })
 
 test("action completion rejects failed results even with HTTP 200", async () => {

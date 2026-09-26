@@ -388,6 +388,209 @@ async function findCreatedFile(request, token, fixture, baseline, name) {
 }
 
 /**
+ * @param {import("@playwright/test").Page} page
+ * @param {import("@playwright/test").APIRequestContext} request
+ * @param {string} token @param {string} slug @param {number} pageId
+ * @param {WriteGuard} guard @param {PageFile} current
+ * @param {string} name @param {Buffer} bytes @param {Buffer | null} upload
+ */
+async function editAndAssertFile(
+  page,
+  request,
+  token,
+  slug,
+  pageId,
+  guard,
+  current,
+  name,
+  bytes,
+  upload
+) {
+  await editInBrowser(page, guard, slug, current.file_id, name, upload)
+  return assertFile(
+    request,
+    token,
+    slug,
+    pageId,
+    current.file_id,
+    name,
+    bytes,
+    current.revision_id
+  )
+}
+
+/**
+ * @param {import("@playwright/test").Page} page
+ * @param {import("@playwright/test").APIRequestContext} request
+ * @param {string} token @param {Fixture} fixture @param {WriteGuard} guard
+ * @param {PageFile} current @param {number} firstId @param {number}
+ *   createRevision
+ * @param {string} name @param {Buffer} original
+ */
+async function rollbackAndAssertFile(
+  page,
+  request,
+  token,
+  fixture,
+  guard,
+  current,
+  firstId,
+  createRevision,
+  name,
+  original
+) {
+  /** @type {FileRevisionModel[]} */
+  const history = await rpc(request, token, fixture.sourceSlug, "file_revision_range", {
+    site_id: siteId,
+    page_id: fixture.pageId,
+    file_id: current.file_id,
+    revision_number: current.revision_number + 1,
+    revision_direction: "before",
+    limit: 20
+  })
+  assert.ok(
+    history.some(
+      (revision) =>
+        revision.revision_id === firstId && revision.revision_number === createRevision
+    )
+  )
+  await rollbackInBrowser(
+    page,
+    guard,
+    fixture.sourceSlug,
+    current.file_id,
+    createRevision
+  )
+  return assertFile(
+    request,
+    token,
+    fixture.sourceSlug,
+    fixture.pageId,
+    current.file_id,
+    name,
+    original,
+    current.revision_id
+  )
+}
+
+/**
+ * @param {import("@playwright/test").Page} page
+ * @param {import("@playwright/test").APIRequestContext} request
+ * @param {string} token @param {Fixture} fixture @param {WriteGuard} guard
+ * @param {PageFile} current @param {string} name @param {Buffer} original
+ */
+async function moveAndAssertFile(
+  page,
+  request,
+  token,
+  fixture,
+  guard,
+  current,
+  name,
+  original
+) {
+  await moveInBrowser(
+    page,
+    guard,
+    fixture.sourceSlug,
+    current.file_id,
+    fixture.destinationSlug
+  )
+  const sourceFiles = await listFiles(
+    request,
+    token,
+    fixture.sourceSlug,
+    fixture.pageId,
+    false
+  )
+  assert.ok(!sourceFiles.some((file) => file.file_id === current.file_id))
+  return assertFile(
+    request,
+    token,
+    fixture.destinationSlug,
+    fixture.destinationPageId,
+    current.file_id,
+    name,
+    original,
+    current.revision_id
+  )
+}
+
+/**
+ * @param {import("@playwright/test").Page} page
+ * @param {import("@playwright/test").APIRequestContext} request
+ * @param {string} token @param {Fixture} fixture @param {WriteGuard} guard
+ * @param {PageFile} current
+ */
+async function deleteAndAssertFile(page, request, token, fixture, guard, current) {
+  await deleteInBrowser(page, guard, fixture.destinationSlug, current.file_id)
+  const deleted = await listFiles(
+    request,
+    token,
+    fixture.destinationSlug,
+    fixture.destinationPageId,
+    true
+  )
+  const tombstones = deleted.filter(
+    (file) => file.file_id === current.file_id && file.revision_type === "delete"
+  )
+  assert.equal(tombstones.length, 1)
+  assert.ok(tombstones[0].revision_id > current.revision_id)
+  assert.equal(tombstones[0].s3_hash, current.s3_hash)
+  return tombstones[0]
+}
+
+/**
+ * @param {import("@playwright/test").Page} page
+ * @param {import("@playwright/test").APIRequestContext} request
+ * @param {string} token @param {Fixture} fixture @param {WriteGuard} guard
+ * @param {number} fileId @param {string} name @param {Buffer} original
+ * @param {number} priorRevision
+ */
+async function restoreAndAssertFile(
+  page,
+  request,
+  token,
+  fixture,
+  guard,
+  fileId,
+  name,
+  original,
+  priorRevision
+) {
+  await restoreInBrowser(page, guard, fixture.destinationSlug, fileId)
+  await assertFile(
+    request,
+    token,
+    fixture.destinationSlug,
+    fixture.destinationPageId,
+    fileId,
+    name,
+    original,
+    priorRevision
+  )
+}
+
+/**
+ * @param {import("@playwright/test").Page} page
+ * @param {import("@playwright/test").APIRequestContext} request
+ * @param {string} token @param {Fixture} fixture @param {WriteGuard} guard
+ * @param {number} fileId
+ */
+async function deleteAndAssertCleanup(page, request, token, fixture, guard, fileId) {
+  await deleteInBrowser(page, guard, fixture.destinationSlug, fileId)
+  const finalFiles = await listFiles(
+    request,
+    token,
+    fixture.destinationSlug,
+    fixture.destinationPageId,
+    false
+  )
+  assert.ok(!finalFiles.some((file) => file.file_id === fileId))
+  assertWriteSequence(guard, fixture)
+}
+
+/**
  * @param {import("@playwright/test").Page} page @param
  *   {import("@playwright/test").APIRequestContext} request @param {string}
  *   token @param {Fixture} fixture @param {WriteGuard} guard
@@ -442,119 +645,83 @@ async function exercise(page, request, token, fixture, guard) {
     const firstId = current.revision_id
 
     stage = "rename"
-    await editInBrowser(page, guard, fixture.sourceSlug, fileId, renamed, null)
-    current = await assertFile(
+    current = await editAndAssertFile(
+      page,
       request,
       token,
       fixture.sourceSlug,
       fixture.pageId,
-      fileId,
+      guard,
+      current,
       renamed,
       original,
-      current.revision_id
+      null
     )
 
     stage = "replace"
-    await editInBrowser(page, guard, fixture.sourceSlug, fileId, renamed, replacement)
-    current = await assertFile(
+    current = await editAndAssertFile(
+      page,
       request,
       token,
       fixture.sourceSlug,
       fixture.pageId,
-      fileId,
+      guard,
+      current,
       renamed,
       replacement,
-      current.revision_id
+      replacement
     )
 
     stage = "history and rollback"
-    /** @type {FileRevisionModel[]} */
-    const history = await rpc(request, token, fixture.sourceSlug, "file_revision_range", {
-      site_id: siteId,
-      page_id: fixture.pageId,
-      file_id: fileId,
-      revision_number: current.revision_number + 1,
-      revision_direction: "before",
-      limit: 20
-    })
-    assert.ok(
-      history.some(
-        (revision) =>
-          revision.revision_id === firstId && revision.revision_number === createRevision
-      )
-    )
-    await rollbackInBrowser(page, guard, fixture.sourceSlug, fileId, createRevision)
-    current = await assertFile(
+    current = await rollbackAndAssertFile(
+      page,
       request,
       token,
-      fixture.sourceSlug,
-      fixture.pageId,
-      fileId,
+      fixture,
+      guard,
+      current,
+      firstId,
+      createRevision,
       name,
-      original,
-      current.revision_id
+      original
     )
 
     stage = "move"
-    await moveInBrowser(page, guard, fixture.sourceSlug, fileId, fixture.destinationSlug)
-    const sourceFiles = await listFiles(
+    current = await moveAndAssertFile(
+      page,
       request,
       token,
-      fixture.sourceSlug,
-      fixture.pageId,
-      false
-    )
-    assert.ok(!sourceFiles.some((file) => file.file_id === fileId))
-    current = await assertFile(
-      request,
-      token,
-      fixture.destinationSlug,
-      fixture.destinationPageId,
-      fileId,
+      fixture,
+      guard,
+      current,
       name,
-      original,
-      current.revision_id
+      original
     )
 
     stage = "delete"
-    await deleteInBrowser(page, guard, fixture.destinationSlug, fileId)
-    const deleted = await listFiles(
+    const tombstone = await deleteAndAssertFile(
+      page,
       request,
       token,
-      fixture.destinationSlug,
-      fixture.destinationPageId,
-      true
+      fixture,
+      guard,
+      current
     )
-    const tombstones = deleted.filter(
-      (file) => file.file_id === fileId && file.revision_type === "delete"
-    )
-    assert.equal(tombstones.length, 1)
-    assert.ok(tombstones[0].revision_id > current.revision_id)
-    assert.equal(tombstones[0].s3_hash, current.s3_hash)
 
     stage = "restore"
-    await restoreInBrowser(page, guard, fixture.destinationSlug, fileId)
-    current = await assertFile(
+    await restoreAndAssertFile(
+      page,
       request,
       token,
-      fixture.destinationSlug,
-      fixture.destinationPageId,
+      fixture,
+      guard,
       fileId,
       name,
       original,
-      tombstones[0].revision_id
+      tombstone.revision_id
     )
     stage = "cleanup"
-    await deleteInBrowser(page, guard, fixture.destinationSlug, fileId)
-    const finalFiles = await listFiles(
-      request,
-      token,
-      fixture.destinationSlug,
-      fixture.destinationPageId,
-      false
-    )
-    assert.ok(!finalFiles.some((file) => file.file_id === fileId))
-    assertWriteSequence(guard, fixture)
+    await deleteAndAssertCleanup(page, request, token, fixture, guard, fileId)
   } catch (error) {
     fileId ??= await findCreatedFile(request, token, fixture, baseline, name)
     await recoverFailedFile(
@@ -705,7 +872,9 @@ test(
           fixture.username,
           (await readFile(adminPath, "utf8")).trim()
         )
+        /** @type {string[]} */
         const failedRequests = []
+        /** @type {string[]} */
         const pageErrors = []
         page.on("requestfailed", (request) => {
           failedRequests.push(
