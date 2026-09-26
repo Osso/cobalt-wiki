@@ -80,19 +80,21 @@ async fn setup() -> (TestRunner, i64, i64, i64) {
     )
     .await
     .unwrap();
-    RoleService::grant_role_to_user(
-        runner.context(),
-        GrantUserRoleInput {
-            site_id,
-            user_id: SAMPLE_USER_ID,
-            role_id: role.role_id,
-            assigning_user_id: SYSTEM_USER_ID,
-            expires_at: None,
-            ip_address: common::IP_ADDRESS,
-        },
-    )
-    .await
-    .unwrap();
+    for user_id in [SAMPLE_USER_ID, ADMIN_USER_ID] {
+        RoleService::grant_role_to_user(
+            runner.context(),
+            GrantUserRoleInput {
+                site_id,
+                user_id,
+                role_id: role.role_id,
+                assigning_user_id: SYSTEM_USER_ID,
+                expires_at: None,
+                ip_address: common::IP_ADDRESS,
+            },
+        )
+        .await
+        .unwrap();
+    }
     (runner, site_id, editable, protected)
 }
 
