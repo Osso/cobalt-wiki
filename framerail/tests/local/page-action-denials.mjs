@@ -29,6 +29,7 @@ const observerPath =
 /** @typedef {Awaited<ReturnType<typeof readFixtures>>["fixture"]} Fixture */
 /** @typedef {Awaited<ReturnType<typeof guardObserverWrites>>} ObserverGuard */
 /** @typedef {Awaited<ReturnType<typeof guardBrowserWrites>>} AdminGuard */
+/** @typedef {{action: string; body: Record<string, string | number | boolean | string[] | number[]>; format?: "superform" | "json" | "form"}} DenialCase */
 
 const allowedDenials = new Set([
   "move",
@@ -274,8 +275,7 @@ async function postAction(page, guard, slug, action, body, format = "superform")
     async ({ slug, action, payload, format }) => {
       const headers = {
         accept: "application/json",
-        "x-sveltekit-action": "true",
-        ...(format === "json" ? { "content-type": "application/json" } : {})
+        "x-sveltekit-action": "true"
       }
       const response = await fetch(`/${slug}?/${action}`, {
         method: "POST",
@@ -393,11 +393,7 @@ async function recoverPage(admin, fixture, baseline, originalBlocked, action, cu
  * @param {Actor} admin @param {Actor} observer @param {ObserverGuard}
  *   observerGuard @param {Fixture} fixture @param {Fingerprint} baseline
  * @param {Fingerprint} destination @param {boolean} originalBlocked
- * @param {{
- *   action: string
- *   body: Record<string, string | number | boolean | string[] | number[]>
- *   format?: "superform" | "json" | "form"
- * }} entry
+ * @param {DenialCase} entry
  */
 async function assertDenied(
   admin,
@@ -713,6 +709,7 @@ test(
             fileId,
             lastRevisionId: created.revision_id
           }
+          /** @type {DenialCase[]} */
           const cases = [
             { action: "fileDelete", body: { ...common, comments: "" }, format: "json" },
             { action: "fileEdit", body: { ...common, name, comments: "" } },
@@ -850,6 +847,7 @@ test(
           pageId: fixture.pageId,
           lastRevisionId: baseline.revision
         }
+        /** @type {DenialCase[]} */
         const cases = [
           {
             action: "move",
