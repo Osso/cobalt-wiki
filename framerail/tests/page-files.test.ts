@@ -127,7 +127,7 @@ test("Wikidot Files supplies read-only information for an active file", () => {
   assert.match(body, /Full file URL/)
   assert.match(
     body,
-    /href="\/\/files\.example\.test\/-\/file\/writing:example\/report\.pdf"/
+    /href="https:\/\/example\.test\/-\/file\/writing:example\/report\.pdf"/
   )
   assert.match(body, /application\/pdf/)
   assert.match(body, /1,025 Bytes/)
@@ -135,6 +135,14 @@ test("Wikidot Files supplies read-only information for an active file", () => {
   assert.match(body, /2024/)
   assert.doesNotMatch(body, /Uploaded by|upload limit/)
   assert.equal((body.match(/<summary[^>]*>info<\/summary>/g) ?? []).length, 2)
+})
+
+test("Wikidot file URLs encode filename spaces and fragment markers", () => {
+  const body = renderFiles(Layout.WIKIDOT, [{ ...files[0], name: "map #1.png" }])
+  assert.match(
+    body,
+    /href="https:\/\/example\.test\/-\/file\/writing:example\/map%20%231\.png"/
+  )
 })
 
 test("alternate Files layout retains existing presentation without Wikidot additions", () => {

@@ -6,6 +6,7 @@ The Wikidot-layout Files pane presents attached-file information using the exist
 
 - [x] Show total bytes for listed nondeleted files, including a zero-byte total for a nonempty active list; omit the total for an empty list.
 - [x] Offer each active file a closable, read-only information view with its name, existing file URL, byte size, MIME type, creation date and nonempty revision comment.
+- [x] Use absolute same-origin file URLs through the existing `/-/file` permission boundary; encode filename spaces and fragment markers.
 - [x] Keep deleted-file restore actions and non-Wikidot presentation unchanged.
 
 ## How it works

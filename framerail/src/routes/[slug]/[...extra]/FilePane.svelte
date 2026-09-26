@@ -1,5 +1,6 @@
 <script lang="ts">
   import { deserialize } from "$app/forms"
+  import { page } from "$app/state"
   import { invalidateAll } from "$app/navigation"
   import { errorPopupState, pageLayoutState } from "$lib/stores.svelte"
   import { Layout, ToastType } from "$lib/types"
@@ -366,7 +367,10 @@
         <div class="file-attribute action"></div>
       </div>
       {#each [...fileMap].sort((a, b) => b[0] - a[0]) as [id, file] (id)}
-        {@const fileUrl = `//${data.site_file_domain}/-/file/${data.page?.slug}/${file.name}`}
+        {@const fileUrl = new URL(
+          `/-/file/${data.page?.slug}/${encodeURIComponent(file.name)}`,
+          page.url
+        ).href}
         <div class="file-row" data-id={id}>
           <div class="file-attribute name">
             <a href={fileUrl} rel="external">
