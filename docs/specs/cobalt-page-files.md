@@ -62,7 +62,7 @@ The Wikidot-layout Files pane presents attached-file information using the exist
 
 - [ ] Browser observer denial proves only file Delete/Edit/Move. Upload, revision-history read, rollback, restore, and other file-denial actions retain isolated authorization proof; do not represent them as browser proof.
 - [ ] The lifecycle preserves only disposable/original fixture files and pages. The refreshed SQL comparison excludes Files and also excludes three page identities, renderer fields, and 43 unreconstructable original full-row fingerprints.
-- [ ] Current frontend final evidence is pending agent `1014` at `/tmp/claude/cobalt-current-frontend-final-gate.json`; do not call this slice clean until it arrives. It would not expand this action-specific authorization boundary.
+- [x] Current frontend checks and formatting follow-up pass; receipts and inherited-warning scope are recorded in [page actions](cobalt-page-actions.md). They do not expand this action-specific authorization boundary.
 
 ## Out of scope
 

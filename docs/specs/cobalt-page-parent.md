@@ -43,7 +43,7 @@ The Parent panel edits page breadcrumb relationships in `framerail/src/routes/[s
 ## Known gaps (current cycle)
 
 - [ ] Clear-then-Save remains unproved as a separate mutation; two-parent save/readback/restore is proved.
-- [ ] Browser observer denial includes Parent but does not replace complete action-specific denial coverage. The current frontend final gate is pending agent `1014` at `/tmp/claude/cobalt-current-frontend-final-gate.json`; do not call this slice clean until its result is supplied.
+- [x] Browser observer denial includes Parent; isolated tests also cover forged actor/site and body-child substitution. Current frontend checks and formatting follow-up pass; receipts and inherited-warning scope are recorded in [page actions](cobalt-page-actions.md).
 - [ ] SQL preservation is bounded: three page identities, documented renderer fields, 43 unreconstructable original full-row fingerprints, and Files are excluded.
 
 ## Out of scope

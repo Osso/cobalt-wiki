@@ -53,7 +53,7 @@ Bottom-page controls follow supplied Tags/History screenshots and retained Wikid
 - `deepwell/tests/page_delete_restore_permission.rs` — isolated Delete/Restore authorization 6/6 at `c5262aae2`; its initial RED was blocked by the environment, not behavioral evidence.
 - `deepwell/tests/file_permission.rs` — file endpoint `Page/Edit` coverage; targeted 3/3 GREEN after `e974e6f84` initializes rollback creation revision `0`.
 - `deepwell/tests/page_move_dependencies.rs` — selected Move dependency authorization, preservation, native-lock skip, duplicate-source revision, direct-revision/draft, and split-leftover coverage; targeted 4/4 GREEN.
-- Block policy targeted tests — 27/27 pass; coverage includes protected targets and native-lock preservation.
+- Mutation authorization tests — 27/27 pass. Block policy and native-lock preservation have separate coverage in the 12/12 `member_admin` target.
 - `framerail/tests/page-bottom-tags.test.ts` — SSR bottom-action and Tags behavior.
 - `framerail/tests/local/page-bottom-actions.mjs` — Tags save/readback/restore with a fixture-only write guard.
 - `framerail/tests/local/history-actions.mjs` — local History browser coverage.
@@ -69,11 +69,11 @@ Bottom-page controls follow supplied Tags/History screenshots and retained Wikid
 - `/tmp/claude/cobalt-page-action-styled.log` — actual styled lifecycle GREEN 1/1 at `ca141f0b3`: the stylesheet-GET guard permits no external reads, and Move, Layout, Delete, and Native Restore complete a persisted disposable-fixture roundtrip.
 - `/tmp/claude/cobalt-{delete-dialog,backlinks,print}-final.png` — local captures of the exercised Delete, Backlinks, and Print states; captures record presentation only, not mutation proof.
 - `/tmp/claude/cobalt-parent-loading-red.json` — reproduced pre-baseline editable-input race (`typedRetained: false`, `afterEmpty: true`); `71ce6afa2` disables editing until the baseline loads.
-- `/tmp/claude/cobalt-action-preservation-gate.json` — read-only artifact comparison PASS: baseline unchanged for 6,116 pages, 45,369 history rows, zero drafts, 32 grants, and 10,091 native-content rows. It excludes three page identities (including sacrificial pages `3000006134` and `3000006135`), five native cache fields, all Files coverage, and 43 unreconstructable original full-row fingerprints.
+- `/tmp/claude/cobalt-action-preservation-gate.json` — read-only artifact comparison PASS: baseline unchanged for 6,116 pages, 45,369 history rows, zero drafts, 32 grants, and 10,091 native-content rows. SQL excludes three page identities (including sacrificial pages `3000006134` and `3000006135`) and five native cache fields. Files are outside this query; 43 original full-row fingerprints remain unreconstructable, not an additional SQL row exclusion.
 - `/tmp/claude/cobalt-remaining-runtime.json` — running Deepwell SHA equals built `fc3e48773`.
 - `/tmp/claude/cobalt-layout-authorization-deploy.log` — local `./deploy.sh` for `3fa1838a3` exited `0` after a compact 3m27s build; the retained log is empty.
 - `/tmp/claude/cobalt-layout-denial-postfix.json` — post-deploy denied editor action against disposable page `3000006135`: Svelte failure `403`, with unchanged layout, source, and revision; fixture restored.
-- `/tmp/claude/cobalt-layout-auth-gate.json` — `cargo fmt --check`, offline check, and isolated Layout authorization 4/4 pass; the pre-cleanup test warned on `unused_mut`, fixed test-only by `6f3d99463`, so targeted recheck remains pending. Scoped Prettier and ESLint pass; current frontend type proof is pending.
+- `/tmp/claude/cobalt-layout-auth-gate.json` — `cargo fmt --check`, offline check, and isolated Layout authorization 4/4 pass; the pre-cleanup test warned on `unused_mut`, fixed test-only by `6f3d99463`, superseded by the passing final backend and frontend gates below.
 - `/tmp/claude/cobalt-page-action-restore-post-evidence.log` — RED: selected native Restore radio for fixture `3000006134` posted `pageId: 0`; backend returned `500`/`Page does not exist`.
 - `/tmp/claude/cobalt-page-action-restore-binding.log` — actual local lifecycle GREEN 1/1 after `eb1384e4a`: Restore POST carries the manifest page ID, returns HTTP `200` success, then the form disappears and persisted readback verifies recovery.
 - `/tmp/claude/cobalt-native-restore-gate.json` — independent scoped audit at `a81fed8e0dc4c6bd1f4dacfd97f6de28d206f985`: the restore binding and lifecycle-test sources are unchanged from their commits; scoped Prettier, ESLint, Stylelint, and diff checks pass. It deliberately excludes a browser rerun, runtime/deploy work, whole-project typecheck, other actions, Move/Block, and denials.
@@ -87,14 +87,14 @@ Bottom-page controls follow supplied Tags/History screenshots and retained Wikid
 - `/tmp/claude/cobalt-parent-postauth-browser.log` — current browser GREEN 1/1 for remaining authorized page actions, including Parent fixture restoration.
 - `/tmp/claude/cobalt-page-action-denials-textplain.log` — observer browser denials GREEN 2/2: page Move/Delete/Parent/Layout/Tags/Block and file Delete/Edit/Move. Other file-denial actions have isolated proof only.
 - `/tmp/claude/cobalt-final-helper-tests.log` — current helper/transport assertions GREEN 28/28.
-- `/tmp/claude/cobalt-final-action-preservation.json` — refreshed SQL comparison preserves equal hashes/counts for 6,116 pages, 45,369 imported history rows, 10,091 native-content rows, 32 grants, and zero drafts. It excludes three page identities, documented renderer fields, 43 unreconstructable original full-row fingerprints, and all Files; browser lifecycles separately preserve original fixture files.
+- `/tmp/claude/cobalt-final-action-preservation.json` — refreshed SQL comparison preserves equal hashes/counts for 6,116 pages, 45,369 imported history rows, 10,091 native-content rows, 32 grants, and zero drafts. SQL excludes three page identities and documented renderer fields; Files are outside the query and browser lifecycles separately preserve original fixture files. The 43 unreconstructable original full-row fingerprints remain outside full-row preservation claims.
 
 ## Known gaps (current cycle)
 
-- [ ] Move source rewriting remains limited: its include regex does not support colons or parameters, and unsupported references are reported rather than rewritten. Current browser proof covers selected link repair and leftovers, not complete dependency repair.
+- Move retains the source include regex: colon-qualified and parameterized includes remain reported rather than rewritten. Triple links support category colons. Browser proof covers selected links and leftovers; supported includes have isolated behavioral proof.
 - [ ] Browser observer denial covers page Move/Delete/Parent/Layout/Tags/Block and file Delete/Edit/Move only. Remaining file-denial actions are isolated proof, not browser proof. Lifecycle runs and SQL preservation remain bounded as stated above.
 - [ ] Clear-then-Save is not separately proved beyond Parent’s two-value save/readback/restore. Delete-dialog acceptance remains intercepted; Native Restore covers only the selected existing-control recovery scope.
-- [ ] The current frontend final gate is pending agent `1014` at `/tmp/claude/cobalt-current-frontend-final-gate.json`; do not call this slice clean until its result is supplied. These local results do not establish full-replica parity.
+- [x] Frontend gate passes with `/tmp/claude/cobalt-current-frontend-final-gate.json` plus its final formatting receipt `/tmp/claude/cobalt-final-format-gate.json`: Svelte 0 errors/0 warnings, no new readability exceedances, helper tests 28/28, retained browser tests 6/6. ESLint has zero errors and one inherited warning. These local results do not establish full-replica parity.
 
 ## Out of scope
 
