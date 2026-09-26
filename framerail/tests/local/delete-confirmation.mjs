@@ -7,7 +7,11 @@ import { chromium, expect } from "@playwright/test"
 const origin = "http://127.0.0.1:3090"
 const backend = "http://127.0.0.1:2749/jsonrpc"
 
-/** @param {import("@playwright/test").APIRequestContext} request */
+/**
+ * @param {import("@playwright/test").APIRequestContext} request
+ * @param {{ siteId: number; existingSlug: string }} fixture
+ * @param {string} token
+ */
 async function readPageFingerprint(request, fixture, token) {
   const response = await request.post(backend, {
     data: {
@@ -33,7 +37,10 @@ async function readPageFingerprint(request, fixture, token) {
   }
 }
 
-/** @param {import("@playwright/test").BrowserContext} context */
+/**
+ * @param {import("@playwright/test").BrowserContext} context
+ * @param {{ existingSlug: string }} fixture
+ */
 async function guardBrowserWrites(context, fixture) {
   /** @type {string[]} */
   const intercepted = []

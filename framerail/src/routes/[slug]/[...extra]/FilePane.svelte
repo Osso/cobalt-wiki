@@ -19,7 +19,7 @@
   let activeFileAction = $state<FileAction | null>(null)
 
   let fileMap = new SvelteMap<number, PageFile>(
-    initialFiles.map((file) => [file.file_id, file])
+    untrack(() => initialFiles.map((file) => [file.file_id, file]))
   )
   let listedFiles = $derived(
     [...fileMap.values()].filter((file) => file.revision_type !== "delete")

@@ -8,8 +8,11 @@ const origin = "http://127.0.0.1:3090"
 const backend = "http://127.0.0.1:2749/jsonrpc"
 const siteId = 6000000
 const errorFile = process.env.COBALT_REMAINING_ACTION_ERROR_FILE
-/** @param {string} value */
-const digest = (value) => createHash("sha256").update(value).digest("hex")
+/** @param {string | null} value */
+const digest = (value) => {
+  assert.ok(typeof value === "string", "text content must exist")
+  return createHash("sha256").update(value).digest("hex")
+}
 
 /** @typedef {import("../../src/lib/server/deepwell/views").PageView} PageView */
 /** @typedef {Extract<PageView, { type: "found" }>["data"]} StoredPage */
