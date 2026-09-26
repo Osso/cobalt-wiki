@@ -20,10 +20,73 @@
 
 use super::prelude::*;
 use crate::models::page_lock::Model as PageLockModel;
-use crate::services::PageLockService;
+use crate::services::member_admin::MemberAdminService;
 use crate::services::page_lock::{
     CreatePageLockInput, GetPageLockHistoryInput, RemovePageLockInput,
 };
+use crate::services::permission::{CheckPermissionContext, PermissionService};
+use crate::services::{PageLockService, PageService};
+use crate::types::{Action, Permission, Reference, Resource};
+use std::net::IpAddr;
+
+#[derive(Deserialize)]
+struct SetPageBlock {
+    page: Reference<'static>,
+    blocked: bool,
+    ip_address: IpAddr,
+}
+
+#[derive(Serialize, Clone, Debug)]
+pub struct PageBlockState {
+    blocked: bool,
+    can_manage: bool,
+}
+
+pub async fn page_block_get(
+    ctx: &ServiceContext<'_>,
+    params: Params<'static>,
+) -> Result<PageBlockState> {
+    let input: GetPageLockHistoryInput = parse!(params, PageLock);
+    let site_id = ctx.request().site_id()?;
+    let page = PageService::get(ctx, site_id, input.page.clone()).await?;
+    let can_view = PermissionService::check_user_can(
+        ctx,
+        &CheckPermissionContext {
+            user_id: ctx.request().user_id,
+            site_id,
+            page_reference: Some(Reference::Id(page.page_id)),
+        },
+        Permission {
+            resource_type: Resource::Page,
+            resource_category: Some(Reference::Id(page.page_category_id)),
+            action: Action::View,
+        },
+    )
+    .await?;
+    if !can_view {
+        bail!(Error::new("page view denied", ErrorType::PermissionDenied));
+    }
+    let can_manage = match ctx.request().user_id {
+        Some(user_id) => {
+            MemberAdminService::is_site_page_moderator_or_admin(ctx, site_id, user_id)
+                .await?
+        }
+        None => false,
+    };
+    Ok(PageBlockState {
+        blocked: PageLockService::is_wikidot_blocked(ctx, input.page).await?,
+        can_manage,
+    })
+}
+
+pub async fn page_block_set(
+    ctx: &ServiceContext<'_>,
+    params: Params<'static>,
+) -> Result<()> {
+    let input: SetPageBlock = parse!(params, PageLock);
+    PageLockService::set_wikidot_block(ctx, input.page, input.blocked, input.ip_address)
+        .await
+}
 
 pub async fn page_lock_create(
     ctx: &ServiceContext<'_>,

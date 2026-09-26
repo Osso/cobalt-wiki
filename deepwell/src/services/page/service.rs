@@ -33,8 +33,8 @@ use crate::services::page_revision::{
 };
 use crate::services::permission::{CheckPermissionContext, PermissionService};
 use crate::services::{
-    CategoryService, FilterService, PageRevisionService, SiteService, TextBlockService,
-    TextService,
+    CategoryService, FilterService, PageLockService, PageRevisionService, SiteService,
+    TextBlockService, TextService,
 };
 use crate::types::{
     Action, PageId, PageOrder, PageRevisionType, Permission, Reference, Resource,
@@ -260,6 +260,8 @@ impl PageService {
         } = Self::get(ctx, site_id, reference)
             .await
             .or_raise(|| Error::new("failed to edit page", ErrorType::Page))?;
+
+        Self::require_page_edit(ctx, site_id, user_id, page_id, category_id).await?;
 
         let id = PageId {
             site_id,
@@ -795,6 +797,8 @@ impl PageService {
             .await
             .or_raise(|| Error::new("failed to roll back page", ErrorType::Page))?;
 
+        Self::require_page_edit(ctx, site_id, user_id, page_id, category_id).await?;
+
         let id = PageId {
             site_id,
             category_id,
@@ -938,7 +942,7 @@ impl PageService {
         todo!()
     }
 
-    async fn require_page_edit(
+    pub(crate) async fn require_page_edit(
         ctx: &ServiceContext<'_>,
         site_id: i64,
         user_id: i64,
@@ -946,33 +950,52 @@ impl PageService {
         category_id: i64,
     ) -> Result<()> {
         let request = ctx.request();
-        if request.user_id != Some(user_id) || request.site_id != Some(site_id) {
-            bail!(Error::new(
-                "user does not have permission to edit this page",
-                ErrorType::PermissionDenied,
-            ));
+        let actor_matches =
+            request.user_id == Some(user_id) && request.site_id == Some(site_id);
+        let id = PageId {
+            site_id,
+            category_id,
+            page_id,
+        };
+        if !actor_matches || !Self::can_edit_resolved_page(ctx, user_id, id).await? {
+            bail!(Error::new("page edit denied", ErrorType::PermissionDenied));
         }
-        let can_edit = PermissionService::check_user_can(
+        let lock = PageLockService::can_user_bypass_lock(
             ctx,
-            &CheckPermissionContext {
-                user_id: request.user_id,
-                site_id,
-                page_reference: Some(Reference::Id(page_id)),
-            },
-            Permission {
-                resource_type: Resource::Page,
-                resource_category: Some(Reference::Id(category_id)),
-                action: Action::Edit,
-            },
+            site_id,
+            page_id,
+            Some(category_id),
+            user_id,
         )
         .await?;
-        if !can_edit {
+        if !lock.can_edit {
             bail!(Error::new(
-                "user does not have permission to edit this page",
-                ErrorType::PermissionDenied,
+                "page is blocked or locked for this actor",
+                ErrorType::PermissionDenied
             ));
         }
         Ok(())
+    }
+
+    async fn can_edit_resolved_page(
+        ctx: &ServiceContext<'_>,
+        user_id: i64,
+        id: PageId,
+    ) -> Result<bool> {
+        PermissionService::check_user_can(
+            ctx,
+            &CheckPermissionContext {
+                user_id: Some(user_id),
+                site_id: id.site_id,
+                page_reference: Some(Reference::Id(id.page_id)),
+            },
+            Permission {
+                resource_type: Resource::Page,
+                resource_category: Some(Reference::Id(id.category_id)),
+                action: Action::Edit,
+            },
+        )
+        .await
     }
 
     /// Sets the layout override for a page.
@@ -988,34 +1011,9 @@ impl PageService {
     ) -> Result<()> {
         debug!("Setting page layout for site ID {site_id} page ID {page_id}");
 
-        let request = ctx.request();
-        if request.user_id != Some(user_id) || request.site_id != Some(site_id) {
-            bail!(Error::new(
-                "user does not have permission to set this page's layout",
-                ErrorType::PermissionDenied,
-            ));
-        }
         let page = Self::get(ctx, site_id, Reference::Id(page_id)).await?;
-        let can_edit = PermissionService::check_user_can(
-            ctx,
-            &CheckPermissionContext {
-                user_id: request.user_id,
-                site_id,
-                page_reference: Some(Reference::Id(page_id)),
-            },
-            Permission {
-                resource_type: Resource::Page,
-                resource_category: Some(Reference::Id(page.page_category_id)),
-                action: Action::Edit,
-            },
-        )
-        .await?;
-        if !can_edit {
-            bail!(Error::new(
-                "user does not have permission to set this page's layout",
-                ErrorType::PermissionDenied,
-            ));
-        }
+        Self::require_page_edit(ctx, site_id, user_id, page_id, page.page_category_id)
+            .await?;
 
         let make_error = || {
             Error::new(

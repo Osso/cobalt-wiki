@@ -25,8 +25,7 @@ use crate::services::parent::{
     GetParentRelationships, ParentDescription, RemoveParentOutput, UpdateParents,
     UpdateParentsOutput,
 };
-use crate::services::permission::{CheckPermissionContext, PermissionService};
-use crate::types::{Action, Permission, Reference, Resource};
+use crate::types::Reference;
 use futures::future::try_join_all;
 
 pub async fn parent_relationships_get(
@@ -86,6 +85,7 @@ pub async fn parent_set(
         input.parent, input.child, input.site_id,
     );
 
+    require_child_edit(ctx, &input).await?;
     ParentService::create(ctx, input).await.or_raise(|| {
         Error::new(
             "failed to create page parent relationship",
@@ -105,12 +105,32 @@ pub async fn parent_remove(
         input.parent, input.child, input.site_id,
     );
 
+    require_child_edit(ctx, &input).await?;
     ParentService::remove(ctx, input).await.or_raise(|| {
         Error::new(
             "failed to remove page parent relationship",
             ErrorType::PageParent,
         )
     })
+}
+
+async fn require_child_edit(
+    ctx: &ServiceContext<'_>,
+    input: &ParentDescription<'_>,
+) -> Result<()> {
+    let user_id = ctx
+        .request()
+        .user_id
+        .ok_or_else(|| Error::new("page edit denied", ErrorType::PermissionDenied))?;
+    let child = PageService::get(ctx, input.site_id, input.child.borrow()).await?;
+    PageService::require_page_edit(
+        ctx,
+        input.site_id,
+        user_id,
+        child.page_id,
+        child.page_category_id,
+    )
+    .await
 }
 
 pub async fn parent_get_all(
@@ -156,34 +176,15 @@ pub async fn parent_update(
         input.child, input.site_id,
     );
 
-    let request = ctx.request();
-    if request.user_id != Some(input.user_id) || request.site_id != Some(input.site_id) {
-        bail!(Error::new(
-            "user does not have permission to update this page's parents",
-            ErrorType::PermissionDenied,
-        ));
-    }
     let child = PageService::get(ctx, input.site_id, input.child.borrow()).await?;
-    let can_edit = PermissionService::check_user_can(
+    PageService::require_page_edit(
         ctx,
-        &CheckPermissionContext {
-            user_id: request.user_id,
-            site_id: input.site_id,
-            page_reference: Some(Reference::Id(child.page_id)),
-        },
-        Permission {
-            resource_type: Resource::Page,
-            resource_category: Some(Reference::Id(child.page_category_id)),
-            action: Action::Edit,
-        },
+        input.site_id,
+        input.user_id,
+        child.page_id,
+        child.page_category_id,
     )
     .await?;
-    if !can_edit {
-        bail!(Error::new(
-            "user does not have permission to update this page's parents",
-            ErrorType::PermissionDenied,
-        ));
-    }
 
     let make_error = || {
         Error::new(

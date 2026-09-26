@@ -206,6 +206,23 @@ fn parents_input(
     })
 }
 
+#[tokio::test]
+async fn individual_parent_mutations_cannot_bypass_body_child_authorization() {
+    let (mut runner, site_id, editable, protected) = setup().await;
+    let parent = create_page(&runner, site_id, "individual:parent").await;
+    target(&mut runner, site_id, editable, Some(SAMPLE_USER_ID));
+    let input = json!({"site_id":site_id,"child":protected,"parent":parent});
+    let error = run_endpoint_err!(runner, parent_set, input.clone());
+    assert_contains_error!(error, ErrorType::PermissionDenied);
+    assert!(parent_ids(&runner, site_id, protected).await.is_empty());
+    target(&mut runner, site_id, protected, Some(ADMIN_USER_ID));
+    run_endpoint!(runner, parent_set, input.clone());
+    target(&mut runner, site_id, editable, Some(SAMPLE_USER_ID));
+    let error = run_endpoint_err!(runner, parent_remove, input);
+    assert_contains_error!(error, ErrorType::PermissionDenied);
+    assert_eq!(parent_ids(&runner, site_id, protected).await, vec![parent]);
+}
+
 async fn parent_ids(runner: &TestRunner, site_id: i64, child: i64) -> Vec<i64> {
     let mut ids: Vec<_> =
         ParentService::get_parents(runner.context(), site_id, Reference::Id(child))

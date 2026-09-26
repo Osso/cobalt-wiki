@@ -26,9 +26,8 @@ use crate::services::file::{
     GetFile, GetFileDetails, GetFileOutput, MoveFile, MoveFileOutput, RestoreFile,
     RestoreFileOutput, RollbackFile,
 };
-use crate::services::permission::{CheckPermissionContext, PermissionService};
 use crate::services::{BlobService, FileRevisionService};
-use crate::types::{Action, Bytes, FileDetails, Permission, Reference, Resource};
+use crate::types::{Bytes, FileDetails, Reference};
 
 pub async fn file_get(
     ctx: &ServiceContext<'_>,
@@ -241,24 +240,15 @@ async fn authorize_page_edit(
     page_id: i64,
 ) -> Result<()> {
     let page = PageService::get(ctx, site_id, Reference::Id(page_id)).await?;
-    let permitted = PermissionService::check_user_can(
+    let user_id = ctx.request().user_id.ok_or_else(deny_file_edit)?;
+    PageService::require_page_edit(
         ctx,
-        &CheckPermissionContext {
-            user_id: ctx.request().user_id,
-            site_id,
-            page_reference: Some(Reference::Id(page.page_id)),
-        },
-        Permission {
-            resource_type: Resource::Page,
-            resource_category: Some(Reference::Id(page.page_category_id)),
-            action: Action::Edit,
-        },
+        site_id,
+        user_id,
+        page.page_id,
+        page.page_category_id,
     )
-    .await?;
-    if !permitted {
-        return Err(deny_file_edit());
-    }
-    Ok(())
+    .await
 }
 
 async fn authorize_file_edit(
