@@ -14,7 +14,7 @@ Bottom-page controls follow supplied Tags/History screenshots and retained Wikid
 - [x] Delete uses a native dialog rather than `window.confirm`, with explicit close callbacks; Cancel, Escape, and accepted confirmation are covered while the DELETE request is intercepted, and Move remains immediate.
 - [x] Show viewer-filtered Backlinks links and inclusions, including an empty inclusions result.
 - [x] Require explicit Delete confirmation before its POST path; both acceptance and dismissal are exercised with every mutation intercepted, so no page is deleted.
-- [ ] Apart from guarded Tags and Parent save/readback/restore, panel mutations and authorization remain unproven. Accepted Delete does not delete because its request is intercepted.
+- [ ] Apart from guarded Tags and Parent save/readback/restore, panel mutations and authorization remain unproven. A disposable-page mutation run completed its first Move but failed its four blocked-foreign-GET assertion; error-free recovery is not lifecycle proof. Accepted Delete does not delete because its request is intercepted.
 
 ### Tags
 
@@ -42,19 +42,21 @@ Bottom-page controls follow supplied Tags/History screenshots and retained Wikid
 - `framerail/tests/local/history-actions.mjs` — local History browser coverage.
 - `framerail/tests/local/remaining-actions.mjs` — local panel, Files, Parent, Backlinks, and Print browser coverage.
 - `framerail/tests/local/delete-confirmation.mjs` — native Delete dialog Cancel/Escape/acceptance with mutation interception; Move remains immediate.
+- `framerail/tests/local/page-action-mutations.mjs` — disposable-page mutation lifecycle regression; its main run is not a pass.
 
 ## Evidence
 
 - `/tmp/claude/cobalt-remaining-actions-parent-ready.log` — controlled delayed-GET local coverage; 1/1 pass for Source options/passive panels, parent lookup, two-parent save/readback/restore, and all remaining Files, Backlinks, and Print panels.
 - `/tmp/claude/cobalt-delete-dialog-browser.log` — native Delete dialog Cancel/Escape/acceptance with the accepted DELETE intercepted; Move remains immediate; 1/1 pass at `931ca6f78`.
+- `/tmp/claude/cobalt-page-action-mutations-browser.log` — main disposable-page run after `2e815055d`: first Move succeeded, then the four blocked foreign GET assertion failed; recovery returned without error. This is not a lifecycle pass.
 - `/tmp/claude/cobalt-{delete-dialog,backlinks,print}-final.png` — local captures of the exercised Delete, Backlinks, and Print states; captures record presentation only, not mutation proof.
 - `/tmp/claude/cobalt-parent-loading-red.json` — reproduced pre-baseline editable-input race (`typedRetained: false`, `afterEmpty: true`); `71ce6afa2` disables editing until the baseline loads.
-- `/tmp/claude/cobalt-remaining-preservation.json` — preserved: 6,116 original pages, 45,369 imported records, 10,091 native-content rows, 32 grants, and zero drafts. Excludes only the sacrificial Tags/Parent fixture and native cache fields.
+- `/tmp/claude/cobalt-remaining-preservation.json` — preserved: 6,116 original pages, 45,369 imported records, 10,091 native-content rows, 32 grants, and zero drafts. This proof predates sacrificial pages `3000006134` and `3000006135`, so its original-page count does not cover those fixtures; it excludes the earlier sacrificial Tags/Parent fixture and native cache fields.
 - `/tmp/claude/cobalt-remaining-runtime.json` — running Deepwell SHA equals built `fc3e48773`.
 
 ## Known gaps (current cycle)
 
-- [ ] Source, Files, Move, Lock, and Layout mutations and authorization remain unproven. Delete acceptance is intercepted; it is not delete proof. Clear-then-Save is not separately proved beyond Parent’s two-value save/readback/restore.
+- [ ] Full Move dependency repair, source Block parity, file mutations, and action-specific denials remain unverified/incomplete. Source, Lock, and Layout mutations and authorization also remain unproven. The disposable-page run did not complete its lifecycle after the blocked-foreign-GET assertion failure; recovery alone is not proof. Delete acceptance is intercepted; it is not delete proof. Clear-then-Save is not separately proved beyond Parent’s two-value save/readback/restore.
 - [x] Independent frontend gate passes at `40714b041`: lint, format, style, type checks and scoped behavioral evidence; `/tmp/claude/cobalt-remaining-frontend-gate.json`. Backend gate passes independently. This is not full-replica parity evidence.
 
 ## Out of scope
