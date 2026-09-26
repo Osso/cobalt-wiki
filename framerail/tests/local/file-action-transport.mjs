@@ -112,7 +112,10 @@ async function decodeMutation(request) {
     const bytes = request.postDataBuffer()
     assert.ok(bytes, "mutation body required")
     const headers = request.headers()
-    if (headers["content-type"]?.startsWith("application/json")) {
+    if (
+      headers["content-type"]?.startsWith("application/json") ||
+      headers["content-type"] === "text/plain;charset=UTF-8"
+    ) {
       return { data: JSON.parse(bytes.toString()), file: null, files: [] }
     }
     assert.ok(headers["content-type"]?.startsWith("multipart/form-data"))
@@ -195,6 +198,7 @@ function requestLabel(request, slugs) {
  *   fileId: number | null
  *   name: string | null
  * }} PermittedWrite
+ *
  *
  * @typedef {{
  *   permitted: PermittedWrite | null

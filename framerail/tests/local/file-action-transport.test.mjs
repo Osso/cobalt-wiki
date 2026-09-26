@@ -78,6 +78,29 @@ test("JSON file mutations require exact file and page identity", async () => {
   )
 })
 
+test("rollback text/plain JSON authorizes only matching fixture and file", async () => {
+  const request = {
+    headers: () => ({ "content-type": "text/plain;charset=UTF-8" }),
+    postDataBuffer: () =>
+      Buffer.from(
+        JSON.stringify({
+          siteId,
+          pageId: 3000006134,
+          fileId: 87,
+          revisionNumber: 1,
+          lastRevisionId: 42
+        })
+      )
+  }
+  const permitted = { fileId: 87, name: null }
+  assert.equal(await mutationMatches(request, permitted, 3000006134), true)
+  assert.equal(
+    await mutationMatches(request, { fileId: 78, name: null }, 3000006134),
+    false
+  )
+  assert.equal(await mutationMatches(request, permitted, 3000006135), false)
+})
+
 test("browser guard permits only fixture writes and records blocked requests", async () => {
   /** @type {(route: import("@playwright/test").Route) => Promise<void>} */
   let intercept = async () => assert.fail("route not registered")
