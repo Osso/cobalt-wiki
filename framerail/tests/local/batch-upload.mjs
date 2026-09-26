@@ -267,7 +267,7 @@ async function exercise(page, request, token, fixture) {
     const rows = form.locator("[data-upload-index]")
     await expect(rows).toHaveCount(3)
     for (const [index, upload] of uploads.entries()) {
-      const row = rows.locator(`[data-upload-index="${index}"]`)
+      const row = form.locator(`[data-upload-index="${index}"]`)
       await expect(row).toContainText(upload.name)
       await expect(row).toContainText(index === 1 ? /failed/i : /uploaded/i)
     }
