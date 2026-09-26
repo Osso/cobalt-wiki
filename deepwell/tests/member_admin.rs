@@ -208,7 +208,7 @@ async fn verify_native_lock_and_permission_bypass(
         lock_input(page, "permission-only", true)
     );
     assert_contains_error!(denied, ErrorType::PermissionDenied);
-    act_as(&mut runner, &site, Some(ADMIN_USER_ID));
+    act_as(runner, site, Some(ADMIN_USER_ID));
     let author = PageLockService::can_user_bypass_lock(
         runner.context(),
         site.site_id,
@@ -263,7 +263,7 @@ async fn verify_native_lock_and_permission_bypass(
     )
     .await
     .unwrap();
-    act_as(&mut runner, &site, Some(member));
+    act_as(runner, site, Some(member));
     let allowed = PageLockService::can_user_bypass_lock(
         runner.context(),
         site.site_id,
@@ -278,7 +278,7 @@ async fn verify_native_lock_and_permission_bypass(
         page_lock_remove,
         json!({"page": page, "ip_address": common::IP_ADDRESS})
     );
-    act_as(&mut runner, &site, Some(ADMIN_USER_ID));
+    act_as(runner, site, Some(ADMIN_USER_ID));
     PageLockService::set_wikidot_block(
         runner.context(),
         reference.borrow(),
@@ -287,7 +287,7 @@ async fn verify_native_lock_and_permission_bypass(
     )
     .await
     .unwrap();
-    act_as(&mut runner, &site, Some(member));
+    act_as(runner, site, Some(member));
     let denied = PageLockService::can_user_bypass_lock(
         runner.context(),
         site.site_id,
