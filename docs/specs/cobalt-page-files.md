@@ -45,11 +45,12 @@ The Wikidot-layout Files pane presents attached-file information using the exist
 - `/tmp/claude/cobalt-file-action-rollback-comments.log` — earlier browser prefix reaches upload, rename, byte replacement, history read, and rollback; its Move guard decoder blocked dispatch. Superseded as lifecycle evidence by the main GREEN below; the decoder failure was not application-failure evidence.
 - `2ee59f4de` — makes the test transport guard decode URL-encoded Superforms mutations, allowing the guarded lifecycle to reach its actual application requests.
 - `/tmp/claude/cobalt-file-action-urlencoded.log` — actual main Files lifecycle GREEN 1/1 at `2ee59f4de`: upload, rename, byte replacement, history read, rollback, move, delete, restore, final deletion, and original fixture file/page invariants; no blocked or failed requests, page errors, or external reads.
+- `/tmp/claude/cobalt-file-decode-final-gate.json` — independent PASS at `e09e5ae7f`: whole-project `svelte-check` has 0 errors/0 warnings; scoped ESLint and Prettier pass for the changed transport test; readability passes after extracting the decode-error classifier (`decodeMutation` cognitive complexity 11, below 15). It reuses the unchanged actual Files lifecycle browser GREEN from `/tmp/claude/cobalt-files-frontend-followup.json`; no browser rerun occurred.
 
 ## Known gaps (current cycle)
 
 - [ ] The `cb61f5543` edit/rollback request-IP fix has targeted RED/GREEN 2/2 RPC proof, `90df39567` has targeted RED/GREEN self-conflict proof, and `2d9d9989a`/`fc90bbe98` have targeted rollback route/wire proof. Main browser proof now covers the complete disposable Files lifecycle, but file-mutation authorization and action-specific denials remain unproved; lifecycle proof does not establish them.
-- [ ] The current frontend gate remains pending. Preservation refresh is also pending: the prior bounded record predates the disposable Files fixtures and excludes sacrificial Tags/Parent fixtures and native cache fields; this lifecycle's original-fixture invariants do not refresh that broader record.
+- [ ] The scoped frontend gate passes at `e09e5ae7f`; it proves whole-project type validation plus changed transport-test lint, formatting, and readability, and reuses the unchanged actual Files browser GREEN. It does not prove file-mutation authorization or action-specific denials. Preservation refresh remains pending: the prior bounded record predates the disposable Files fixtures and excludes sacrificial Tags/Parent fixtures and native cache fields; this lifecycle's original-fixture invariants do not refresh that broader record.
 
 ## Out of scope
 
