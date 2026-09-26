@@ -20,11 +20,12 @@
 
 use super::prelude::*;
 use crate::services::import::{
-    HistoryListing, HistoryListingService, ImportHistoryOutput, ImportPage,
-    ImportPageOutput, ImportPageRevision, ImportPageRevisionOutput, ImportService,
-    ImportSite, ImportSiteOutput, ImportUser, ImportUserOutput, ImportedHistoryService,
-    ImportedRevisionSource, ImportedRevisionSummary, ReadImportedHistory,
-    ReadImportedRevision, ReadPageHistory,
+    HistoryCompareOutput, HistoryListing, HistoryListingService, HistoryReadService,
+    HistoryRevisionOutput, ImportHistoryOutput, ImportPage, ImportPageOutput,
+    ImportPageRevision, ImportPageRevisionOutput, ImportService, ImportSite,
+    ImportSiteOutput, ImportUser, ImportUserOutput, ImportedHistoryService,
+    ImportedRevisionSource, ImportedRevisionSummary, ReadHistoryCompare,
+    ReadHistoryRevision, ReadImportedHistory, ReadImportedRevision, ReadPageHistory,
 };
 
 pub async fn import_wikidot_history(
@@ -40,6 +41,22 @@ pub async fn page_history_list(
 ) -> Result<HistoryListing> {
     let input: ReadPageHistory = parse!(params, DatabaseImport);
     HistoryListingService::list(ctx, input).await
+}
+
+pub async fn page_history_revision(
+    ctx: &ServiceContext<'_>,
+    params: Params<'static>,
+) -> Result<Option<HistoryRevisionOutput>> {
+    let input: ReadHistoryRevision = parse!(params, DatabaseImport);
+    HistoryReadService::revision(ctx, input).await
+}
+
+pub async fn page_history_compare(
+    ctx: &ServiceContext<'_>,
+    params: Params<'static>,
+) -> Result<HistoryCompareOutput> {
+    let input: ReadHistoryCompare = parse!(params, DatabaseImport);
+    HistoryReadService::compare(ctx, input).await
 }
 
 pub async fn page_imported_history(

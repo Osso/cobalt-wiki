@@ -27,6 +27,7 @@ mod prelude {
 mod history;
 mod history_listing;
 mod history_listing_structs;
+mod history_read;
 mod history_structs;
 mod service;
 mod structs;
@@ -34,6 +35,10 @@ mod structs;
 pub use self::history::ImportedHistoryService;
 pub use self::history_listing::HistoryListingService;
 pub use self::history_listing_structs::*;
+pub use self::history_read::{
+    HistoryCompareOutput, HistoryReadService, HistoryRevisionOutput, ReadHistoryCompare,
+    ReadHistoryRevision,
+};
 pub use self::history_structs::*;
 
 pub use self::service::ImportService;
