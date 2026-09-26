@@ -126,6 +126,23 @@ impl MemberAdminService {
         }))
     }
 
+    /// Current site page moderators, admins, and root role holders.
+    pub async fn is_site_page_moderator_or_admin(
+        ctx: &ServiceContext<'_>,
+        site_id: i64,
+        user_id: i64,
+    ) -> Result<bool> {
+        let held = Self::held_roles(ctx, site_id, &[user_id]).await?;
+        Ok(held.get(&user_id).is_some_and(|roles| {
+            roles.iter().any(|(role, _)| {
+                matches!(
+                    role,
+                    MemberRole::Moderator | MemberRole::Admin | MemberRole::Root
+                )
+            })
+        }))
+    }
+
     pub async fn list(ctx: &ServiceContext<'_>) -> Result<Vec<SiteMemberEntry>> {
         let actor = Self::require_site_admin(ctx).await?;
         let txn = ctx.transaction();

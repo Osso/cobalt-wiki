@@ -25,8 +25,9 @@ use time::OffsetDateTime;
 use super::prelude::*;
 use crate::models::page_lock::{self, Entity as PageLock, Model as PageLockModel};
 use crate::services::audit::{AuditEvent, AuditService};
+use crate::services::permission::{CheckPermissionContext, PermissionService};
 use crate::services::relation::GetPageAttributions;
-use crate::services::{PageService, RelationService};
+use crate::services::{MemberAdminService, PageService, RelationService};
 use crate::types::{Action, PageLockType, Permission, Reference, Resource};
 
 #[derive(Debug, Clone)]
@@ -49,16 +50,23 @@ impl PageLockService {
             )
         };
 
-        // Fetch the page to be locked
-        let page_id = match page_ref {
-            Reference::Id(page_id) => page_id,
-            _ => {
-                PageService::get(ctx, site_id, page_ref.borrow())
-                    .await
-                    .or_raise(make_error)?
-                    .page_id
-            }
-        };
+        Self::require_actor(ctx, site_id, user_id)?;
+        let page = PageService::get(ctx, site_id, page_ref.borrow())
+            .await
+            .or_raise(make_error)?;
+        let page_id = page.page_id;
+        if input.lock_type == PageLockType::Wikidot {
+            Self::require_page_moderator(ctx, site_id, user_id).await?;
+        } else {
+            Self::require_page_edit(
+                ctx,
+                site_id,
+                page_id,
+                page.page_category_id,
+                user_id,
+            )
+            .await?;
+        }
 
         // Check if any active lock exists for the page
         let existing_lock = Self::get_active_lock_for_page(ctx, page_id)
@@ -66,6 +74,14 @@ impl PageLockService {
             .or_raise(make_error)?;
 
         if let Some(old_lock) = existing_lock {
+            Self::require_lock_bypass(
+                ctx,
+                site_id,
+                page_id,
+                page.page_category_id,
+                user_id,
+            )
+            .await?;
             if !input.override_existing {
                 bail!(Error::new(
                     format!(
@@ -138,10 +154,11 @@ impl PageLockService {
             )
         };
 
-        // Resolve page reference to ID
-        let page_id = PageService::get_id(ctx, site_id, page_ref.borrow())
+        Self::require_actor(ctx, site_id, user_id)?;
+        let page = PageService::get(ctx, site_id, page_ref.borrow())
             .await
             .or_raise(make_error)?;
+        let page_id = page.page_id;
 
         // Fetch the active lock to be removed
         let maybe_lock = Self::get_active_lock_for_page(ctx, page_id)
@@ -153,6 +170,27 @@ impl PageLockService {
             Some(lock) => lock,
             None => return Ok(None),
         };
+
+        if page_lock.lock_type == PageLockType::Wikidot {
+            Self::require_page_moderator(ctx, site_id, user_id).await?;
+        } else {
+            Self::require_page_edit(
+                ctx,
+                site_id,
+                page_id,
+                page.page_category_id,
+                user_id,
+            )
+            .await?;
+            Self::require_lock_bypass(
+                ctx,
+                site_id,
+                page_id,
+                page.page_category_id,
+                user_id,
+            )
+            .await?;
+        }
 
         // Mark the page lock as deleted
         let removed_lock = page_lock::ActiveModel {
@@ -179,6 +217,173 @@ impl PageLockService {
         .or_raise(make_error)?;
 
         Ok(Some(removed_lock))
+    }
+
+    fn require_actor(ctx: &ServiceContext<'_>, site_id: i64, user_id: i64) -> Result<()> {
+        let request = ctx.request();
+        if request.site_id != Some(site_id)
+            || request.user_id != Some(user_id)
+            || request
+                .session
+                .as_ref()
+                .is_some_and(|session| session.restricted)
+        {
+            bail!(Error::new(
+                "page lock actor or site mismatch",
+                ErrorType::PermissionDenied
+            ));
+        }
+        Ok(())
+    }
+
+    async fn require_page_moderator(
+        ctx: &ServiceContext<'_>,
+        site_id: i64,
+        user_id: i64,
+    ) -> Result<()> {
+        if !MemberAdminService::is_site_page_moderator_or_admin(ctx, site_id, user_id)
+            .await?
+        {
+            bail!(Error::new(
+                "only site page moderators and admins can change Wikidot blocks",
+                ErrorType::PermissionDenied
+            ));
+        }
+        Ok(())
+    }
+
+    async fn has_page_permission(
+        ctx: &ServiceContext<'_>,
+        site_id: i64,
+        page_id: i64,
+        category_id: i64,
+        user_id: i64,
+        action: Action,
+    ) -> Result<bool> {
+        PermissionService::check_user_can(
+            ctx,
+            &CheckPermissionContext {
+                user_id: Some(user_id),
+                site_id,
+                page_reference: Some(Reference::Id(page_id)),
+            },
+            Permission {
+                resource_type: Resource::Page,
+                resource_category: Some(Reference::Id(category_id)),
+                action,
+            },
+        )
+        .await
+    }
+
+    async fn require_page_edit(
+        ctx: &ServiceContext<'_>,
+        site_id: i64,
+        page_id: i64,
+        category_id: i64,
+        user_id: i64,
+    ) -> Result<()> {
+        if !Self::has_page_permission(
+            ctx,
+            site_id,
+            page_id,
+            category_id,
+            user_id,
+            Action::Edit,
+        )
+        .await?
+        {
+            bail!(Error::new(
+                "page edit permission required to manage native locks",
+                ErrorType::PermissionDenied
+            ));
+        }
+        Ok(())
+    }
+
+    async fn require_lock_bypass(
+        ctx: &ServiceContext<'_>,
+        site_id: i64,
+        page_id: i64,
+        category_id: i64,
+        user_id: i64,
+    ) -> Result<()> {
+        let bypass =
+            Self::can_user_bypass_lock(ctx, site_id, page_id, Some(category_id), user_id)
+                .await?;
+        if !bypass.can_edit {
+            bail!(Error::new(
+                "current page lock cannot be bypassed",
+                ErrorType::PermissionDenied
+            ));
+        }
+        Ok(())
+    }
+
+    /// Whether the page currently has a legacy Wikidot block.
+    pub async fn is_wikidot_blocked(
+        ctx: &ServiceContext<'_>,
+        page_ref: Reference<'_>,
+    ) -> Result<bool> {
+        let site_id = ctx.request().site_id()?;
+        let page_id = PageService::get(ctx, site_id, page_ref).await?.page_id;
+        Ok(Self::get_active_lock_for_page(ctx, page_id)
+            .await?
+            .is_some_and(|lock| lock.lock_type == PageLockType::Wikidot))
+    }
+
+    /// Set the legacy block without replacing a different native lock type.
+    pub async fn set_wikidot_block(
+        ctx: &ServiceContext<'_>,
+        page_ref: Reference<'_>,
+        blocked: bool,
+        ip_address: IpAddr,
+    ) -> Result<()> {
+        let site_id = ctx.request().site_id()?;
+        let user_id = ctx.request().user_id.ok_or_else(|| {
+            Error::new(
+                "page block requires a signed-in actor",
+                ErrorType::PermissionDenied,
+            )
+        })?;
+        Self::require_actor(ctx, site_id, user_id)?;
+        Self::require_page_moderator(ctx, site_id, user_id).await?;
+        let page_id = PageService::get(ctx, site_id, page_ref.borrow())
+            .await?
+            .page_id;
+        let active = Self::get_active_lock_for_page(ctx, page_id).await?;
+        match (blocked, active) {
+            (true, None) => {
+                Self::create(
+                    ctx,
+                    site_id,
+                    user_id,
+                    Reference::Id(page_id),
+                    CreatePageLockInput {
+                        page: Reference::Id(page_id),
+                        expires_at: None,
+                        from_wikidot: false,
+                        lock_type: PageLockType::Wikidot,
+                        reason: None,
+                        override_existing: false,
+                        ip_address,
+                    },
+                )
+                .await?;
+            }
+            (true, Some(lock)) if lock.lock_type != PageLockType::Wikidot => {
+                bail!(Error::new(
+                    "a native page lock already exists",
+                    ErrorType::PageLockExists
+                ));
+            }
+            (false, Some(lock)) if lock.lock_type == PageLockType::Wikidot => {
+                Self::remove(ctx, site_id, user_id, Reference::Id(page_id), ip_address)
+                    .await?;
+            }
+            _ => {}
+        }
+        Ok(())
     }
 
     pub async fn get_locks_for_page(
@@ -247,7 +452,7 @@ impl PageLockService {
         ctx: &ServiceContext<'_>,
         site_id: i64,
         page_id: i64,
-        page_category_id: Option<i64>,
+        _page_category_id: Option<i64>,
         user_id: i64,
     ) -> Result<CheckLockBypassOutput> {
         let make_error = || {
@@ -260,22 +465,39 @@ impl PageLockService {
             )
         };
 
-        // Check if any active lock exists for the page
+        Self::require_actor(ctx, site_id, user_id)?;
+        let page = PageService::get_direct(ctx, page_id, true)
+            .await
+            .or_raise(make_error)?;
+        if page.site_id != site_id {
+            bail!(Error::new(
+                "page is not in the actor's site",
+                ErrorType::PermissionDenied
+            ));
+        }
         let active_lock = Self::get_active_lock_for_page(ctx, page_id)
             .await
             .or_raise(make_error)?;
 
         if let Some(lock) = active_lock {
             let can_bypass = match lock.lock_type {
-                // Mod is not a native Wikijump role; treat it as a permission check instead
-                PageLockType::PermissionOnly | PageLockType::Wikidot => ctx
-                    .user_has_permission(Permission {
-                        resource_type: Resource::Page,
-                        resource_category: page_category_id.map(Reference::Id),
-                        action: Action::BypassLock,
-                    })
+                PageLockType::Wikidot => {
+                    MemberAdminService::is_site_page_moderator_or_admin(
+                        ctx, site_id, user_id,
+                    )
                     .await
-                    .or_raise(make_error)?,
+                    .or_raise(make_error)?
+                }
+                PageLockType::PermissionOnly => Self::has_page_permission(
+                    ctx,
+                    site_id,
+                    page_id,
+                    page.page_category_id,
+                    user_id,
+                    Action::BypassLock,
+                )
+                .await
+                .or_raise(make_error)?,
                 PageLockType::AuthorOrPermissionOnly => {
                     // Check if the user is the author of the page
                     let attributions = RelationService::get_page_attributions(
@@ -292,14 +514,16 @@ impl PageLockService {
                     let is_author =
                         attributions.iter().any(|attr| attr.user_id == user_id);
                     is_author
-                        || ctx
-                            .user_has_permission(Permission {
-                                resource_type: Resource::Page,
-                                resource_category: page_category_id.map(Reference::Id),
-                                action: Action::BypassLock,
-                            })
-                            .await
-                            .or_raise(make_error)?
+                        || Self::has_page_permission(
+                            ctx,
+                            site_id,
+                            page_id,
+                            page.page_category_id,
+                            user_id,
+                            Action::BypassLock,
+                        )
+                        .await
+                        .or_raise(make_error)?
                 }
             };
             Ok(CheckLockBypassOutput {
