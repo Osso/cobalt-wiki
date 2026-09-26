@@ -1,8 +1,16 @@
 import assert from "node:assert/strict"
-import { createHash } from "node:crypto"
+import { createHash, randomBytes } from "node:crypto"
 import { readFile } from "node:fs/promises"
 import { test, expect, chromium } from "@playwright/test"
-import { rpc, origin, siteId } from "./file-action-transport.mjs"
+import {
+  rpc,
+  origin,
+  siteId,
+  listFiles,
+  readFileBytes,
+  guardBrowserWrites
+} from "./file-action-transport.mjs"
+import { openFiles, clickMutation } from "./file-action-lifecycle.mjs"
 
 const { stringify } = await import(
   new URL("../../node_modules/.pnpm/node_modules/devalue/index.js", import.meta.url).href
@@ -293,6 +301,259 @@ async function assertDenied(
   )
   assert.equal(block.blocked, originalBlocked, `${action} Block state unchanged`)
 }
+
+async function readFileLists(admin, fixture) {
+  const pages = [
+    [fixture.sourceSlug, fixture.pageId],
+    [fixture.destinationSlug, fixture.destinationPageId]
+  ]
+  const lists = []
+  for (const [slug, pageId] of pages) {
+    for (const deleted of [false, true]) {
+      const files = await listFiles(
+        admin.context.request,
+        admin.token,
+        slug,
+        pageId,
+        deleted
+      )
+      lists.push({
+        slug,
+        pageId,
+        deleted,
+        files: files.sort((a, b) => a.file_id - b.file_id)
+      })
+    }
+  }
+  return lists
+}
+
+async function findNewFile(admin, fixture, before, name) {
+  const source = (await readFileLists(admin, fixture)).find(
+    (list) => list.pageId === fixture.pageId && !list.deleted
+  )
+  const original = before.find((list) => list.pageId === fixture.pageId && !list.deleted)
+  assert.ok(source && original)
+  const originalIds = new Set(original.files.map((file) => file.file_id))
+  const created = source.files.filter(
+    (file) => file.name === name && !originalIds.has(file.file_id)
+  )
+  assert.ok(created.length <= 1, "only one new named file may be owned")
+  return created[0] ?? null
+}
+
+async function uploadDisposableFile(admin, fixture, before, guard, name, bytes) {
+  const pane = await openFiles(admin.page, fixture.sourceSlug)
+  await pane.locator(".upload-file, .buttons input[value='Upload']").click()
+  const form = pane.locator("#file-upload")
+  await form.locator('[name="file"]').setInputFiles({
+    name,
+    mimeType: "text/plain",
+    buffer: bytes
+  })
+  await form.locator('[name="name"]').fill(name)
+  await clickMutation(
+    admin.page,
+    guard,
+    fixture.sourceSlug,
+    "fileUpload",
+    form.locator('[type="submit"]'),
+    null,
+    name
+  )
+  const created = await findNewFile(admin, fixture, before, name)
+  assert.ok(created, "admin upload must create unique disposable file")
+  return created
+}
+
+async function assertOriginalFiles(admin, fixture, before, fileId) {
+  const current = await readFileLists(admin, fixture)
+  for (let index = 0; index < before.length; index++) {
+    assert.deepEqual(
+      current[index].files.filter((file) => file.file_id !== fileId),
+      before[index].files,
+      `original files unchanged on ${before[index].slug} deleted=${before[index].deleted}`
+    )
+  }
+  return current
+}
+
+async function assertDisposableFile(admin, fixture, before, created, bytes) {
+  const lists = await assertOriginalFiles(admin, fixture, before, created.file_id)
+  const owned = lists.flatMap((list) =>
+    list.files.filter((file) => file.file_id === created.file_id)
+  )
+  assert.equal(owned.length, 1, "disposable file remains on source only")
+  assert.deepEqual(owned[0], created, "file metadata and revision unchanged")
+  const current = await readFileBytes(
+    admin.context.request,
+    admin.token,
+    fixture.sourceSlug,
+    fixture.pageId,
+    created.file_id
+  )
+  assert.deepEqual(current.bytes, bytes, "disposable file bytes unchanged")
+}
+
+async function tombstoneDisposableFile(admin, fixture, before, name, fileId) {
+  const lists = await readFileLists(admin, fixture)
+  const originalIds = new Set(
+    before.flatMap((list) => list.files.map((file) => file.file_id))
+  )
+  const candidates = lists.flatMap((list) =>
+    list.files
+      .filter((file) => file.name === name && !originalIds.has(file.file_id))
+      .map((file) => ({ ...file, slug: list.slug }))
+  )
+  if (fileId !== null) {
+    assert.ok(candidates.length > 0, "created file must remain on sacrificial pages")
+    assert.ok(candidates.every((file) => file.file_id === fileId))
+  }
+  assert.ok(candidates.length <= 2, "ambiguous disposable file state")
+  const active = candidates.find((file) => file.revision_type !== "delete")
+  if (active) {
+    assert.ok(
+      active.page_id === fixture.pageId || active.page_id === fixture.destinationPageId,
+      "cleanup restricted to two sacrificial pages"
+    )
+    const session = await rpc(
+      admin.context.request,
+      admin.token,
+      active.slug,
+      "session_get",
+      [admin.token]
+    )
+    assert.ok(Number.isSafeInteger(session.user_id))
+    await rpc(admin.context.request, admin.token, active.slug, "file_delete", {
+      site_id: siteId,
+      page_id: active.page_id,
+      user_id: session.user_id,
+      file: active.file_id,
+      last_revision_id: active.revision_id,
+      revision_comments: "Tombstone disposable observer-denial file"
+    })
+  }
+  await assertOriginalFiles(admin, fixture, before, fileId)
+}
+
+test(
+  "observer cannot mutate a newly uploaded disposable file",
+  { timeout: 120_000 },
+  async () => {
+    const { fixture, observer } = await readFixtures()
+    const name = `observer-denial-${randomBytes(8).toString("hex")}.txt`
+    const bytes = Buffer.from(`Disposable observer-denial file ${name}\n`)
+    const browser = await chromium.launch({
+      executablePath: "/usr/bin/chromium",
+      headless: true
+    })
+    try {
+      const adminContext = await browser.newContext()
+      const observerContext = await browser.newContext()
+      try {
+        const guard = await guardBrowserWrites(adminContext, [
+          fixture.sourceSlug,
+          fixture.destinationSlug
+        ])
+        const admin = await login(
+          adminContext,
+          fixture.username,
+          (await readFile(adminPasswordPath, "utf8")).trim()
+        )
+        const denied = await login(observerContext, observer.username, observer.password)
+        const session = await rpc(
+          denied.context.request,
+          denied.token,
+          fixture.sourceSlug,
+          "session_get",
+          [denied.token]
+        )
+        assert.equal(session.user_id, observer.user_id)
+        const before = await readFileLists(admin, fixture)
+        assert.ok(before.every((list) => list.files.every((file) => file.name !== name)))
+        let fileId = null
+        try {
+          const created = await uploadDisposableFile(
+            admin,
+            fixture,
+            before,
+            guard,
+            name,
+            bytes
+          )
+          fileId = created.file_id
+          assert.ok(Number.isSafeInteger(fileId) && fileId > 0)
+          await assertDisposableFile(admin, fixture, before, created, bytes)
+          const sourcePage = await readFingerprint(
+            admin,
+            fixture.sourceSlug,
+            fixture.pageId
+          )
+          const destinationPage = await readFingerprint(
+            admin,
+            fixture.destinationSlug,
+            fixture.destinationPageId
+          )
+          const common = {
+            siteId,
+            pageId: fixture.pageId,
+            fileId,
+            lastRevisionId: created.revision_id
+          }
+          const cases = [
+            { action: "fileDelete", body: { ...common, comments: "" }, format: "json" },
+            { action: "fileEdit", body: { ...common, name, comments: "" } },
+            {
+              action: "fileMove",
+              body: {
+                ...common,
+                destinationPage: fixture.destinationSlug,
+                name,
+                comments: ""
+              }
+            }
+          ]
+          for (const entry of cases) {
+            const response = await postAction(
+              denied.page,
+              fixture.sourceSlug,
+              entry.action,
+              entry.body,
+              entry.format
+            )
+            await assertDisposableFile(admin, fixture, before, created, bytes)
+            assert.deepEqual(
+              await readFingerprint(admin, fixture.sourceSlug, fixture.pageId),
+              sourcePage,
+              `${entry.action} source page unchanged`
+            )
+            assert.deepEqual(
+              await readFingerprint(
+                admin,
+                fixture.destinationSlug,
+                fixture.destinationPageId
+              ),
+              destinationPage,
+              `${entry.action} destination page unchanged`
+            )
+            assert.deepEqual(
+              response,
+              { status: 200, type: "failure", actionStatus: 403 },
+              `${entry.action} denial envelope`
+            )
+          }
+        } finally {
+          await tombstoneDisposableFile(admin, fixture, before, name, fileId)
+        }
+      } finally {
+        await observerContext.close()
+        await adminContext.close()
+      }
+    } finally {
+      await browser.close()
+    }
+  }
+)
 
 test(
   "observer page actions deny writes without changing sacrificial pages",
