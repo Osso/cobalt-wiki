@@ -15,7 +15,7 @@ use ftml::layout::Layout;
 use serde_json::json;
 
 async fn setup() -> (TestRunner, i64, i64, i64) {
-    let mut runner = TestRunner::setup().await;
+    let runner = TestRunner::setup().await;
     let site_id = run_endpoint!(runner, site_get, json!({"site": "test"}))
         .unwrap()
         .site
