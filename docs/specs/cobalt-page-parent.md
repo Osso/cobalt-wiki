@@ -39,6 +39,7 @@ The Parent panel edits page breadcrumb relationships in `framerail/src/routes/[s
 - `/tmp/claude/cobalt-parent-postauth-browser.log` — current authorized browser GREEN 1/1 for remaining page actions, including Parent lookup, save/readback/restore, and fixture restoration.
 - `/tmp/claude/cobalt-final-backend-followup.json` — current independent backend follow-up PASS reuses Block policy 27/27; local runtime/build identity is recorded in `/tmp/claude/cobalt-final-actions-runtime.json`, not production.
 - `/tmp/claude/cobalt-final-action-preservation.json` — refreshed SQL preservation preserves pages, imported history, native content, grants, and drafts; excludes three page identities, renderer fields, 43 unreconstructable original full-row fingerprints, and Files.
+- **Production application rollout, 2026-09-26:** Parent-related application code is included in released revision `16ffc05e2b8049b90e0de9324741522d518857e7`, deployed by `install/dev-deploy.sh all` to Deepwell and Framerail only (`/tmp/claude/cobalt-actions-production-deploy.log`). The public read-only receipt proves route availability and no attempted writes, not Parent mutation behavior; independent production verification remains pending at `/tmp/claude/cobalt-actions-production-gate.json`.
 
 ## Known gaps (current cycle)
 
