@@ -45,11 +45,13 @@ test("Wikidot history puts the heading before centered original controls", () =>
     "tags changes",
     "metadata changes",
     "files changes"
-  ])
+  ]) {
     assert.match(body, new RegExp(label))
+  }
   assert.equal((body.match(/type="checkbox"/g) ?? []).length, 7)
-  for (const size of [10, 20, 50, 100, 200])
+  for (const size of [10, 20, 50, 100, 200]) {
     assert.match(body, new RegExp(`value="${size}"`))
+  }
   assert.match(body, /value="20"[^>]*selected/)
   assert.match(body, /Update list/)
   assert.match(body, /Compare versions/)

@@ -33,14 +33,14 @@
     (labels) to each of your pages. You can learn more what a tag is reading Wikipedia
     entries for <a
       href="http://en.wikipedia.org/wiki/Tags"
-      target="_blank"
-      rel="noopener noreferrer">Tags</a
+      rel="noopener noreferrer"
+      target="_blank">Tags</a
     >
     and
     <a
       href="http://en.wikipedia.org/wiki/Tag_cloud"
-      target="_blank"
-      rel="noopener noreferrer">Tag cloud</a
+      rel="noopener noreferrer"
+      target="_blank">Tag cloud</a
     >.
   </p>
   <form id="page-tags" onsubmit={submit}>
