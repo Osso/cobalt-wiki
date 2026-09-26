@@ -16,7 +16,17 @@
     untrack(() => data.forms.pageDeleteForm),
     {
       dataType: "json",
-      onSubmit: async ({ jsonData }) => {
+      onSubmit: async ({ jsonData, cancel }) => {
+        if (
+          pageLayoutState.current === Layout.WIKIDOT &&
+          $form.option === DeleteOptions.Delete &&
+          !window.confirm(
+            "Are you sure you want to completely wipe out this page?\n(Sorry, just wanted to make sure...)"
+          )
+        ) {
+          cancel()
+          return
+        }
         const submitForm = {
           ...$form,
           siteId: data.site.site_id,
