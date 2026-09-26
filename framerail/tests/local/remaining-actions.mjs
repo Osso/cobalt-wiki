@@ -266,10 +266,16 @@ async function visit(page, slug) {
 async function normalizedBody(locator) {
   return locator.evaluate((node) => {
     const clone = node.cloneNode(true)
-    const walker = document.createTreeWalker(clone, NodeFilter.SHOW_TEXT)
+    const walker = document.createTreeWalker(clone, NodeFilter.SHOW_ALL)
     const blank = []
     while (walker.nextNode()) {
-      if (!walker.currentNode.textContent?.trim()) blank.push(walker.currentNode)
+      const current = walker.currentNode
+      if (
+        current.nodeType === Node.COMMENT_NODE ||
+        (current.nodeType === Node.TEXT_NODE && !current.textContent?.trim())
+      ) {
+        blank.push(current)
+      }
     }
     blank.forEach((text) => text.parentNode?.removeChild(text))
     return /** @type {Element} */ (clone).innerHTML
