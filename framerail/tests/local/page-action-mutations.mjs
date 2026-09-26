@@ -159,6 +159,11 @@ async function guardBrowserWrites(context, fixture) {
   await context.route("**/*", (route) => {
     const request = route.request()
     const url = new URL(request.url())
+    const isBaseStylesheet =
+      url.origin === "https://d3g0gp89917ko0.cloudfront.net" &&
+      request.method() === "GET" &&
+      request.resourceType() === "stylesheet"
+    if (isBaseStylesheet) return route.continue()
     if (url.origin !== origin) {
       if (["GET", "HEAD"].includes(request.method())) {
         externalReads.push({

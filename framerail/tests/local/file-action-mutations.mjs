@@ -251,6 +251,14 @@ async function routeBrowserRequest(
 ) {
   const request = route.request()
   const url = new URL(request.url())
+  const isBaseStylesheet =
+    url.origin === "https://d3g0gp89917ko0.cloudfront.net" &&
+    request.method() === "GET" &&
+    request.resourceType() === "stylesheet"
+  if (isBaseStylesheet) {
+    await route.continue()
+    return false
+  }
   if (url.origin !== origin) {
     const label = `${request.method()} ${url.origin}`
     if (["GET", "HEAD", "OPTIONS"].includes(request.method())) externalReads.push(label)
