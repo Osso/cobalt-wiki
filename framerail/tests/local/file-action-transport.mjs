@@ -113,6 +113,25 @@ function classifyDecodeError(error) {
   return "Error"
 }
 
+/** @param {FormData} form */
+function decodeNativeUpload(form) {
+  const names = ["file", "name", "comments", "siteId", "pageId", "lastRevisionId"]
+  assert.deepEqual([...form.keys()].sort(), [...names].sort(), "native upload fields")
+  const file = form.get("file")
+  assert.ok(file instanceof File, "native upload file required")
+  const data = Object.fromEntries(
+    names.filter((name) => name !== "file").map((name) => [name, form.get(name)])
+  )
+  assert.ok(Object.values(data).every((value) => typeof value === "string"))
+  assert.equal(data.name, file.name, "native upload filename")
+  return {
+    encoding: "nativeUpload",
+    data,
+    file,
+    files: [{ field: "file", name: file.name, type: file.type }]
+  }
+}
+
 /** @param {MutationRequest} request */
 async function decodeMutation(request) {
   let stage = "body"
@@ -168,6 +187,10 @@ async function decodeMutation(request) {
     stage = "superform-json"
     const chunks = form.getAll("__superform_json")
     chunkCount = chunks.length
+    if (!chunkCount && isMultipart && new URL(request.url()).search === "?/fileUpload") {
+      stage = "native-upload"
+      return decodeNativeUpload(form)
+    }
     assert.ok(chunkCount, "Superforms JSON required")
     stage = "devalue"
     const data = parse(chunks.join(""))
@@ -190,7 +213,7 @@ async function decodeMutation(request) {
  * @param {object[] | null} [diagnostics]
  */
 async function mutationMatches(request, permitted, pageId, diagnostics = null) {
-  const { data, file, files } = await decodeMutation(request)
+  const { data, file, files, encoding } = await decodeMutation(request)
   diagnostics?.push({
     siteId: typeof data?.siteId === "number" ? data.siteId : typeof data?.siteId,
     pageId: typeof data?.pageId === "number" ? data.pageId : typeof data?.pageId,
@@ -199,6 +222,16 @@ async function mutationMatches(request, permitted, pageId, diagnostics = null) {
     files
   })
   if (typeof data !== "object" || data === null) return false
+  if (encoding === "nativeUpload") {
+    return (
+      permitted.fileId === null &&
+      data.siteId === String(siteId) &&
+      data.pageId === String(pageId) &&
+      data.name === permitted.name &&
+      file instanceof File &&
+      file.name === permitted.name
+    )
+  }
   if (data.siteId !== siteId || data.pageId !== pageId) return false
   if (permitted.fileId !== null) return data.fileId === permitted.fileId
   return (

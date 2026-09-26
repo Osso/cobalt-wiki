@@ -11,6 +11,88 @@ const { stringify } = await import(
   new URL("../../node_modules/.pnpm/node_modules/devalue/index.js", import.meta.url).href
 )
 
+function nativeUploadForm() {
+  const form = new FormData()
+  form.set("file", new File(["proof"], "ui-file-run.txt"))
+  form.set("name", "ui-file-run.txt")
+  form.set("comments", "upload proof")
+  form.set("siteId", String(siteId))
+  form.set("pageId", "3000006134")
+  form.set("lastRevisionId", "42")
+  return form
+}
+
+async function formRequest(
+  form,
+  url = `${origin}/local-action-proof:source?/fileUpload`
+) {
+  const body = new Request(url, { method: "POST", body: form })
+  const bytes = Buffer.from(await body.arrayBuffer())
+  return {
+    url: () => url,
+    headers: () => Object.fromEntries(body.headers),
+    postDataBuffer: () => bytes
+  }
+}
+
+test("native fileUpload accepts exact fields and fixture identity", async () => {
+  const request = await formRequest(nativeUploadForm())
+  const permitted = { fileId: null, name: "ui-file-run.txt" }
+  assert.equal(await mutationMatches(request, permitted, 3000006134), true)
+  assert.equal(
+    await mutationMatches(request, { ...permitted, name: "other.txt" }, 3000006134),
+    false
+  )
+  assert.equal(await mutationMatches(request, permitted, 3000006135), false)
+})
+
+test("native fileUpload rejects wrong identity and noncanonical ID strings", async () => {
+  const permitted = { fileId: null, name: "ui-file-run.txt" }
+  for (const [field, value] of [
+    ["siteId", "6000001"],
+    ["siteId", "06000000"],
+    ["pageId", "3000006135"],
+    ["pageId", "03000006134"]
+  ]) {
+    const form = nativeUploadForm()
+    form.set(field, value)
+    assert.equal(
+      await mutationMatches(await formRequest(form), permitted, 3000006134),
+      false
+    )
+  }
+})
+
+test("native fileUpload rejects duplicate, missing, extra, or wrongly typed fields", async () => {
+  const permitted = { fileId: null, name: "ui-file-run.txt" }
+  const mutations = [
+    (form) => form.append("siteId", String(siteId)),
+    (form) => form.append("file", new File(["extra"], "ui-file-run.txt")),
+    (form) => form.delete("comments"),
+    (form) => form.set("fileId", "87"),
+    (form) => form.set("extra", "value"),
+    (form) => form.set("file", "ui-file-run.txt"),
+    (form) => form.set("comments", new File(["extra"], "comment.txt")),
+    (form) => form.set("name", "other.txt")
+  ]
+  for (const mutate of mutations) {
+    const form = nativeUploadForm()
+    mutate(form)
+    await assert.rejects(mutationMatches(await formRequest(form), permitted, 3000006134))
+  }
+})
+
+test("native fields are not accepted for other actions", async () => {
+  const request = await formRequest(
+    nativeUploadForm(),
+    `${origin}/local-action-proof:source?/fileEdit`
+  )
+  await assert.rejects(
+    mutationMatches(request, { fileId: null, name: "ui-file-run.txt" }, 3000006134),
+    /stage=superform-json; contentType=multipart\/form-data/
+  )
+})
+
 test("multipart upload authorizes only matching fixture and uploaded filename", async () => {
   const form = new FormData()
   form.set(
@@ -132,6 +214,20 @@ test("JSON file mutations require exact file and page identity", async () => {
     await mutationMatches(request, { fileId: 87, name: null }, 3000006134),
     false
   )
+  for (const identity of [
+    { siteId: String(siteId), pageId: 3000006135, fileId: 87 },
+    { siteId, pageId: "3000006135", fileId: 87 },
+    { siteId, pageId: 3000006135, fileId: "87" }
+  ]) {
+    assert.equal(
+      await mutationMatches(
+        { ...request, postDataBuffer: () => Buffer.from(JSON.stringify(identity)) },
+        { fileId: 87, name: null },
+        3000006135
+      ),
+      false
+    )
+  }
 })
 
 test("rollback text/plain JSON authorizes only matching fixture and file", async () => {
