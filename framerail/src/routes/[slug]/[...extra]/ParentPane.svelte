@@ -1,15 +1,47 @@
+<script module lang="ts">
+  export function parentLookupQuery(input: string): string {
+    const token = input.slice(input.lastIndexOf(" ") + 1)
+    return token.length >= 2 ? token : ""
+  }
+
+  export function parentSuggestionValue(input: string, slug: string): string {
+    return input.slice(0, input.lastIndexOf(" ") + 1) + slug
+  }
+
+  export async function fetchParentSuggestions(
+    query: string,
+    lookup: (query: string) => Promise<{ slug: string; title: string }[]>,
+    isCurrent: () => boolean
+  ): Promise<{ matches: { slug: string; title: string }[]; error: string } | undefined> {
+    try {
+      const matches = await lookup(query)
+      return isCurrent() ? { matches, error: "" } : undefined
+    } catch {
+      return isCurrent()
+        ? {
+            matches: [],
+            error: "Unable to look up pages. You can still enter page names."
+          }
+        : undefined
+    }
+  }
+</script>
+
 <script lang="ts">
   import { deserialize } from "$app/forms"
   import { invalidateAll } from "$app/navigation"
   import { errorPopupState, pageLayoutState } from "$lib/stores.svelte"
   import { Layout, PagePane, ToastType } from "$lib/types"
   import { toast } from "$lib/component/scripts/toasts"
+  import { lookupEditorPages } from "$lib/editor-lookup"
   import { superForm } from "sveltekit-superforms"
   import { untrack } from "svelte"
 
   import type { PageProps } from "./$types"
 
   let pageParents = $state<string>("")
+  let parentMatches = $state<{ slug: string; title: string }[]>([])
+  let parentLookupError = $state("")
 
   let { pagePaneState = $bindable(), data }: PageProps & { pagePaneState: PagePane } =
     $props()
@@ -82,6 +114,27 @@
   $effect(() => {
     fetchParents()
   })
+
+  $effect(() => {
+    if (pageLayoutState.current !== Layout.WIKIDOT) return
+    const query = parentLookupQuery($form.parents)
+    parentMatches = []
+    parentLookupError = ""
+    if (!query) return
+
+    let current = true
+    const timer = setTimeout(async () => {
+      const result = await fetchParentSuggestions(query, lookupEditorPages, () => current)
+      if (result) {
+        parentMatches = result.matches
+        parentLookupError = result.error
+      }
+    }, 500)
+    return () => {
+      current = false
+      clearTimeout(timer)
+    }
+  })
 </script>
 
 {#if pageLayoutState.current === Layout.WIKIDOT}
@@ -95,14 +148,42 @@
 {/if}
 
 <form id="page-parent" class="page-parent" action="?/parentSet" method="POST" use:enhance>
+  {#if pageLayoutState.current === Layout.WIKIDOT}
+    <p>
+      Parent pages organize breadcrumbs for this page. Enter multiple parent page names as
+      a space-separated list. Leave the field blank to remove all parents when you save.
+    </p>
+    <label for="parent-page-names">Parent page names</label>
+  {/if}
   <input
     class="page-parent-new-parents"
+    id={pageLayoutState.current === Layout.WIKIDOT ? "parent-page-names" : undefined}
+    list={pageLayoutState.current === Layout.WIKIDOT
+      ? "parent-page-suggestions"
+      : undefined}
+    autocomplete="off"
     placeholder={data.internationalization?.parents}
     type="text"
     bind:value={$form.parents}
   />
   {#if pageLayoutState.current === Layout.WIKIDOT}
+    <datalist id="parent-page-suggestions">
+      {#each parentMatches as match (match.slug)}
+        <option value={parentSuggestionValue($form.parents, match.slug)}
+          >{match.title}</option
+        >
+      {/each}
+    </datalist>
+    {#if parentLookupError}<p role="alert">{parentLookupError}</p>{/if}
+  {/if}
+  {#if pageLayoutState.current === Layout.WIKIDOT}
     <div class="buttons">
+      <input
+        class="btn btn-secondary"
+        onclick={() => ($form.parents = "")}
+        type="button"
+        value="Clear parents"
+      />
       <input
         class="btn btn-danger"
         onclick={() => (pagePaneState = PagePane.None)}
