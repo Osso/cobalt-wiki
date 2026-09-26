@@ -8,7 +8,8 @@ The Parent panel edits page breadcrumb relationships in `framerail/src/routes/[s
 - [x] Offer a Clear parents button that empties the input without submitting; keep Cancel and Save.
 - [x] Look up the last typed slug token only after two characters, using the existing site- and viewer-scoped editor page lookup; suggestions retain preceding parent names.
 - [x] Ignore stale lookup results and surface current lookup failures without preventing manual entry.
-- [ ] Save plural additions and removals, including clearing all parents, without replacing them with a single-parent write; browser save/readback proof belongs to the main integration fixture.
+- [x] Save two real parent values, read them back, and restore the original parent set without replacing Cobalt’s plural write with a single-parent write.
+- [ ] Save a cleared parent set remains unproven.
 
 ## How it works
 
@@ -24,13 +25,14 @@ The Parent panel edits page breadcrumb relationships in `framerail/src/routes/[s
 
 - `framerail/tests/page-parent-pane.test.ts` — SSR affordances, plural token completion, stale and failed lookup behavior.
 - `framerail/tests/editor-lookup.test.ts` — trusted site/viewer request context and lookup failure.
+- `framerail/tests/local/remaining-actions.mjs` — local lookup, two-parent save/readback, and restore.
 
 ## Known gaps (current cycle)
 
-- [ ] Browser save/readback of plural parent changes and clear-then-save, delegated to the main fixture.
+- [ ] Clear-then-save, authorization denial, and final independent checks remain pending. The bounded preservation record excludes only this sacrificial fixture, the Tags fixture, and native cache fields.
 
 ## Out of scope
 
 - Replacing Cobalt’s plural parent contract with Wikidot’s single-parent model.
 - New lookup backend or generic autocomplete framework.
-- Browser, database, deployment, and page shell changes in this slice.
+- Browser, database, deployment, and page shell changes outside the proved local fixture.

@@ -10,10 +10,12 @@ Deepwell's `page_backlinks` read API returns incoming page links and inclusions 
 - [x] Group `Link` connections as links and `IncludeMessy`/`IncludeElements` connections as inclusions; exclude redirects and components.
 - [x] Deduplicate within each group and order entries by slug, independently of connection count or insertion order.
 - [x] Repeated reads do not change page revisions.
+- [x] Render the visible Backlinks control with separately filtered links and inclusions, including an empty inclusions result.
 
 ## How it works
 
 - [Page connections and permissions](../relations.md)
+- [Page actions](cobalt-page-actions.md) defines the page UI registration and browser evidence.
 
 ## Implementation inventory
 
@@ -21,16 +23,19 @@ Deepwell's `page_backlinks` read API returns incoming page links and inclusions 
 - `deepwell/src/services/link/mod.rs` — service exports.
 - `deepwell/src/endpoints/link.rs` — request parsing and endpoint.
 - `deepwell/src/api.rs` — RPC registration.
+- `framerail/src/routes/[slug]/[...extra]/+page.server.ts` — trusted UI action context.
 
 ## Tests asserting this spec
 
-- `deepwell/tests/page_backlinks.rs` — isolated transactional site, source, permission, grouping, denial, and read-only cases.
+- `deepwell/tests/page_backlinks.rs` — isolated transactional target, authorization, privacy, grouping, and read-only cases.
+- `framerail/tests/page-backlinks.test.ts` — trusted UI action cases.
+- `framerail/tests/local/remaining-actions.mjs` — filtered Backlinks browser presentation.
 
 ## Known gaps (current cycle)
 
-- [ ] No consumer of `page_backlinks` in the page UI within this backend slice.
+- [ ] Final independent checks remain ongoing. The bounded preservation record excludes only the sacrificial Tags/Parent fixture and native cache fields; no full-replica parity claim follows.
 
 ## Out of scope
 
 - The existing unfiltered `page_get_links_to` response is unchanged; replacing or restricting it is separate work.
-- No page rendering, print UI, or mutation endpoint is included.
+- No mutation endpoint, production deployment, or source-site write is included.
