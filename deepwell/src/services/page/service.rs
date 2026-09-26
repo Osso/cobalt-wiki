@@ -533,6 +533,7 @@ impl PageService {
 
         let PageModel {
             page_id,
+            page_category_id,
             latest_revision_id,
             slug,
             site_id,
@@ -540,6 +541,8 @@ impl PageService {
         } = Self::get(ctx, site_id, reference)
             .await
             .or_raise(|| Error::new("failed to delete page", ErrorType::Page))?;
+
+        Self::require_page_edit(ctx, site_id, user_id, page_id, page_category_id).await?;
 
         let make_error = || {
             Error::new(
@@ -672,6 +675,9 @@ impl PageService {
                 ErrorType::PageNotDeleted,
             ));
         }
+
+        Self::require_page_edit(ctx, site_id, user_id, page_id, page.page_category_id)
+            .await?;
 
         Self::check_conflicts(ctx, site_id, &slug, "restore")
             .await
@@ -906,6 +912,43 @@ impl PageService {
     ) -> Result<EditPageOutput> {
         // TODO update audit-log.md
         todo!()
+    }
+
+    async fn require_page_edit(
+        ctx: &ServiceContext<'_>,
+        site_id: i64,
+        user_id: i64,
+        page_id: i64,
+        category_id: i64,
+    ) -> Result<()> {
+        let request = ctx.request();
+        if request.user_id != Some(user_id) || request.site_id != Some(site_id) {
+            bail!(Error::new(
+                "user does not have permission to edit this page",
+                ErrorType::PermissionDenied,
+            ));
+        }
+        let can_edit = PermissionService::check_user_can(
+            ctx,
+            &CheckPermissionContext {
+                user_id: request.user_id,
+                site_id,
+                page_reference: Some(Reference::Id(page_id)),
+            },
+            Permission {
+                resource_type: Resource::Page,
+                resource_category: Some(Reference::Id(category_id)),
+                action: Action::Edit,
+            },
+        )
+        .await?;
+        if !can_edit {
+            bail!(Error::new(
+                "user does not have permission to edit this page",
+                ErrorType::PermissionDenied,
+            ));
+        }
+        Ok(())
     }
 
     /// Sets the layout override for a page.
