@@ -82,7 +82,7 @@
           if (leftovers.links.length || leftovers.inclusions.length) {
             remaining = leftovers
           } else {
-            goto(resolve(`/${encodeURIComponent(movedSlug)}`, {}), { noScroll: true })
+            goto(resolve(`/${movedSlug}`, {}), { noScroll: true })
             closePane()
           }
         }
@@ -114,7 +114,7 @@
     <MoveDependencies dependencies={remaining} selectedIds={[]} remaining />
     <button
       type="button"
-      onclick={() => goto(resolve(`/${encodeURIComponent(movedSlug)}`, {}))}
+      onclick={() => goto(resolve(`/${movedSlug}`, {}))}
     >
       Continue to new page
     </button>
