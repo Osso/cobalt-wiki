@@ -169,9 +169,9 @@
       <label for="history-dataset">History dataset</label>
       <select
         id="history-dataset"
-        value={origin}
-        onchange={(event) => selectOrigin(event.currentTarget.value as HistoryOrigin)}
         disabled={busy}
+        onchange={(event) => selectOrigin(event.currentTarget.value as HistoryOrigin)}
+        value={origin}
       >
         <option value="wikidot">Wikidot source</option>
         <option value="local">Local revisions</option>
@@ -185,12 +185,12 @@
     {/if}
     <fieldset>
       <legend>Show page changes</legend>
-      {#each filterLabels as filter}
+      {#each filterLabels as filter (filter.key)}
         <label
           ><input
-            type="checkbox"
             checked={filters[filter.key]}
             onchange={(event) => updateFilter(filter.key, event.currentTarget.checked)}
+            type="checkbox"
           />{filter.label}</label
         >
       {/each}
@@ -199,10 +199,10 @@
       <label for="history-perpage">Revisions per page:</label>
       <select
         id="history-perpage"
-        bind:value={perPage}
         onchange={() => {
           page = 1
         }}
+        bind:value={perPage}
       >
         <option value={10}>10</option><option value={20}>20</option><option value={50}
           >50</option
@@ -211,13 +211,13 @@
       </select>
     </div>
     <div class="history-buttons">
-      <button type="button" disabled={busy} onclick={() => loadList(1)}
+      <button disabled={busy} onclick={() => loadList(1)} type="button"
         >Update list</button
       >
       <button
-        type="button"
         disabled={busy || from === null || to === null || from === to}
-        onclick={compareVersions}>Compare versions</button
+        onclick={compareVersions}
+        type="button">Compare versions</button
       >
     </div>
   </div>
@@ -225,21 +225,21 @@
   {#if busy}<p role="status">Loading history…</p>{/if}
   {#if listing}
     <HistoryTable
-      {listing}
-      {from}
-      {to}
       {busy}
+      changePage={(number) => loadList(number)}
+      {from}
+      {listing}
+      {openRevision}
       selectFrom={(number) => {
         from = number
       }}
       selectTo={(number) => {
         to = number
       }}
-      changePage={(number) => loadList(number)}
-      {openRevision}
+      {to}
     />
   {/if}
-  <HistoryDetail {origin} {revision} {comparison} {rendered} />
+  <HistoryDetail {comparison} {origin} {rendered} {revision} />
 </section>
 
 <style>
@@ -251,10 +251,11 @@
   fieldset {
     display: grid;
     grid-template-columns: minmax(10rem, auto) auto;
-    gap: 0.75rem;
+    row-gap: 0.1rem;
+    column-gap: 0.75rem;
+    padding: 0;
     margin-block: 0.75rem;
     border: 0;
-    padding: 0;
   }
   fieldset legend {
     float: left;
@@ -263,6 +264,8 @@
   fieldset label {
     display: block;
     grid-column: 2;
+    margin: 0;
+    line-height: 1.35;
   }
   fieldset input {
     margin-right: 0.4rem;
@@ -273,11 +276,15 @@
     gap: 0.75rem;
     align-items: center;
   }
+  .history-page-size select {
+    justify-self: start;
+    width: auto;
+  }
   .history-buttons {
     display: flex;
-    justify-content: center;
     flex-wrap: wrap;
     gap: 0.5rem;
+    justify-content: center;
     margin-block: 0.75rem;
   }
 </style>

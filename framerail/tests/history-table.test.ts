@@ -69,7 +69,7 @@ test("one table labels revision actions and unknown Wikidot authors without inve
   assert.match(body, /Compare from revision 9/)
   assert.match(body, /Compare to revision 9/)
   assert.doesNotMatch(body, />from<\/label>|>to<\/label>/)
-  assert.match(body, /Jan 2, 2020/)
+  assert.match(body, /2 Jan 2020/)
   assert.doesNotMatch(body, /<time[^>]*>[^<]*:[^<]*<\/time>/)
   assert.doesNotMatch(body, /<script>/)
   assert.match(body, /&lt;script>alert\(1\)&lt;\/script>/)

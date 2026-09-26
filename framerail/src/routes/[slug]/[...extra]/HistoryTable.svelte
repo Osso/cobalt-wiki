@@ -24,14 +24,14 @@
 
 <p>{listing.total} revisions · Page {listing.page} of {listing.total_pages}</p>
 {#if listing.total_pages > 1}
-  <nav aria-label="History pages" class="history-pages">
-    {#each Array.from({ length: listing.total_pages }, (_, index) => index + 1) as pageNumber}
+  <nav class="history-pages" aria-label="History pages">
+    {#each Array.from({ length: listing.total_pages }, (_, index) => index + 1) as pageNumber (pageNumber)}
       <button
-        type="button"
-        aria-label={`Go to page ${pageNumber}`}
         aria-current={pageNumber === listing.page ? "page" : undefined}
+        aria-label={`Go to page ${pageNumber}`}
         disabled={busy || pageNumber === listing.page}
-        onclick={() => changePage(pageNumber)}>{pageNumber}</button
+        onclick={() => changePage(pageNumber)}
+        type="button">{pageNumber}</button
       >
     {/each}
   </nav>
@@ -41,7 +41,7 @@
     <table class="page-history">
       <thead
         ><tr>
-          <th scope="col">rev.</th><th scope="col" aria-label="Compare revisions"></th><th
+          <th scope="col">rev.</th><th aria-label="Compare revisions" scope="col"></th><th
             scope="col">flags</th
           >
           <th scope="col">actions</th><th scope="col">by</th><th scope="col">date</th>
@@ -55,38 +55,38 @@
             <td class="select-versions">
               <label
                 ><input
-                  type="radio"
                   name="from"
+                  aria-label={`Compare from revision ${row.number}`}
                   checked={from === row.number}
                   onchange={() => selectFrom(row.number)}
-                  aria-label={`Compare from revision ${row.number}`}
+                  type="radio"
                 /></label
               >
               <label
                 ><input
-                  type="radio"
                   name="to"
+                  aria-label={`Compare to revision ${row.number}`}
                   checked={to === row.number}
                   onchange={() => selectTo(row.number)}
-                  aria-label={`Compare to revision ${row.number}`}
+                  type="radio"
                 /></label
               >
             </td>
             <td>{row.flags.join(" ") || "—"}</td>
             <td class="actions">
               <button
-                type="button"
-                title="View page revision"
                 aria-label={`View revision ${row.number}`}
                 disabled={busy}
-                onclick={() => openRevision(row, true)}>V</button
+                onclick={() => openRevision(row, true)}
+                title="View page revision"
+                type="button">V</button
               >
               <button
-                type="button"
-                title="View source of revision"
                 aria-label={`View source of revision ${row.number}`}
                 disabled={busy}
-                onclick={() => openRevision(row, false)}>S</button
+                onclick={() => openRevision(row, false)}
+                title="View source of revision"
+                type="button">S</button
               >
             </td>
             <td
@@ -99,7 +99,7 @@
             >
             <td
               ><time datetime={row.created_at}
-                >{new Intl.DateTimeFormat("en-US", {
+                >{new Intl.DateTimeFormat("en-GB", {
                   year: "numeric",
                   month: "short",
                   day: "numeric",
@@ -127,9 +127,13 @@
   }
   td,
   th {
-    padding: 0.25rem 0.4rem;
-    text-align: left;
+    padding: 0.15rem 0.35rem;
+    line-height: 1.35;
     vertical-align: top;
+    text-align: left;
+  }
+  th {
+    font-weight: normal;
   }
   .select-versions,
   .actions,
@@ -142,23 +146,33 @@
     margin-right: 0.35rem;
   }
   .actions button {
-    padding: 0;
-    border: 0;
-    background: none;
+    padding: 0.1rem 0.35rem;
     color: var(--link-color, #06c);
-    text-decoration: underline;
     cursor: pointer;
+    background: #eee;
+    border: 1px solid #aaa;
   }
   .actions button:disabled {
     cursor: default;
   }
   .history-pages button {
-    min-width: 2rem;
+    min-width: 1.8rem;
+    padding: 0.15rem 0.4rem;
+    color: var(--link-color, #06c);
+    background: #eee;
+    border: 1px solid #aaa;
+  }
+  .history-pages button + button {
+    border-left: 0;
+  }
+  .history-pages button[aria-current="page"] {
+    color: inherit;
+    background: #ccc;
   }
   .history-pages {
     display: flex;
-    gap: 0.4rem;
     flex-wrap: wrap;
+    justify-content: center;
     margin-block: 1rem;
   }
 </style>
