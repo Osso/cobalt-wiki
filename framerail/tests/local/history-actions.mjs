@@ -293,7 +293,7 @@ test("local homepage History reads real paged source and native revisions", asyn
     assert.equal(fixture.siteId, siteId)
     assert.equal(fixture.siteSlug, "cobalt-company")
     assert.equal(fixture.databaseLabel, "cobalt_local_full")
-    assert.equal(fixture.homeSlug ?? "home:start", "home:start")
+    assert.equal(fixture.homeSlug ?? "home:_public", "home:_public")
     assert.ok(typeof fixture.username === "string" && fixture.username.length > 0)
     const gatewayPath = process.env.COBALT_LOCAL_PASSWORD_FILE
     const gatewayPassword = gatewayPath
@@ -317,7 +317,7 @@ test("local homepage History reads real paged source and native revisions", asyn
       const pageId = await readHomepage(
         context.request,
         token,
-        fixture.homeSlug ?? "home:start"
+        fixture.homeSlug ?? "home:_public"
       )
       const response = await page.goto(origin, { waitUntil: "networkidle" })
       assert.equal(response?.status(), 200, "root homepage HTTP status")
