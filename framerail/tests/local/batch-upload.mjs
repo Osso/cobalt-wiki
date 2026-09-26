@@ -34,7 +34,7 @@ const pageId = 3000006134
  *   destinationSlug: string
  *   pageId: number
  *   destinationPageId: number
- *   created: { slug: string; pageId: number }[]
+ *   created: { slug: string; pageId: number; revisionId: number }[]
  * }} Fixture
  */
 
@@ -52,10 +52,18 @@ async function readFixture(path) {
   assert.equal(fixture.destinationSlug, `local-action-proof:destination-${match[1]}`)
   assert.equal(fixture.pageId, pageId)
   assert.equal(fixture.destinationPageId, 3000006135)
-  assert.deepEqual(fixture.created, [
-    { slug: fixture.sourceSlug, pageId },
-    { slug: fixture.destinationSlug, pageId: fixture.destinationPageId }
-  ])
+  assert.ok(
+    fixture.created.every(
+      (item) => Number.isSafeInteger(item.revisionId) && item.revisionId > 0
+    )
+  )
+  assert.deepEqual(
+    fixture.created.map(({ slug, pageId }) => ({ slug, pageId })),
+    [
+      { slug: fixture.sourceSlug, pageId },
+      { slug: fixture.destinationSlug, pageId: fixture.destinationPageId }
+    ]
+  )
   return fixture
 }
 
