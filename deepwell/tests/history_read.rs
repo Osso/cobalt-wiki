@@ -5,12 +5,12 @@ mod common;
 use common::TestRunner;
 use deepwell::constants::ADMIN_USER_ID;
 use deepwell::error::prelude::ErrorType;
-use deepwell::models::{page_revision, role_permission};
+use deepwell::models::{imported_page_revision, page, page_revision, role_permission};
 use deepwell::services::TextService;
 use deepwell::types::{Action, Resource};
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, IntoActiveModel,
-    QueryFilter,
+    QueryFilter, QueryOrder,
 };
 use serde_json::{Value, json};
 
@@ -73,7 +73,22 @@ async fn imported_revision_renders_selected_source_without_changing_page() {
     let runner = TestRunner::setup().await;
     let (site_id, page_id, current) = fixture(&runner).await;
     imported(&runner, site_id, page_id, current).await;
-    let before = run_endpoint!(runner, page_get, json!({"site_id":site_id,"page":page_id,"details":{"wikitext":true,"compiled":true}})).unwrap();
+    let current_page = page::Entity::find_by_id(page_id)
+        .one(runner.context().transaction())
+        .await
+        .unwrap()
+        .unwrap();
+    let current_revision = page_revision::Entity::find_by_id(current)
+        .one(runner.context().transaction())
+        .await
+        .unwrap()
+        .unwrap();
+    let source_history = imported_page_revision::Entity::find()
+        .filter(imported_page_revision::Column::PageId.eq(page_id))
+        .order_by_asc(imported_page_revision::Column::SourceRevisionNumber)
+        .all(runner.context().transaction())
+        .await
+        .unwrap();
     let selected = run_endpoint!(
         runner,
         page_history_revision,
@@ -90,20 +105,43 @@ async fn imported_revision_renders_selected_source_without_changing_page() {
     assert!(html.contains("旧"));
     assert!(!html.contains("新"));
     assert!(!html.contains("Current source"));
-    let after = run_endpoint!(runner, page_get, json!({"site_id":site_id,"page":page_id,"details":{"wikitext":true,"compiled":true}})).unwrap();
+    let comparison = run_endpoint!(
+        runner,
+        page_history_compare,
+        json!({"site_id":site_id,"page_id":page_id,"origin":"wikidot","from":0,"to":1})
+    );
+    assert_eq!(comparison.lines.len(), 4);
+    let local = run_endpoint!(
+        runner,
+        page_history_revision,
+        request(site_id, page_id, "local", 0, false)
+    )
+    .unwrap();
+    assert_eq!(local.id, current);
     assert_eq!(
-        (
-            before.revision_id,
-            before.page_revision_count,
-            before.wikitext,
-            before.compiled_body_html
-        ),
-        (
-            after.revision_id,
-            after.page_revision_count,
-            after.wikitext,
-            after.compiled_body_html
-        )
+        page::Entity::find_by_id(page_id)
+            .one(runner.context().transaction())
+            .await
+            .unwrap()
+            .unwrap(),
+        current_page
+    );
+    assert_eq!(
+        page_revision::Entity::find_by_id(current)
+            .one(runner.context().transaction())
+            .await
+            .unwrap()
+            .unwrap(),
+        current_revision
+    );
+    assert_eq!(
+        imported_page_revision::Entity::find()
+            .filter(imported_page_revision::Column::PageId.eq(page_id))
+            .order_by_asc(imported_page_revision::Column::SourceRevisionNumber)
+            .all(runner.context().transaction())
+            .await
+            .unwrap(),
+        source_history
     );
     assert!(
         run_endpoint!(
