@@ -254,7 +254,22 @@ async fn authorized_lifecycle_and_destination_denial() {
             .page_id,
         destination
     );
-    assert_eq!(relocated.file_revision_number, 2);
+    assert_eq!(relocated.file_revision_number, 1);
+    let original_revision = run_endpoint!(
+        runner,
+        file_revision_get,
+        json!({"site_id":site_id,"page_id":editable,"file_id":uploaded.file_id,"revision_number":0})
+    )
+    .unwrap();
+    let move_revision = run_endpoint!(
+        runner,
+        file_revision_get,
+        json!({"site_id":site_id,"page_id":destination,"file_id":uploaded.file_id,"revision_number":1})
+    )
+    .unwrap();
+    assert_eq!(original_revision.revision_id, uploaded.file_revision_id);
+    assert_eq!(move_revision.revision_id, relocated.file_revision_id);
+    assert_ne!(original_revision.revision_id, move_revision.revision_id);
     actor(&mut runner, site_id, protected, ADMIN_USER_ID);
     run_endpoint!(
         runner,
