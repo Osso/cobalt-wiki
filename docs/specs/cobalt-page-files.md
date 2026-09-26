@@ -10,7 +10,7 @@ The Wikidot-layout Files pane presents attached-file information using the exist
 - [x] Use absolute same-origin file URLs through the existing `/-/file` permission boundary; encode filename spaces and fragment markers.
 - [x] Keep deleted-file restore actions and non-Wikidot presentation unchanged.
 
-- [x] Omit revision comments marked hidden from the information view; this does not change the existing file-list API payload.
+- [x] Omit revision comments marked hidden from the information view; this does not change the existing backend file-list payload.
 
 ## How it works
 
@@ -23,15 +23,19 @@ The Wikidot-layout Files pane presents attached-file information using the exist
 
 ## Tests asserting this spec
 
-- `framerail/tests/page-files.test.ts` — four SSR cases for totals, information, same-origin encoded URLs, and alternate layout.
+- `framerail/tests/page-files.test.ts` — five SSR cases for totals, information, hidden comments, same-origin encoded URLs, and alternate layout.
 - `framerail/tests/local/remaining-actions.mjs` — local browser information, total, and close coverage.
+
+## Evidence
+
+- `/tmp/claude/cobalt-files-hidden-comment-green.log` — five SSR cases pass after a real RED case: totals, information, hidden-comment omission, encoded URLs, and alternate layout.
 
 ## Known gaps (current cycle)
 
 - [ ] Upload, restore, and file-mutation authorization remain unproven.
-- [ ] Final independent checks remain ongoing; the bounded preservation record excludes only the sacrificial Tags/Parent fixture and native cache fields.
+- [ ] Final frontend follow-up remains ongoing; the bounded preservation record excludes only the sacrificial Tags/Parent fixture and native cache fields.
 
 ## Out of scope
 
-- Uploader names, original upload timestamps, original upload comments, and legacy content-storage metadata are unavailable in the existing `PageFile` response. `file_created_at` is local creation time; it must not be presented as original upload time. Revision user ID and revision comments must not be presented as uploader name or original comment.
+- Uploader names, original upload timestamps, original upload comments, and legacy content-storage metadata are unavailable in the existing `PageFile` response. `file_created_at` is local creation time; it must not be presented as original upload time. Revision user ID and visible revision comments must not be presented as uploader name or original comment.
 - Upload limits, new backend requests, mutation flows and row-action redesign are not part of this presentation slice.

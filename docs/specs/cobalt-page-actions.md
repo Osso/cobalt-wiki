@@ -9,11 +9,12 @@ Bottom-page controls follow supplied Tags/History screenshots and retained Wikid
 - [x] Render Edit, Tags, History, Files, Backlinks, Print, and More options.
 - [x] Omit Vote in the Wikidot layout; preserve voting and Tags controls in other layouts.
 - [x] Provide separate imported/local History datasets, seven filters, five page sizes, numbered pagination, source, read-only preview, and same-origin comparison.
-- [x] Open and close Source, Files, Parent, Move, Delete, Lock, and Layout panels in a local browser pass without approved writes.
+- [x] Open and close Source, Files, Parent, Move, Delete, Lock, and Layout panels in local browser passes without unapproved writes.
 - [x] Read Files, Parent, and Lock panel data without writes: `?/fileList`, `?/parentGet`, and `?/lockHistory` return `200`.
+- [x] Delete uses a native dialog rather than `window.confirm`, with explicit close callbacks; Cancel, Escape, and accepted confirmation are covered while the DELETE request is intercepted, and Move remains immediate.
 - [x] Show viewer-filtered Backlinks links and inclusions, including an empty inclusions result.
 - [x] Require explicit Delete confirmation before its POST path; both acceptance and dismissal are exercised with every mutation intercepted, so no page is deleted.
-- [ ] Opening panels does not establish source edits, moves, deletion, locks, layout saves, or their authorization.
+- [ ] Apart from guarded Tags and Parent save/readback/restore, panel mutations and authorization remain unproven. Accepted Delete does not delete because its request is intercepted.
 
 ### Tags
 
@@ -40,19 +41,20 @@ Bottom-page controls follow supplied Tags/History screenshots and retained Wikid
 - `framerail/tests/local/page-bottom-actions.mjs` — Tags save/readback/restore with a fixture-only write guard.
 - `framerail/tests/local/history-actions.mjs` — local History browser coverage.
 - `framerail/tests/local/remaining-actions.mjs` — local panel, Files, Parent, Backlinks, and Print browser coverage.
-- `framerail/tests/local/delete-confirmation.mjs` — Delete acceptance/dismissal with mutation interception.
+- `framerail/tests/local/delete-confirmation.mjs` — native Delete dialog Cancel/Escape/acceptance with mutation interception; Move remains immediate.
 
 ## Evidence
 
-- `/tmp/claude/cobalt-remaining-actions-browser.log` — local browser coverage of Source/options, passive Move/Delete/Lock/Layout panels, Files, Parent, Backlinks, and Print; 1/1 pass at `dbe0b29e0`.
-- `/tmp/claude/cobalt-delete-confirmation-browser.log` — Delete acceptance/dismissal and mutation interception; 1/1 pass.
+- `/tmp/claude/cobalt-remaining-actions-parent-ready.log` — controlled delayed-GET local coverage; 1/1 pass for parent lookup, two-parent save/readback/restore, and all remaining Files, Backlinks, and Print panels.
+- `/tmp/claude/cobalt-delete-dialog-browser.log` — native Delete dialog Cancel/Escape/acceptance with the accepted DELETE intercepted; Move remains immediate; 1/1 pass at `931ca6f78`.
+- `/tmp/claude/cobalt-parent-loading-red.json` — reproduced pre-baseline editable-input race (`typedRetained: false`, `afterEmpty: true`); `71ce6afa2` disables editing until the baseline loads.
 - `/tmp/claude/cobalt-remaining-preservation.json` — preserved: 6,116 original pages, 45,369 imported records, 10,091 native-content rows, 32 grants, and zero drafts. Excludes only the sacrificial Tags/Parent fixture and native cache fields.
 - `/tmp/claude/cobalt-remaining-runtime.json` — running Deepwell SHA equals built `fc3e48773`.
 
 ## Known gaps (current cycle)
 
-- [ ] Panel mutations and authorization remain unproven except the guarded Tags fixture.
-- [ ] Final independent checks remain ongoing; this is not full-replica parity evidence.
+- [ ] Source, Files, Move, Lock, and Layout mutations and authorization remain unproven. Delete acceptance is intercepted; it is not delete proof. Clear-then-Save is not separately proved beyond Parent’s two-value save/readback/restore.
+- [ ] Final frontend follow-up remains ongoing. Earlier full type proof was 0 errors/0 warnings; the reported later items were two markup warnings and the hidden-comment condition now fixed. This is not full-replica parity evidence.
 
 ## Out of scope
 
