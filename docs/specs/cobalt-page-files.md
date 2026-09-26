@@ -12,10 +12,9 @@ The Wikidot-layout Files pane presents attached-file information using the exist
 - [x] Dispatch file revision rollback from the page route to the existing RPC, preserving the request IP and accepting its revised file response.
 - [x] Serialize an omitted rollback comment as an empty string for the RPC wire contract.
 - [x] Complete the disposable Files lifecycle: upload, rename, byte replacement, revision-history read, rollback, move, delete, restore, and final deletion. The run preserves original fixture files and pages.
-- [ ] Let the current-page uploader select one or more files. A single file retains optional rename and comment fields; a multi-file selection uploads each original filename with one shared comment.
-- [ ] Submit a selected batch sequentially through the existing `/-/fileUpload` request, not a backend batch API. Show each file's status or error; refresh the listing after completed uploads.
-- [ ] Preserve existing Page/Edit/Block mutation permissions, limits, and collision behavior. Do not implicitly overwrite or retry. A failed file leaves earlier successes intact and later files continue; successful entries are not sent again until the user selects a new batch.
-- [ ] Batch implementation and proof are pending commits and receipts. The production rollout recorded on 2026-09-26 covers the earlier single-file code only and does not authorize rollout of this feature.
+- [x] Let the current-page uploader select one or more files. A single file retains optional rename and comment fields and closes on success; a multi-file selection uploads each original filename with one shared comment.
+- [x] Submit a selected batch sequentially through the existing `/-/fileUpload` request, not a backend batch API. Show each file's status or error and refresh the listing after completed uploads.
+- [x] Preserve existing Page/Edit/Block mutation permissions, limits, and collision behavior. Do not implicitly overwrite or retry. A failed file leaves earlier successes intact and later files continue; successful entries are not sent again until the user selects a new batch.
 - [x] Govern upload, rename/edit, byte replacement, revision-history read, rollback, delete, and restore with the page's `Page/Edit` permission. `fileMove` requires `Page/Edit` on both its source and destination pages. No distinct File grant exists or is required. `deepwell/tests/file_permission.rs` passes 3/3 after `e974e6f84` initializes rollback creation revision at `0` (`/tmp/claude/cobalt-move-file-targeted.log`).
 - [x] Apply the additional active Wikidot Block policy to file mutations implemented in `endpoints/file.rs`, including rollback. `endpoints/file_revision.rs` deliberately authorizes revision-history read, range, and count with owning-page `Page/Edit` only; history read is not a mutation and does not apply Block.
 - [x] Omit revision comments marked hidden from the information view; this does not change the existing backend file-list payload.
@@ -28,7 +27,9 @@ The Wikidot-layout Files pane presents attached-file information using the exist
 
 ## Implementation inventory
 
-- `framerail/src/routes/[slug]/[...extra]/FilePane.svelte` — list, aggregate and information presentation.
+- `framerail/src/routes/[slug]/[...extra]/FilePane.svelte` — list, aggregate, information, and uploader placement.
+- `framerail/src/routes/[slug]/[...extra]/FileUploadForm.svelte` — single- and multi-file upload form.
+- `framerail/src/lib/fileUploadBatch.ts` — sequential per-file upload state and receipt handling.
 
 ## Tests asserting this spec
 
@@ -37,6 +38,9 @@ The Wikidot-layout Files pane presents attached-file information using the exist
 - `framerail/tests/local/remaining-actions.mjs` — local browser information, total, and close coverage.
 - `framerail/tests/local/file-action-mutations.mjs` — disposable browser file-mutation lifecycle; main GREEN 1/1 covers upload, rename, byte replacement, history read, rollback, move, delete, restore, final deletion, and original-fixture preservation.
 - `deepwell/tests/file_permission.rs` — endpoint-authorization coverage; targeted GREEN 3/3 after `e974e6f84` initializes rollback creation revision `0`.
+- `framerail/tests/file-upload-form.test.ts` — six unit cases for single and batch selection, request sequencing, shared comments, collision retention, receipt handling, and completion state.
+- `framerail/tests/local/batch-upload.mjs` — local browser batch lifecycle.
+- `framerail/tests/local/file-action-transport.test.mjs` — native multipart request-guard coverage.
 
 ## Evidence
 
@@ -62,16 +66,20 @@ The Wikidot-layout Files pane presents attached-file information using the exist
 - `/tmp/claude/cobalt-page-action-denials-textplain.log` — observer browser denial covers file Delete/Edit/Move only; the remaining file-denial actions are not browser claims.
 - `/tmp/claude/cobalt-final-backend-followup.json` — current independent backend follow-up PASS reuses file-history authorization 3/3 and combined mutation/Block coverage 27/27; local runtime/build identity is recorded in `/tmp/claude/cobalt-final-actions-runtime.json` and is not production.
 - `/tmp/claude/cobalt-final-action-preservation.json` — refreshed SQL preservation preserves pages, imported history, native content, grants, and drafts, but excludes Files; this lifecycle separately asserts original fixture file/page preservation.
+- `/tmp/claude/cobalt-batch-receipt-green.log` — unit GREEN 6/6 after receipt-missing and false-success RED cases; an empty upload error is not success.
+- `/tmp/claude/cobalt-batch-upload-browser-row-fixed.log` — local batch GREEN 1/1: first and third files retain bytes and shared comment; the duplicate middle filename remains a collision; originals are preserved and cleanup completes.
+- `/tmp/claude/cobalt-batch-upload-guard.log` — native multipart action guard GREEN 12/12.
 - **Production application rollout, 2026-09-26:** Files-related application code is included in released revision `16ffc05e2b8049b90e0de9324741522d518857e7`, deployed by `install/dev-deploy.sh all` to Deepwell and Framerail only (`/tmp/claude/cobalt-actions-production-deploy.log`). Independent final gate `/tmp/claude/cobalt-actions-production-final-gate.json` is `PASS`, superseding the original keyword-only journal `FAIL` gate; it confirms installed hashes, active services, public routes, anonymous `can_edit=false`, watching-read denial, and co-tenant readiness. The public proof remains read-only, with no production test-data mutations; it does not prove the Files lifecycle or authenticated file authorization in production.
 
 ## Known gaps (current cycle)
 
 - [ ] Browser observer denial proves only file Delete/Edit/Move. Upload, revision-history read, rollback, restore, and other file-denial actions retain isolated authorization proof; do not represent them as browser proof.
 - [ ] The lifecycle preserves only disposable/original fixture files and pages. The refreshed SQL comparison excludes Files, three page identities, and renderer fields. The 43 unreconstructable original full-row fingerprints remain outside full-row preservation claims; they are not SQL row exclusions.
-- [ ] Batch upload implementation and behavioral proof remain pending; existing single-file evidence and the 2026-09-26 production rollout do not prove or authorize it.
+- [ ] The current combined batch and single-file lifecycle run is still running; do not claim final lifecycle closure until its receipt exists.
+- [ ] Independent frontend gate `1028` is pending. Batch upload is not production: the 2026-09-26 rollout at `16ffc05e2b8049b90e0de9324741522d518857e7` predates it and remains unaffected.
 - [x] Current frontend checks and formatting follow-up pass; receipts and inherited-warning scope are recorded in [page actions](cobalt-page-actions.md). They do not expand this action-specific authorization boundary.
 
 ## Out of scope
 
 - Uploader names, original upload timestamps, original upload comments, and legacy content-storage metadata are unavailable in the existing `PageFile` response. `file_created_at` is local creation time; it must not be presented as original upload time. Revision user ID and visible revision comments must not be presented as uploader name or original comment.
-- New backend batch requests and row-action redesign are out of scope. Existing upload limits, permissions, collision behavior, and per-file request handling remain unchanged; batch proof does not exist until implementation receipts are recorded.
+- New backend batch requests and row-action redesign are out of scope. Existing upload limits, permissions, collision behavior, and per-file request handling remain unchanged.
