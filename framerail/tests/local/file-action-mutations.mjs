@@ -137,7 +137,7 @@ async function readFileBytes(request, token, slug, pageId, fileId) {
     site_id: siteId,
     page_id: pageId,
     file: fileId,
-    data: true
+    details: { data: true }
   })
   assert.equal(file.file_id, fileId)
   assert.equal(file.page_id, pageId)
