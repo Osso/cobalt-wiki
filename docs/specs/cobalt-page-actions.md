@@ -16,7 +16,7 @@ Bottom-page controls follow supplied Tags/History screenshots and retained Wikid
 - [x] Require explicit Delete confirmation before its POST path; both acceptance and dismissal are exercised with every mutation intercepted, so no page is deleted.
 - [x] Layout changes require the authenticated actor's Page/Edit permission on the actual target page and site. After local deployment of `3fa1838a3`, a denied editor's real browser action returns Svelte failure `403`; the disposable target's layout, source, and revision remain unchanged. The isolated authorization test passed 4/4 before its test-only `unused_mut` cleanup; its targeted recheck is pending.
 - [ ] Apart from guarded Tags and Parent save/readback/restore and the bounded Layout denial above, panel mutations and authorization remain unproven. A disposable-page mutation run completed its first Move but failed its four blocked-foreign-GET assertion; error-free recovery is not lifecycle proof. Accepted Delete does not delete because its request is intercepted.
-- [ ] Native Restore UI is selected scope: submitting the existing control on a deleted-page `404` must persist recovery. Pre-fix browser evidence clicked the selected native Restore radio for fixture `3000006134`, but posted `pageId: 0`; backend returned `500`/`Page does not exist`. `eb1384e4a` binds that selected radio to the submitted page ID. No post-fix browser outcome is recorded. Reconstructing Wikidot's alternate Restore radio is not this contract.
+- [x] Native Restore UI: the existing control on a deleted-page `404` persists recovery. The pre-fix selected radio posted `pageId: 0` and returned `500`/`Page does not exist`; `eb1384e4a` binds the selected radio to the submitted page ID. The saved lifecycle GREEN is 1/1: it asserts the manifest page ID in the Restore POST, HTTP `200` success, disappearance only after that response, and persisted source/layout/slug/revision readback. Reconstructing Wikidot's alternate Restore radio is not this contract.
 
 ### Tags
 
@@ -45,7 +45,7 @@ Bottom-page controls follow supplied Tags/History screenshots and retained Wikid
 - `framerail/tests/local/history-actions.mjs` — local History browser coverage.
 - `framerail/tests/local/remaining-actions.mjs` — local panel, Files, Parent, Backlinks, and Print browser coverage.
 - `framerail/tests/local/delete-confirmation.mjs` — native Delete dialog Cancel/Escape/acceptance with mutation interception; Move remains immediate.
-- `framerail/tests/local/page-action-mutations.mjs` — disposable-page mutation lifecycle regression; its main run is not a pass.
+- `framerail/tests/local/page-action-mutations.mjs` — disposable-page mutation lifecycle regression; Native Restore scoped lifecycle passes 1/1, while the broader Move-dependent run is not a pass.
 
 ## Evidence
 
@@ -59,11 +59,13 @@ Bottom-page controls follow supplied Tags/History screenshots and retained Wikid
 - `/tmp/claude/cobalt-layout-authorization-deploy.log` — local `./deploy.sh` for `3fa1838a3` exited `0` after a compact 3m27s build; the retained log is empty.
 - `/tmp/claude/cobalt-layout-denial-postfix.json` — post-deploy denied editor action against disposable page `3000006135`: Svelte failure `403`, with unchanged layout, source, and revision; fixture restored.
 - `/tmp/claude/cobalt-layout-auth-gate.json` — `cargo fmt --check`, offline check, and isolated Layout authorization 4/4 pass; the pre-cleanup test warned on `unused_mut`, fixed test-only by `6f3d99463`, so targeted recheck remains pending. Scoped Prettier and ESLint pass; current frontend type proof is pending.
-- `/tmp/claude/cobalt-page-action-restore-post-evidence.log` — pre-fix native Restore browser evidence: selected radio for fixture `3000006134` posted `pageId: 0`; backend returned `500`/`Page does not exist`. `eb1384e4a` binds the selected radio to the submitted page ID; no completed post-fix browser proof is recorded.
+- `/tmp/claude/cobalt-page-action-restore-post-evidence.log` — RED: selected native Restore radio for fixture `3000006134` posted `pageId: 0`; backend returned `500`/`Page does not exist`.
+- `/tmp/claude/cobalt-page-action-restore-binding.log` — actual local lifecycle GREEN 1/1 after `eb1384e4a`: Restore POST carries the manifest page ID, returns HTTP `200` success, then the form disappears and persisted readback verifies recovery.
+- `/tmp/claude/cobalt-native-restore-gate.json` — independent scoped audit at `a81fed8e0dc4c6bd1f4dacfd97f6de28d206f985`: the restore binding and lifecycle-test sources are unchanged from their commits; scoped Prettier, ESLint, Stylelint, and diff checks pass. It deliberately excludes a browser rerun, runtime/deploy work, whole-project typecheck, other actions, Move/Block, and denials.
 
 ## Known gaps (current cycle)
 
-- [ ] Full Move dependency repair, source Block parity, file mutations, and action-specific denials remain unverified/incomplete. Source and Lock mutations and authorization remain unproven. The disposable-page run did not complete its lifecycle after the blocked-foreign-GET assertion failure; recovery alone is not proof. Delete acceptance is intercepted; it is not delete proof. Native Restore browser persistence remains unproved: pre-fix submission posted `pageId: 0`; `eb1384e4a` binds the selected radio to the page ID, but no completed post-fix browser proof is recorded. Clear-then-Save is not separately proved beyond Parent’s two-value save/readback/restore.
+- [ ] Full Move dependency repair, source Block parity, file mutations, and action-specific denials remain unverified/incomplete. Source and Lock mutations and authorization remain unproven. The disposable-page run did not complete its broader lifecycle after the blocked-foreign-GET assertion failure; recovery alone is not proof. Delete acceptance is intercepted; it is not delete proof. Native Restore is proved only for its selected existing-control recovery scope. Clear-then-Save is not separately proved beyond Parent’s two-value save/readback/restore.
 - [ ] The `3fa1838a3` Layout gate is bounded, not clean: Rust format/check and 4/4 isolated tests pass, but the test-only `6f3d99463` warning cleanup needs its targeted recheck. Scoped Prettier and ESLint pass; frontend type errors in the new lifecycle tests remain pending. This is not full-replica parity evidence.
 
 ## Out of scope
