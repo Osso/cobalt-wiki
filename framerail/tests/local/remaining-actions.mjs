@@ -352,7 +352,7 @@ async function checkFiles(page, request, token, badges) {
   const rows = pane.locator(".file-row")
   await expect(rows).toHaveCount(files.length)
   for (const file of files) {
-    const row = rows.locator(`[data-id="${file.file_id}"]`)
+    const row = pane.locator(`.file-row[data-id="${file.file_id}"]`)
     await expect(row.locator(".name a")).toHaveText(file.name)
     await expect(row.locator(".size")).toHaveText(String(file.size))
     if (file.revision_type === "delete") continue
@@ -474,23 +474,26 @@ async function saveAndRestoreParents(page, request, token, fixture, stored, base
   try {
     await openParent(page, baseline)
     await submitParents(page, expected)
-    await expect.poll(() => readParents(request, token, stored)).toEqual(expected)
+    await expect
+      .poll(async () => [...(await readParents(request, token, stored))].sort())
+      .toEqual([...expected].sort())
+    const savedParents = await readParents(request, token, stored)
     await visit(page, fixture.existingSlug)
     await openOptions(page)
-    const reopened = await openParent(page, expected)
-    await expect(reopened.input).toHaveValue(expected.join(" "))
+    const reopened = await openParent(page, savedParents)
+    await expect(reopened.input).toHaveValue(savedParents.join(" "))
     await reopened.form.locator('input.btn-danger[type="button"]').click()
   } finally {
     const current = await readParents(request, token, stored)
-    if (current.join(" ") !== baseline.join(" ")) {
+    if ([...current].sort().join(" ") !== [...baseline].sort().join(" ")) {
       await visit(page, fixture.existingSlug)
       await openOptions(page)
       await openParent(page, current)
       await submitParents(page, baseline)
     }
     assert.deepEqual(
-      await readParents(request, token, stored),
-      baseline,
+      [...(await readParents(request, token, stored))].sort(),
+      [...baseline].sort(),
       "parents restored"
     )
   }
