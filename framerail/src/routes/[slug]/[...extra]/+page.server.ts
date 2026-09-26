@@ -31,6 +31,11 @@ import {
   pageVoteGetAction
 } from "$lib/server/load/page"
 import { pagePreviewAction } from "$lib/server/load/page-preview"
+import {
+  historyListAction,
+  historyRevisionAction,
+  historyCompareAction
+} from "$lib/server/load/history"
 import { loadPageWatching, setSubscriptionAction } from "$lib/server/load/watching"
 import { loadSiteInfo } from "$lib/server/load/site-info"
 import {
@@ -79,6 +84,9 @@ export const actions = {
   fileRestore: pageFileRestoreAction,
   fileHistory: pageFileHistoryAction,
   history: pageHistoryAction,
+  historyList: historyListAction,
+  historyRevision: historyRevisionAction,
+  historyCompare: historyCompareAction,
   importedHistory: importedHistoryAction,
   importedRevision: importedRevisionAction,
   revision: pageRevisionAction,

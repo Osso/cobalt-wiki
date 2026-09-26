@@ -5,6 +5,7 @@
   import { Layout } from "$lib/types"
   import { SvelteMap } from "svelte/reactivity"
   import ImportedHistory from "./ImportedHistory.svelte"
+  import WikidotHistory from "./WikidotHistory.svelte"
 
   import type { PageProps } from "./$types"
   import type {
@@ -137,119 +138,14 @@
   }
 
   $effect(() => {
-    fetchHistory()
+    if (pageLayoutState.current !== Layout.WIKIDOT) fetchHistory()
   })
 </script>
 
-<ImportedHistory />
-
 {#if pageLayoutState.current === Layout.WIKIDOT}
-  <h1 class="page-revision-header">
-    {data.internationalization?.["wiki-page-revision-history"]}
-  </h1>
-  <div class="revision-list">
-    <table class="page-history">
-      <tbody>
-        <tr class="revision-header">
-          <td class="revision-attribute revision-number">
-            {data.internationalization?.["wiki-page-revision-number"]}
-          </td>
-          <td class="revision-attribute action"></td>
-          <td class="revision-attribute revision-type">
-            {data.internationalization?.["wiki-page-revision-type"]}
-          </td>
-          <td class="revision-attribute user">
-            {data.internationalization?.["wiki-page-revision-user"]}
-          </td>
-          <td class="revision-attribute created-at">
-            {data.internationalization?.["wiki-page-revision-created-at"]}
-          </td>
-          <td class="revision-attribute comments">
-            {data.internationalization?.["wiki-page-revision-comments"]}
-          </td>
-        </tr>
-        <!-- Here we sort the list in descending order. -->
-        {#each [...revisionMap].sort((a, b) => b[0] - a[0]) as [, revisionItem] (revisionItem.revision_number)}
-          <tr
-            id={`revision-row-${revisionItem.revision_id}`}
-            class="revision-row"
-            data-id={revisionItem.revision_id}
-          >
-            <td class="revision-attribute revision-number">
-              {revisionItem.revision_number}
-            </td>
-            <td class="revision-attribute action optionstd">
-              {#if ["create", "regular"].includes(revisionItem.revision_type)}
-                <!-- svelte-ignore a11y_invalid_attribute -->
-                <a
-                  class="view-revision"
-                  href="javascript:;"
-                  onclick={(event) => {
-                    event.stopPropagation()
-                    getRevision(revisionItem.revision_number, true, false).then(() => {
-                      setShowRevision(true)
-                      showRevisionSource = false
-                    })
-                  }}
-                  type="button"
-                >
-                  V
-                </a>
-                <!-- svelte-ignore a11y_invalid_attribute -->
-                <a
-                  class="view-revision-source"
-                  href="javascript:;"
-                  onclick={(event) => {
-                    event.stopPropagation()
-                    getRevision(revisionItem.revision_number, false, true).then(() => {
-                      setShowRevision(false)
-                      showRevisionSource = true
-                    })
-                  }}
-                  type="button"
-                >
-                  S
-                </a>
-                <!-- svelte-ignore a11y_invalid_attribute -->
-                <a
-                  class="revision-rollback"
-                  href="javascript:;"
-                  onclick={(event) => {
-                    event.stopPropagation()
-                    rollbackRevision(revisionItem.revision_number)
-                  }}
-                  type="button"
-                >
-                  R
-                </a>
-              {/if}
-            </td>
-            <td class="revision-attribute revision-type">
-              {data.internationalization?.[
-                `wiki-page-revision-type.${revisionItem.revision_type}`
-              ]}
-            </td>
-            <td class="revision-attribute user">
-              {revisionItem.user_id}
-            </td>
-            <td class="revision-attribute created-at">
-              {new Date(revisionItem.created_at).toLocaleString()}
-            </td>
-            <td class="revision-attribute comments">
-              {revisionItem.comments}
-            </td>
-          </tr>
-        {/each}
-      </tbody>
-    </table>
-  </div>
-
-  {#if showRevisionSource}
-    <div id="history-subarea">
-      <textarea class="page-source" readonly={true}>{revision?.wikitext ?? ""}</textarea>
-    </div>
-  {/if}
+  <WikidotHistory />
 {:else}
+  <ImportedHistory />
   <h2 class="page-revision-header">
     {data.internationalization?.["wiki-page-revision-history"]}
   </h2>
