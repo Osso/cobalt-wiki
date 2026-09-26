@@ -24,6 +24,7 @@ mod prelude {
     pub use super::structs::*;
 }
 
+pub mod move_dependencies;
 mod service;
 mod structs;
 
