@@ -113,7 +113,9 @@
   {/if}
 </svelte:head>
 
-{#if layout === Layout.WIKIDOT}
+{#if page.data.printView}
+  {@render children?.()}
+{:else if layout === Layout.WIKIDOT}
   <link
     href="https://d3g0gp89917ko0.cloudfront.net/v--7690939296dc/common--theme/base/css/style.css"
     rel="stylesheet"
