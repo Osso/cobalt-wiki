@@ -98,6 +98,21 @@ test("page route dispatches file rollback to its RPC", async () => {
   })
 })
 
+test("file rollback serializes omitted comments as an empty string", async () => {
+  const request = new Request("http://local.test/page?/fileRollback", {
+    method: "POST",
+    body: JSON.stringify({ ...identity, revisionNumber: 1 })
+  })
+  const { calls } = await withRpc(() =>
+    pageFileRollbackAction(event(request, "198.51.100.27") as never)
+  )
+  assert.deepEqual(
+    calls.map(({ method }) => method),
+    ["session_get", "file_rollback"]
+  )
+  assert.equal(calls[1].params.revision_comments, "")
+})
+
 test("file rollback preserves request IP in serialized RPC and accepts the revision", async () => {
   const request = new Request("http://local.test/page?/fileRollback", {
     method: "POST",

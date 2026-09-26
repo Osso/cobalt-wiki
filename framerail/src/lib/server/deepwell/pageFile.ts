@@ -236,7 +236,7 @@ export async function pageFileRollback(
     file: fileId,
     last_revision_id: lastRevisionId,
     revision_number: revisionNumber,
-    revision_comments: revisionComments,
+    revision_comments: revisionComments ?? "",
     bypass_filter: bypassFilter
   })
 }
