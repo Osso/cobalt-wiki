@@ -247,7 +247,7 @@ async fn build_row(
     })
 }
 
-async fn authorize_read(
+pub(crate) async fn authorize_read(
     ctx: &ServiceContext<'_>,
     site_id: i64,
     page_id: i64,

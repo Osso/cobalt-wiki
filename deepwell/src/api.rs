@@ -518,6 +518,7 @@ async fn build_module(app_state: ServerState) -> Result<RpcModule<ServerState>> 
     register!("import_wikidot_page_revision", import_wikidot_page_revision);
     register!("import_wikidot_history", import_wikidot_history);
     register!("page_imported_history", page_imported_history);
+    register!("page_history_list", page_history_list);
     register!("page_imported_revision", page_imported_revision);
 
     // Return
