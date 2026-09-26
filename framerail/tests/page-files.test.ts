@@ -99,6 +99,9 @@ const data = {
 function renderFiles(layout: string, listedFiles = files) {
   pageLayoutState.current = layout
   function PageContext(payload: unknown, props: unknown) {
+    setContext("__request__", {
+      page: { url: new URL("https://example.test/writing:example") }
+    })
     setContext("__svelte__", {
       page: readable({ url: new URL("https://example.test/writing:example") }),
       navigating: readable(null),
