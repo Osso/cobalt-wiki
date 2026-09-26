@@ -12,12 +12,13 @@ The Wikidot-layout Files pane presents attached-file information using the exist
 - [x] Dispatch file revision rollback from the page route to the existing RPC, preserving the request IP and accepting its revised file response.
 - [x] Serialize an omitted rollback comment as an empty string for the RPC wire contract.
 - [x] Complete the disposable Files lifecycle: upload, rename, byte replacement, revision-history read, rollback, move, delete, restore, and final deletion. The run preserves original fixture files and pages.
+- [x] Govern upload, rename/edit, byte replacement, revision-history read, rollback, delete, and restore with the page's `Page/Edit` permission. `fileMove` requires `Page/Edit` on both its source and destination pages. No distinct File grant exists or is required.
 - [x] Omit revision comments marked hidden from the information view; this does not change the existing backend file-list payload.
 
 ## How it works
 
 - The existing Files pane fetches the page-file list; no additional request is needed for information or totals.
-- [Page actions](cobalt-page-actions.md) defines bottom-action registration and its evidence boundary.
+- [Page actions](cobalt-page-actions.md) defines bottom-action registration, the single-page-Edit authorization policy, and its evidence boundary.
 
 ## Implementation inventory
 
@@ -49,7 +50,7 @@ The Wikidot-layout Files pane presents attached-file information using the exist
 
 ## Known gaps (current cycle)
 
-- [ ] The `cb61f5543` edit/rollback request-IP fix has targeted RED/GREEN 2/2 RPC proof, `90df39567` has targeted RED/GREEN self-conflict proof, and `2d9d9989a`/`fc90bbe98` have targeted rollback route/wire proof. Main browser proof now covers the complete disposable Files lifecycle, but file-mutation authorization and action-specific denials remain unproved; lifecycle proof does not establish them.
+- [ ] The `cb61f5543` edit/rollback request-IP fix has targeted RED/GREEN 2/2 RPC proof, `90df39567` has targeted RED/GREEN self-conflict proof, and `2d9d9989a`/`fc90bbe98` have targeted rollback route/wire proof. Main browser proof now covers the complete disposable Files lifecycle. The authorization policy is explicit, but file-mutation enforcement and action-specific denials remain unproved; lifecycle proof does not establish them.
 - [ ] The scoped frontend gate passes at `e09e5ae7f`; it proves whole-project type validation plus changed transport-test lint, formatting, and readability, and reuses the unchanged actual Files browser GREEN. It does not prove file-mutation authorization or action-specific denials. Preservation refresh remains pending: the prior bounded record predates the disposable Files fixtures and excludes sacrificial Tags/Parent fixtures and native cache fields; this lifecycle's original-fixture invariants do not refresh that broader record.
 
 ## Out of scope

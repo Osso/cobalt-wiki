@@ -10,6 +10,7 @@ The Parent panel edits page breadcrumb relationships in `framerail/src/routes/[s
 - [x] Look up the last typed slug token only after two characters, using the existing site- and viewer-scoped editor page lookup; suggestions retain preceding parent names.
 - [x] Ignore stale lookup results and surface current lookup failures without preventing manual entry.
 - [x] Save two real parent values, read them back, and restore the original parent set after a controlled delayed baseline load, without replacing Cobalt’s plural write with a single-parent write.
+- [x] Authorize a parent update against the actual request actor and site, then the body-selected child page’s `Page/Edit` permission; never borrow the header page’s permission.
 - [ ] Clear-then-Save is not separately proved.
 
 ## How it works
@@ -33,10 +34,11 @@ The Parent panel edits page breadcrumb relationships in `framerail/src/routes/[s
 - `/tmp/claude/cobalt-parent-loading-red.json` — pre-baseline editable-input race reproduced (`typedRetained: false`, `afterEmpty: true`); `71ce6afa2` disables editing until the baseline loads.
 - `/tmp/claude/cobalt-remaining-actions-parent-ready.log` — controlled delayed-GET local browser pass (1/1) for lookup, two-parent save/readback/restore, and fixture restoration.
 - `/tmp/claude/cobalt-parent-final.png` — local captured parent state; presentation evidence only.
+- `ba73f942f` — binds parent updates to the request actor/site and checks `Page/Edit` for the body child. The isolated `deepwell/tests/page_layout_permission.rs` coverage passed 9/9 for allowed plural updates, denied actor, forged actor, site mismatch, and header/body target separation. It has not been deployed or exercised in a browser.
 
 ## Known gaps (current cycle)
 
-- [ ] Clear-then-Save remains unproved as a separate mutation; two-parent save/readback/restore is proved. Authorization denial remains unproved. The independent frontend gate passes; see [page actions](cobalt-page-actions.md). The bounded preservation record excludes only this sacrificial fixture, the Tags fixture, and native cache fields.
+- [ ] Clear-then-Save remains unproved as a separate mutation; two-parent save/readback/restore is proved. Parent authorization has isolated 9/9 coverage only; deployment and browser proof remain absent. The independent frontend gate passes; see [page actions](cobalt-page-actions.md). The bounded preservation record excludes only this sacrificial fixture, the Tags fixture, and native cache fields.
 
 ## Out of scope
 
