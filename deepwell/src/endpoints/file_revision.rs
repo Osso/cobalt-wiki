@@ -24,6 +24,8 @@ use crate::services::file::GetFile;
 use crate::services::file_revision::{
     FileRevisionCountOutput, GetFileRevision, GetFileRevisionRange, UpdateFileRevision,
 };
+use crate::services::permission::{CheckPermissionContext, PermissionService};
+use crate::types::{Action, Permission, Reference, Resource};
 
 pub async fn file_revision_count(
     ctx: &ServiceContext<'_>,
@@ -44,9 +46,11 @@ pub async fn file_revision_count(
         )
     };
 
-    let file_id = FileService::get_id(ctx, site_id, file_reference)
+    require_history_site(ctx, site_id)?;
+    let file_id = FileService::get_id(ctx, page_id, file_reference)
         .await
         .or_raise(make_error)?;
+    authorize_file_history(ctx, file_id, site_id).await?;
 
     let revision_count = FileRevisionService::count(ctx, page_id, file_id)
         .await
@@ -70,6 +74,7 @@ pub async fn file_revision_get(
         input.revision_number, input.file_id, input.page_id,
     );
 
+    authorize_file_history(ctx, input.file_id, input.site_id).await?;
     FileRevisionService::get_optional(ctx, input)
         .await
         .or_raise(|| Error::new("failed to get file revision", ErrorType::FileRevision))
@@ -81,6 +86,8 @@ pub async fn file_revision_range(
 ) -> Result<Vec<FileRevisionModel>> {
     let input: GetFileRevisionRange = parse!(params, FileRevision);
 
+    let site_id = ctx.request().site_id.ok_or_else(deny_file_history)?;
+    authorize_file_history(ctx, input.file_id, site_id).await?;
     FileRevisionService::get_range(ctx, input)
         .await
         .or_raise(|| {
@@ -89,6 +96,52 @@ pub async fn file_revision_range(
                 ErrorType::FileRevision,
             )
         })
+}
+
+fn deny_file_history() -> crate::error::ExnError {
+    Error::new(
+        "user does not have permission to read this file's history",
+        ErrorType::PermissionDenied,
+    )
+    .into()
+}
+
+fn require_history_site(ctx: &ServiceContext<'_>, site_id: i64) -> Result<()> {
+    if ctx.request().site_id != Some(site_id) {
+        return Err(deny_file_history());
+    }
+    Ok(())
+}
+
+async fn authorize_file_history(
+    ctx: &ServiceContext<'_>,
+    file_id: i64,
+    site_id: i64,
+) -> Result<()> {
+    require_history_site(ctx, site_id)?;
+    let file = FileService::get_direct(ctx, file_id, true).await?;
+    if file.site_id != site_id {
+        return Err(deny_file_history());
+    }
+    let page = PageService::get(ctx, file.site_id, Reference::Id(file.page_id)).await?;
+    let allowed = PermissionService::check_user_can(
+        ctx,
+        &CheckPermissionContext {
+            user_id: ctx.request().user_id,
+            site_id: file.site_id,
+            page_reference: Some(Reference::Id(page.page_id)),
+        },
+        Permission {
+            resource_type: Resource::Page,
+            resource_category: Some(Reference::Id(page.page_category_id)),
+            action: Action::Edit,
+        },
+    )
+    .await?;
+    if !allowed {
+        return Err(deny_file_history());
+    }
+    Ok(())
 }
 
 pub async fn file_revision_edit(
