@@ -1154,7 +1154,8 @@ export async function pageMoveAction({
   const { slug } = params
 
   try {
-    const { siteId, pageId, lastRevisionId, newSlug, comments } = form.data
+    const { siteId, pageId, lastRevisionId, newSlug, comments, fixDependencies } =
+      form.data
     const res = await pageMove(
       siteId,
       pageId,
@@ -1164,7 +1165,8 @@ export async function pageMoveAction({
       lastRevisionId,
       newSlug,
       comments,
-      getRequestContext(locals)
+      getRequestContext(locals),
+      fixDependencies
     )
     return { form, res }
   } catch (e) {
@@ -1181,7 +1183,8 @@ export async function pageMoveAction({
 const pageMoveSchema = object({
   ...baseSchema,
   newSlug: string(),
-  comments: string()
+  comments: string(),
+  fixDependencies: optional(array(number()), [])
 })
 
 /* ----- Page Parent Set ----- */

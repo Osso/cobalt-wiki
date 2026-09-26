@@ -11,6 +11,7 @@ import type {
   ParseError
 } from "$lib/types"
 import type { RequestContext } from "../load/request-ctx"
+import type { PageBacklinks } from "../load/page-backlinks"
 
 /* ----- Page Delete ----- */
 interface PageDelete {
@@ -234,6 +235,8 @@ export async function pageImportedRevision(
 
 /* ----- Page Move ----- */
 interface PageMove {
+  repaired_dependencies: number[]
+  remaining_dependencies: PageBacklinks
   old_slug: string
   new_slug: string
   revision_id: number
@@ -249,7 +252,8 @@ export async function pageMove(
   lastRevisionId: number,
   newSlug: string,
   revisionComments: Optional<string>,
-  requestContext: RequestContext
+  requestContext: RequestContext,
+  fixDependencies: number[]
 ): Promise<PageMove> {
   return client.request(
     "page_move",
@@ -257,6 +261,7 @@ export async function pageMove(
       site_id: siteId,
       page: pageId ?? slug,
       new_slug: newSlug,
+      fix_dependencies: fixDependencies,
       user_id: userId,
       ip_address: userIpAddr,
       last_revision_id: lastRevisionId,

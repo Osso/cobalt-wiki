@@ -76,13 +76,10 @@
         if (result.type === "success" && result.data) {
           cancel()
           toast(ToastType.Success, data.internationalization!["wiki-page-move.toast"]!)
-          const moved = result.data.res as typeof result.data.res & {
-            remaining_dependencies?: PageBacklinks
-            repaired_dependencies?: number[]
-          }
+          const moved = result.data.res
           movedSlug = moved.new_slug
           const leftovers = moved.remaining_dependencies
-          if (leftovers && (leftovers.links.length || leftovers.inclusions.length)) {
+          if (leftovers.links.length || leftovers.inclusions.length) {
             remaining = leftovers
           } else {
             goto(resolve(`/${encodeURIComponent(movedSlug)}`, {}), { noScroll: true })

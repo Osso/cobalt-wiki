@@ -1,5 +1,8 @@
 import assert from "node:assert/strict"
 import { after, test } from "node:test"
+const { stringify } = await import(
+  new URL("../node_modules/.pnpm/node_modules/devalue/index.js", import.meta.url).href
+)
 import { createSsrServer } from "./ssr-server.ts"
 
 const { vite, close } = await createSsrServer()
@@ -11,6 +14,28 @@ const { actions } = await vite.ssrLoadModule(
 )
 
 const identity = { siteId: 6000000, pageId: 314, fileId: 1474, lastRevisionId: 902 }
+
+for (const selected of [[], [315, 317]]) {
+  test(`Move serializes only selected dependency IDs: ${selected.join(",")}`, async () => {
+    const request = new Request("http://local.test/page?/move", {
+      method: "POST",
+      body: new URLSearchParams({
+        __superform_json: stringify({
+          ...identity,
+          newSlug: "new-page",
+          comments: "Move",
+          fixDependencies: selected
+        })
+      })
+    })
+    const { calls } = await withRpc(() =>
+      actions.move(event(request, "127.0.0.1") as never)
+    )
+    const mutation = calls.find(({ method }) => method === "page_move")
+    assert.ok(mutation)
+    assert.deepEqual(mutation.params.fix_dependencies, selected)
+  })
+}
 
 async function withRpc(action: () => Promise<unknown>, deny = false) {
   const previousFetch = globalThis.fetch
