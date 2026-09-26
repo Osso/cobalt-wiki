@@ -31,7 +31,7 @@ const files = [
     size: 1025,
     s3_hash: "abc",
     revision_comments: "First report",
-    hidden_fields: []
+    hidden_fields: new Array<string>()
   },
   {
     file_id: 13,
@@ -139,6 +139,14 @@ test("Wikidot Files supplies read-only information for an active file", () => {
   assert.match(body, /Local file created/)
   assert.doesNotMatch(body, /Uploaded by|Upload date|upload limit/)
   assert.equal((body.match(/<summary[^>]*>info<\/summary>/g) ?? []).length, 2)
+})
+
+test("Wikidot file information omits hidden revision comments", () => {
+  const body = renderFiles(Layout.WIKIDOT, [
+    { ...files[0], revision_comments: "Hidden staff note", hidden_fields: ["comments"] }
+  ])
+  assert.doesNotMatch(body, /Hidden staff note|Revision comment/)
+  assert.match(body, /File Information/)
 })
 
 test("Wikidot file URLs encode filename spaces and fragment markers", () => {

@@ -10,6 +10,8 @@ The Wikidot-layout Files pane presents attached-file information using the exist
 - [x] Use absolute same-origin file URLs through the existing `/-/file` permission boundary; encode filename spaces and fragment markers.
 - [x] Keep deleted-file restore actions and non-Wikidot presentation unchanged.
 
+- [x] Omit revision comments marked hidden from the information view; this does not change the existing file-list API payload.
+
 ## How it works
 
 - The existing Files pane fetches the page-file list; no additional request is needed for information or totals.

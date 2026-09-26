@@ -423,7 +423,7 @@
                       <dd>{file.mime}</dd>
                       <dt>Local file created</dt>
                       <dd>{new Date(file.file_created_at).toLocaleString()}</dd>
-                      {#if file.revision_comments}
+                      {#if file.revision_comments && !file.hidden_fields.includes("comments")}
                         <dt>Revision comment</dt>
                         <dd>{file.revision_comments}</dd>
                       {/if}

@@ -195,9 +195,9 @@
 <dialog bind:this={confirmationDialog} aria-labelledby="delete-confirmation-title">
   <h2 id="delete-confirmation-title">Delete page?</h2>
   <p>Are you sure you want to completely wipe out this page?</p>
-  <form method="dialog" class="confirmation-actions">
+  <form class="confirmation-actions" method="dialog">
     <button type="submit" value="cancel">Cancel</button>
-    <button type="submit" value="delete" class="btn btn-danger">Delete page</button>
+    <button class="btn btn-danger" type="submit" value="delete">Delete page</button>
   </form>
 </dialog>
 

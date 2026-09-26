@@ -380,7 +380,7 @@ async function checkFiles(page, request, token, badges) {
         .locator("dt", { hasText: "Full file URL" })
         .locator("xpath=following-sibling::dd[1]/a")
     ).toHaveAttribute("href", fileUrl)
-    if (file.revision_comments) {
+    if (file.revision_comments && !file.hidden_fields.includes("comments")) {
       await expect(
         details
           .locator("dt", { hasText: "Revision comment" })
