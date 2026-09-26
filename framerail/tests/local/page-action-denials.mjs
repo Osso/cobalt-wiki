@@ -53,7 +53,7 @@ const allowedDenials = new Set([
 
 /**
  * @param {import("@playwright/test").Request} request @param {URL} url
- *   @param {Fixture} fixture
+ * @param {Fixture} fixture
  */
 function isObserverRead(request, url, fixture) {
   const stylesheet =
@@ -73,7 +73,7 @@ function isObserverRead(request, url, fixture) {
 
 /**
  * @param {import("@playwright/test").Request} request @param {URL} url
- *   @param {Fixture} fixture @param {ObserverAllowance|null} permitted
+ * @param {Fixture} fixture @param {ObserverAllowance|null} permitted
  */
 function matchesObserverWrite(request, url, fixture, permitted) {
   if (!permitted) return false
