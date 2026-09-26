@@ -1,7 +1,9 @@
-//! File routes end to end: the real router and Redis cache against a fake
-//! DEEPWELL. Run with `WWS_TEST_REDIS_URL=redis://host:port/db cargo test -- --ignored`.
+//! Unignored Deepwell RPC timeout tests use local HTTP. File route tests use
+//! the real router and Redis; run those with `WWS_TEST_REDIS_URL` and `--ignored`.
 
 use crate::config::Secrets;
+use crate::deepwell::Deepwell;
+use crate::error::Error;
 use crate::route::build_router;
 use crate::state::build_server_state;
 use axum::Router;
@@ -12,12 +14,15 @@ use axum::http::header::{
 use axum::http::{Method, Request, Response, StatusCode};
 use axum::response::IntoResponse;
 use axum::routing::post;
+use jsonrpsee::core::ClientError;
 use s3::creds::Credentials;
 use s3::region::Region;
 use serde_json::{Value, json};
 use std::env;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::Arc;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::net::TcpListener;
+use tokio::task::JoinSet;
 use tower::ServiceExt;
 
 const PUBLIC_PAGE_ID: i64 = 101;
@@ -63,6 +68,98 @@ async fn start_fake_deepwell() -> String {
     let app = Router::new().route("/", post(fake_deepwell));
     tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
     format!("http://{address}/")
+}
+
+/// A local HTTP JSON-RPC endpoint with delayed permission and file replies.
+async fn delayed_deepwell(body: String) -> Response<Body> {
+    let request: Value = serde_json::from_str(&body).unwrap();
+    if request["params"]["session_token"] == "stall" {
+        tokio::time::sleep(Duration::from_millis(5_500)).await;
+    } else {
+        tokio::time::sleep(Duration::from_millis(300)).await;
+    }
+    if request["params"]["file"] == "missing.jpg" {
+        let response = json!({ "jsonrpc": "2.0", "id": request["id"], "result": null });
+        return ([(CONTENT_TYPE, "application/json")], response.to_string())
+            .into_response();
+    }
+    if request["params"]["file"] == "error.jpg" {
+        let response = json!({ "jsonrpc": "2.0", "id": request["id"], "error": {
+            "code": -32000, "message": "file metadata unavailable"
+        } });
+        return ([(CONTENT_TYPE, "application/json")], response.to_string())
+            .into_response();
+    }
+    fake_deepwell(body).await.into_response()
+}
+
+async fn start_delayed_deepwell() -> String {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let app = Router::new().route("/", post(delayed_deepwell));
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    format!("http://{address}/")
+}
+
+#[tokio::test]
+async fn delayed_deepwell_serves_205_concurrent_permission_and_file_requests() {
+    let deepwell = Arc::new(Deepwell::connect(&start_delayed_deepwell().await).unwrap());
+    let mut requests = JoinSet::new();
+    for index in 0..205 {
+        let deepwell = Arc::clone(&deepwell);
+        requests.spawn(async move {
+            let permission = deepwell
+                .get_page_view_permission(1, PUBLIC_PAGE_ID, None)
+                .await
+                .unwrap();
+            assert!(permission.can_view && permission.public);
+            let filename = format!("pet-icon-{index}.jpg");
+            let file = deepwell
+                .get_file(1, PUBLIC_PAGE_ID, &filename)
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(file.s3_hash, format!("hash-of-{filename}"));
+        });
+    }
+    let mut completed = 0;
+    while let Some(result) = requests.join_next().await {
+        result.unwrap();
+        completed += 1;
+    }
+    assert_eq!(completed, 205);
+}
+
+#[tokio::test]
+async fn delayed_deepwell_keeps_denial_missing_file_and_rpc_errors() {
+    let deepwell = Deepwell::connect(&start_delayed_deepwell().await).unwrap();
+    let denied = deepwell
+        .get_page_view_permission(1, PRIVATE_PAGE_ID, None)
+        .await
+        .unwrap();
+    assert!(!denied.can_view && !denied.public);
+    assert!(
+        deepwell
+            .get_file(1, PUBLIC_PAGE_ID, "missing.jpg")
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(matches!(
+        deepwell.get_file(1, PUBLIC_PAGE_ID, "error.jpg").await,
+        Err(Error::Deepwell(ClientError::Call(_)))
+    ));
+}
+
+#[tokio::test]
+async fn delayed_deepwell_still_times_out_when_backend_stalls() {
+    let deepwell = Deepwell::connect(&start_delayed_deepwell().await).unwrap();
+    assert!(matches!(
+        deepwell
+            .get_page_view_permission(1, PUBLIC_PAGE_ID, Some("stall"))
+            .await,
+        Err(Error::Deepwell(ClientError::RequestTimeout))
+    ));
 }
 
 /// Fresh site ID per run, so earlier runs' cached pages and files never match.

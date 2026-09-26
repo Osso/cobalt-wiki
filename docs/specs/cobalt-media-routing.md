@@ -20,6 +20,7 @@ FTML must render same-site attachment references through the deployed site's pro
 
 - [Protected file gateway](cobalt-poc-gateway.md)
 - Request order in wws: page lookup (cached) → Deepwell `page_view_permission` (not cached, per viewer) → file lookup (cached) → stream or redirect. Denial happens before the file lookup, so a private page's filenames are not probed.
+- wws gives each Deepwell RPC up to 5 seconds to tolerate ordinary backend queueing during image-heavy pages; valid responses after the former 200 ms limit remain usable. A stalled RPC still times out, and permission denial, missing files, and RPC errors retain their existing outcomes. This does not establish the database latency cause or change the separate object-store deadline.
 
 ## Implementation inventory
 
@@ -37,7 +38,7 @@ FTML must render same-site attachment references through the deployed site's pro
 - FTML AST fixtures: image/audio/video output contracts.
 - `deepwell/tests/page_view_permission.rs` (DB): public vs private category, member vs anonymous vs banned member vs unknown token, page from another site rejected.
 - `wws` unit tests: `fetch` (multi-colon slug kept), `visibility` (cookie, decision, `403` headers), `presign` (same URL within a UTC day, new URL next day, expiry, overrides, reserved characters stay encoded), `attachment` (inline disposition).
-- `wws/src/handler/file_access_tests.rs` (`--ignored`, needs `WWS_TEST_REDIS_URL`): real router and Redis against a fake Deepwell; private-page file `403` anonymous/other session, `302` presigned for the member (stable URL, download disposition); public multi-colon page file `200` with the 30-day public cache.
+- `wws/src/handler/file_access_tests.rs`: unignored real HTTP JSON-RPC client tests exercise 205 concurrent permission → file metadata pairs with 300 ms valid responses, denial, absent metadata, RPC errors, and a timeout past the 5-second deadline. These do not exercise the full file HTTP route, Redis, or object storage. The ignored router tests (`WWS_TEST_REDIS_URL`) cover private-page file `403` anonymous/other session, `302` presigned for the member (stable URL, download disposition); public multi-colon page file `200` with the 30-day public cache.
 - `wws/src/presign.rs` `store_serves_presigned_url_with_overrides` (`--ignored`, needs an S3 store): the store accepts the day-rounded signature and returns the overridden type and disposition.
 
 ## Known gaps (current cycle)
