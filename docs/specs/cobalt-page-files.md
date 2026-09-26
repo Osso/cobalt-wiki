@@ -12,7 +12,7 @@ The Wikidot-layout Files pane presents attached-file information using the exist
 - [x] Dispatch file revision rollback from the page route to the existing RPC, preserving the request IP and accepting its revised file response.
 - [x] Serialize an omitted rollback comment as an empty string for the RPC wire contract.
 - [x] Complete the disposable Files lifecycle: upload, rename, byte replacement, revision-history read, rollback, move, delete, restore, and final deletion. The run preserves original fixture files and pages.
-- [ ] Govern upload, rename/edit, byte replacement, revision-history read, rollback, delete, and restore with the page's `Page/Edit` permission. `fileMove` requires `Page/Edit` on both its source and destination pages. `960aa975b` adds endpoint guards, but the available proof is compile-only; runtime enforcement remains unproven. No distinct File grant exists or is required.
+- [x] Govern upload, rename/edit, byte replacement, revision-history read, rollback, delete, and restore with the page's `Page/Edit` permission. `fileMove` requires `Page/Edit` on both its source and destination pages. No distinct File grant exists or is required. `deepwell/tests/file_permission.rs` passes 3/3 after `e974e6f84` initializes rollback creation revision at `0` (`/tmp/claude/cobalt-move-file-targeted.log`).
 - [x] Omit revision comments marked hidden from the information view; this does not change the existing backend file-list payload.
 
 ## How it works
@@ -30,7 +30,7 @@ The Wikidot-layout Files pane presents attached-file information using the exist
 - `framerail/tests/page-file-rpc.test.ts` — rollback route dispatch, request-IP serialization, revised-response acceptance, and empty omitted-comment wire contract.
 - `framerail/tests/local/remaining-actions.mjs` — local browser information, total, and close coverage.
 - `framerail/tests/local/file-action-mutations.mjs` — disposable browser file-mutation lifecycle; main GREEN 1/1 covers upload, rename, byte replacement, history read, rollback, move, delete, restore, final deletion, and original-fixture preservation.
-- `deepwell/tests/file_permission.rs` — endpoint-authorization coverage added at `960aa975b`; compile-only proof only, not runtime enforcement proof.
+- `deepwell/tests/file_permission.rs` — endpoint-authorization coverage; targeted GREEN 3/3 after `e974e6f84` initializes rollback creation revision `0`.
 
 ## Evidence
 
@@ -49,13 +49,16 @@ The Wikidot-layout Files pane presents attached-file information using the exist
 - `/tmp/claude/cobalt-file-action-urlencoded.log` — actual main Files lifecycle GREEN 1/1 at `2ee59f4de`: upload, rename, byte replacement, history read, rollback, move, delete, restore, final deletion, and original fixture file/page invariants; no blocked or failed requests, page errors, or external reads.
 - `/tmp/claude/cobalt-file-decode-final-gate.json` — independent PASS at `e09e5ae7f`: whole-project `svelte-check` has 0 errors/0 warnings; scoped ESLint and Prettier pass for the changed transport test; readability passes after extracting the decode-error classifier (`decodeMutation` cognitive complexity 11, below 15). It reuses the unchanged actual Files lifecycle browser GREEN from `/tmp/claude/cobalt-files-frontend-followup.json`; no browser rerun occurred.
 - `/tmp/claude/cobalt-action-preservation-gate.json` — read-only preservation PASS for pages, history, drafts, grants, and native content; Files are explicitly not covered.
+- `/tmp/claude/cobalt-move-file-targeted.log` — file authorization GREEN 3/3, alongside Move dependency coverage 4/4, after `e974e6f84` fixes rollback creation revision initialization.
+- `/tmp/claude/cobalt-page-file-auth-runtime.json` — local auth deployment receipt predating Move commits. It is runtime identity evidence, not a post-change browser authorization proof.
+- `/tmp/claude/cobalt-move-rpc-final-green.log` — 18/18 Move RPC/UI serialization GREEN after `facf4cf28` and `4367827bc`. The latter provides request context that an earlier browser Delete had lacked (`500`); no browser GREEN followed.
 
 ## Known gaps (current cycle)
 
-- [ ] The `cb61f5543` edit/rollback request-IP fix has targeted RED/GREEN 2/2 RPC proof, `90df39567` has targeted RED/GREEN self-conflict proof, and `2d9d9989a`/`fc90bbe98` have targeted rollback route/wire proof. Main browser proof now covers the complete disposable Files lifecycle. `960aa975b` endpoint guards have compile-only proof; runtime enforcement and action-specific denials remain unproved. Lifecycle proof does not establish authorization.
+- [ ] The `cb61f5543` edit/rollback request-IP fix has targeted RED/GREEN 2/2 RPC proof, `90df39567` has targeted RED/GREEN self-conflict proof, and `2d9d9989a`/`fc90bbe98` have targeted rollback route/wire proof. Main browser proof covers the complete disposable Files lifecycle. File `Page/Edit` enforcement has targeted 3/3 proof, but browser GREEN has not run after `4367827bc` supplies request context; action-specific denial expansion is tracked in issue `997`. Lifecycle proof does not establish authorization.
 - [ ] The scoped frontend gate passes at `e09e5ae7f`; it proves whole-project type validation plus changed transport-test lint, formatting, and readability, and reuses the unchanged actual Files browser GREEN. It does not prove file-mutation authorization or action-specific denials. `/tmp/claude/cobalt-action-preservation-gate.json` passes for its bounded non-Files streams, but explicitly excludes Files, three page identities, five native cache fields, and 43 unreconstructable original full-row fingerprints; this lifecycle's original-fixture invariants do not refresh that broader record.
 
 ## Out of scope
 
 - Uploader names, original upload timestamps, original upload comments, and legacy content-storage metadata are unavailable in the existing `PageFile` response. `file_created_at` is local creation time; it must not be presented as original upload time. Revision user ID and visible revision comments must not be presented as uploader name or original comment.
-- Upload limits, new backend requests, and row-action redesign are not part of this presentation slice. Existing mutation flows are tracked only to the bounded proof stated above; this contract does not expand authorization or full Files lifecycle scope.
+- Upload limits, new backend requests, and row-action redesign are not part of this presentation slice. Existing mutation flows are tracked only to the bounded proof stated above; this contract does not expand browser or independent authorization proof.
