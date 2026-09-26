@@ -153,38 +153,68 @@ async function readFileBytes(request, token, slug, pageId, fileId) {
 
 /** @param {MutationRequest} request */
 async function decodeMutation(request) {
-  const bytes = request.postDataBuffer()
-  assert.ok(bytes, "mutation body required")
-  const headers = request.headers()
-  if (headers["content-type"]?.startsWith("application/json")) {
-    return { data: JSON.parse(bytes.toString()), file: null }
+  try {
+    const bytes = request.postDataBuffer()
+    assert.ok(bytes, "mutation body required")
+    const headers = request.headers()
+    if (headers["content-type"]?.startsWith("application/json")) {
+      return { data: JSON.parse(bytes.toString()), file: null, files: [] }
+    }
+    assert.ok(headers["content-type"]?.startsWith("multipart/form-data"))
+    if (!request.url) assert.fail("multipart mutation URL required")
+    const body = new Request(request.url(), {
+      method: "POST",
+      headers,
+      body: new Uint8Array(bytes)
+    })
+    const form = await body.formData()
+    const chunks = form.getAll("__superform_json")
+    assert.ok(chunks.length, "Superforms JSON required")
+    const data = parse(chunks.join(""))
+    const files = [...form.entries()]
+      .filter((entry) => entry[1] instanceof File)
+      .map(([field, file]) => ({ field, name: file.name, type: file.type }))
+    return { data, file: form.get("__superform_file_file"), files }
+  } catch (error) {
+    throw new Error(`mutation decode failed (${error?.name ?? "unknown"})`, {
+      cause: error
+    })
   }
-  assert.ok(headers["content-type"]?.startsWith("multipart/form-data"))
-  if (!request.url) assert.fail("multipart mutation URL required")
-  const body = new Request(request.url(), {
-    method: "POST",
-    headers,
-    body: new Uint8Array(bytes)
-  })
-  const form = await body.formData()
-  const chunks = form.getAll("__superform_json")
-  assert.ok(chunks.length, "Superforms JSON required")
-  const data = parse(chunks.join(""))
-  return { data, file: form.get("__superform_file_file") }
 }
 
 /**
  * @param {MutationRequest} request @param {{ fileId: number | null; name:
  *   string | null }} permitted @param {number} pageId
  */
-async function mutationMatches(request, permitted, pageId) {
-  const { data, file } = await decodeMutation(request)
+async function mutationMatches(request, permitted, pageId, diagnostics = null) {
+  const { data, file, files } = await decodeMutation(request)
+  diagnostics?.push({
+    siteId: typeof data?.siteId === "number" ? data.siteId : typeof data?.siteId,
+    pageId: typeof data?.pageId === "number" ? data.pageId : typeof data?.pageId,
+    fileId: typeof data?.fileId === "number" ? data.fileId : typeof data?.fileId,
+    name: typeof data?.name === "string" ? data.name : typeof data?.name,
+    files
+  })
   if (typeof data !== "object" || data === null) return false
   if (data.siteId !== siteId || data.pageId !== pageId) return false
   if (permitted.fileId !== null) return data.fileId === permitted.fileId
   return (
     data.name === permitted.name && file instanceof File && file.name === permitted.name
   )
+}
+
+/**
+ * @param {import("@playwright/test").Request} request @param {string[]}
+ *   slugs
+ */
+function requestLabel(request, slugs) {
+  const url = new URL(request.url())
+  const path =
+    url.origin === origin &&
+    (slugs.includes(url.pathname.slice(1)) || url.pathname === "/-/login")
+      ? url.pathname
+      : ""
+  return `${request.method()} ${url.origin}${path}`
 }
 
 /**
@@ -196,7 +226,7 @@ async function mutationMatches(request, permitted, pageId) {
  *   name: string | null
  * } | null} permitted
  * @param {string[]} writes @param {string[]} blocked @param {string[]}
- *   externalReads
+ *   externalReads @param {object[]} decoded
  */
 async function routeBrowserRequest(
   route,
@@ -204,14 +234,15 @@ async function routeBrowserRequest(
   permitted,
   writes,
   blocked,
-  externalReads
+  externalReads,
+  decoded
 ) {
   const request = route.request()
   const url = new URL(request.url())
   if (url.origin !== origin) {
     const label = `${request.method()} ${url.origin}`
     if (["GET", "HEAD", "OPTIONS"].includes(request.method())) externalReads.push(label)
-    else blocked.push(`${request.method()} foreign origin ${url.origin}`)
+    else blocked.push(`foreign origin ${requestLabel(request, slugs)}`)
     await route.abort()
     return false
   }
@@ -233,11 +264,11 @@ async function routeBrowserRequest(
     const pageId = slugs.indexOf(permitted.slug) === 0 ? 3000006134 : 3000006135
     try {
       assert.ok(
-        await mutationMatches(request, permitted, pageId),
+        await mutationMatches(request, permitted, pageId, decoded),
         "wrong fixture identity"
       )
     } catch (error) {
-      blocked.push(`POST ${path} ${String(error)}`)
+      blocked.push(`POST ${url.pathname}?/${permitted.action} ${String(error)}`)
       await route.abort()
       return false
     }
@@ -245,7 +276,7 @@ async function routeBrowserRequest(
     await route.continue()
     return true
   }
-  blocked.push(`${request.method()} ${path}`)
+  blocked.push(requestLabel(request, slugs))
   await route.abort()
   return false
 }
@@ -270,6 +301,8 @@ async function guardBrowserWrites(context, slugs) {
   const blocked = []
   /** @type {string[]} */
   const externalReads = []
+  /** @type {object[]} */
+  const decoded = []
   await context.route("**/*", async (route) => {
     const consumed = await routeBrowserRequest(
       route,
@@ -277,13 +310,16 @@ async function guardBrowserWrites(context, slugs) {
       permitted,
       writes,
       blocked,
-      externalReads
+      externalReads,
+      decoded
     )
     if (consumed) permitted = null
   })
   return {
     writes,
+    blocked,
     externalReads,
+    decoded,
     /**
      * @param {string} slug @param {string} action @param {number | null}
      *   fileId @param {string | null} name
@@ -355,8 +391,7 @@ async function clickMutation(
       response.request().method() === "POST"
   )
   guard.allow(slug, action, fileId, name)
-  await control.click()
-  const response = await responsePromise
+  const [response] = await Promise.all([responsePromise, control.click()])
   await assertActionSuccess(response, action)
   assert.equal(guard.writes.length, count + 1, `${action} dispatch count`)
   guard.assertConsumed()
@@ -1045,10 +1080,29 @@ test(
           fixture.username,
           (await readFile(adminPath, "utf8")).trim()
         )
+        const failedRequests = []
+        const pageErrors = []
+        page.on("requestfailed", (request) => {
+          failedRequests.push(
+            requestLabel(request, [fixture.sourceSlug, fixture.destinationSlug])
+          )
+        })
+        page.on("pageerror", (error) =>
+          pageErrors.push(error.name === "Error" ? "Error" : "other")
+        )
         try {
           await exercise(page, context.request, token, fixture, guard)
         } finally {
-          console.info(`Blocked external reads: ${JSON.stringify(guard.externalReads)}`)
+          console.info(
+            `File action diagnostics: ${JSON.stringify({
+              writes: guard.writes,
+              blocked: guard.blocked,
+              decoded: guard.decoded,
+              failedRequests,
+              pageErrors,
+              externalReads: guard.externalReads
+            })}`
+          )
         }
       } finally {
         await context.close()
