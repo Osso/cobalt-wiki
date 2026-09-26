@@ -1,62 +1,42 @@
 # Cobalt page actions
 
-Cobalt page actions render the bottom-page controls and the Wiki-only Tags pane. The source contract is bounded to the supplied second-pass screenshots and legacy Wikidot reference; `bfd4e5c38` and its SSR tests prove rendered presence only. [History listing](cobalt-history-listing.md) and [history import](cobalt-history-import.md) govern distinct history work.
+Bottom-page controls follow the supplied Tags/History screenshots and retained Wikidot behavior. This contract covers the Wikidot layout; [history listing](cobalt-history-listing.md) and [history import](cobalt-history-import.md) define history data and provenance.
 
 ## What it must do
 
 ### Bottom actions
 
-- [x] In the Wiki layout, render Edit, Tags, History, Files, and More options in the bottom action inventory.
-- [x] Omit Vote from the Wiki layout. Vote is not required in Cobalt's Wiki layout.
-- [x] Preserve the existing Vote control and Tags layout outside the Wiki layout.
-- [x] Exercise History in the main local browser for root `home:_public` (57 rows), named `home:start` (240 rows), and two native rows. The exercised page uses seven filters, five page sizes, a second page, and separate source, read-only render, and same-origin compare controls.
-- [ ] Backlinks and Print remain absent. Files, + Options, Parent, Source, Move, Delete, and Lock remain uncertified in the second-pass browser.
+- [x] Render Edit, Tags, History, Files, and More options.
+- [x] Omit Vote in the Wikidot layout; preserve voting and Tags controls in other layouts.
+- [x] Provide separate imported/local History datasets, seven filters, five page sizes, numbered pagination, source, read-only preview, and same-origin comparison.
+- [ ] Backlinks and Print remain absent. Other wired panels require separate second-pass verification.
 
 ### Tags
 
-- [x] In the Wiki layout, render the legacy Page Tags heading, explanatory links, form table, `size="50"` tags input, space-separated hint, and close, clear, and save tags controls.
-- [x] Sort Wikidot Tags before rendering and saving them.
-- [x] Save and restore the exercised Tags set in the local browser workflow (1/1).
-- [ ] Clear only empties the Tags input before submission; it does not save or change stored tags. Main-browser interaction proof pending.
-- [ ] Close dismisses the Tags pane without saving; main-browser interaction proof pending.
-- [ ] Save submits only permissioned tag changes; authorization and broader persistence/readback proof pending.
+- [x] Render Page Tags, explanatory links, labeled form-table input, space-separated hint, and close/clear/save controls.
+- [x] Display Wikidot tags sorted; retain set-based additions/removals rather than promise backend array order.
+- [x] Clear empties only the input; close discards unsaved input. Neither sends tag changes.
+- [x] Save submits the exact additions/removals. The exercised authorized fixture saves, reads back, and restores its original tag set without changing page source.
+- [ ] Independently exercise denied tag-save authorization; successful authorized fixture testing does not prove denial behavior.
 
-### Evidence boundaries
+## Evidence
 
-- [x] SSR proves the scoped Wiki markup and action inventory, plus preserved alternate-layout controls, in four tests.
-- [x] `/tmp/claude/cobalt-bottom-tags-save-green.log` records one local Tags save/restore browser pass.
-- [x] `/tmp/claude/cobalt-history-actions-postdeploy.log` records one local History browser pass after `3537f8435`: root 57, named 240, and native 2 rows.
-- [x] `/tmp/claude/cobalt-bottom-backend-final-gate.json` independently passes backend authorization, origin, read-only, pagination, and mapping evidence for the History listing refactor.
-- [x] `/tmp/claude/cobalt-bottom-local-runtime.json` binds the running main local runtime hash to the built Deepwell executable.
-- [x] `/tmp/claude/cobalt-bottom-preservation-result.json` preserves identical hashes for 6,116 pages, 45,369 history rows, 10,091 native-content rows, zero drafts, and 32 grants; it excludes only the sacrificial Tags fixture and native renderer-cache fields.
-- [x] Final local captures compare the main History panel with the supplied source and capture the local Tags panel (`/tmp/claude/cobalt-history-panel-final.jpg`, `/tmp/claude/cobalt-tags-panel-local.png`). This is scoped visual evidence, not pixel-perfect or full-replica parity.
-- [ ] Close/clear behavior, permissioned Tags readback, and second-pass verification of other wired action panels remain incomplete. Do not infer all-panel or pixel parity from the scoped evidence.
+- `framerail/tests/page-bottom-tags.test.ts`: five SSR cases cover Wikidot markup, sorted input, alternate-layout preservation, Vote omission, and retained bottom actions.
+- `framerail/tests/local/page-bottom-actions.mjs`: real browser clear/close/reopen/save/readback/restore with a fixture-only write guard. Final pass: `/tmp/claude/cobalt-bottom-tags-bounded-browser.log`.
+- `framerail/tests/local/history-actions.mjs`: root `home:_public` has 57 imported records; named `home:start` has 240 imported and two native records. Exercises seven filters, all five sizes, a disjoint second page, source/preview/compare and dataset selection. Final pass: `/tmp/claude/cobalt-bottom-history-final-browser.log`.
+- Imported metadata (`M`) has no live records; the browser proves an empty result, while isolated backend fixtures prove positive metadata/tag distinction. No historical metadata is fabricated.
+- Independent gates: `/tmp/claude/cobalt-bottom-backend-final-gate.json` and `/tmp/claude/cobalt-bottom-frontend-final-gate.json`.
 
-## How it works
+A Tags test run stalled and was terminated; all owned processes exited and fixture tags were restored. The identical-code bounded retry passed. The stall's cause remains unproven; no application fix or flake-free claim follows from that retry.
 
-- [Page actions system](../wiki/systems/cobalt-page-actions.md) (documentation stub).
-- [History listing](cobalt-history-listing.md) — separate in-progress history UI and read contract.
-- [History import](cobalt-history-import.md) — separate preserved-source history contract.
+## Preservation and deployment
 
-## Implementation inventory
+The local runtime executable matches the built Deepwell hash (`/tmp/claude/cobalt-bottom-local-runtime.json`). Main preservation checks retain identical hashes for 6,116 pages, 45,369 imported records, 10,091 native-content rows, 32 grants and zero drafts. Only the sacrificial Tags fixture and native renderer-cache fields are excluded (`/tmp/claude/cobalt-bottom-preservation-result.json`).
 
-- `framerail/src/routes/[slug]/[...extra]/page.svelte` — selects bottom actions and page panes.
-- `framerail/src/routes/[slug]/[...extra]/TagsPane.svelte` — renders and edits Tags controls.
+Local screenshots were compared with the supplied references: `/tmp/claude/cobalt-history-panel-final.jpg` and `/tmp/claude/cobalt-tags-panel-local.png`. This is scoped visual evidence, not pixel-perfect parity.
 
-## Tests asserting this spec
+## Remaining scope
 
-- `framerail/tests/page-bottom-tags.test.ts` — four SSR tests for Wiki Tags markup, alternate-layout preservation, Wiki Vote omission, and retained bottom actions.
+Files, More options, Parent, Source, Move, Delete and Lock are wired but lack complete second-pass interaction/permission proof. Backlinks and Print are absent. This slice does not establish all-panel or full-replica parity.
 
-## Known gaps (current cycle)
-
-- [ ] Main browser: exercise close and clear; verify they make no write, and expand permissioned save/readback coverage.
-- [ ] Main browser: verify the other wired action panels individually; Backlinks and Print are absent.
-- [x] Frontend type check reports zero errors and warnings; style check reports zero issues. Four lint warnings were fixed at `de229645c`.
-- [ ] Final scoped lint recheck remains pending; do not treat the earlier independent recheck as completed proof.
-- [ ] History UI remains owned by the in-progress [history listing](cobalt-history-listing.md) work.
-
-## Out of scope
-
-- History API shape, revision metadata, fake version/compare/rollback controls, and unknown metadata: owned by history work or unverified.
-- Source-editor access, production deployment, source-site writes, and pixel-parity claims: no evidence or authorization in this scope.
-- Backend tag behavior and non-Wiki layouts, except preserving their existing controls.
+No production deployment, source-site writes, source-editor side effects, imported rollback, or unrelated backend/non-Wikidot changes are authorized by this contract.
