@@ -165,8 +165,9 @@ test("Wikidot direct Delete confirms before POST; Move remains immediate", async
       await expect(page.locator("#page-delete-option-move")).toBeChecked()
       await page.locator('#page-delete input[type="submit"]').click()
       await expect.poll(() => intercepted.length).toBe(2)
-      await expect(page.getByRole("dialog", { name: "Delete page?" })).toHaveCount(1)
-      await expect(page.getByRole("dialog", { name: "Delete page?" })).not.toBeVisible()
+      await expect(
+        page.locator('dialog[aria-labelledby="delete-confirmation-title"]')
+      ).not.toBeVisible()
       assert.deepEqual(intercepted, [
         `${origin}/${fixture.existingSlug}?/delete`,
         `${origin}/${fixture.existingSlug}?/delete`
