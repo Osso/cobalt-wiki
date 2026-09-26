@@ -326,9 +326,7 @@ async function openFiles(page, slug) {
   if (await wikijumpFiles.isVisible()) {
     await wikijumpFiles.click()
   } else {
-    const options = page.locator("#page-options-bottom-2")
-    if (!(await options.isVisible())) await page.locator("#more-options-button").click()
-    await options.locator("#files-button").click()
+    await page.locator("#page-options-bottom #files-button").click()
   }
   const pane = page.locator(".file-panel")
   await expect(pane).toBeVisible()
@@ -366,7 +364,7 @@ async function clickMutation(
 
 /**
  * @param {Pick<import("@playwright/test").Response, "status" | "json">} response
- *   @param {string} action
+ * @param {string} action
  */
 async function assertActionSuccess(response, action) {
   assert.equal(response.status(), 200, `${action} HTTP status`)
@@ -892,7 +890,7 @@ async function recoverFailedFile(request, token, fixture, fileId, names, stage, 
       )
     }
   }
-  throw new Error(`${stage}: file action failed`, { cause: error })
+  throw new Error(`${stage}: ${String(error)}`, { cause: error })
 }
 
 /**
