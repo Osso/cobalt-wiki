@@ -256,7 +256,7 @@ async function submitUploadsAndAssertRows(page, fixture, uploads) {
   )
   await form.locator('[name="comments"]').fill("Batch proof")
   await form.evaluate((element) => {
-    assert.ok(element instanceof HTMLFormElement)
+    if (!(element instanceof HTMLFormElement)) throw new Error("upload form required")
     /** @type {HTMLFormElement & { uploadStates?: string[] }} */
     const observed = element
     observed.uploadStates = []
