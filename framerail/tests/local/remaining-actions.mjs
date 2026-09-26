@@ -131,7 +131,13 @@ async function guardBrowserWrites(context, fixture, allowSave) {
     ].includes(url.pathname)
     const readPost =
       readablePath &&
-      ["?/backlinks", "?/fileList", "?/parentGet", "?/editorPages"].includes(action)
+      [
+        "?/backlinks",
+        "?/fileList",
+        "?/parentGet",
+        "?/editorPages",
+        "?/lockHistory"
+      ].includes(action)
     const fixtureSave =
       url.pathname === `/${fixture.existingSlug}` && action === "?/parentSet"
     if (request.method() === "POST" && url.origin === origin && (loginPost || readPost)) {
