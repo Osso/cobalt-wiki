@@ -11,6 +11,7 @@ The Parent panel edits page breadcrumb relationships in `framerail/src/routes/[s
 - [x] Ignore stale lookup results and surface current lookup failures without preventing manual entry.
 - [x] Save two real parent values, read them back, and restore the original parent set after a controlled delayed baseline load, without replacing Cobalt’s plural write with a single-parent write.
 - [x] Authorize a parent update against the actual request actor and site, then the body-selected child page’s `Page/Edit` permission; never borrow the header page’s permission.
+- [ ] Apply the additional active Wikidot Block policy to every Parent mutation. Block does not replace the body-child `Page/Edit` check; targeted author-reported coverage is not independent browser, denial, integration, or preservation proof.
 - [ ] Clear-then-Save is not separately proved.
 
 ## How it works
@@ -39,7 +40,7 @@ The Parent panel edits page breadcrumb relationships in `framerail/src/routes/[s
 
 ## Known gaps (current cycle)
 
-- [ ] Clear-then-Save remains unproved as a separate mutation; two-parent save/readback/restore is proved. Parent authorization has isolated 9/9 coverage only; deployment and browser proof remain absent. The independent frontend gate passes; see [page actions](cobalt-page-actions.md). The newer bounded preservation PASS excludes three page identities, five native cache fields, Files, and 43 unreconstructable original full-row fingerprints.
+- [ ] Clear-then-Save remains unproved as a separate mutation; two-parent save/readback/restore is proved. Parent authorization has isolated 9/9 coverage only; deployment and browser proof remain absent. The independent frontend gate passes; see [page actions](cobalt-page-actions.md). The newer bounded preservation PASS excludes three page identities, five native cache fields, Files, and 43 unreconstructable original full-row fingerprints. Block policy integration is author-reported only and has no independent Parent denial, browser, integration, or preservation proof.
 
 ## Out of scope
 

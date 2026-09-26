@@ -13,6 +13,7 @@ The Wikidot-layout Files pane presents attached-file information using the exist
 - [x] Serialize an omitted rollback comment as an empty string for the RPC wire contract.
 - [x] Complete the disposable Files lifecycle: upload, rename, byte replacement, revision-history read, rollback, move, delete, restore, and final deletion. The run preserves original fixture files and pages.
 - [x] Govern upload, rename/edit, byte replacement, revision-history read, rollback, delete, and restore with the page's `Page/Edit` permission. `fileMove` requires `Page/Edit` on both its source and destination pages. No distinct File grant exists or is required. `deepwell/tests/file_permission.rs` passes 3/3 after `e974e6f84` initializes rollback creation revision at `0` (`/tmp/claude/cobalt-move-file-targeted.log`).
+- [ ] Apply the additional active Wikidot Block policy to every file mutation, including revision-history read, range/count access, and rollback. The reported file revision owner/Edit request context is `960f5001e`; independent denial, browser, integration, and preservation proof remains pending.
 - [x] Omit revision comments marked hidden from the information view; this does not change the existing backend file-list payload.
 
 ## How it works
@@ -55,7 +56,7 @@ The Wikidot-layout Files pane presents attached-file information using the exist
 
 ## Known gaps (current cycle)
 
-- [ ] The `cb61f5543` edit/rollback request-IP fix has targeted RED/GREEN 2/2 RPC proof, `90df39567` has targeted RED/GREEN self-conflict proof, and `2d9d9989a`/`fc90bbe98` have targeted rollback route/wire proof. Main browser proof covers the complete disposable Files lifecycle. File `Page/Edit` enforcement has targeted 3/3 proof, but browser GREEN has not run after `4367827bc` supplies request context; action-specific denial expansion is tracked in issue `997`. Lifecycle proof does not establish authorization.
+- [ ] The `cb61f5543` edit/rollback request-IP fix has targeted RED/GREEN 2/2 RPC proof, `90df39567` has targeted RED/GREEN self-conflict proof, and `2d9d9989a`/`fc90bbe98` have targeted rollback route/wire proof. Main browser proof covers the complete disposable Files lifecycle. File `Page/Edit` enforcement has targeted 3/3 proof, but browser GREEN has not run after `4367827bc` supplies request context; action-specific denial expansion is tracked in issue `997`. Lifecycle proof does not establish authorization. Block wiring is author-reported in the targeted 27/27 policy run only; no independent file-denial, browser, integration, or preservation gate has passed.
 - [ ] The scoped frontend gate passes at `e09e5ae7f`; it proves whole-project type validation plus changed transport-test lint, formatting, and readability, and reuses the unchanged actual Files browser GREEN. It does not prove file-mutation authorization or action-specific denials. `/tmp/claude/cobalt-action-preservation-gate.json` passes for its bounded non-Files streams, but explicitly excludes Files, three page identities, five native cache fields, and 43 unreconstructable original full-row fingerprints; this lifecycle's original-fixture invariants do not refresh that broader record.
 
 ## Out of scope

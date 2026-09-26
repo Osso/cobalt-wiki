@@ -21,6 +21,12 @@ Bottom-page controls follow supplied Tags/History screenshots and retained Wikid
 - [x] Require `Page/Edit` for every file mutation: upload, rename/edit, byte replacement, revision-history read, rollback, move, delete, and restore; `fileMove` requires it on both source and destination pages. No distinct File grant exists or is required. `deepwell/tests/file_permission.rs` passes 3/3 after `e974e6f84` initializes the rollback creation revision at `0` (`/tmp/claude/cobalt-move-file-targeted.log`).
 - [x] For each selected Move dependency, require `Page/Edit` on both source and destination categories and on every selected dependency. Skip active native locks; preserve selected unauthorized, locked, unselected, and otherwise ineligible dependencies; report remaining link and include leftovers separately. Duplicate selected sources produce one normal actor-attributed automatic revision. The Move writes its revision directly and does not consume drafts. `deepwell/tests/page_move_dependencies.rs` passes 4/4 in the same targeted run.
 
+### Block
+
+- [ ] An active Wikidot lock must deny protected mutations unless the actual site role is moderator, administrator, or root. Native `PermissionOnly` and `AuthorOr` lock behavior must remain unchanged. There is no global supermoderator representation claim.
+- [ ] Offer one Block checkbox in the Wikidot action pane. Its displayed action and checked state must reflect the current page lock.
+- [ ] Block must guard page edit, rollback, Move, Delete, Restore, Layout, every file mutation, and Parent. This includes the formerly bypassing single lock set/remove endpoints. Normal authorization remains the target page's `Page/Edit` permission; Block is an additional denial policy.
+
 ### Tags
 
 - [x] Render Page Tags, explanatory links, labeled form-table input, space-separated hint, and close/clear/save controls.
@@ -32,13 +38,14 @@ Bottom-page controls follow supplied Tags/History screenshots and retained Wikid
 ## How it works
 
 - [Page backlinks](cobalt-page-backlinks.md) defines the permission-filtered incoming-link read API.
-- [Page files](cobalt-page-files.md), [page parents](cobalt-page-parent.md), and [page print view](cobalt-page-print.md) define their respective pane and route contracts. File guards have targeted 3/3 proof; `c5262aae2` Delete/Restore guards have isolated 6/6 proof; and the parent update’s actual request actor/site and body-child `Page/Edit` check has isolated 9/9 proof at `ba73f942f`. Parent authorization has not been deployed or exercised in a browser.
+- [Page files](cobalt-page-files.md), [page parents](cobalt-page-parent.md), and [page print view](cobalt-page-print.md) define their respective pane and route contracts. File guards have targeted 3/3 proof; `c5262aae2` Delete/Restore guards have isolated 6/6 proof; and the parent update’s actual request actor/site and body-child `Page/Edit` check has isolated 9/9 proof at `ba73f942f`. Parent authorization has not been deployed or exercised in a browser. Block is an additional Wikidot-layout policy, not a replacement for these `Page/Edit` checks.
 
 ## Implementation inventory
 
 - `framerail/src/routes/[slug]/[...extra]/+page.svelte` — bottom action registration and panels.
 - `framerail/src/routes/[slug]/[...extra]/FilePane.svelte` — Files list and information view.
 - `framerail/src/routes/[slug]/[...extra]/ParentPane.svelte` — parent editor.
+- `framerail/src/routes/[slug]/[...extra]/BlockPane.svelte` — Wikidot Block checkbox pane.
 
 ## Tests asserting this spec
 
@@ -46,6 +53,7 @@ Bottom-page controls follow supplied Tags/History screenshots and retained Wikid
 - `deepwell/tests/page_delete_restore_permission.rs` — isolated Delete/Restore authorization 6/6 at `c5262aae2`; its initial RED was blocked by the environment, not behavioral evidence.
 - `deepwell/tests/file_permission.rs` — file endpoint `Page/Edit` coverage; targeted 3/3 GREEN after `e974e6f84` initializes rollback creation revision `0`.
 - `deepwell/tests/page_move_dependencies.rs` — selected Move dependency authorization, preservation, native-lock skip, duplicate-source revision, direct-revision/draft, and split-leftover coverage; targeted 4/4 GREEN.
+- Block policy targeted tests — author-reported 27/27; independent review and gate evidence are pending.
 - `framerail/tests/page-bottom-tags.test.ts` — SSR bottom-action and Tags behavior.
 - `framerail/tests/local/page-bottom-actions.mjs` — Tags save/readback/restore with a fixture-only write guard.
 - `framerail/tests/local/history-actions.mjs` — local History browser coverage.
@@ -72,16 +80,21 @@ Bottom-page controls follow supplied Tags/History screenshots and retained Wikid
 - `/tmp/claude/cobalt-move-file-targeted.log` — Move dependency tests 4/4 and file authorization tests 3/3 GREEN after `e974e6f84` creates rollback revisions with creation revision `0`.
 - `/tmp/claude/cobalt-move-rpc-serialized-red.log` — corrected serialized RED 2/2: required Move fields were absent. The prior initial RED used an invalid form and is not behavioral evidence.
 - `/tmp/claude/cobalt-move-rpc-final-green.log` — Move RPC/UI serialization GREEN 18/18 after `facf4cf28`; `4367827bc` supplies authenticated request context. The local auth deployment predates Move commits (`/tmp/claude/cobalt-page-file-auth-runtime.json`). Browser Delete previously failed `500` because request context was absent; no browser GREEN followed the fix.
+- `/tmp/claude/cobalt-locked-mutation-targeted.log` — author-reported Block-policy targeted GREEN 27/27. This is not an independent backend/frontend gate or an end-to-end authorization result.
+- `/tmp/claude/cobalt-move-self-link-green.log` — Move self-slug GREEN 1/1.
+- `/tmp/claude/cobalt-page-rollback-context-green.log` — current rollback request-context GREEN 20/20.
+- `/tmp/claude/cobalt-move-block-runtime.json` — local deploy exit `0`; runtime/build identity matches at `d9b70e1f0`. It is not a production deployment or authorization proof.
 
 ## Known gaps (current cycle)
 
 - [ ] Move has selected dependency repair and targeted service/UI/RPC proof, but native regex rewriting remains limited. Browser and independent gates have not run; issue `997` expands denial and draft coverage.
 - [ ] File endpoint authorization has targeted 3/3 proof, but browser GREEN has not run after `4367827bc` supplies request context. Source and Lock mutations and authorization remain unproven. The styled Move/Layout/Delete/Native Restore roundtrip and complete Files lifecycle are bounded disposable-fixture proof, not full action authorization. The separate Delete-dialog acceptance is intercepted; it is not delete proof. Native Restore is proved only for its selected existing-control recovery scope. Clear-then-Save is not separately proved beyond Parent’s two-value save/readback/restore. Parent authorization has isolated 9/9 proof only; deployment/browser proof remains absent.
 - [ ] The `3fa1838a3` Layout gate is bounded, not clean: Rust format/check and 4/4 isolated tests pass, but the test-only `6f3d99463` warning cleanup needs its targeted recheck. Scoped Prettier and ESLint pass; the current frontend gate remains pending. This is not full-replica parity evidence.
+- [ ] Block is implemented at `ab328f672` (policy/toggle) and `b18b0cbe1` (protected mutation wiring), with frontend context at `4151d056b`, file revision owner/Edit context at `960f5001e`, and page rollback context at `5aa6a8dcb`. Targeted authors report 27/27, but independent backend and frontend gates, browser move/block-actions, page-action denials, end-to-end integration, and preservation proof remain pending. Newly authored browser scenarios have not run.
 
 ## Out of scope
 
-- Native regex rewrite limitations persist. Source Block semantics are not recreated as Lock behavior.
+- Native regex rewrite limitations persist.
 - Wikidot's single-parent source model is not substituted for Cobalt's existing plural-parent model.
 - Legacy upload-storage metadata unavailable from current file responses is not invented.
 - No production deployment, source-site writes, source-editor side effects, imported rollback, or unrelated backend/non-Wikidot changes are authorized by this contract.
