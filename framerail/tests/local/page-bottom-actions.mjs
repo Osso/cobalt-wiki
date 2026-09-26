@@ -188,7 +188,7 @@ async function openTags(page, tags) {
   await expect(form.locator("table.form")).toBeVisible()
   const input = form.getByLabel("Tags:", { exact: true })
   await expect(input).toHaveAttribute("size", "50")
-  await expect(input).toHaveValue(tags.join(" "))
+  await expect(input).toHaveValue([...tags].sort().join(" "))
   await expect(form.locator(".sub")).toHaveText("Space-separated list of tags.")
   for (const label of ["close", "clear", "save tags"]) {
     await expect(form.locator(`input[value="${label}"]`)).toBeVisible()
@@ -293,7 +293,7 @@ async function saveAndRestore(page, context, fixture, token, baseline, capturedC
   } finally {
     const stored = await readStoredPage(context.request, fixture, token)
     const actual = stored.page_revision.tags
-    if (actual.join(" ") !== baseline.tags.join(" ")) {
+    if ([...actual].sort().join(" ") !== [...baseline.tags].sort().join(" ")) {
       await page.goto(`${origin}/${fixture.existingSlug}`, { waitUntil: "networkidle" })
       const reopened = await openTags(page, actual)
       await reopened.input.fill(baseline.tags.join(" "))
@@ -309,15 +309,19 @@ async function saveAndRestore(page, context, fixture, token, baseline, capturedC
       await expect
         .poll(async () => {
           const restored = await readStoredPage(context.request, fixture, token)
-          return restored.page_revision.tags
+          return [...restored.page_revision.tags].sort()
         })
-        .toEqual(baseline.tags)
+        .toEqual([...baseline.tags].sort())
       assertTagChanges(actual, capturedChanges.at(-1), baseline.tags)
     }
   }
   const restored = pageFingerprint(await readStoredPage(context.request, fixture, token))
   assert.equal(restored.source, baseline.source, "save/restore must preserve source")
-  assert.deepEqual(restored.tags, baseline.tags, "save/restore must preserve tags")
+  assert.deepEqual(
+    [...restored.tags].sort(),
+    [...baseline.tags].sort(),
+    "save/restore must preserve tags"
+  )
 }
 
 /** @param {unknown} error */
@@ -378,7 +382,11 @@ test("local Wikidot bottom actions and Tags preserve fixture by default", async 
       stage = "final stored page_view"
       const after = pageFingerprint(await readStoredPage(context.request, fixture, token))
       assert.equal(after.source, baseline.source, "source must remain unchanged")
-      assert.deepEqual(after.tags, baseline.tags, "stored tags must remain unchanged")
+      assert.deepEqual(
+        [...after.tags].sort(),
+        [...baseline.tags].sort(),
+        "stored tags must remain unchanged"
+      )
       if (!allowSave)
         assert.equal(after.revision, baseline.revision, "revision unchanged")
       assert.deepEqual(unexpectedPosts, [], "only fixture tag saves may POST after login")

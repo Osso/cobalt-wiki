@@ -16,7 +16,9 @@
   } = $props()
 
   const current = untrack(() => data.page_revision?.tags ?? [])
-  let value = $state(current.join(" "))
+  let value = $state(
+    (pageLayoutState.current === Layout.WIKIDOT ? [...current].sort() : current).join(" ")
+  )
 
   function submit(event: SubmitEvent) {
     event.preventDefault()

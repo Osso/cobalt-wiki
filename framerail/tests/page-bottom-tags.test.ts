@@ -33,10 +33,14 @@ const data = {
   }
 }
 
-function renderTags(layout: string) {
+function renderTags(layout: string, tags = data.page_revision.tags) {
   pageLayoutState.current = layout
   return render(TagsPane, {
-    props: { data, close() {}, saveTagChanges() {} }
+    props: {
+      data: { ...data, page_revision: { ...data.page_revision, tags } },
+      close() {},
+      saveTagChanges() {}
+    }
   }).body
 }
 
@@ -49,12 +53,18 @@ test("Wikidot Tags pane renders source form and all three controls", () => {
   assert.match(body, /<table class="form(?: [^"]+)?">/)
   assert.match(
     body,
-    /<input[^>]*class="text(?: [^"]+)?"[^>]*size="50"[^>]*value="original draft"/
+    /<input[^>]*class="text(?: [^"]+)?"[^>]*size="50"[^>]*value="draft original"/
   )
   assert.match(body, /Space-separated list of tags/)
   assert.match(body, /value="close"/)
   assert.match(body, /value="clear"/)
   assert.match(body, /value="save tags"/)
+})
+
+test("Wikidot Tags input sorts stored tags without changing alternate layout", () => {
+  const tags = ["zulu", "alpha", "middle"]
+  assert.match(renderTags(Layout.WIKIDOT, tags), /value="alpha middle zulu"/)
+  assert.match(renderTags(Layout.WIKIJUMP, tags), /value="zulu alpha middle"/)
 })
 
 test("alternate Tags layout retains its existing controls", () => {
