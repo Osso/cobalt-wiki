@@ -10,7 +10,38 @@ const sourceId = 3000006134
 const destinationId = 3000006135
 const linkLabels = ["First", "Second", "Third"]
 
+/** @typedef {import("../../src/lib/server/deepwell/views").PageView} PageView */
+/** @typedef {Extract<PageView, { type: "found" }>["data"]} StoredPage */
+/** @typedef {ReturnType<typeof snapshot>} PageSnapshot */
+/** @typedef {Awaited<ReturnType<typeof login>>} Actor */
+/** @typedef {Awaited<ReturnType<typeof guardBrowserWrites>>} WriteGuard */
+/**
+ * @typedef {{
+ *   sacrificial: true
+ *   siteId: number
+ *   siteSlug: string
+ *   databaseLabel: string
+ *   username: string
+ *   sourceSlug: string
+ *   movedSlug: string
+ *   destinationSlug: string
+ *   pageId: number
+ *   destinationPageId: number
+ *   created: { slug: string; pageId: number }[]
+ * }} Fixture
+ */
+
+/**
+ * @typedef {{
+ *   source: PageSnapshot
+ *   destination: PageSnapshot
+ *   blocked: boolean
+ *   destinationRevision: number
+ * }} Baseline
+ */
+
 async function readFixture() {
+  /** @type {Fixture} */
   const fixture = JSON.parse(await readFile(fixturePath, "utf8"))
   assert.equal(fixture.sacrificial, true)
   assert.equal(fixture.siteId, siteId)
@@ -33,10 +64,12 @@ async function readFixture() {
   return fixture
 }
 
+/** @param {string} slug */
 function sourceLinks(slug) {
   return linkLabels.map((label) => `[[[${slug}|${label}]]]`).join(" ")
 }
 
+/** @param {StoredPage} page */
 function snapshot(page) {
   return {
     slug: page.page.slug,
@@ -48,20 +81,34 @@ function snapshot(page) {
   }
 }
 
+/**
+ * @param {import("@playwright/test").APIRequestContext} request
+ * @param {string} token
+ * @param {string} slug
+ * @param {number} id
+ * @returns {Promise<StoredPage>}
+ */
 async function readOwned(request, token, slug, id) {
+  /** @type {PageView} */
   const view = await rpc(request, token, slug, "page_view", {
     site_id: siteId,
     locales: ["en"],
     session_token: token,
     route: { slug, extra: "" }
   })
-  assert.equal(view.type, "found", `${slug} must exist`)
+  assert.ok(view.type === "found", `${slug} must exist`)
   assert.equal(view.data.page.page_id, id, "only manifest page ID allowed")
   assert.equal(view.data.page.slug, slug)
   return view.data
 }
 
+/**
+ * @param {import("@playwright/test").APIRequestContext} request
+ * @param {string} token
+ * @param {string} slug
+ */
 async function assertVacant(request, token, slug) {
+  /** @type {PageView} */
   const view = await rpc(request, token, slug, "page_view", {
     site_id: siteId,
     locales: ["en"],
@@ -71,6 +118,16 @@ async function assertVacant(request, token, slug) {
   assert.equal(view.type, "missing", `${slug} must be vacant`)
 }
 
+/**
+ * @param {Actor} actor
+ * @param {string} slug
+ * @param {number} id
+ * @param {StoredPage} current
+ * @param {Partial<
+ *   Pick<StoredPage["page_revision"], "title" | "alt_title" | "tags"> &
+ *     Pick<StoredPage, "wikitext">
+ * >} fields
+ */
 async function fixtureEdit(actor, slug, id, current, fields) {
   assert.ok([sourceId, destinationId].includes(id))
   assert.equal(current.page.page_id, id)
@@ -87,6 +144,10 @@ async function fixtureEdit(actor, slug, id, current, fields) {
   assert.ok(result.revision_id > current.page_revision.revision_id)
 }
 
+/**
+ * @param {Actor} actor @param {Fixture} fixture @param {string} from
+ *   @param {string} to
+ */
 async function fixtureMove(actor, fixture, from, to) {
   assert.ok([fixture.sourceSlug, fixture.movedSlug].includes(from))
   assert.ok([fixture.sourceSlug, fixture.movedSlug].includes(to))
@@ -104,12 +165,21 @@ async function fixtureMove(actor, fixture, from, to) {
   })
 }
 
+/**
+ * @param {Actor} actor @param {string} slug @returns {Promise<{ blocked:
+ *   boolean }>}
+ */
 async function readBlock(actor, slug) {
   const page = await readOwned(actor.request, actor.token, slug, sourceId)
   assert.equal(page.page.page_id, sourceId)
   return rpc(actor.request, actor.token, slug, "page_block_get", { page: sourceId })
 }
 
+/**
+ * @param {import("@playwright/test").BrowserContext} context
+ * @param {Fixture} fixture
+ * @param {string} password
+ */
 async function login(context, fixture, password) {
   const page = await context.newPage()
   await page.goto(`${origin}/-/login`, { waitUntil: "networkidle" })
@@ -123,6 +193,7 @@ async function login(context, fixture, password) {
   )
   assert.ok(cookie, "authenticated admin cookie required")
   const token = decodeURIComponent(cookie.value)
+  /** @type {import("../../src/lib/types").SessionModel} */
   const session = await rpc(context.request, token, fixture.sourceSlug, "session_get", [
     token
   ])
@@ -130,9 +201,22 @@ async function login(context, fixture, password) {
   return { page, request: context.request, token, userId: session.user_id }
 }
 
+/**
+ * @param {import("@playwright/test").BrowserContext} context
+ * @param {Fixture} fixture
+ */
 async function guardBrowserWrites(context, fixture) {
+  /** @type {string[]} */
   const blocked = []
+  /** @type {string[]} */
   const writes = []
+  /**
+   * @type {{
+   *   slug: string
+   *   action: "move" | "blockSet"
+   *   blocked: boolean | null
+   * } | null}
+   */
   let permitted = null
   await context.route("**/*", async (route) => {
     const request = route.request()
@@ -188,6 +272,10 @@ async function guardBrowserWrites(context, fixture) {
   return {
     writes,
     blocked,
+    /**
+     * @param {string} slug @param {"move" | "blockSet"} action @param
+     *   {boolean | null} [blockedState]
+     */
     allow(slug, action, blockedState = null) {
       assert.equal(permitted, null, "previous UI write not consumed")
       assert.ok([fixture.sourceSlug, fixture.movedSlug].includes(slug))
@@ -201,6 +289,14 @@ async function guardBrowserWrites(context, fixture) {
   }
 }
 
+/**
+ * @param {import("@playwright/test").Page} page
+ * @param {WriteGuard} guard
+ * @param {string} slug
+ * @param {"move" | "blockSet"} action
+ * @param {import("@playwright/test").Locator} button
+ * @param {boolean | null} [blocked]
+ */
 async function submitAction(page, guard, slug, action, button, blocked = null) {
   const before = guard.writes.length
   const responsePromise = page.waitForResponse(
@@ -217,6 +313,7 @@ async function submitAction(page, guard, slug, action, button, blocked = null) {
   guard.assertConsumed()
 }
 
+/** @param {import("@playwright/test").Page} page @param {string} slug */
 async function openOptions(page, slug) {
   const response = await page.goto(`${origin}/${slug}`, { waitUntil: "networkidle" })
   assert.equal(response?.status(), 200)
@@ -226,6 +323,10 @@ async function openOptions(page, slug) {
   return options
 }
 
+/**
+ * @param {Actor} actor @param {Fixture} fixture @param {WriteGuard} guard
+ *   @param {Baseline} baseline
+ */
 async function proveMove(actor, fixture, guard, baseline) {
   const options = await openOptions(actor.page, fixture.sourceSlug)
   await options.locator("#rename-move-button").click()
@@ -290,6 +391,7 @@ async function proveMove(actor, fixture, guard, baseline) {
   await expect(actor.page).toHaveURL(`${origin}/${fixture.movedSlug}`)
 }
 
+/** @param {Actor} actor @param {Fixture} fixture @param {WriteGuard} guard */
 async function proveBlock(actor, fixture, guard) {
   const options = await openOptions(actor.page, fixture.movedSlug)
   await options.locator("#lock-page-button").click()
@@ -328,6 +430,13 @@ async function proveBlock(actor, fixture, guard) {
   await expect(checkbox).not.toBeChecked()
 }
 
+/**
+ * @param {Actor} actor
+ * @param {string} slug
+ * @param {number} id
+ * @param {PageSnapshot} baseline
+ * @param {string[]} expected
+ */
 async function restoreContent(actor, slug, id, baseline, expected) {
   const current = await readOwned(actor.request, actor.token, slug, id)
   assert.ok(
@@ -359,7 +468,9 @@ async function restoreContent(actor, slug, id, baseline, expected) {
   }
 }
 
+/** @param {Actor} actor @param {Fixture} fixture @param {Baseline} baseline */
 async function recover(actor, fixture, baseline) {
+  /** @type {PageView} */
   const sourceView = await rpc(
     actor.request,
     actor.token,
@@ -377,7 +488,7 @@ async function recover(actor, fixture, baseline) {
     assert.equal(moved.wikitext, `[[[${fixture.sourceSlug}|Self]]]`)
     await fixtureMove(actor, fixture, fixture.movedSlug, fixture.sourceSlug)
   } else {
-    assert.equal(sourceView.type, "found")
+    assert.ok(sourceView.type === "found", "source fixture must exist")
     assert.equal(sourceView.data.page.page_id, sourceId)
     await assertVacant(actor.request, actor.token, fixture.movedSlug)
   }
@@ -418,6 +529,7 @@ async function recover(actor, fixture, baseline) {
   await assertVacant(actor.request, actor.token, fixture.movedSlug)
 }
 
+/** @param {Actor} actor @param {Fixture} fixture @param {WriteGuard} guard */
 async function exercise(actor, fixture, guard) {
   const source = await readOwned(actor.request, actor.token, fixture.sourceSlug, sourceId)
   const destination = await readOwned(
@@ -439,6 +551,7 @@ async function exercise(actor, fixture, guard) {
     blocked: block.blocked,
     destinationRevision: destination.page_revision.revision_id
   }
+  /** @type {unknown} */
   let failure = null
   try {
     await fixtureEdit(actor, fixture.sourceSlug, sourceId, source, {
