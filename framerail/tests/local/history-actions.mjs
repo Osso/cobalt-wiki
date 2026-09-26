@@ -339,7 +339,7 @@ async function checkDetails(history, request, token, pageId, listing, originName
   const lines = detailComparison.locator(".history-diff > span")
   await expect(lines).toHaveCount(comparison.lines.length)
   for (const [index, line] of comparison.lines.entries()) {
-    await expect(lines.nth(index)).toHaveClass(line.kind)
+    await expect(lines.nth(index)).toHaveClass(new RegExp(`\\b${line.kind}\\b`))
     assert.equal(await lines.nth(index).textContent(), line.text, "escaped diff text")
     if (line.kind !== "same") {
       await expect(
