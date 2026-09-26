@@ -76,6 +76,7 @@ impl HistoryListingService {
                 filters.source,
                 filters.title,
                 filters.r#move,
+                filters.tags,
                 filters.meta,
                 filters.files,
             ]
@@ -174,6 +175,7 @@ fn imported_condition(filters: &HistoryFilters) -> Condition {
         (filters.source, "'S' = ANY(source_flags)"),
         (filters.title, "'T' = ANY(source_flags)"),
         (filters.r#move, "'R' = ANY(source_flags)"),
+        (filters.tags, "'A' = ANY(source_flags)"),
         (filters.meta, "'M' = ANY(source_flags)"),
         (filters.files, "'F' = ANY(source_flags)"),
     ] {
@@ -196,14 +198,22 @@ fn native_condition(filters: &HistoryFilters) -> Condition {
         condition =
             condition.add(page_revision::Column::RevisionType.eq(PageRevisionType::Move));
     }
+    if filters.tags {
+        condition = condition.add(Expr::cust("'tags' = ANY(changes)"));
+    }
     if filters.meta {
-        condition = condition.add(Expr::cust(
-            "('tags' = ANY(changes) OR 'alt_title' = ANY(changes))",
-        ));
+        condition = condition.add(Expr::cust("'alt_title' = ANY(changes)"));
     }
     // Native page revisions have no file-change signal; files-only has no native matches.
     if filters.files
-        && ![filters.source, filters.title, filters.r#move, filters.meta].contains(&true)
+        && ![
+            filters.source,
+            filters.title,
+            filters.r#move,
+            filters.tags,
+            filters.meta,
+        ]
+        .contains(&true)
     {
         condition = condition.add(Expr::cust("FALSE"));
     }
@@ -303,11 +313,10 @@ fn native_flags(row: &page_revision::Model) -> Vec<String> {
     if row.revision_type == PageRevisionType::Move {
         flags.push("R".into());
     }
-    if row
-        .changes
-        .iter()
-        .any(|change| change == "tags" || change == "alt_title")
-    {
+    if row.changes.iter().any(|change| change == "tags") {
+        flags.push("A".into());
+    }
+    if row.changes.iter().any(|change| change == "alt_title") {
         flags.push("M".into());
     }
     flags

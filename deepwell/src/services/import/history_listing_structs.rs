@@ -15,6 +15,7 @@ pub struct HistoryFilters {
     pub source: bool,
     pub title: bool,
     pub r#move: bool,
+    pub tags: bool,
     pub meta: bool,
     pub files: bool,
 }

@@ -212,7 +212,7 @@ async fn native_history_uses_actual_revision_changes_and_local_name() {
     last["page"] = json!(2);
     let last = run_endpoint!(runner, page_history_list, last);
     assert_eq!(last.rows[1].number, 0);
-    assert_eq!(last.rows[1].flags, vec!["N", "S", "T", "M"]);
+    assert_eq!(last.rows[1].flags, vec!["N", "S", "T", "A", "M"]);
     assert!(last.rows[1].is_current);
     assert_eq!(last.rows[1].id, current);
     assert_eq!(last.rows[1].author_id, Some(ADMIN_USER_ID));
@@ -226,6 +226,94 @@ async fn native_history_uses_actual_revision_changes_and_local_name() {
     files["filters"] = json!({"all":false,"files":true});
     let files = run_endpoint!(runner, page_history_list, files);
     assert_eq!((files.total, files.rows.len()), (0, 0));
+}
+
+#[tokio::test]
+async fn history_tags_and_metadata_are_distinct_and_combine_with_or() {
+    let runner = TestRunner::setup().await;
+    let (site_id, page_id, current) = fixture(&runner, "history-list-tags-filter").await;
+    let revisions: Vec<_> = [(1, "A"), (2, "M"), (3, "S")]
+        .into_iter()
+        .map(|(number, flag)| {
+            json!({
+                "source_revision_id": 5_000_000 + number,
+                "source_revision_number": number,
+                "source_author_id": null,
+                "source_created_at": "2021-04-29T12:00:00Z",
+                "source_comments": "",
+                "source_flags": [flag],
+                "source_title": null, "source_slug": null, "source_tags": null,
+                "wikitext": "Old body", "raw_source_html": "<div>Old source</div>",
+                "acquired_at": "2026-09-23T00:00:00Z",
+                "representation": "display-decoded-not-byte-exact"
+            })
+        })
+        .collect();
+    run_endpoint!(
+        runner,
+        import_wikidot_history,
+        json!({
+            "site_id": site_id, "page_id": page_id, "source_page_id": 1310927108,
+            "expected_revision_id": current, "revisions": revisions
+        })
+    );
+
+    let original = page_revision::Entity::find_by_id(current)
+        .one(runner.context().transaction())
+        .await
+        .unwrap()
+        .unwrap();
+    for (number, change) in [(1, "tags"), (2, "alt_title"), (3, "wikitext")] {
+        let mut revision = original.clone().into_active_model();
+        revision.revision_id = sea_orm::ActiveValue::NotSet;
+        revision.revision_number = Set(number);
+        revision.revision_type = Set(deepwell::types::PageRevisionType::Regular);
+        revision.changes = Set(vec![change.into()]);
+        revision
+            .insert(runner.context().transaction())
+            .await
+            .unwrap();
+    }
+
+    for origin in ["wikidot", "local"] {
+        let baseline_tags = if origin == "local" {
+            vec![1, 0]
+        } else {
+            vec![1]
+        };
+        let baseline_meta = if origin == "local" {
+            vec![2, 0]
+        } else {
+            vec![2]
+        };
+        let combined = if origin == "local" {
+            vec![2, 1, 0]
+        } else {
+            vec![2, 1]
+        };
+        for (filters, expected) in [
+            (json!({"tags": true}), baseline_tags),
+            (json!({"meta": true}), baseline_meta),
+            (json!({"tags": true, "meta": true}), combined),
+        ] {
+            let mut input = request(site_id, page_id, origin);
+            input["filters"] = filters;
+            let listed = run_endpoint!(runner, page_history_list, input);
+            let numbers: Vec<_> = listed.rows.iter().map(|row| row.number).collect();
+            let mut expected = expected;
+            expected.sort_unstable_by(|a, b| b.cmp(a));
+            assert_eq!(numbers, expected, "origin={origin}");
+            assert_eq!(listed.total, numbers.len() as u64);
+        }
+    }
+    let native = run_endpoint!(
+        runner,
+        page_history_list,
+        request(site_id, page_id, "local")
+    );
+    assert_eq!(native.rows[0].flags, vec!["S"]);
+    assert_eq!(native.rows[1].flags, vec!["M"]);
+    assert_eq!(native.rows[2].flags, vec!["A"]);
 }
 
 #[tokio::test]
