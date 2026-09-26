@@ -209,12 +209,24 @@ async function mutationMatches(request, permitted, pageId, diagnostics = null) {
  */
 function requestLabel(request, slugs) {
   const url = new URL(request.url())
+  const fixturePath = url.origin === origin && slugs.includes(url.pathname.slice(1))
   const path =
-    url.origin === origin &&
-    (slugs.includes(url.pathname.slice(1)) || url.pathname === "/-/login")
+    fixturePath || (url.origin === origin && url.pathname === "/-/login")
       ? url.pathname
       : ""
-  return `${request.method()} ${url.origin}${path}`
+  const actions = [
+    "fileUpload",
+    "fileEdit",
+    "fileMove",
+    "fileDelete",
+    "fileRestore",
+    "fileRollback"
+  ]
+  const action =
+    fixturePath && url.search.startsWith("?/") && actions.includes(url.search.slice(2))
+      ? url.search
+      : ""
+  return `${request.method()} ${url.origin}${path}${action}`
 }
 
 /**
