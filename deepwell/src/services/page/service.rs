@@ -960,14 +960,8 @@ impl PageService {
         if !actor_matches || !Self::can_edit_resolved_page(ctx, user_id, id).await? {
             bail!(Error::new("page edit denied", ErrorType::PermissionDenied));
         }
-        let lock = PageLockService::can_user_bypass_lock(
-            ctx,
-            site_id,
-            page_id,
-            Some(category_id),
-            user_id,
-        )
-        .await?;
+        let lock =
+            PageLockService::can_user_bypass_lock(ctx, site_id, page_id, user_id).await?;
         if !lock.can_edit {
             bail!(Error::new(
                 "page is blocked or locked for this actor",

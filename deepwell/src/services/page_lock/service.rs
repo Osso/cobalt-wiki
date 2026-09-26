@@ -74,14 +74,7 @@ impl PageLockService {
             .or_raise(make_error)?;
 
         if let Some(old_lock) = existing_lock {
-            Self::require_lock_bypass(
-                ctx,
-                site_id,
-                page_id,
-                page.page_category_id,
-                user_id,
-            )
-            .await?;
+            Self::require_lock_bypass(ctx, site_id, page_id, user_id).await?;
             if !input.override_existing {
                 bail!(Error::new(
                     format!(
@@ -182,14 +175,7 @@ impl PageLockService {
                 user_id,
             )
             .await?;
-            Self::require_lock_bypass(
-                ctx,
-                site_id,
-                page_id,
-                page.page_category_id,
-                user_id,
-            )
-            .await?;
+            Self::require_lock_bypass(ctx, site_id, page_id, user_id).await?;
         }
 
         // Mark the page lock as deleted
@@ -305,12 +291,9 @@ impl PageLockService {
         ctx: &ServiceContext<'_>,
         site_id: i64,
         page_id: i64,
-        category_id: i64,
         user_id: i64,
     ) -> Result<()> {
-        let bypass =
-            Self::can_user_bypass_lock(ctx, site_id, page_id, Some(category_id), user_id)
-                .await?;
+        let bypass = Self::can_user_bypass_lock(ctx, site_id, page_id, user_id).await?;
         if !bypass.can_edit {
             bail!(Error::new(
                 "current page lock cannot be bypassed",
@@ -339,6 +322,16 @@ impl PageLockService {
         blocked: bool,
         ip_address: IpAddr,
     ) -> Result<()> {
+        let (site_id, user_id, page_id) =
+            Self::lookup_wikidot_block_page(ctx, page_ref).await?;
+        Self::apply_wikidot_block(ctx, site_id, user_id, page_id, blocked, ip_address)
+            .await
+    }
+
+    async fn lookup_wikidot_block_page(
+        ctx: &ServiceContext<'_>,
+        page_ref: Reference<'_>,
+    ) -> Result<(i64, i64, i64)> {
         let site_id = ctx.request().site_id()?;
         let user_id = ctx.request().user_id.ok_or_else(|| {
             Error::new(
@@ -348,28 +341,49 @@ impl PageLockService {
         })?;
         Self::require_actor(ctx, site_id, user_id)?;
         Self::require_page_moderator(ctx, site_id, user_id).await?;
-        let page_id = PageService::get(ctx, site_id, page_ref.borrow())
-            .await?
-            .page_id;
+        let page_id = PageService::get(ctx, site_id, page_ref).await?.page_id;
+        Ok((site_id, user_id, page_id))
+    }
+
+    async fn create_wikidot_block(
+        ctx: &ServiceContext<'_>,
+        site_id: i64,
+        user_id: i64,
+        page_id: i64,
+        ip_address: IpAddr,
+    ) -> Result<()> {
+        Self::create(
+            ctx,
+            site_id,
+            user_id,
+            Reference::Id(page_id),
+            CreatePageLockInput {
+                page: Reference::Id(page_id),
+                expires_at: None,
+                from_wikidot: false,
+                lock_type: PageLockType::Wikidot,
+                reason: None,
+                override_existing: false,
+                ip_address,
+            },
+        )
+        .await?;
+        Ok(())
+    }
+
+    async fn apply_wikidot_block(
+        ctx: &ServiceContext<'_>,
+        site_id: i64,
+        user_id: i64,
+        page_id: i64,
+        blocked: bool,
+        ip_address: IpAddr,
+    ) -> Result<()> {
         let active = Self::get_active_lock_for_page(ctx, page_id).await?;
         match (blocked, active) {
             (true, None) => {
-                Self::create(
-                    ctx,
-                    site_id,
-                    user_id,
-                    Reference::Id(page_id),
-                    CreatePageLockInput {
-                        page: Reference::Id(page_id),
-                        expires_at: None,
-                        from_wikidot: false,
-                        lock_type: PageLockType::Wikidot,
-                        reason: None,
-                        override_existing: false,
-                        ip_address,
-                    },
-                )
-                .await?;
+                Self::create_wikidot_block(ctx, site_id, user_id, page_id, ip_address)
+                    .await?;
             }
             (true, Some(lock)) if lock.lock_type != PageLockType::Wikidot => {
                 bail!(Error::new(
@@ -452,7 +466,6 @@ impl PageLockService {
         ctx: &ServiceContext<'_>,
         site_id: i64,
         page_id: i64,
-        _page_category_id: Option<i64>,
         user_id: i64,
     ) -> Result<CheckLockBypassOutput> {
         let make_error = || {

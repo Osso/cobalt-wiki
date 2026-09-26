@@ -157,110 +157,15 @@ fn lock_input(page: i64, lock_type: &str, override_existing: bool) -> Value {
     })
 }
 
-#[tokio::test]
-async fn wikidot_block_requires_moderator_grant_and_preserves_native_locks() {
-    let mut runner = TestRunner::setup().await;
-    let site = Site::load(&runner).await;
-    let page = block_page(&runner, &site, "block-toggle-policy").await;
-    let member = add_member(&runner, &site, "BlockMember", &[]).await;
-    let moderator = add_member(&runner, &site, "BlockModerator", &["moderator"]).await;
+async fn verify_native_lock_and_permission_bypass(
+    runner: &mut TestRunner,
+    site: &Site,
+    page: i64,
+    member: i64,
+    moderator: i64,
+) {
     let reference = Reference::Id(page);
-
-    act_as(&mut runner, &site, Some(member));
-    let denied = PageLockService::set_wikidot_block(
-        runner.context(),
-        reference.borrow(),
-        true,
-        common::IP_ADDRESS,
-    )
-    .await
-    .unwrap_err();
-    assert_contains_error!(denied, ErrorType::PermissionDenied);
-    assert!(
-        !PageLockService::is_wikidot_blocked(runner.context(), reference.borrow())
-            .await
-            .unwrap()
-    );
-
-    act_as(&mut runner, &site, Some(moderator));
-    PageLockService::set_wikidot_block(
-        runner.context(),
-        reference.borrow(),
-        true,
-        common::IP_ADDRESS,
-    )
-    .await
-    .unwrap();
-    assert!(
-        PageLockService::is_wikidot_blocked(runner.context(), reference.borrow())
-            .await
-            .unwrap()
-    );
-    let result = PageLockService::can_user_bypass_lock(
-        runner.context(),
-        site.site_id,
-        page,
-        None,
-        moderator,
-    )
-    .await
-    .unwrap();
-    assert!(result.lock_present && result.can_edit);
-
-    act_as(&mut runner, &site, Some(member));
-    let result = PageLockService::can_user_bypass_lock(
-        runner.context(),
-        site.site_id,
-        page,
-        None,
-        member,
-    )
-    .await
-    .unwrap();
-    assert!(result.lock_present && !result.can_edit);
-    let denied = run_endpoint_err!(
-        runner,
-        page_lock_remove,
-        json!({"page": page, "ip_address": common::IP_ADDRESS})
-    );
-    assert_contains_error!(denied, ErrorType::PermissionDenied);
-    let denied = run_endpoint_err!(
-        runner,
-        page_lock_create,
-        lock_input(page, "permission-only", true)
-    );
-    assert_contains_error!(denied, ErrorType::PermissionDenied);
-    assert!(
-        PageLockService::is_wikidot_blocked(runner.context(), reference.borrow())
-            .await
-            .unwrap()
-    );
-
-    act_as(&mut runner, &site, Some(moderator));
-    PageLockService::set_wikidot_block(
-        runner.context(),
-        reference.borrow(),
-        false,
-        common::IP_ADDRESS,
-    )
-    .await
-    .unwrap();
-    assert!(
-        !PageLockService::is_wikidot_blocked(runner.context(), reference.borrow())
-            .await
-            .unwrap()
-    );
-    let result = PageLockService::can_user_bypass_lock(
-        runner.context(),
-        site.site_id,
-        page,
-        None,
-        moderator,
-    )
-    .await
-    .unwrap();
-    assert!(!result.lock_present && result.can_edit);
-
+    act_as(runner, site, Some(moderator));
     run_endpoint!(
         runner,
         page_lock_create,
@@ -308,7 +213,6 @@ async fn wikidot_block_requires_moderator_grant_and_preserves_native_locks() {
         runner.context(),
         site.site_id,
         page,
-        None,
         ADMIN_USER_ID,
     )
     .await
@@ -328,7 +232,6 @@ async fn wikidot_block_requires_moderator_grant_and_preserves_native_locks() {
         runner.context(),
         site.site_id,
         page,
-        None,
         ADMIN_USER_ID,
     )
     .await
@@ -365,7 +268,6 @@ async fn wikidot_block_requires_moderator_grant_and_preserves_native_locks() {
         runner.context(),
         site.site_id,
         page,
-        None,
         member,
     )
     .await
@@ -390,7 +292,6 @@ async fn wikidot_block_requires_moderator_grant_and_preserves_native_locks() {
         runner.context(),
         site.site_id,
         page,
-        None,
         member,
     )
     .await
@@ -402,6 +303,111 @@ async fn wikidot_block_requires_moderator_grant_and_preserves_native_locks() {
         json!({"page": page, "ip_address": common::IP_ADDRESS})
     );
     assert_contains_error!(denied, ErrorType::PermissionDenied);
+}
+
+#[tokio::test]
+async fn wikidot_block_requires_moderator_grant_and_preserves_native_locks() {
+    let mut runner = TestRunner::setup().await;
+    let site = Site::load(&runner).await;
+    let page = block_page(&runner, &site, "block-toggle-policy").await;
+    let member = add_member(&runner, &site, "BlockMember", &[]).await;
+    let moderator = add_member(&runner, &site, "BlockModerator", &["moderator"]).await;
+    let reference = Reference::Id(page);
+
+    act_as(&mut runner, &site, Some(member));
+    let denied = PageLockService::set_wikidot_block(
+        runner.context(),
+        reference.borrow(),
+        true,
+        common::IP_ADDRESS,
+    )
+    .await
+    .unwrap_err();
+    assert_contains_error!(denied, ErrorType::PermissionDenied);
+    assert!(
+        !PageLockService::is_wikidot_blocked(runner.context(), reference.borrow())
+            .await
+            .unwrap()
+    );
+
+    act_as(&mut runner, &site, Some(moderator));
+    PageLockService::set_wikidot_block(
+        runner.context(),
+        reference.borrow(),
+        true,
+        common::IP_ADDRESS,
+    )
+    .await
+    .unwrap();
+    assert!(
+        PageLockService::is_wikidot_blocked(runner.context(), reference.borrow())
+            .await
+            .unwrap()
+    );
+    let result = PageLockService::can_user_bypass_lock(
+        runner.context(),
+        site.site_id,
+        page,
+        moderator,
+    )
+    .await
+    .unwrap();
+    assert!(result.lock_present && result.can_edit);
+
+    act_as(&mut runner, &site, Some(member));
+    let result = PageLockService::can_user_bypass_lock(
+        runner.context(),
+        site.site_id,
+        page,
+        member,
+    )
+    .await
+    .unwrap();
+    assert!(result.lock_present && !result.can_edit);
+    let denied = run_endpoint_err!(
+        runner,
+        page_lock_remove,
+        json!({"page": page, "ip_address": common::IP_ADDRESS})
+    );
+    assert_contains_error!(denied, ErrorType::PermissionDenied);
+    let denied = run_endpoint_err!(
+        runner,
+        page_lock_create,
+        lock_input(page, "permission-only", true)
+    );
+    assert_contains_error!(denied, ErrorType::PermissionDenied);
+    assert!(
+        PageLockService::is_wikidot_blocked(runner.context(), reference.borrow())
+            .await
+            .unwrap()
+    );
+
+    act_as(&mut runner, &site, Some(moderator));
+    PageLockService::set_wikidot_block(
+        runner.context(),
+        reference.borrow(),
+        false,
+        common::IP_ADDRESS,
+    )
+    .await
+    .unwrap();
+    assert!(
+        !PageLockService::is_wikidot_blocked(runner.context(), reference.borrow())
+            .await
+            .unwrap()
+    );
+    let result = PageLockService::can_user_bypass_lock(
+        runner.context(),
+        site.site_id,
+        page,
+        moderator,
+    )
+    .await
+    .unwrap();
+    assert!(!result.lock_present && result.can_edit);
+
+    verify_native_lock_and_permission_bypass(&mut runner, &site, page, member, moderator)
+        .await;
 }
 
 #[tokio::test]
@@ -442,7 +448,6 @@ async fn tombstoned_page_keeps_its_block_policy_for_restore() {
         runner.context(),
         site.site_id,
         locked,
-        None,
         editor,
     )
     .await
@@ -452,7 +457,6 @@ async fn tombstoned_page_keeps_its_block_policy_for_restore() {
         runner.context(),
         site.site_id,
         plain,
-        None,
         editor,
     )
     .await
@@ -486,15 +490,10 @@ async fn expired_moderator_grant_cannot_manage_or_bypass_block() {
     .await
     .unwrap();
     act_as(&mut runner, &site, Some(user));
-    let state = PageLockService::can_user_bypass_lock(
-        runner.context(),
-        site.site_id,
-        page,
-        None,
-        user,
-    )
-    .await
-    .unwrap();
+    let state =
+        PageLockService::can_user_bypass_lock(runner.context(), site.site_id, page, user)
+            .await
+            .unwrap();
     assert!(state.lock_present && !state.can_edit);
     let denied = PageLockService::set_wikidot_block(
         runner.context(),
