@@ -421,7 +421,7 @@
                       <dd>{file.size.toLocaleString("en-US")} Bytes</dd>
                       <dt>MIME type</dt>
                       <dd>{file.mime}</dd>
-                      <dt>Upload date</dt>
+                      <dt>Local file created</dt>
                       <dd>{new Date(file.file_created_at).toLocaleString()}</dd>
                       {#if file.revision_comments}
                         <dt>Revision comment</dt>

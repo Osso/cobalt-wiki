@@ -362,7 +362,7 @@ async function checkFiles(page, request, token, badges) {
       ["File name", file.name],
       ["File size", `${file.size.toLocaleString("en-US")} Bytes`],
       ["MIME type", file.mime],
-      ["Upload date", new Date(file.file_created_at).toLocaleString()]
+      ["Local file created", new Date(file.file_created_at).toLocaleString()]
     ]) {
       await expect(
         details

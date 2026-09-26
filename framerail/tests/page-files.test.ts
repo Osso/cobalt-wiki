@@ -136,7 +136,8 @@ test("Wikidot Files supplies read-only information for an active file", () => {
   assert.match(body, /1,025 Bytes/)
   assert.match(body, /First report/)
   assert.match(body, /2024/)
-  assert.doesNotMatch(body, /Uploaded by|upload limit/)
+  assert.match(body, /Local file created/)
+  assert.doesNotMatch(body, /Uploaded by|Upload date|upload limit/)
   assert.equal((body.match(/<summary[^>]*>info<\/summary>/g) ?? []).length, 2)
 })
 
