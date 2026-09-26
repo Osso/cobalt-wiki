@@ -23,11 +23,12 @@ use crate::models::file::Model as FileModel;
 use crate::models::file_revision::Model as FileRevisionModel;
 use crate::services::file::{
     CreateFile, CreateFileOutput, DeleteFile, DeleteFileOutput, EditFile, EditFileOutput,
-    GetFileDetails, GetFileOutput, MoveFile, MoveFileOutput, RestoreFile,
+    GetFile, GetFileDetails, GetFileOutput, MoveFile, MoveFileOutput, RestoreFile,
     RestoreFileOutput, RollbackFile,
 };
+use crate::services::permission::{CheckPermissionContext, PermissionService};
 use crate::services::{BlobService, FileRevisionService};
-use crate::types::{Bytes, FileDetails};
+use crate::types::{Action, Bytes, FileDetails, Permission, Reference, Resource};
 
 pub async fn file_get(
     ctx: &ServiceContext<'_>,
@@ -79,6 +80,8 @@ pub async fn file_create(
         input.page_id, input.site_id,
     );
 
+    require_actor(ctx, input.site_id, input.user_id)?;
+    authorize_page_edit(ctx, input.site_id, input.page_id).await?;
     FileService::create(ctx, input)
         .await
         .or_raise(|| Error::new("failed to create file", ErrorType::File))
@@ -95,6 +98,15 @@ pub async fn file_edit(
         input.file_id, input.page_id, input.site_id,
     );
 
+    require_actor(ctx, input.site_id, input.user_id)?;
+    authorize_file_edit(
+        ctx,
+        input.site_id,
+        input.page_id,
+        Reference::Id(input.file_id),
+        false,
+    )
+    .await?;
     FileService::edit(ctx, input)
         .await
         .or_raise(|| Error::new("failed to edit file", ErrorType::File))
@@ -111,6 +123,15 @@ pub async fn file_delete(
         input.file, input.page_id, input.site_id,
     );
 
+    require_actor(ctx, input.site_id, input.user_id)?;
+    authorize_file_edit(
+        ctx,
+        input.site_id,
+        input.page_id,
+        input.file.borrow(),
+        false,
+    )
+    .await?;
     FileService::delete(ctx, input)
         .await
         .or_raise(|| Error::new("failed to delete file", ErrorType::File))
@@ -127,6 +148,18 @@ pub async fn file_move(
         input.file_id, input.current_page_id, input.destination_page, input.site_id,
     );
 
+    require_actor(ctx, input.site_id, input.user_id)?;
+    authorize_file_edit(
+        ctx,
+        input.site_id,
+        input.current_page_id,
+        Reference::Id(input.file_id),
+        false,
+    )
+    .await?;
+    let destination =
+        PageService::get(ctx, input.site_id, input.destination_page.borrow()).await?;
+    authorize_page_edit(ctx, input.site_id, destination.page_id).await?;
     FileService::r#move(ctx, input)
         .await
         .or_raise(|| Error::new("failed to move file", ErrorType::File))
@@ -143,6 +176,19 @@ pub async fn file_restore(
         input.file_id, input.page_id, input.site_id,
     );
 
+    require_actor(ctx, input.site_id, input.user_id)?;
+    authorize_file_edit(
+        ctx,
+        input.site_id,
+        input.page_id,
+        Reference::Id(input.file_id),
+        true,
+    )
+    .await?;
+    if let Some(new_page) = &input.new_page {
+        let destination = PageService::get(ctx, input.site_id, new_page.borrow()).await?;
+        authorize_page_edit(ctx, input.site_id, destination.page_id).await?;
+    }
     FileService::restore(ctx, input)
         .await
         .or_raise(|| Error::new("failed to restore file", ErrorType::File))
@@ -159,9 +205,89 @@ pub async fn file_rollback(
         input.file, input.page_id, input.site_id, input.revision_number,
     );
 
+    require_actor(ctx, input.site_id, input.user_id)?;
+    authorize_file_edit(
+        ctx,
+        input.site_id,
+        input.page_id,
+        input.file.borrow(),
+        false,
+    )
+    .await?;
     FileService::rollback(ctx, input)
         .await
         .or_raise(|| Error::new("failed to rollback file", ErrorType::File))
+}
+
+fn deny_file_edit() -> crate::error::ExnError {
+    Error::new(
+        "user does not have permission to edit this file's page",
+        ErrorType::PermissionDenied,
+    )
+    .into()
+}
+
+fn require_actor(ctx: &ServiceContext<'_>, site_id: i64, user_id: i64) -> Result<()> {
+    let request = ctx.request();
+    if request.user_id != Some(user_id) || request.site_id != Some(site_id) {
+        return Err(deny_file_edit());
+    }
+    Ok(())
+}
+
+async fn authorize_page_edit(
+    ctx: &ServiceContext<'_>,
+    site_id: i64,
+    page_id: i64,
+) -> Result<()> {
+    let page = PageService::get(ctx, site_id, Reference::Id(page_id)).await?;
+    let permitted = PermissionService::check_user_can(
+        ctx,
+        &CheckPermissionContext {
+            user_id: ctx.request().user_id,
+            site_id,
+            page_reference: Some(Reference::Id(page.page_id)),
+        },
+        Permission {
+            resource_type: Resource::Page,
+            resource_category: Some(Reference::Id(page.page_category_id)),
+            action: Action::Edit,
+        },
+    )
+    .await?;
+    if !permitted {
+        return Err(deny_file_edit());
+    }
+    Ok(())
+}
+
+async fn authorize_file_edit(
+    ctx: &ServiceContext<'_>,
+    site_id: i64,
+    page_id: i64,
+    reference: Reference<'_>,
+    allow_deleted: bool,
+) -> Result<()> {
+    let file = match reference {
+        Reference::Id(file_id) => {
+            FileService::get_direct(ctx, file_id, allow_deleted).await?
+        }
+        reference => {
+            FileService::get(
+                ctx,
+                GetFile {
+                    site_id,
+                    page_id,
+                    file: reference,
+                },
+            )
+            .await?
+        }
+    };
+    if file.site_id != site_id || file.page_id != page_id {
+        return Err(deny_file_edit());
+    }
+    authorize_page_edit(ctx, file.site_id, file.page_id).await
 }
 
 async fn build_file_response(
