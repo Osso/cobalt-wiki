@@ -239,7 +239,7 @@ async function refreshList(history, request, token, pageId, originName, filter, 
 async function checkPagination(history, request, token, pageId, originName) {
   const first = await refreshList(history, request, token, pageId, originName, "all", 10)
   assert.ok(first.total > 10, "second page requires more than ten revisions")
-  await history.getByRole("button", { name: "Go to page 2" }).click()
+  await history.getByRole("button", { name: "Go to page 2", exact: true }).click()
   const second = await readList(request, token, pageId, originName, "all", 10, 2)
   await assertListing(history, second)
   const firstIds = new Set(first.rows.map((row) => row.id))
