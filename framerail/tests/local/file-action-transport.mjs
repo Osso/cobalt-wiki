@@ -380,6 +380,7 @@ async function assertActionSuccess(response, action) {
 }
 
 export {
+  decodeMutation,
   rpc,
   assertLivePage,
   listFiles,

@@ -2,11 +2,7 @@ import assert from "node:assert/strict"
 import { readFile } from "node:fs/promises"
 import { test } from "node:test"
 import { chromium, expect } from "@playwright/test"
-import { origin, rpc, siteId } from "./file-action-transport.mjs"
-
-const { parse } = await import(
-  new URL("../../node_modules/.pnpm/node_modules/devalue/index.js", import.meta.url).href
-)
+import { decodeMutation, origin, rpc, siteId } from "./file-action-transport.mjs"
 
 const fixturePath =
   "/home/osso/.local/share/cobalt-wiki/local-full/page-action-fixture.json"
@@ -134,20 +130,6 @@ async function login(context, fixture, password) {
   return { page, request: context.request, token, userId: session.user_id }
 }
 
-async function decodeActionRequest(request) {
-  const bytes = request.postDataBuffer()
-  assert.ok(bytes, "mutation body required")
-  if (request.headers()["content-type"]?.startsWith("application/json")) {
-    return JSON.parse(bytes.toString())
-  }
-  const form = await new Request(request.url(), {
-    method: "POST",
-    headers: request.headers(),
-    body: new Uint8Array(bytes)
-  }).formData()
-  return parse(form.getAll("__superform_json").join(""))
-}
-
 async function guardBrowserWrites(context, fixture) {
   const blocked = []
   const writes = []
@@ -183,7 +165,7 @@ async function guardBrowserWrites(context, fixture) {
       path === `/${permitted.slug}?/${permitted.action}`
     ) {
       try {
-        const body = await decodeActionRequest(request)
+        const { data: body } = await decodeMutation(request)
         assert.equal(body.pageId, sourceId)
         if (permitted.action === "move") {
           assert.equal(body.siteId, siteId)

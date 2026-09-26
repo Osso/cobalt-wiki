@@ -112,10 +112,7 @@
   <div class="page-move">
     <p>Page moved, but some dependencies remain.</p>
     <MoveDependencies dependencies={remaining} selectedIds={[]} remaining />
-    <button
-      type="button"
-      onclick={() => goto(resolve(`/${movedSlug}`, {}))}
-    >
+    <button type="button" onclick={() => goto(resolve(`/${movedSlug}`, {}))}>
       Continue to new page
     </button>
   </div>
