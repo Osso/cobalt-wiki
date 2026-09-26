@@ -99,6 +99,7 @@ Imported source history uses `imported_page_revision`, separate from native edit
 - `framerail/src/routes/[slug]/[...extra]/ImportedHistory.svelte`: presents imported records separately from editable revisions, with source access and display-decoding provenance but no rollback control. Its `c7859d0` browser flow is historical; current UI proof is blocked as recorded in the [replica status](../wiki/systems/cobalt-replica-status.md#imported-source-history).
 
 - `deepwell/src/services/import/history.rs` and `history_structs.rs`: guarded import and permission-checked reads.
+- `deepwell/src/services/import/history_read.rs`: current PageView-gated, read-only source and full line comparison within one origin (`wikidot` or `local`). Missing revisions return null for source and an error for comparison; hidden native source/compiled content is denied. Optional rendered body uses exact selected stored source and current renderer, templates, visibility and layout; imported metadata uses captured values when known, otherwise current page context (not fabricated historical metadata). Imported source remains display-decoded, not byte-exact. No rollback or persistence.
 - `deepwell/migrations/20260923000000_imported_page_revision.sql`: separate source-history storage.
 
 ## Tests asserting this spec
