@@ -383,10 +383,11 @@ async function exercise(page, request, token, fixture) {
     )
     assert.equal(pageAfter.wikitext, originalPage.wikitext)
   } catch (error) {
-    if (failure)
+    if (failure) {
       throw new AggregateError([failure, error], "batch proof and cleanup failed", {
         cause: error
       })
+    }
     throw error
   }
   if (failure) throw failure

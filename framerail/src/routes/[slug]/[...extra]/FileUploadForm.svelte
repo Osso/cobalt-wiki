@@ -15,6 +15,13 @@
     onClose: () => void
   } = $props()
 
+  const stateLabels: Record<UploadRow["state"], string> = {
+    queued: "Queued",
+    uploading: "Uploading",
+    uploaded: "Uploaded",
+    failed: "Failed"
+  }
+
   let files = $state<File[]>([])
   let name = $state("")
   let comments = $state("")
@@ -133,13 +140,7 @@
     <ul class="upload-results">
       {#each rows as row, index (index)}
         <li data-upload-index={index}>
-          {row.file.name}: {row.state === "queued"
-            ? "Queued"
-            : row.state === "uploading"
-              ? "Uploading"
-              : row.state === "uploaded"
-                ? "Uploaded"
-                : "Failed"}
+          {row.file.name}: {stateLabels[row.state]}
           {#if row.error}<span class="upload-error"> — {row.error}</span>{/if}
         </li>
       {/each}
