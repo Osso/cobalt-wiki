@@ -25,7 +25,7 @@
 
   function closePane() {
     requestId++
-    pagePaneState = PagePane.None
+    if (pagePaneState === PagePane.Move) pagePaneState = PagePane.None
   }
 
   async function showDependencies() {
@@ -111,8 +111,8 @@
 {#if remaining}
   <div class="page-move">
     <p>Page moved, but some dependencies remain.</p>
-    <MoveDependencies dependencies={remaining} selectedIds={[]} remaining />
-    <button type="button" onclick={() => goto(resolve(`/${movedSlug}`, {}))}>
+    <MoveDependencies dependencies={remaining} remaining selectedIds={[]} />
+    <button onclick={() => goto(resolve(`/${movedSlug}`, {}))} type="button">
       Continue to new page
     </button>
   </div>
@@ -132,16 +132,16 @@
       bind:value={$form.comments}></textarea>
     {#if dependencies}
       <button
-        type="button"
         onclick={() => {
           requestId++
           dependencies = null
           selectedIds = []
-        }}>Hide dependencies</button
+        }}
+        type="button">Hide dependencies</button
       >
       <MoveDependencies {dependencies} bind:selectedIds />
     {:else}
-      <button type="button" disabled={loading} onclick={showDependencies}>
+      <button disabled={loading} onclick={showDependencies} type="button">
         {loading ? "Loading dependencies…" : "Show dependencies"}
       </button>
     {/if}

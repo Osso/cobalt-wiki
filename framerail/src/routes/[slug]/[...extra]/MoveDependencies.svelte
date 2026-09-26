@@ -71,11 +71,10 @@
       </ul>
       <div class="dependency-actions">
         <button
-          type="button"
           onclick={() => (selectedIds = sources.map((page) => page.page_id))}
-          >Select all</button
+          type="button">Select all</button
         >
-        <button type="button" onclick={() => (selectedIds = [])}>Unselect all</button>
+        <button onclick={() => (selectedIds = [])} type="button">Unselect all</button>
       </div>
     {:else}
       <p>No pages directly link to or include this page.</p>

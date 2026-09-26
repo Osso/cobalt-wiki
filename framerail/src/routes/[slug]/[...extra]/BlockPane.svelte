@@ -82,6 +82,10 @@
     }
   })
 
+  function closePane() {
+    if (pagePaneState === PagePane.Lock) pagePaneState = PagePane.None
+  }
+
   async function submit(event: SubmitEvent) {
     event.preventDefault()
     if (!loaded || !canManage || saving) return
@@ -89,7 +93,7 @@
     message = ""
     try {
       await saveBlock(fetch, data.page!.page_id, blocked)
-      pagePaneState = PagePane.None
+      closePane()
     } catch (error) {
       message =
         error instanceof Error ? error.message : "Unable to update page Block state"
@@ -110,9 +114,9 @@
     Page blocked
     <input
       id="page-block-checkbox"
+      disabled={!loaded || !canManage || saving}
       type="checkbox"
       bind:checked={blocked}
-      disabled={!loaded || !canManage || saving}
     />
   </label>
   {#if !loaded && !message}
@@ -124,15 +128,11 @@
   {/if}
   {#if message}<p role="alert">{message}</p>{/if}
   <div class="buttons">
+    <button class="btn btn-default" onclick={closePane} type="button">Cancel</button>
     <button
-      type="button"
-      class="btn btn-default"
-      onclick={() => (pagePaneState = PagePane.None)}>Cancel</button
-    >
-    <button
-      type="submit"
       class="btn btn-primary"
       disabled={!loaded || !canManage || saving}
+      type="submit"
     >
       {saving ? "Saving…" : "Save"}
     </button>
