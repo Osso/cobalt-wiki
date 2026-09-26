@@ -422,14 +422,13 @@ async function writePrivateFailure(stage, fixture, sourceHash, error) {
   const handle = await open(path, "w", 0o600)
   try {
     await handle.chmod(0o600)
-    await handle.writeFile(
-      JSON.stringify({
-        stage,
-        pageId: fixture.pageId,
-        sourceHash,
-        error: error instanceof Error ? error.message : String(error)
-      }) + "\n"
-    )
+    const detail = JSON.stringify({
+      stage,
+      pageId: fixture.pageId,
+      sourceHash,
+      error: error instanceof Error ? error.message : String(error)
+    })
+    await handle.writeFile(`${detail}\n`)
   } finally {
     await handle.close()
   }
