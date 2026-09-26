@@ -1,8 +1,11 @@
 import assert from "node:assert/strict"
-import { createHash } from "node:crypto"
+import { createHash, randomBytes } from "node:crypto"
 import { readFile } from "node:fs/promises"
 import { test } from "node:test"
 import { chromium, expect } from "@playwright/test"
+const { parse, stringify } = await import(
+  new URL("../../node_modules/.pnpm/node_modules/devalue/index.js", import.meta.url).href
+)
 
 const origin = "http://127.0.0.1:3090"
 const backend = "http://127.0.0.1:2749/jsonrpc"
@@ -139,6 +142,105 @@ async function readFileBytes(request, token, slug, pageId, fileId) {
   return { file, bytes }
 }
 
+/** @param {import("@playwright/test").Request} request */
+async function decodeMutation(request) {
+  const bytes = request.postDataBuffer()
+  assert.ok(bytes, "mutation body required")
+  const headers = request.headers()
+  if (headers["content-type"]?.startsWith("application/json")) {
+    return { data: JSON.parse(bytes.toString()), file: null }
+  }
+  assert.ok(headers["content-type"]?.startsWith("multipart/form-data"))
+  const body = new Request(request.url(), {
+    method: "POST",
+    headers,
+    body: new Uint8Array(bytes)
+  })
+  const form = await body.formData()
+  const chunks = form.getAll("__superform_json")
+  assert.ok(chunks.length, "Superforms JSON required")
+  const data = parse(chunks.join(""))
+  return { data, file: form.get("__superform_file_file") }
+}
+
+/**
+ * @param {import("@playwright/test").Request} request @param {{ fileId:
+ *   number | null; name: string | null }} permitted @param {number}
+ *   pageId
+ */
+async function mutationMatches(request, permitted, pageId) {
+  const { data, file } = await decodeMutation(request)
+  if (typeof data !== "object" || data === null) return false
+  if (data.siteId !== siteId || data.pageId !== pageId) return false
+  if (permitted.fileId !== null) return data.fileId === permitted.fileId
+  return (
+    data.name === permitted.name && file instanceof File && file.name === permitted.name
+  )
+}
+
+/**
+ * @param {import("@playwright/test").Route} route @param {string[]} slugs
+ * @param {{
+ *   slug: string
+ *   action: string
+ *   fileId: number | null
+ *   name: string | null
+ * } | null} permitted
+ * @param {string[]} writes @param {string[]} blocked @param {string[]}
+ *   externalReads
+ */
+async function routeBrowserRequest(
+  route,
+  slugs,
+  permitted,
+  writes,
+  blocked,
+  externalReads
+) {
+  const request = route.request()
+  const url = new URL(request.url())
+  if (url.origin !== origin) {
+    const label = `${request.method()} ${url.origin}`
+    if (["GET", "HEAD", "OPTIONS"].includes(request.method())) externalReads.push(label)
+    else blocked.push(`${request.method()} foreign origin ${url.origin}`)
+    await route.abort()
+    return false
+  }
+  if (["GET", "HEAD", "OPTIONS"].includes(request.method())) {
+    await route.continue()
+    return false
+  }
+  const path = `${url.pathname}${url.search}`
+  const login = path === "/-/login" || path === "/-/login?/login"
+  const read = slugs.some((slug) =>
+    ["fileList", "fileHistory"].some((action) => path === `/${slug}?/${action}`)
+  )
+  const mutation = permitted && path === `/${permitted.slug}?/${permitted.action}`
+  if (request.method() === "POST" && (login || read)) {
+    await route.continue()
+    return false
+  }
+  if (request.method() === "POST" && mutation) {
+    const pageId = slugs.indexOf(permitted.slug) === 0 ? 3000006134 : 3000006135
+    try {
+      assert.ok(
+        await mutationMatches(request, permitted, pageId),
+        "wrong fixture identity"
+      )
+    } catch (error) {
+      blocked.push(`POST ${path} ${String(error)}`)
+      await route.abort()
+      return false
+    }
+    writes.push(path)
+    await route.continue()
+    return true
+  }
+  blocked.push(`${request.method()} ${path}`)
+  await route.abort()
+  return false
+}
+
 /**
  * @param {import("@playwright/test").BrowserContext} context @param
  *   {string[]} slugs
@@ -149,6 +251,7 @@ async function guardBrowserWrites(context, slugs) {
    *   slug: string
    *   action: string
    *   fileId: number | null
+   *   name: string | null
    * } | null}
    */
   let permitted = null
@@ -158,57 +261,28 @@ async function guardBrowserWrites(context, slugs) {
   const blocked = []
   /** @type {string[]} */
   const externalReads = []
-  await context.route("**/*", (route) => {
-    const request = route.request()
-    const url = new URL(request.url())
-    if (url.origin !== origin) {
-      if (["GET", "HEAD", "OPTIONS"].includes(request.method())) {
-        externalReads.push(`${request.method()} ${url.origin}`)
-      } else {
-        blocked.push(`${request.method()} foreign origin`)
-      }
-      return route.abort()
-    }
-    if (["GET", "HEAD", "OPTIONS"].includes(request.method())) return route.continue()
-    const path = `${url.pathname}${url.search}`
-    const login = path === "/-/login" || path === "/-/login?/login"
-    const read = slugs.some((slug) =>
-      ["fileList", "fileHistory"].some((action) => path === `/${slug}?/${action}`)
+  await context.route("**/*", async (route) => {
+    const consumed = await routeBrowserRequest(
+      route,
+      slugs,
+      permitted,
+      writes,
+      blocked,
+      externalReads
     )
-    const mutation = permitted && path === `/${permitted.slug}?/${permitted.action}`
-    if (request.method() === "POST" && (login || read || mutation)) {
-      if (mutation) {
-        const body = request.postData() ?? ""
-        const pageId = slugs.indexOf(permitted.slug) === 0 ? 3000006134 : 3000006135
-        const correctFile =
-          permitted.fileId === null
-            ? body.includes(`ui-file-${permitted.slug.split("-").at(-1)}.txt`)
-            : body.includes(`"fileId":${permitted.fileId}`)
-        const correctPage = body.includes(`"pageId":${pageId}`)
-        const correctSite = body.includes(`"siteId":${siteId}`)
-        if (!correctFile || !correctPage || !correctSite) {
-          blocked.push(`POST ${path} wrong fixture identity`)
-          return route.abort()
-        }
-        writes.push(path)
-        permitted = null
-      }
-      return route.continue()
-    }
-    blocked.push(`${request.method()} ${path}`)
-    return route.abort()
+    if (consumed) permitted = null
   })
   return {
     writes,
     externalReads,
     /**
      * @param {string} slug @param {string} action @param {number | null}
-     *   fileId
+     *   fileId @param {string | null} name
      */
-    allow(slug, action, fileId) {
+    allow(slug, action, fileId, name = null) {
       assert.ok(slugs.includes(slug))
       assert.equal(permitted, null, "previous write not consumed")
-      permitted = { slug, action, fileId }
+      permitted = { slug, action, fileId, name }
     },
     assertConsumed() {
       assert.equal(permitted, null, "UI did not send expected mutation")
@@ -257,12 +331,39 @@ async function openFiles(page, slug) {
  * @param {string} slug @param {string} action @param
  *   {import("@playwright/test").Locator} control
  */
-async function clickMutation(page, guard, slug, action, control, fileId = null) {
+async function clickMutation(
+  page,
+  guard,
+  slug,
+  action,
+  control,
+  fileId = null,
+  name = null
+) {
   const count = guard.writes.length
-  guard.allow(slug, action, fileId)
+  const responsePromise = page.waitForResponse(
+    (response) =>
+      response.url() === `${origin}/${slug}?/${action}` &&
+      response.request().method() === "POST"
+  )
+  guard.allow(slug, action, fileId, name)
   await control.click()
-  await expect.poll(() => guard.writes.length).toBe(count + 1)
+  const response = await responsePromise
+  await assertActionSuccess(response, action)
+  assert.equal(guard.writes.length, count + 1, `${action} dispatch count`)
   guard.assertConsumed()
+}
+
+/**
+ * @param {import("@playwright/test").Response} response @param {string}
+ *   action
+ */
+async function assertActionSuccess(response, action) {
+  assert.equal(response.status(), 200, `${action} HTTP status`)
+  const result = await response.json()
+  assert.equal(result.type, "success", `${action} action failed: ${result.status}`)
+  const data = parse(result.data)
+  assert.ok(data?.res, `${action} missing result`)
 }
 
 /**
@@ -325,7 +426,7 @@ async function assertOriginalFiles(request, token, fixture, fileId, baseline) {
  * @param {import("@playwright/test").APIRequestContext} request @param
  *   {string} token @param {Fixture} fixture @param {number} fileId
  */
-async function recoverFile(request, token, fixture, fileId) {
+async function recoverFile(request, token, fixture, fileId, names) {
   const pages = [
     [fixture.pageId, fixture.sourceSlug],
     [fixture.destinationPageId, fixture.destinationSlug]
@@ -342,9 +443,7 @@ async function recoverFile(request, token, fixture, fileId) {
     "created file must be located uniquely"
   )
   assert.ok(
-    found.every(
-      (file) => file.name.startsWith("ui-file-") || file.name.startsWith("ui-renamed-")
-    ),
+    found.every((file) => names.includes(file.name)),
     "recovery must own generated names"
   )
   const current = found.find((file) => file.revision_type !== "delete")
@@ -487,9 +586,48 @@ async function rollbackInBrowser(page, guard, slug, fileId, revisionNumber) {
 }
 
 /**
+ * @param {import("@playwright/test").APIRequestContext} request @param
+ *   {string} token @param {Fixture} fixture
+ */
+async function captureFileBaseline(request, token, fixture) {
+  const baseline = new Map()
+  for (const [pageId, slug] of [
+    [fixture.pageId, fixture.sourceSlug],
+    [fixture.destinationPageId, fixture.destinationSlug]
+  ]) {
+    for (const deleted of [false, true]) {
+      const files = await listFiles(request, token, slug, pageId, deleted)
+      baseline.set(
+        `${pageId}:${deleted}`,
+        files.sort((a, b) => a.file_id - b.file_id)
+      )
+    }
+  }
+  return baseline
+}
+
+/**
+ * @param {import("@playwright/test").APIRequestContext} request @param
+ *   {string} token
+ * @param {Fixture} fixture @param {Map<string, PageFile[]>} baseline
+ * @param {string} name
+ */
+async function findCreatedFile(request, token, fixture, baseline, name) {
+  const files = await listFiles(request, token, fixture.sourceSlug, fixture.pageId, false)
+  const originalIds = new Set(
+    baseline.get(`${fixture.pageId}:false`).map((file) => file.file_id)
+  )
+  const created = files.filter(
+    (file) => file.name === name && !originalIds.has(file.file_id)
+  )
+  assert.ok(created.length <= 1, "ambiguous UI-created file")
+  return created[0]?.file_id ?? null
+}
+
+/**
  * @param {import("@playwright/test").Page} page @param
  *   {import("@playwright/test").APIRequestContext} request @param {string}
- *   token @param {object} fixture @param {object} guard
+ *   token @param {Fixture} fixture @param {WriteGuard} guard
  */
 async function exercise(page, request, token, fixture, guard) {
   const source = await assertLivePage(request, token, fixture.sourceSlug, fixture.pageId)
@@ -504,20 +642,8 @@ async function exercise(page, request, token, fixture, guard) {
     destination.page_revision.revision_id
   ]
   const pageHashes = [source.wikitext, destination.wikitext]
-  const baseline = new Map()
-  for (const [pageId, slug] of [
-    [fixture.pageId, fixture.sourceSlug],
-    [fixture.destinationPageId, fixture.destinationSlug]
-  ]) {
-    for (const deleted of [false, true]) {
-      const files = await listFiles(request, token, slug, pageId, deleted)
-      baseline.set(
-        `${pageId}:${deleted}`,
-        files.sort((a, b) => a.file_id - b.file_id)
-      )
-    }
-  }
-  const suffix = fixture.sourceSlug.split("-").at(-1)
+  const baseline = await captureFileBaseline(request, token, fixture)
+  const suffix = `${fixture.sourceSlug.split("-").at(-1)}-${randomBytes(8).toString("hex")}`
   const name = `ui-file-${suffix}.txt`
   const renamed = `ui-renamed-${suffix}.txt`
   const original = Buffer.from(`Cobalt UI file ${suffix}\n`)
@@ -528,32 +654,16 @@ async function exercise(page, request, token, fixture, guard) {
   let fileId = null
   let stage = "upload"
   try {
-    const pane = await openFiles(page, fixture.sourceSlug)
-    await pane.locator(".upload-file, .buttons input[value='Upload']").click()
-    const form = pane.locator("#file-upload")
-    await form
-      .locator('[name="file"]')
-      .setInputFiles({ name, mimeType: "text/plain", buffer: original })
-    await form.locator('[name="name"]').fill(name)
-    await clickMutation(
+    fileId = await uploadFixtureFile(
       page,
+      request,
+      token,
+      fixture,
       guard,
-      fixture.sourceSlug,
-      "fileUpload",
-      form.locator('[type="submit"]')
+      baseline,
+      name,
+      original
     )
-    await expect(form).toHaveCount(0)
-    const uploaded = (
-      await listFiles(request, token, fixture.sourceSlug, fixture.pageId, false)
-    ).filter(
-      (file) =>
-        file.name === name &&
-        !baseline
-          .get(`${fixture.pageId}:false`)
-          .some((old) => old.file_id === file.file_id)
-    )
-    assert.equal(uploaded.length, 1, "unique UI-created file required")
-    fileId = uploaded[0].file_id
     let current = await assertFile(
       request,
       token,
@@ -679,61 +789,183 @@ async function exercise(page, request, token, fixture, guard) {
       false
     )
     assert.ok(!finalFiles.some((file) => file.file_id === fileId))
-    guard.assertConsumed()
-    assert.deepEqual(guard.writes, [
-      `/${fixture.sourceSlug}?/fileUpload`,
-      `/${fixture.sourceSlug}?/fileEdit`,
-      `/${fixture.sourceSlug}?/fileEdit`,
-      `/${fixture.sourceSlug}?/fileRollback`,
-      `/${fixture.sourceSlug}?/fileMove`,
-      `/${fixture.destinationSlug}?/fileDelete`,
-      `/${fixture.destinationSlug}?/fileRestore`,
-      `/${fixture.destinationSlug}?/fileDelete`
-    ])
+    assertWriteSequence(guard, fixture)
   } catch (error) {
-    if (fileId === null) {
-      const candidates = await listFiles(
-        request,
-        token,
-        fixture.sourceSlug,
-        fixture.pageId,
-        false
-      )
-      const created = candidates.filter(
-        (file) =>
-          file.name === name &&
-          !baseline
-            .get(`${fixture.pageId}:false`)
-            .some((old) => old.file_id === file.file_id)
-      )
-      if (created.length === 1) fileId = created[0].file_id
-    }
-    if (fileId !== null) {
-      try {
-        await recoverFile(request, token, fixture, fileId)
-      } catch (recoveryError) {
-        throw new AggregateError(
-          [error, recoveryError],
-          `${stage}: recovery failed for disposable file ${fileId}`
-        )
-      }
-    }
-    throw new Error(
-      `${stage}: ${error instanceof Error ? error.message : String(error)}`,
-      { cause: error }
+    fileId ??= await findCreatedFile(request, token, fixture, baseline, name)
+    await recoverFailedFile(
+      request,
+      token,
+      fixture,
+      fileId,
+      [name, renamed],
+      stage,
+      error
     )
   } finally {
     await assertOriginalFiles(request, token, fixture, fileId ?? -1, baseline)
-    for (const [index, [pageId, slug]] of [
-      [fixture.pageId, fixture.sourceSlug],
-      [fixture.destinationPageId, fixture.destinationSlug]
-    ].entries()) {
-      const view = await assertLivePage(request, token, slug, pageId)
-      assert.equal(view.page_revision.revision_id, pageRevisions[index])
-      assert.equal(view.wikitext, pageHashes[index])
-    }
+    await assertOriginalPages(request, token, fixture, pageRevisions, pageHashes)
   }
 }
+
+async function uploadFixtureFile(
+  page,
+  request,
+  token,
+  fixture,
+  guard,
+  baseline,
+  name,
+  original
+) {
+  const pane = await openFiles(page, fixture.sourceSlug)
+  await pane.locator(".upload-file, .buttons input[value='Upload']").click()
+  const form = pane.locator("#file-upload")
+  await form.locator('[name="file"]').setInputFiles({
+    name,
+    mimeType: "text/plain",
+    buffer: original
+  })
+  await form.locator('[name="name"]').fill(name)
+  await clickMutation(
+    page,
+    guard,
+    fixture.sourceSlug,
+    "fileUpload",
+    form.locator('[type="submit"]'),
+    null,
+    name
+  )
+  await expect(form).toHaveCount(0)
+  const fileId = await findCreatedFile(request, token, fixture, baseline, name)
+  assert.ok(fileId !== null, "unique UI-created file required")
+  return fileId
+}
+
+async function recoverFailedFile(request, token, fixture, fileId, names, stage, error) {
+  if (fileId !== null) {
+    try {
+      await recoverFile(request, token, fixture, fileId, names)
+    } catch (recoveryError) {
+      throw new AggregateError(
+        [error, recoveryError],
+        `${stage}: recovery failed for disposable file ${fileId}`,
+        { cause: recoveryError }
+      )
+    }
+  }
+  throw new Error(`${stage}: file action failed`, { cause: error })
+}
+
+async function assertOriginalPages(request, token, fixture, revisions, hashes) {
+  for (const [index, [pageId, slug]] of [
+    [fixture.pageId, fixture.sourceSlug],
+    [fixture.destinationPageId, fixture.destinationSlug]
+  ].entries()) {
+    const view = await assertLivePage(request, token, slug, pageId)
+    assert.equal(view.page_revision.revision_id, revisions[index])
+    assert.equal(view.wikitext, hashes[index])
+  }
+}
+
+function assertWriteSequence(guard, fixture) {
+  guard.assertConsumed()
+  assert.deepEqual(guard.writes, [
+    `/${fixture.sourceSlug}?/fileUpload`,
+    `/${fixture.sourceSlug}?/fileEdit`,
+    `/${fixture.sourceSlug}?/fileEdit`,
+    `/${fixture.sourceSlug}?/fileRollback`,
+    `/${fixture.sourceSlug}?/fileMove`,
+    `/${fixture.destinationSlug}?/fileDelete`,
+    `/${fixture.destinationSlug}?/fileRestore`,
+    `/${fixture.destinationSlug}?/fileDelete`
+  ])
+}
+
+test("multipart upload authorizes only matching fixture and uploaded filename", async () => {
+  const form = new FormData()
+  form.set(
+    "__superform_json",
+    stringify({ siteId, pageId: 3000006134, name: "ui-file-run.txt", file: {} })
+  )
+  form.set("__superform_file_file", new File(["proof"], "ui-file-run.txt"))
+  const body = new Request(origin, { method: "POST", body: form })
+  const bytes = Buffer.from(await body.arrayBuffer())
+  const request = {
+    url: () => origin,
+    headers: () => Object.fromEntries(body.headers),
+    postDataBuffer: () => bytes
+  }
+  const permitted = { fileId: null, name: "ui-file-run.txt" }
+  assert.equal(await mutationMatches(request, permitted, 3000006134), true)
+  assert.equal(
+    await mutationMatches(request, { ...permitted, name: "other.txt" }, 3000006134),
+    false
+  )
+  assert.equal(await mutationMatches(request, permitted, 3000006135), false)
+})
+
+test("multipart edit authorizes devalue-encoded file identity", async () => {
+  const form = new FormData()
+  form.set("__superform_json", stringify({ siteId, pageId: 3000006134, fileId: 87 }))
+  const body = new Request(origin, { method: "POST", body: form })
+  const bytes = Buffer.from(await body.arrayBuffer())
+  const request = {
+    url: () => origin,
+    headers: () => Object.fromEntries(body.headers),
+    postDataBuffer: () => bytes
+  }
+  assert.equal(
+    await mutationMatches(request, { fileId: 87, name: null }, 3000006134),
+    true
+  )
+  assert.equal(
+    await mutationMatches(request, { fileId: 78, name: null }, 3000006134),
+    false
+  )
+  assert.equal(
+    await mutationMatches(request, { fileId: 87, name: null }, 3000006135),
+    false
+  )
+})
+
+test("JSON file mutations require exact file and page identity", async () => {
+  const request = {
+    headers: () => ({ "content-type": "application/json" }),
+    postDataBuffer: () =>
+      Buffer.from(JSON.stringify({ siteId, pageId: 3000006135, fileId: 87 }))
+  }
+  assert.equal(
+    await mutationMatches(request, { fileId: 87, name: null }, 3000006135),
+    true
+  )
+  assert.equal(
+    await mutationMatches(request, { fileId: 78, name: null }, 3000006135),
+    false
+  )
+  assert.equal(
+    await mutationMatches(request, { fileId: 87, name: null }, 3000006134),
+    false
+  )
+})
+
+test("action completion rejects failed results even with HTTP 200", async () => {
+  const response = (type, data) => ({
+    status: () => 200,
+    json: async () => ({ type, status: 200, data: stringify(data) })
+  })
+  await assertActionSuccess(response("success", { res: { file_id: 87 } }), "fileRollback")
+  await assert.rejects(
+    assertActionSuccess(
+      response("failure", { message: "rollback failed" }),
+      "fileRollback"
+    ),
+    /fileRollback action failed/
+  )
+  await assert.rejects(
+    assertActionSuccess(response("success", { form: { valid: true } }), "fileRollback"),
+    /fileRollback missing result/
+  )
+})
 
 test(
   "disposable file UI lifecycle preserves original files and pages",
@@ -765,7 +997,11 @@ test(
           fixture.username,
           (await readFile(adminPath, "utf8")).trim()
         )
-        await exercise(page, context.request, token, fixture, guard)
+        try {
+          await exercise(page, context.request, token, fixture, guard)
+        } finally {
+          console.info(`Blocked external reads: ${JSON.stringify(guard.externalReads)}`)
+        }
       } finally {
         await context.close()
       }
