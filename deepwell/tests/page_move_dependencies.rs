@@ -4,8 +4,9 @@
 mod common;
 
 use common::TestRunner;
-use deepwell::constants::{SAMPLE_USER_ID, SYSTEM_USER_ID};
-use deepwell::models::{page_connection, page_revision};
+use deepwell::constants::{ADMIN_USER_ID, SAMPLE_USER_ID, SYSTEM_USER_ID};
+use deepwell::error::ErrorType;
+use deepwell::models::{page_connection, page_draft, page_revision};
 use deepwell::services::PageLockService;
 use deepwell::services::RequestContext;
 use deepwell::services::page::{CreatePage, PageService};
@@ -170,12 +171,197 @@ async fn move_input(
     })
 }
 
+fn request_as(runner: &mut TestRunner, site_id: i64, page_id: i64) {
+    runner.set_request_context(RequestContext {
+        user_id: Some(SAMPLE_USER_ID),
+        site_id: Some(site_id),
+        page_reference: Some(Reference::Id(page_id)),
+        ..Default::default()
+    });
+}
+
+async fn assert_rejected_move_unchanged(
+    runner: &TestRunner,
+    site_id: i64,
+    target: i64,
+    dependent: i64,
+    slug: &str,
+    original: &str,
+    before_target: &deepwell::models::page::Model,
+    before_revisions: &[page_revision::Model],
+) {
+    let after = PageService::get(runner.context(), site_id, Reference::Id(target))
+        .await
+        .unwrap();
+    assert_eq!(after.slug, slug);
+    assert_eq!(after.latest_revision_id, before_target.latest_revision_id);
+    assert_eq!(revisions(runner, target).await, before_revisions);
+    assert_eq!(source(runner, site_id, dependent).await, original);
+    assert_eq!(revisions(runner, dependent).await.len(), 1);
+}
+
 async fn connections(runner: &TestRunner, source_id: i64) -> Vec<page_connection::Model> {
     page_connection::Entity::find()
         .filter(page_connection::Column::FromPageId.eq(source_id))
         .all(runner.context().transaction())
         .await
         .unwrap()
+}
+
+#[tokio::test]
+async fn body_target_cannot_borrow_edit_permission_from_header_page() {
+    let (mut runner, site_id, _) = fixture().await;
+    let target = import_page(&runner, site_id, "protected:target", "Target").await;
+    let dependent = import_page(
+        &runner,
+        site_id,
+        "editable:dependent",
+        "[[[protected:target]]]",
+    )
+    .await;
+    let before = PageService::get(runner.context(), site_id, Reference::Id(target))
+        .await
+        .unwrap();
+    let history = revisions(&runner, target).await;
+    let header = import_page(&runner, site_id, "editable:header", "Header").await;
+    request_as(&mut runner, site_id, header);
+
+    let error = run_endpoint_err!(
+        runner,
+        page_move,
+        move_input(&runner, site_id, target, &[dependent]).await
+    );
+    assert_contains_error!(error, ErrorType::PermissionDenied);
+    assert_rejected_move_unchanged(
+        &runner,
+        site_id,
+        target,
+        dependent,
+        "protected:target",
+        "[[[protected:target]]]",
+        &before,
+        &history,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn forged_actor_and_site_cannot_move_or_repair_dependencies() {
+    let (mut runner, site_id, target) = fixture().await;
+    let dependent =
+        import_page(&runner, site_id, "editable:dependent", "[[[old-page]]]").await;
+    let before = PageService::get(runner.context(), site_id, Reference::Id(target))
+        .await
+        .unwrap();
+    let history = revisions(&runner, target).await;
+
+    let mut forged_actor = move_input(&runner, site_id, target, &[dependent]).await;
+    forged_actor["user_id"] = json!(ADMIN_USER_ID);
+    let error = run_endpoint_err!(runner, page_move, forged_actor);
+    assert_contains_error!(error, ErrorType::PermissionDenied);
+    assert_rejected_move_unchanged(
+        &runner,
+        site_id,
+        target,
+        dependent,
+        "old-page",
+        "[[[old-page]]]",
+        &before,
+        &history,
+    )
+    .await;
+
+    request_as(&mut runner, site_id + 1, target);
+    let error = run_endpoint_err!(
+        runner,
+        page_move,
+        move_input(&runner, site_id, target, &[dependent]).await
+    );
+    assert_contains_error!(error, ErrorType::PermissionDenied);
+    assert_rejected_move_unchanged(
+        &runner,
+        site_id,
+        target,
+        dependent,
+        "old-page",
+        "[[[old-page]]]",
+        &before,
+        &history,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn destination_category_requires_edit_even_when_source_is_editable() {
+    let (runner, site_id, target) = fixture().await;
+    let dependent =
+        import_page(&runner, site_id, "editable:dependent", "[[[old-page]]]").await;
+    let before = PageService::get(runner.context(), site_id, Reference::Id(target))
+        .await
+        .unwrap();
+    let history = revisions(&runner, target).await;
+    let mut input = move_input(&runner, site_id, target, &[dependent]).await;
+    input["new_slug"] = json!("protected:destination");
+
+    let error = run_endpoint_err!(runner, page_move, input);
+    assert_contains_error!(error, ErrorType::PermissionDenied);
+    assert_rejected_move_unchanged(
+        &runner,
+        site_id,
+        target,
+        dependent,
+        "old-page",
+        "[[[old-page]]]",
+        &before,
+        &history,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn automatic_dependency_revision_preserves_existing_dependent_draft() {
+    let (mut runner, site_id, target) = fixture().await;
+    let dependent =
+        import_page(&runner, site_id, "editable:drafted", "[[[old-page]]]").await;
+    let revision = PageService::get(runner.context(), site_id, Reference::Id(dependent))
+        .await
+        .unwrap()
+        .latest_revision_id
+        .unwrap();
+    request_as(&mut runner, site_id, dependent);
+    run_endpoint!(
+        runner,
+        page_draft_save,
+        json!({
+            "title": "Unpublished draft", "wikitext": "Private edits to keep",
+            "last_revision_id": revision,
+        })
+    );
+    let draft = page_draft::Entity::find_by_id((site_id, "editable:drafted".to_owned()))
+        .one(runner.context().transaction())
+        .await
+        .unwrap()
+        .expect("draft saved on selected dependent");
+    request_as(&mut runner, site_id, target);
+
+    let output = serde_json::to_value(run_endpoint!(
+        runner,
+        page_move,
+        move_input(&runner, site_id, target, &[dependent]).await
+    ))
+    .unwrap();
+    assert_eq!(output["repaired_dependencies"], json!([dependent]));
+    assert_eq!(source(&runner, site_id, dependent).await, "[[[new-page]]]");
+    assert_eq!(revisions(&runner, dependent).await.len(), 2);
+    let preserved =
+        page_draft::Entity::find_by_id((site_id, "editable:drafted".to_owned()))
+            .one(runner.context().transaction())
+            .await
+            .unwrap();
+    assert_eq!(preserved.as_ref(), Some(&draft));
+    request_as(&mut runner, site_id, dependent);
+    let readable = run_endpoint!(runner, page_draft_get).draft.unwrap();
+    assert_eq!(readable.wikitext, "Private edits to keep");
 }
 
 #[tokio::test]
