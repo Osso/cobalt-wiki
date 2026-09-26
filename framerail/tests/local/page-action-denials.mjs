@@ -49,12 +49,47 @@ const allowedDenials = new Set([
   "fileMove"
 ])
 
+/** @typedef {{ action: string; payload: string }} ObserverAllowance */
+
+/**
+ * @param {import("@playwright/test").Request} request @param {URL} url
+ *   @param {Fixture} fixture
+ */
+function isObserverRead(request, url, fixture) {
+  const stylesheet =
+    url.origin === "https://d3g0gp89917ko0.cloudfront.net" &&
+    request.method() === "GET" &&
+    request.resourceType() === "stylesheet"
+  if (stylesheet) return true
+  if (url.origin !== origin) return false
+  if (["GET", "HEAD", "OPTIONS"].includes(request.method())) return true
+  if (request.method() !== "POST") return false
+  const path = `${url.pathname}${url.search}`
+  if (["/-/login", "/-/login?/login"].includes(path)) return true
+  return ["fileList", "fileHistory"].some(
+    (action) => path === `/${fixture.sourceSlug}?/${action}`
+  )
+}
+
+/**
+ * @param {import("@playwright/test").Request} request @param {URL} url
+ *   @param {Fixture} fixture @param {ObserverAllowance|null} permitted
+ */
+function matchesObserverWrite(request, url, fixture, permitted) {
+  if (!permitted) return false
+  const localPost = url.origin === origin && request.method() === "POST"
+  const sameAction =
+    `${url.pathname}${url.search}` === `/${fixture.sourceSlug}?/${permitted.action}`
+  const samePayload = request.postDataBuffer()?.toString() === permitted.payload
+  return localPost && sameAction && samePayload
+}
+
 /**
  * @param {import("@playwright/test").BrowserContext} context @param
  *   {Fixture} fixture
  */
 async function guardObserverWrites(context, fixture) {
-  /** @type {{ action: string; payload: string } | null} */
+  /** @type {ObserverAllowance | null} */
   let permitted = null
   /** @type {number | null} */
   let disposableFileId = null
@@ -63,29 +98,9 @@ async function guardObserverWrites(context, fixture) {
   await context.route("**/*", (route) => {
     const request = route.request()
     const url = new URL(request.url())
-    const stylesheet =
-      url.origin === "https://d3g0gp89917ko0.cloudfront.net" &&
-      request.method() === "GET" &&
-      request.resourceType() === "stylesheet"
-    if (stylesheet) return route.continue()
-    if (url.origin === origin && ["GET", "HEAD", "OPTIONS"].includes(request.method())) {
-      return route.continue()
-    }
+    if (isObserverRead(request, url, fixture)) return route.continue()
     const path = `${url.pathname}${url.search}`
-    const login = path === "/-/login" || path === "/-/login?/login"
-    const read = ["fileList", "fileHistory"].some(
-      (action) => path === `/${fixture.sourceSlug}?/${action}`
-    )
-    if (url.origin === origin && request.method() === "POST" && (login || read)) {
-      return route.continue()
-    }
-    if (
-      url.origin === origin &&
-      request.method() === "POST" &&
-      permitted &&
-      path === `/${fixture.sourceSlug}?/${permitted.action}` &&
-      request.postDataBuffer()?.toString() === permitted.payload
-    ) {
+    if (matchesObserverWrite(request, url, fixture, permitted)) {
       permitted = null
       return route.continue()
     }
@@ -329,6 +344,7 @@ async function recoverPage(admin, fixture, baseline, originalBlocked, action, cu
     return
   }
   if (action === "delete" && current.type === "missing") {
+    /** @type {{ page_id: number; slug: string }[]} */
     const deleted = await rpc(
       admin.context.request,
       admin.token,

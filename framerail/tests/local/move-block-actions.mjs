@@ -146,7 +146,7 @@ async function fixtureEdit(actor, slug, id, current, fields) {
 
 /**
  * @param {Actor} actor @param {Fixture} fixture @param {string} from
- *   @param {string} to
+ * @param {string} to
  */
 async function fixtureMove(actor, fixture, from, to) {
   assert.ok([fixture.sourceSlug, fixture.movedSlug].includes(from))
@@ -202,6 +202,54 @@ async function login(context, fixture, password) {
 }
 
 /**
+ * @typedef {{
+ *   slug: string
+ *   action: "move" | "blockSet"
+ *   blocked: boolean | null
+ * }} WriteAllowance
+ */
+
+/** @param {import("@playwright/test").Request} request @param {URL} url */
+function isRetainedStylesheet(request, url) {
+  return (
+    url.origin === "https://d3g0gp89917ko0.cloudfront.net" &&
+    request.method() === "GET" &&
+    request.resourceType() === "stylesheet"
+  )
+}
+
+/**
+ * @param {import("@playwright/test").Request} request @param {string} path
+ *   @param {Fixture} fixture
+ */
+function isLocalRead(request, path, fixture) {
+  if (["GET", "HEAD", "OPTIONS"].includes(request.method())) return true
+  if (request.method() !== "POST") return false
+  if (["/-/login", "/-/login?/login"].includes(path)) return true
+  return ["backlinks", "blockGet"].some(
+    (action) =>
+      path === `/${fixture.sourceSlug}?/${action}` ||
+      path === `/${fixture.movedSlug}?/${action}`
+  )
+}
+
+/**
+ * @param {import("@playwright/test").Request} request @param {Fixture}
+ *   fixture @param {WriteAllowance} allowed
+ */
+async function assertAllowedWrite(request, fixture, allowed) {
+  const { data: body } = await decodeMutation(request)
+  assert.equal(body.pageId, sourceId)
+  if (allowed.action === "move") {
+    assert.equal(body.siteId, siteId)
+    assert.equal(body.newSlug, fixture.movedSlug)
+    assert.deepEqual(body.fixDependencies, [destinationId])
+  } else {
+    assert.equal(body.blocked, allowed.blocked)
+  }
+}
+
+/**
  * @param {import("@playwright/test").BrowserContext} context
  * @param {Fixture} fixture
  */
@@ -210,54 +258,26 @@ async function guardBrowserWrites(context, fixture) {
   const blocked = []
   /** @type {string[]} */
   const writes = []
-  /**
-   * @type {{
-   *   slug: string
-   *   action: "move" | "blockSet"
-   *   blocked: boolean | null
-   * } | null}
-   */
+  /** @type {WriteAllowance | null} */
   let permitted = null
   await context.route("**/*", async (route) => {
     const request = route.request()
     const url = new URL(request.url())
-    const stylesheet =
-      url.origin === "https://d3g0gp89917ko0.cloudfront.net" &&
-      request.method() === "GET" &&
-      request.resourceType() === "stylesheet"
-    if (stylesheet) return route.continue()
+    if (isRetainedStylesheet(request, url)) return route.continue()
     if (url.origin !== origin) {
       if (!["GET", "HEAD"].includes(request.method()))
         blocked.push(`foreign ${request.method()} ${url.origin}`)
       return route.abort()
     }
-    if (["GET", "HEAD", "OPTIONS"].includes(request.method())) return route.continue()
     const path = `${url.pathname}${url.search}`
-    const loginPost =
-      request.method() === "POST" && ["/-/login", "/-/login?/login"].includes(path)
-    const readPost =
-      request.method() === "POST" &&
-      ["backlinks", "blockGet"].some(
-        (action) =>
-          path === `/${fixture.sourceSlug}?/${action}` ||
-          path === `/${fixture.movedSlug}?/${action}`
-      )
-    if (loginPost || readPost) return route.continue()
+    if (isLocalRead(request, path, fixture)) return route.continue()
     if (
       request.method() === "POST" &&
       permitted &&
       path === `/${permitted.slug}?/${permitted.action}`
     ) {
       try {
-        const { data: body } = await decodeMutation(request)
-        assert.equal(body.pageId, sourceId)
-        if (permitted.action === "move") {
-          assert.equal(body.siteId, siteId)
-          assert.equal(body.newSlug, fixture.movedSlug)
-          assert.deepEqual(body.fixDependencies, [destinationId])
-        } else {
-          assert.equal(body.blocked, permitted.blocked)
-        }
+        await assertAllowedWrite(request, fixture, permitted)
         writes.push(path)
         permitted = null
         return route.continue()
@@ -325,7 +345,7 @@ async function openOptions(page, slug) {
 
 /**
  * @param {Actor} actor @param {Fixture} fixture @param {WriteGuard} guard
- *   @param {Baseline} baseline
+ * @param {Baseline} baseline
  */
 async function proveMove(actor, fixture, guard, baseline) {
   const options = await openOptions(actor.page, fixture.sourceSlug)

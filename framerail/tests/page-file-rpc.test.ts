@@ -37,6 +37,18 @@ for (const selected of [[], [315, 317]]) {
   })
 }
 
+function rpcResponse(method: string, params: Record<string, unknown>, deny: boolean) {
+  if (method === "session_get") return { result: { user_id: 51 } }
+  if (method === "blob_upload") {
+    return {
+      result: { presign_url: "http://local.test/upload", pending_blob_id: "blob-1" }
+    }
+  }
+  if (deny) return { error: { code: 3106, message: "Permission denied" } }
+  if (params.ip_address) return { result: { file_id: 1474, file_revision_id: 903 } }
+  return { error: { code: -32602, message: "missing field `ip_address`" } }
+}
+
 async function withRpc(action: () => Promise<unknown>, deny = false) {
   const previousFetch = globalThis.fetch
   const calls: { method: string; params: Record<string, unknown>; headers: Headers }[] =
@@ -45,21 +57,7 @@ async function withRpc(action: () => Promise<unknown>, deny = false) {
     if (init?.method === "PUT") return new Response(null, { status: 200 })
     const request = JSON.parse(String(init?.body))
     calls.push({ ...request, headers: new Headers(init?.headers) })
-    const response =
-      request.method === "session_get"
-        ? { result: { user_id: 51 } }
-        : request.method === "blob_upload"
-          ? {
-              result: {
-                presign_url: "http://local.test/upload",
-                pending_blob_id: "blob-1"
-              }
-            }
-          : deny
-            ? { error: { code: 3106, message: "Permission denied" } }
-            : request.params.ip_address
-              ? { result: { file_id: 1474, file_revision_id: 903 } }
-              : { error: { code: -32602, message: "missing field `ip_address`" } }
+    const response = rpcResponse(request.method, request.params, deny)
     return new Response(JSON.stringify({ jsonrpc: "2.0", id: request.id, ...response }), {
       headers: { "content-type": "application/json" }
     })
