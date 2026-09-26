@@ -106,6 +106,13 @@ async function readFileBytes(request, token, slug, pageId, fileId) {
   return { file, bytes }
 }
 
+/** @param {unknown} error */
+function classifyDecodeError(error) {
+  if (error instanceof assert.AssertionError) return "AssertionError"
+  if (error instanceof SyntaxError) return "SyntaxError"
+  return "Error"
+}
+
 /** @param {MutationRequest} request */
 async function decodeMutation(request) {
   let stage = "body"
@@ -169,12 +176,7 @@ async function decodeMutation(request) {
     )
     return { data, file: form.get("__superform_file_file"), files }
   } catch (error) {
-    const errorType =
-      error instanceof assert.AssertionError
-        ? "AssertionError"
-        : error instanceof SyntaxError
-          ? "SyntaxError"
-          : "Error"
+    const errorType = classifyDecodeError(error)
     throw new Error(
       `mutation decode failed (${errorType}; stage=${stage}; contentType=${contentType}; fields=${JSON.stringify(fields)}; chunks=${chunkCount ?? "unknown"})`,
       { cause: error }
