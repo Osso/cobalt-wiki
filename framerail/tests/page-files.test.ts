@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import { after, test } from "node:test"
 import { createSsrServer } from "./ssr-server.ts"
+import type { PageFile } from "../src/lib/server/deepwell/pageFile"
 
 const { vite, close } = await createSsrServer()
 after(close)
@@ -11,9 +12,9 @@ const { render } = await vite.ssrLoadModule("svelte/server")
 const { setContext } = await vite.ssrLoadModule("svelte")
 const { readable } = await vite.ssrLoadModule("svelte/store")
 const { pageLayoutState } = await vite.ssrLoadModule("/src/lib/stores.svelte.ts")
-const { Layout } = await vite.ssrLoadModule("/src/lib/types.ts")
+const { Layout, FileRevisionType } = await vite.ssrLoadModule("/src/lib/types.ts")
 
-const files = [
+const files: PageFile[] = [
   {
     file_id: 12,
     file_created_at: "2024-03-01T12:30:00Z",
@@ -21,7 +22,7 @@ const files = [
     file_deleted_at: null,
     page_id: 42,
     revision_id: 72,
-    revision_type: "create",
+    revision_type: FileRevisionType.Create,
     revision_created_at: "2024-03-01T12:30:00Z",
     revision_number: 1,
     revision_user_id: 101,
@@ -31,7 +32,7 @@ const files = [
     size: 1025,
     s3_hash: "abc",
     revision_comments: "First report",
-    hidden_fields: new Array<string>()
+    hidden_fields: []
   },
   {
     file_id: 13,
@@ -40,7 +41,7 @@ const files = [
     file_deleted_at: null,
     page_id: 42,
     revision_id: 73,
-    revision_type: "regular",
+    revision_type: FileRevisionType.Regular,
     revision_created_at: "2024-03-02T11:00:00Z",
     revision_number: 2,
     revision_user_id: 102,
@@ -59,7 +60,7 @@ const files = [
     file_deleted_at: "2024-03-04T11:00:00Z",
     page_id: 42,
     revision_id: 74,
-    revision_type: "delete",
+    revision_type: FileRevisionType.Delete,
     revision_created_at: "2024-03-04T11:00:00Z",
     revision_number: 2,
     revision_user_id: 103,
