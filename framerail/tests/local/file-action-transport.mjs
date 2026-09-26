@@ -118,22 +118,26 @@ async function decodeMutation(request) {
     stage = "content-type"
     const headers = request.headers()
     const header = headers["content-type"]
-    const supportedType = ["application/json", "text/plain", "multipart/form-data"].find(
-      (type) => header?.startsWith(type)
-    )
+    const supportedType = [
+      "application/json",
+      "text/plain",
+      "multipart/form-data",
+      "application/x-www-form-urlencoded"
+    ].find((type) => header?.startsWith(type))
     contentType = supportedType ?? (header ? "other" : "missing")
     if (contentType === "application/json" || header === "text/plain;charset=UTF-8") {
       stage = "json"
       return { data: JSON.parse(bytes.toString()), file: null, files: [] }
     }
-    assert.equal(contentType, "multipart/form-data")
-    if (!request.url) assert.fail("multipart mutation URL required")
+    const isMultipart = contentType === "multipart/form-data"
+    assert.ok(isMultipart || contentType === "application/x-www-form-urlencoded")
+    if (!request.url) assert.fail("form mutation URL required")
     const body = new Request(request.url(), {
       method: "POST",
       headers,
       body: new Uint8Array(bytes)
     })
-    stage = "multipart-form"
+    stage = isMultipart ? "multipart-form" : "urlencoded-form"
     const form = await body.formData()
     const knownFields = new Set([
       "__superform_json",

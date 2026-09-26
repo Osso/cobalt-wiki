@@ -58,6 +58,62 @@ test("multipart edit authorizes devalue-encoded file identity", async () => {
   )
 })
 
+test("URL-encoded Superforms mutations require exact numeric identities", async () => {
+  const form = new URLSearchParams({
+    __superform_json: stringify({ siteId, pageId: 3000006134, fileId: 87 })
+  })
+  const body = new Request(origin, { method: "POST", body: form })
+  const bytes = Buffer.from(await body.arrayBuffer())
+  const request = {
+    url: () => origin,
+    headers: () => Object.fromEntries(body.headers),
+    postDataBuffer: () => bytes
+  }
+  assert.equal(
+    await mutationMatches(request, { fileId: 87, name: null }, 3000006134),
+    true
+  )
+  assert.equal(
+    await mutationMatches(request, { fileId: 78, name: null }, 3000006134),
+    false
+  )
+  assert.equal(
+    await mutationMatches(request, { fileId: 87, name: null }, 3000006135),
+    false
+  )
+  for (const identity of [
+    { siteId: String(siteId), pageId: 3000006134, fileId: 87 },
+    { siteId, pageId: "3000006134", fileId: 87 },
+    { siteId, pageId: 3000006134, fileId: "87" }
+  ]) {
+    form.set("__superform_json", stringify(identity))
+    const stringBody = new Request(origin, { method: "POST", body: form })
+    const stringBytes = Buffer.from(await stringBody.arrayBuffer())
+    assert.equal(
+      await mutationMatches(
+        { ...request, postDataBuffer: () => stringBytes },
+        { fileId: 87, name: null },
+        3000006134
+      ),
+      false
+    )
+  }
+})
+
+test("URL-encoded Superforms diagnostics classify missing payload safely", async () => {
+  const body = new Request(origin, { method: "POST", body: new URLSearchParams() })
+  const bytes = Buffer.from(await body.arrayBuffer())
+  const request = {
+    url: () => origin,
+    headers: () => Object.fromEntries(body.headers),
+    postDataBuffer: () => bytes
+  }
+  await assert.rejects(
+    mutationMatches(request, { fileId: 87, name: null }, 3000006134),
+    /stage=superform-json; contentType=application\/x-www-form-urlencoded; fields=\[\]; chunks=0/
+  )
+})
+
 test("JSON file mutations require exact file and page identity", async () => {
   const request = {
     headers: () => ({ "content-type": "application/json" }),
