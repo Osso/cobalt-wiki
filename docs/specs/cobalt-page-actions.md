@@ -9,7 +9,7 @@ Bottom-page controls follow supplied Tags/History screenshots and retained Wikid
 - [x] Render Edit, Tags, History, Files, Backlinks, Print, and More options.
 - [x] Omit Vote in the Wikidot layout; preserve voting and Tags controls in other layouts.
 - [x] Provide separate imported/local History datasets, seven filters, five page sizes, numbered pagination, source, read-only preview, and same-origin comparison.
-- [x] Open and close Source, Files, Parent, Move, Delete, Lock, and Layout panels in local browser passes without unapproved writes.
+- [x] Open and close Source (options and passive panels), Files, Parent, Move, Delete, Lock, and Layout panels in local browser passes without unapproved writes.
 - [x] Read Files, Parent, and Lock panel data without writes: `?/fileList`, `?/parentGet`, and `?/lockHistory` return `200`.
 - [x] Delete uses a native dialog rather than `window.confirm`, with explicit close callbacks; Cancel, Escape, and accepted confirmation are covered while the DELETE request is intercepted, and Move remains immediate.
 - [x] Show viewer-filtered Backlinks links and inclusions, including an empty inclusions result.
@@ -45,8 +45,9 @@ Bottom-page controls follow supplied Tags/History screenshots and retained Wikid
 
 ## Evidence
 
-- `/tmp/claude/cobalt-remaining-actions-parent-ready.log` — controlled delayed-GET local coverage; 1/1 pass for parent lookup, two-parent save/readback/restore, and all remaining Files, Backlinks, and Print panels.
+- `/tmp/claude/cobalt-remaining-actions-parent-ready.log` — controlled delayed-GET local coverage; 1/1 pass for Source options/passive panels, parent lookup, two-parent save/readback/restore, and all remaining Files, Backlinks, and Print panels.
 - `/tmp/claude/cobalt-delete-dialog-browser.log` — native Delete dialog Cancel/Escape/acceptance with the accepted DELETE intercepted; Move remains immediate; 1/1 pass at `931ca6f78`.
+- `/tmp/claude/cobalt-{delete-dialog,backlinks,print}-final.png` — local captures of the exercised Delete, Backlinks, and Print states; captures record presentation only, not mutation proof.
 - `/tmp/claude/cobalt-parent-loading-red.json` — reproduced pre-baseline editable-input race (`typedRetained: false`, `afterEmpty: true`); `71ce6afa2` disables editing until the baseline loads.
 - `/tmp/claude/cobalt-remaining-preservation.json` — preserved: 6,116 original pages, 45,369 imported records, 10,091 native-content rows, 32 grants, and zero drafts. Excludes only the sacrificial Tags/Parent fixture and native cache fields.
 - `/tmp/claude/cobalt-remaining-runtime.json` — running Deepwell SHA equals built `fc3e48773`.

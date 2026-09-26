@@ -28,12 +28,13 @@ The Wikidot-layout Files pane presents attached-file information using the exist
 
 ## Evidence
 
-- `/tmp/claude/cobalt-files-hidden-comment-green.log` — five SSR cases pass after a real RED case: totals, information, hidden-comment omission, encoded URLs, and alternate layout.
+- `/tmp/claude/cobalt-files-hidden-comment-green.log` — five SSR cases pass after a real RED case: totals, information, hidden-comment omission, encoded URLs, and alternate layout. The existing backend file-list payload is unchanged; omission is presentation-only, not an API-redaction claim.
+- `/tmp/claude/cobalt-file-info-final.png` — local captured file-information state; presentation evidence only.
 
 ## Known gaps (current cycle)
 
 - [ ] Upload, restore, and file-mutation authorization remain unproven.
-- [ ] Final frontend follow-up remains ongoing; the bounded preservation record excludes only the sacrificial Tags/Parent fixture and native cache fields.
+- [ ] The final frontend gate remains pending; no frontend PASS is claimed. The bounded preservation record excludes only the sacrificial Tags/Parent fixture and native cache fields.
 
 ## Out of scope
 

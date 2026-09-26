@@ -28,9 +28,15 @@ The Parent panel edits page breadcrumb relationships in `framerail/src/routes/[s
 - `framerail/tests/editor-lookup.test.ts` — trusted site/viewer request context and lookup failure.
 - `framerail/tests/local/remaining-actions.mjs` — controlled delayed-GET local lookup, two-parent save/readback, and restore.
 
+## Evidence
+
+- `/tmp/claude/cobalt-parent-loading-red.json` — pre-baseline editable-input race reproduced (`typedRetained: false`, `afterEmpty: true`); `71ce6afa2` disables editing until the baseline loads.
+- `/tmp/claude/cobalt-remaining-actions-parent-ready.log` — controlled delayed-GET local browser pass (1/1) for lookup, two-parent save/readback/restore, and fixture restoration.
+- `/tmp/claude/cobalt-parent-final.png` — local captured parent state; presentation evidence only.
+
 ## Known gaps (current cycle)
 
-- [ ] Clear-then-Save remains unproved as a separate mutation; two-parent save/readback/restore is proved. Authorization denial and final frontend follow-up remain pending. The bounded preservation record excludes only this sacrificial fixture, the Tags fixture, and native cache fields.
+- [ ] Clear-then-Save remains unproved as a separate mutation; two-parent save/readback/restore is proved. Authorization denial and the final frontend gate remain pending; no frontend PASS is claimed. The bounded preservation record excludes only this sacrificial fixture, the Tags fixture, and native cache fields.
 
 ## Out of scope
 
