@@ -177,6 +177,32 @@ test("validation errors and transport errors remain per-file; zero success does 
   assert.equal(refreshed, false)
 })
 
+test("empty transport errors and missing file receipts are not reported as uploads", async () => {
+  let calls = 0
+  let refreshed = false
+  const results = await uploadFiles({
+    files: files.slice(0, 2),
+    identity,
+    name: "",
+    comments: "",
+    url: "https://wiki.example/source:page?/fileUpload",
+    fetchUpload: async () => {
+      if (++calls === 1) throw new Error("")
+      return new Response(envelope("success", { res: {} }))
+    },
+    isActive: () => true,
+    onStatus: () => {},
+    onUploaded: async () => {
+      refreshed = true
+    }
+  })
+  assert.deepEqual(
+    results.map((row: { state: string }) => row.state),
+    ["failed", "failed"]
+  )
+  assert.equal(refreshed, false)
+})
+
 test("upload form retains Files layout hooks and multiple file selection", () => {
   const body = render(FileUploadForm, {
     props: {

@@ -56,6 +56,15 @@ function uploadError(data: unknown, status: number): string {
   return `Upload failed (status ${status})`
 }
 
+function hasFileReceipt(value: unknown): boolean {
+  if (!value || typeof value !== "object" || !("file_id" in value)) return false
+  return (
+    typeof value.file_id === "number" &&
+    Number.isSafeInteger(value.file_id) &&
+    value.file_id > 0
+  )
+}
+
 async function sendUpload(
   url: string,
   form: FormData,
@@ -67,8 +76,13 @@ async function sendUpload(
       { res: unknown },
       { message?: string; form?: { errors?: Record<string, unknown> } }
     >(await response.text())
-    if (result.type === "success" && result.data?.res) return undefined
-    return uploadError(result.data, result.status)
+    if (result.type === "success") {
+      return hasFileReceipt(result.data?.res)
+        ? undefined
+        : "Upload response did not identify a stored file."
+    }
+    if (result.type === "failure") return uploadError(result.data, result.status)
+    return uploadError(result.type === "error" ? result.error : null, result.status)
   } catch (error) {
     return error instanceof Error ? error.message : String(error)
   }
@@ -88,7 +102,7 @@ export async function uploadFiles(options: UploadOptions): Promise<UploadRow[]> 
     const error = await sendUpload(options.url, form, options.fetchUpload)
     rows = rows.map((row, current) =>
       current === index
-        ? error
+        ? error !== undefined
           ? { ...row, state: "failed", error }
           : { ...row, state: "uploaded" }
         : row

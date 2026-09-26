@@ -119,7 +119,7 @@
   {/if}
   <div class="file-form-field">
     <label for="file-upload-comments"
-      >{data.internationalization?.["wiki-page-revision-comments"] ?? "Comments"}</label
+      >{data.internationalization?.["wiki-page-revision-comments"]}</label
     >
     <textarea
       id="file-upload-comments"
