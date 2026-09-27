@@ -124,8 +124,8 @@ test("Wikidot Files shows total bytes of listed nondeleted files only", () => {
   )
 })
 
-test("Files sort filenames before limiting to 20 rows without losing totals or deleted files", () => {
-  const manyFiles = Array.from({ length: 42 }, (_, index) => ({
+test("Files sort filenames before limiting to 40 rows without losing totals or deleted files", () => {
+  const manyFiles = Array.from({ length: 82 }, (_, index) => ({
     ...files[0],
     file_id: index + 100,
     name: `file-${String(index + 1).padStart(2, "0")}.txt`,
@@ -141,12 +141,12 @@ test("Files sort filenames before limiting to 20 rows without losing totals or d
   assert.deepEqual(
     names,
     Array.from(
-      { length: 20 },
+      { length: 40 },
       (_, index) => `file-${String(index + 1).padStart(2, "0")}.txt`
     )
   )
-  assert.match(body, /Total files size:\s*410 Bytes/)
-  assert.match(body, /41\s*files/)
+  assert.match(body, /Total files size:\s*810 Bytes/)
+  assert.match(body, /81\s*files/)
   assert.match(body, /class="file-row[^"]* is-deleted"/)
   assert.match(body, /aria-label="Files pages"/)
   assert.match(body, /aria-current="page"/)
@@ -184,7 +184,7 @@ test("Files keeps page controls bounded for long lists", () => {
   }))
   const body = renderFiles(Layout.WIKIDOT, manyFiles)
   assert.ok((body.match(/aria-label="Page \d+"/g) ?? []).length <= 7)
-  assert.match(body, /aria-label="Page 11"/)
+  assert.match(body, /aria-label="Page 6"/)
 })
 
 test("Wikidot Files supplies read-only information for an active file", () => {

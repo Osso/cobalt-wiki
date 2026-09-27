@@ -11,7 +11,7 @@ The Wikidot-layout Files pane presents attached-file information using the exist
 - [x] Use absolute same-origin file URLs through the existing `/-/file` permission boundary; encode filename spaces and fragment markers.
 - [x] Keep deleted-file restore actions and non-Wikidot presentation unchanged.
 - [x] Sort Files rows alphabetically by filename before selecting visible rows.
-- [x] Show 20 Files rows per client-side page with ListPages-style pagination controls.
+- [x] Show 40 Files rows per client-side page with ListPages-style pagination controls.
 - [x] Preserve full-list totals and uploader checks; pagination does not remove deleted-file restore entries.
 - [x] After refresh, render a valid Files page when the prior client-side page is no longer available.
 - [x] Dispatch file revision rollback from the page route to the existing RPC, preserving the request IP and accepting its revised file response.
@@ -40,8 +40,8 @@ The Wikidot-layout Files pane presents attached-file information using the exist
 
 ## Tests asserting this spec
 
-- `framerail/tests/page-files.test.ts` — nine SSR cases for existing totals and readable sizes, information/hidden comments/encoded URLs, alternate layout, and sorting/pagination: 20 visible alphabetical rows, full-list totals with retained deleted rows, case-insensitive ordering with file-ID ties, and bounded controls.
-- `framerail/tests/local/file-pagination.mjs` — local browser coverage for 42 mock file-list entries: alphabetical first/second/third pages, ListPages-style navigation without URL changes, retained deleted row and all-file total, and clamping to a valid first page after the refreshed list shrinks to five entries.
+- `framerail/tests/page-files.test.ts` — nine SSR cases for existing totals and readable sizes, information/hidden comments/encoded URLs, alternate layout, and sorting/pagination: 40 visible alphabetical rows, full-list totals with retained deleted rows, case-insensitive ordering with file-ID ties, and bounded controls.
+- `framerail/tests/local/file-pagination.mjs` — local browser coverage for 82 mock file-list entries: alphabetical 40-row first and second pages plus a two-row third page, ListPages-style navigation without URL changes, retained deleted row and all-file total, and clamping to a valid first page after the refreshed list shrinks to five entries.
 - `framerail/tests/page-file-rpc.test.ts` — rollback route dispatch, request-IP serialization, revised-response acceptance, and empty omitted-comment wire contract.
 - `framerail/tests/local/remaining-actions.mjs` — local browser information, total, and close coverage.
 - `framerail/tests/local/file-action-mutations.mjs` — disposable browser file-mutation lifecycle; main GREEN 1/1 covers upload, rename, byte replacement, history read, rollback, move, delete, restore, final deletion, and original-fixture preservation.
@@ -52,8 +52,8 @@ The Wikidot-layout Files pane presents attached-file information using the exist
 
 ## Evidence
 
-- September 27, 2026, `20aa346ad`: scoped ESLint and Prettier pass; targeted Files SSR/browser tests pass 10/10 (`/tmp/cobalt-files-final-proof-static-and-tests.log`). Test startup still reports missing `pnpm` and existing route-prefix diagnostics; these are not clean startup output. Readability evidence: `/tmp/cobalt-files-final-proof-readability.log`.
-- Local read-only Icons smoke at `20aa346ad` uses actual file-list responses: 468 files across 24 pages, 20 first/next rows and eight last-page rows, alphabetical cross-page order, exact return to page one, unchanged URL and 11,605,456-byte total. Evidence: `/tmp/cobalt-files-real-smoke.log`, screenshot `/tmp/cobalt-files-real-last.png`. Production rollout is not covered.
+- **Historical — September 27, 2026, `20aa346ad`:** scoped ESLint and Prettier pass; targeted Files SSR/browser tests pass 10/10 (`/tmp/cobalt-files-final-proof-static-and-tests.log`). Test startup still reports missing `pnpm` and existing route-prefix diagnostics; these are not clean startup output. Readability evidence: `/tmp/cobalt-files-final-proof-readability.log`.
+- **Historical — local read-only Icons smoke at `20aa346ad`:** actual file-list responses: 468 files across 24 pages, 20 first/next rows and eight last-page rows, alphabetical cross-page order, exact return to page one, unchanged URL and 11,605,456-byte total. Evidence: `/tmp/cobalt-files-real-smoke.log`, screenshot `/tmp/cobalt-files-real-last.png`. Production rollout is not covered.
 
 - `/tmp/claude/cobalt-files-hidden-comment-green.log` — five SSR cases pass after a real RED case: totals, information, hidden-comment omission, encoded URLs, and alternate layout. The existing backend file-list payload is unchanged; omission is presentation-only, not an API-redaction claim.
 - `/tmp/claude/cobalt-file-info-final.png` — local captured file-information state; presentation evidence only.

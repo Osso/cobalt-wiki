@@ -7,7 +7,7 @@ const { stringify } = await import(
 
 const origin = "http://127.0.0.1:3090"
 const slug = "icons"
-const files = Array.from({ length: 42 }, (_, index) => ({
+const files = Array.from({ length: 82 }, (_, index) => ({
   file_id: 100 + index,
   file_created_at: "2024-03-01T12:30:00Z",
   file_updated_at: null,
@@ -65,35 +65,35 @@ test("Files paginate alphabetically without URL navigation and clamp after refre
     await expect(pane).toBeVisible()
     const names = pane.locator(".file-row .name a")
     const pager = pane.getByRole("navigation", { name: "Files pages" })
-    await expect(names).toHaveCount(20)
+    await expect(names).toHaveCount(40)
     assert.deepEqual(
       await names.allTextContents(),
-      files.slice(0, 20).map((file) => file.name)
+      files.slice(0, 40).map((file) => file.name)
     )
     await expect(pane.locator(".file-row.is-deleted")).toHaveCount(1)
-    await expect(pane).toContainText("410 Bytes")
+    await expect(pane).toContainText("810 Bytes")
     await pager.getByRole("button", { name: "Page 3" }).click()
     await expect(names).toHaveCount(2)
     assert.deepEqual(
       await names.allTextContents(),
-      files.slice(40).map((file) => file.name)
+      files.slice(80).map((file) => file.name)
     )
     assert.equal(page.url(), `${origin}/${slug}`)
     await pager.getByRole("button", { name: "Previous page" }).click()
-    await expect(names).toHaveCount(20)
+    await expect(names).toHaveCount(40)
     assert.deepEqual(
       await names.allTextContents(),
-      files.slice(20, 40).map((file) => file.name)
+      files.slice(40, 80).map((file) => file.name)
     )
     await pager.getByRole("button", { name: "Page 1" }).click()
     assert.deepEqual(
       await names.allTextContents(),
-      files.slice(0, 20).map((file) => file.name)
+      files.slice(0, 40).map((file) => file.name)
     )
     await pager.getByRole("button", { name: "Next page" }).click()
     assert.deepEqual(
       await names.allTextContents(),
-      files.slice(20, 40).map((file) => file.name)
+      files.slice(40, 80).map((file) => file.name)
     )
     await pager.getByRole("button", { name: "Next page" }).click()
     await expect(names).toHaveCount(2)

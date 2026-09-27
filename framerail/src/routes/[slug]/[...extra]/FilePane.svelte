@@ -27,7 +27,7 @@
     [...fileMap.values()].filter((file) => file.revision_type !== "delete")
   )
   let totalFileSize = $derived(listedFiles.reduce((total, file) => total + file.size, 0))
-  const rowsPerPage = 20
+  const rowsPerPage = 40
   let currentPage = $state(1)
   let sortedFiles = $derived(
     [...fileMap.values()].sort(
