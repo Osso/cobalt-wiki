@@ -162,7 +162,8 @@ async fn delayed_deepwell_still_times_out_when_backend_stalls() {
     ));
 }
 
-async fn replacement_sources() -> (String, String, Arc<std::sync::atomic::AtomicBool>) {
+async fn start_replacement_sources()
+-> (String, String, Arc<std::sync::atomic::AtomicBool>) {
     use std::sync::atomic::{AtomicBool, Ordering};
 
     let replaced = Arc::new(AtomicBool::new(false));
@@ -201,13 +202,16 @@ async fn replacement_sources() -> (String, String, Arc<std::sync::atomic::Atomic
             },
         ),
     );
-    let mut addresses = Vec::new();
-    for app in [rpc, storage] {
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        addresses.push(format!("http://{}", listener.local_addr().unwrap()));
-        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
-    }
-    (addresses.remove(0), addresses.remove(0), replaced)
+    let rpc_url = start_http_fixture(rpc).await;
+    let storage_url = start_http_fixture(storage).await;
+    (rpc_url, storage_url, replaced)
+}
+
+async fn start_http_fixture(app: Router) -> String {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    url
 }
 
 #[tokio::test]
@@ -215,7 +219,7 @@ async fn replacement_sources() -> (String, String, Arc<std::sync::atomic::Atomic
 async fn same_filename_replacement_serves_current_bytes_after_cache_warmup() {
     use std::sync::atomic::Ordering;
 
-    let (rpc, storage, replaced) = replacement_sources().await;
+    let (rpc, storage, replaced) = start_replacement_sources().await;
     let router = router_with_sources(rpc, storage).await;
     let site_id = unique_site_id();
     let path = "/-/file/writing:2021-10-21-to-paint-a-picture:the-game/chessset.jpg";
