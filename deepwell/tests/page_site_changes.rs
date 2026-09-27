@@ -307,12 +307,12 @@ async fn site_changes_filter_flags_categories_and_page_sizes_with_preserved_page
         let page = view(&runner, site_id, &format!("p/1/perpage/{size}")).await;
         let html = Html::parse_fragment(&page);
         assert_eq!(change_rows(&html).len(), count, "size {size}: {page}");
-        let selected = html
-            .select(&Selector::parse("#rev-perpage option:checked").unwrap())
-            .next()
-            .unwrap();
+        let selected: Vec<_> = html
+            .select(&Selector::parse("#rev-perpage option[selected]").unwrap())
+            .collect();
+        assert_eq!(selected.len(), 1);
         assert_eq!(
-            selected.value().attr("value"),
+            selected[0].value().attr("value"),
             Some(size.to_string().as_str())
         );
     }
