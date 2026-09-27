@@ -10,6 +10,10 @@ The Wikidot-layout Files pane presents attached-file information using the exist
 - [x] Label `file_created_at` “Local file created”; it is not the original upload timestamp.
 - [x] Use absolute same-origin file URLs through the existing `/-/file` permission boundary; encode filename spaces and fragment markers.
 - [x] Keep deleted-file restore actions and non-Wikidot presentation unchanged.
+- [ ] Sort Files rows alphabetically by filename before selecting visible rows.
+- [ ] Show 20 Files rows per client-side page with ListPages-style pagination controls.
+- [ ] Preserve full-list totals and uploader checks; pagination must not remove deleted-file restore entries.
+- [ ] After refresh, render a valid Files page when the prior client-side page is no longer available.
 - [x] Dispatch file revision rollback from the page route to the existing RPC, preserving the request IP and accepting its revised file response.
 - [x] Serialize an omitted rollback comment as an empty string for the RPC wire contract.
 - [x] Complete the disposable Files lifecycle: upload, rename, byte replacement, revision-history read, rollback, move, delete, restore, and final deletion. The run preserves original fixture files and pages.
