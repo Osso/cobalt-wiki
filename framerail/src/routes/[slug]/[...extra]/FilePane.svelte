@@ -27,6 +27,27 @@
     [...fileMap.values()].filter((file) => file.revision_type !== "delete")
   )
   let totalFileSize = $derived(listedFiles.reduce((total, file) => total + file.size, 0))
+  const rowsPerPage = 20
+  let currentPage = $state(1)
+  let sortedFiles = $derived(
+    [...fileMap.values()].sort(
+      (a, b) =>
+        a.name.toLowerCase().localeCompare(b.name.toLowerCase()) ||
+        a.name.localeCompare(b.name) ||
+        a.file_id - b.file_id
+    )
+  )
+  let pageCount = $derived(Math.ceil(sortedFiles.length / rowsPerPage))
+  let visiblePage = $derived(Math.min(currentPage, Math.max(1, pageCount)))
+  let pageNumbers = $derived(
+    Array.from({ length: pageCount }, (_, index) => index + 1).filter(
+      (number) =>
+        number === 1 || number === pageCount || Math.abs(number - visiblePage) <= 2
+    )
+  )
+  let visibleFiles = $derived(
+    sortedFiles.slice((visiblePage - 1) * rowsPerPage, visiblePage * rowsPerPage)
+  )
   let fileEditId = $state<number>(0)
   let fileRevisionMap = new SvelteMap<number, FileRevisionModel>()
 
@@ -65,6 +86,10 @@
       result.data.res.forEach((file: PageFile) => {
         fileMap.set(file.file_id, file)
       })
+      currentPage = Math.min(
+        currentPage,
+        Math.max(1, Math.ceil(fileMap.size / rowsPerPage))
+      )
     }
   }
 
@@ -343,7 +368,8 @@
         </div>
         <div class="file-attribute action"></div>
       </div>
-      {#each [...fileMap].sort((a, b) => b[0] - a[0]) as [id, file] (id)}
+      {#each visibleFiles as file (file.file_id)}
+        {@const id = file.file_id}
         {@const fileUrl = new URL(
           `/-/file/${data.page?.slug}/${encodeURIComponent(file.name)}`,
           page.url
@@ -524,6 +550,35 @@
           </div>
         </div>
       {/each}
+      {#if pageCount > 1}
+        <nav class="pager file-pager" aria-label="Files pages">
+          <span class="pager-no">page {visiblePage} of {pageCount}</span>
+          <button
+            type="button"
+            disabled={visiblePage === 1}
+            aria-label="Previous page"
+            onclick={() => (currentPage = visiblePage - 1)}>« previous</button
+          >
+          {#each pageNumbers as number, index}
+            {#if index > 0 && number > pageNumbers[index - 1] + 1}
+              <span aria-hidden="true">…</span>
+            {/if}
+            <button
+              type="button"
+              class:current={number === visiblePage}
+              aria-label={`Page ${number}`}
+              aria-current={number === visiblePage ? "page" : undefined}
+              onclick={() => (currentPage = number)}>{number}</button
+            >
+          {/each}
+          <button
+            type="button"
+            disabled={visiblePage === pageCount}
+            aria-label="Next page"
+            onclick={() => (currentPage = visiblePage + 1)}>next »</button
+          >
+        </nav>
+      {/if}
       {#if pageLayoutState.current === Layout.WIKIDOT && listedFiles.length > 0}
         <div class="file-list-footer">
           <span class="file-count">
@@ -1056,6 +1111,52 @@
     &:hover,
     &:focus-visible {
       background: color-mix(in srgb, var(--files-danger) 10%, transparent);
+    }
+  }
+
+  .file-pager {
+    display: flex;
+    flex-wrap: wrap;
+    grid-column: 1 / -1;
+    gap: 4px;
+    align-items: center;
+    padding: 8px 14px;
+    border-top: 1px solid var(--files-line);
+
+    .pager-no {
+      margin-right: 8px;
+      color: var(--files-muted);
+    }
+
+    button {
+      min-width: 44px;
+      min-height: 44px;
+      padding: 4px 8px;
+      color: var(--files-accent);
+      cursor: pointer;
+      background: transparent;
+      border: 0;
+      border-radius: var(--files-radius);
+
+      &:hover:not(:disabled),
+      &:focus-visible {
+        background: var(--files-tint);
+      }
+
+      &:focus-visible {
+        outline: 2px solid var(--files-accent);
+      }
+
+      &.current {
+        font-weight: 700;
+        color: var(--files-muted);
+        cursor: default;
+      }
+
+      &:disabled {
+        color: var(--files-muted);
+        cursor: default;
+      }
     }
   }
 

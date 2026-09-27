@@ -124,6 +124,69 @@ test("Wikidot Files shows total bytes of listed nondeleted files only", () => {
   )
 })
 
+test("Files sort filenames before limiting to 20 rows without losing totals or deleted files", () => {
+  const manyFiles = Array.from({ length: 42 }, (_, index) => ({
+    ...files[0],
+    file_id: index + 100,
+    name: `file-${String(index + 1).padStart(2, "0")}.txt`,
+    size: 10,
+    revision_type: index === 1 ? FileRevisionType.Delete : FileRevisionType.Create
+  }))
+  const body = renderFiles(Layout.WIKIDOT, manyFiles)
+  const names = [
+    ...body.matchAll(
+      /class="file-row[^\"]*"[^>]*>[\s\S]*?<a href="[^\"]+" rel="external"[^>]*>\s*([^<]+)\s*<\/a>/g
+    )
+  ].map((match) => match[1].trim())
+  assert.deepEqual(
+    names,
+    Array.from(
+      { length: 20 },
+      (_, index) => `file-${String(index + 1).padStart(2, "0")}.txt`
+    )
+  )
+  assert.match(body, /Total files size:\s*410 Bytes/)
+  assert.match(body, /41\s*files/)
+  assert.match(body, /class="file-row[^"]* is-deleted"/)
+  assert.match(body, /aria-label="Files pages"/)
+  assert.match(body, /aria-current="page"/)
+  assert.match(body, /aria-label="Page 3"/)
+})
+
+test("Files sort case-insensitively and break identical-name ties by file ID", () => {
+  const body = renderFiles(Layout.WIKIDOT, [
+    { ...files[0], file_id: 9, name: "alpha.txt" },
+    { ...files[0], file_id: 12, name: "ZETA.txt" },
+    { ...files[0], file_id: 5, name: "alpha.txt" },
+    { ...files[0], file_id: 8, name: "Beta.txt" }
+  ])
+  const rows = [
+    ...body.matchAll(
+      /class="file-row[^\"]*" data-id="(\d+)"[^>]*>[\s\S]*?<a href="[^\"]+" rel="external"[^>]*>\s*([^<]+)\s*<\/a>/g
+    )
+  ]
+  assert.deepEqual(
+    rows.map((match) => [Number(match[1]), match[2].trim()]),
+    [
+      [5, "alpha.txt"],
+      [9, "alpha.txt"],
+      [8, "Beta.txt"],
+      [12, "ZETA.txt"]
+    ]
+  )
+})
+
+test("Files keeps page controls bounded for long lists", () => {
+  const manyFiles = Array.from({ length: 201 }, (_, index) => ({
+    ...files[0],
+    file_id: index + 100,
+    name: `file-${index}.txt`
+  }))
+  const body = renderFiles(Layout.WIKIDOT, manyFiles)
+  assert.ok((body.match(/aria-label="Page \d+"/g) ?? []).length <= 7)
+  assert.match(body, /aria-label="Page 11"/)
+})
+
 test("Wikidot Files supplies read-only information for an active file", () => {
   const body = renderFiles(Layout.WIKIDOT)
   assert.match(body, /<details[^>]*>[\s\S]*?<summary[^>]*>info<\/summary>/)
