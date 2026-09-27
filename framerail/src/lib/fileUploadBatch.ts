@@ -2,11 +2,16 @@ import { deserialize } from "$app/forms"
 
 export type UploadRow = {
   file: File
-  state: "queued" | "uploading" | "uploaded" | "failed"
+  /** The name the file is stored under on the page. */
+  name: string
+  state: "queued" | "uploading" | "uploaded" | "failed" | "replacing" | "replaced"
   error?: string
 }
 
 type Identity = { siteId: number; pageId: number; lastRevisionId: number }
+
+/** A file already on the page, as listed in the Files pane. */
+export type ExistingFile = { file_id: number; revision_id: number; name: string }
 
 type UploadOptions = {
   files: File[]
@@ -32,6 +37,28 @@ export function buildUploadFormData(
   form.set("lastRevisionId", String(identity.lastRevisionId))
   form.set("file", file)
   form.set("name", name)
+  form.set("comments", comments)
+  return form
+}
+
+/**
+ * Replaces an existing file's bytes under its current name.
+ * `lastRevisionId` is the file's revision, which the edit action checks
+ * for conflicts.
+ */
+export function buildReplaceFormData(
+  file: File,
+  identity: Identity,
+  existing: ExistingFile,
+  comments: string
+): FormData {
+  const form = new FormData()
+  form.set("siteId", String(identity.siteId))
+  form.set("pageId", String(identity.pageId))
+  form.set("lastRevisionId", String(existing.revision_id))
+  form.set("fileId", String(existing.file_id))
+  form.set("file", file)
+  form.set("name", existing.name)
   form.set("comments", comments)
   return form
 }
@@ -65,10 +92,22 @@ function hasFileReceipt(value: unknown): boolean {
   )
 }
 
+// An edit returns the new revision, or null when the bytes were already identical.
+function hasRevisionReceipt(value: unknown): boolean {
+  if (value === null) return true
+  if (!value || typeof value !== "object" || !("file_revision_id" in value)) return false
+  return (
+    typeof value.file_revision_id === "number" &&
+    Number.isSafeInteger(value.file_revision_id) &&
+    value.file_revision_id > 0
+  )
+}
+
 async function sendUpload(
   url: string,
   form: FormData,
-  fetchUpload: UploadOptions["fetchUpload"]
+  fetchUpload: UploadOptions["fetchUpload"],
+  hasReceipt: (value: unknown) => boolean = hasFileReceipt
 ) {
   try {
     const response = await fetchUpload(url, { method: "POST", body: form })
@@ -77,7 +116,7 @@ async function sendUpload(
       { message?: string; form?: { errors?: Record<string, unknown> } }
     >(await response.text())
     if (result.type === "success") {
-      return hasFileReceipt(result.data?.res)
+      return hasReceipt(result.data?.res)
         ? undefined
         : "Upload response did not identify a stored file."
     }
@@ -97,13 +136,18 @@ function updateUploadRow(
 }
 
 export async function uploadFiles(options: UploadOptions): Promise<UploadRow[]> {
-  let rows: UploadRow[] = options.files.map((file) => ({ file, state: "queued" }))
+  const single = options.files.length === 1
+  let rows: UploadRow[] = options.files.map((file) => ({
+    file,
+    name: (single && options.name) || file.name,
+    state: "queued"
+  }))
   options.onStatus(rows)
   for (const [index, file] of options.files.entries()) {
     if (!options.isActive()) break
     rows = updateUploadRow(rows, index, { state: "uploading" })
     options.onStatus(rows)
-    const name = options.files.length === 1 ? options.name : file.name
+    const name = single ? options.name : file.name
     const form = buildUploadFormData(file, options.identity, name, options.comments)
     const error = await sendUpload(options.url, form, options.fetchUpload)
     const outcome: Pick<UploadRow, "state" | "error"> =
@@ -113,4 +157,31 @@ export async function uploadFiles(options: UploadOptions): Promise<UploadRow[]> 
   }
   if (rows.some((row) => row.state === "uploaded")) await options.onUploaded()
   return rows
+}
+
+/**
+ * Replaces an existing page file with an upload that collided with its
+ * name.
+ */
+export async function replaceFile(options: {
+  file: File
+  existing: ExistingFile
+  identity: Identity
+  comments: string
+  url: string
+  fetchUpload: UploadOptions["fetchUpload"]
+}): Promise<Pick<UploadRow, "state" | "error">> {
+  const form = buildReplaceFormData(
+    options.file,
+    options.identity,
+    options.existing,
+    options.comments
+  )
+  const error = await sendUpload(
+    options.url,
+    form,
+    options.fetchUpload,
+    hasRevisionReceipt
+  )
+  return error === undefined ? { state: "replaced" } : { state: "failed", error }
 }

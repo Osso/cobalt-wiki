@@ -18,9 +18,8 @@ const kitAppPath = realpathSync(
 )
 const { set_app } = await vite.ssrLoadModule(kitAppPath)
 set_app({ decoders: {} })
-const { uploadFiles, buildUploadFormData } = await vite.ssrLoadModule(
-  "/src/lib/fileUploadBatch.ts"
-)
+const { uploadFiles, buildUploadFormData, buildReplaceFormData, replaceFile } =
+  await vite.ssrLoadModule("/src/lib/fileUploadBatch.ts")
 const { default: FileUploadForm } = await vite.ssrLoadModule(
   "/src/routes/[slug]/[...extra]/FileUploadForm.svelte"
 )
@@ -240,4 +239,87 @@ test("upload form retains Files layout hooks and multiple file selection", () =>
   assert.match(body, /name="file"[^>]*multiple|multiple[^>]*name="file"/)
   assert.match(body, /name="name"/)
   assert.match(body, /name="comments"/)
+})
+
+const existing = { file_id: 1498, revision_id: 7741, name: "notes.txt" }
+
+test("replacing a collision edits the existing file with its revision, name and new bytes", async () => {
+  const upload = new File(["new notes"], "notes.txt", { type: "text/plain" })
+  const form = buildReplaceFormData(upload, identity, existing, "Updated notes")
+  assert.deepEqual(
+    [...form.keys()],
+    ["siteId", "pageId", "lastRevisionId", "fileId", "file", "name", "comments"]
+  )
+  assert.equal(form.get("siteId"), "6000000")
+  assert.equal(form.get("pageId"), "314")
+  assert.equal(form.get("lastRevisionId"), "7741")
+  assert.equal(form.get("fileId"), "1498")
+  assert.equal(form.get("name"), "notes.txt")
+  assert.equal(form.get("comments"), "Updated notes")
+  const sent = form.get("file")
+  assert.ok(sent instanceof File)
+  assert.equal(await sent.text(), "new notes")
+})
+
+test("replace succeeds on a new revision or identical bytes and fails without a receipt", async () => {
+  const outcome = async (body: string) => {
+    const calls: string[] = []
+    const result = await replaceFile({
+      file: files[0],
+      existing,
+      identity,
+      comments: "",
+      url: "https://wiki.example/source:page?/fileEdit",
+      fetchUpload: async (url: string) => {
+        calls.push(url)
+        return new Response(body)
+      }
+    })
+    assert.deepEqual(calls, ["https://wiki.example/source:page?/fileEdit"])
+    return result
+  }
+  assert.deepEqual(
+    await outcome(
+      envelope("success", { res: { file_revision_id: 9, file_revision_number: 2 } })
+    ),
+    { state: "replaced" }
+  )
+  assert.deepEqual(await outcome(envelope("success", { res: null })), {
+    state: "replaced"
+  })
+  assert.equal((await outcome(envelope("success", { res: {} }))).state, "failed")
+  assert.deepEqual(
+    await outcome(envelope("failure", { message: "File was changed by someone else" })),
+    { state: "failed", error: "File was changed by someone else" }
+  )
+})
+
+test("batch rows record the stored name used to find a colliding file", async () => {
+  const [single] = await uploadFiles({
+    files: files.slice(0, 1),
+    identity,
+    name: "Renamed.txt",
+    comments: "",
+    url: "https://wiki.example/source:page?/fileUpload",
+    fetchUpload: async () => new Response(envelope("failure", { message: "exists" })),
+    isActive: () => true,
+    onStatus: () => {},
+    onUploaded: async () => {}
+  })
+  assert.equal(single.name, "Renamed.txt")
+  const batch = await uploadFiles({
+    files: files.slice(0, 2),
+    identity,
+    name: "Ignored for batch",
+    comments: "",
+    url: "https://wiki.example/source:page?/fileUpload",
+    fetchUpload: async () => new Response(envelope("failure", { message: "exists" })),
+    isActive: () => true,
+    onStatus: () => {},
+    onUploaded: async () => {}
+  })
+  assert.deepEqual(
+    batch.map((row: { name: string }) => row.name),
+    ["one.txt", "two.txt"]
+  )
 })

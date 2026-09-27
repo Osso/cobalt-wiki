@@ -545,6 +545,7 @@
   {#if activeFileAction === "upload"}
     <FileUploadForm
       {data}
+      existingFiles={listedFiles}
       onClose={() => (activeFileAction = null)}
       onUploaded={() => getFileList()}
     />

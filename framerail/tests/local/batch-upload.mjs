@@ -404,43 +404,163 @@ async function exercise(page, request, token, fixture) {
   if (failure) throw failure
 }
 
+/**
+ * Allows reads plus upload and edit POSTs to the sacrificial page; records
+ * the write actions and blocks anything else.
+ *
+ * @param {BrowserContext} context @param {Fixture} fixture
+ */
+async function guardReplaceWrites(context, fixture) {
+  /** @type {string[]} */
+  const writes = []
+  /** @type {string[]} */
+  const blocked = []
+  const allowed = [
+    `/${fixture.sourceSlug}?/fileUpload`,
+    `/${fixture.sourceSlug}?/fileEdit`
+  ]
+  await context.route("**/*", async (route) => {
+    const request = route.request()
+    const url = new URL(request.url())
+    if (isAllowedRead(request, url, fixture)) return route.continue()
+    const path = `${url.pathname}${url.search}`
+    if (url.origin === origin && request.method() === "POST" && allowed.includes(path)) {
+      writes.push(url.search)
+      return route.continue()
+    }
+    blocked.push(`${request.method()} ${path}`)
+    await route.abort()
+  })
+  return { writes, blocked }
+}
+
+/** @param {import("@playwright/test").Locator} pane @param {Upload} upload */
+async function uploadOne(pane, upload) {
+  await pane.locator(".upload-file, .buttons input[value='Upload']").click()
+  const form = pane.locator("#file-upload")
+  await form.locator('[name="file"]').setInputFiles({
+    name: upload.name,
+    mimeType: "text/plain",
+    buffer: upload.bytes
+  })
+  await form.locator('[type="submit"]').click()
+  return form
+}
+
+/**
+ * @param {Page} page @param {APIRequestContext} request @param {string}
+ *   token
+ * @param {Fixture} fixture
+ */
+async function exerciseReplace(page, request, token, fixture) {
+  const active = await listFiles(request, token, fixture.sourceSlug, pageId, false)
+  const deleted = await listFiles(request, token, fixture.sourceSlug, pageId, true)
+  const baseline = new Map([...active, ...deleted].map((file) => [file.file_id, file]))
+  const suffix = randomBytes(8).toString("hex")
+  const name = `replace-${suffix}.txt`
+  const original = { name, bytes: Buffer.from(`original ${suffix}`) }
+  const replacement = { name, bytes: Buffer.from(`replacement ${suffix}`) }
+  const guard = await guardReplaceWrites(page.context(), fixture)
+  /** @type {unknown} */
+  let failure
+  try {
+    const pane = await openFiles(page, fixture.sourceSlug)
+    const first = await uploadOne(pane, original)
+    await expect(first).toHaveCount(0)
+    const [stored] = (
+      await listFiles(request, token, fixture.sourceSlug, pageId, false)
+    ).filter((file) => file.name === name)
+    assert.ok(stored, "original upload stored")
+
+    const form = await uploadOne(pane, replacement)
+    const row = form.locator('[data-upload-index="0"]')
+    await expect(row).toContainText(/failed/i)
+    const replace = row.getByRole("button", { name: "Replace existing" })
+    await expect(replace).toBeVisible()
+    await row.screenshot({ path: "/tmp/claude-1000/replace-row.png" })
+    await replace.click()
+    await expect(row).toContainText("Replaced")
+    await expect(row.getByRole("button", { name: "Replace existing" })).toHaveCount(0)
+    await row.screenshot({ path: "/tmp/claude-1000/replace-row-done.png" })
+
+    const after = (
+      await listFiles(request, token, fixture.sourceSlug, pageId, false)
+    ).filter((file) => file.name === name)
+    assert.equal(after.length, 1, "replacement edits the file instead of adding one")
+    assert.equal(after[0].file_id, stored.file_id)
+    assert.ok(after[0].revision_number > stored.revision_number, "new file revision")
+    const bytes = await readFileBytes(
+      request,
+      token,
+      fixture.sourceSlug,
+      pageId,
+      stored.file_id
+    )
+    assert.deepEqual(bytes.bytes, replacement.bytes)
+    assert.deepEqual(guard.writes, ["?/fileUpload", "?/fileUpload", "?/fileEdit"])
+    assert.deepEqual(guard.blocked, [], "unexpected write or foreign request")
+  } catch (error) {
+    failure = error
+  }
+  await cleanup(request, token, fixture, baseline, new Set([name]))
+  if (failure) throw failure
+}
+
+/**
+ * Opens a signed-in browser on the sacrificial fixture and runs `body`.
+ *
+ * @param {(
+ *   page: Page,
+ *   request: APIRequestContext,
+ *   token: string,
+ *   fixture: Fixture
+ * ) => Promise<void>} body
+ */
+async function withFixtureBrowser(body) {
+  assert.equal(
+    process.env.COBALT_PAGE_ACTION_FIXTURE,
+    fixturePath,
+    "explicit sacrificial fixture opt-in required"
+  )
+  const adminPath = process.env.COBALT_LOCAL_ADMIN_PASSWORD_FILE
+  const gatewayPath = process.env.COBALT_LOCAL_PASSWORD_FILE
+  assert.ok(adminPath && gatewayPath, "admin and gateway password file paths required")
+  const fixture = await readFixture(fixturePath)
+  const browser = await chromium.launch({
+    executablePath: "/usr/bin/chromium",
+    headless: true
+  })
+  try {
+    const context = await browser.newContext({
+      httpCredentials: {
+        username: "cobalt",
+        password: (await readFile(gatewayPath, "utf8")).trim(),
+        origin
+      }
+    })
+    try {
+      const { page, token } = await login(
+        context,
+        fixture,
+        (await readFile(adminPath, "utf8")).trim()
+      )
+      await body(page, context.request, token, fixture)
+    } finally {
+      await context.close()
+    }
+  } finally {
+    await browser.close()
+  }
+}
+
 test(
   "batch upload preserves successes across filename collision",
   { timeout: 120_000 },
-  async () => {
-    assert.equal(
-      process.env.COBALT_PAGE_ACTION_FIXTURE,
-      fixturePath,
-      "explicit sacrificial fixture opt-in required"
-    )
-    const adminPath = process.env.COBALT_LOCAL_ADMIN_PASSWORD_FILE
-    const gatewayPath = process.env.COBALT_LOCAL_PASSWORD_FILE
-    assert.ok(adminPath && gatewayPath, "admin and gateway password file paths required")
-    const fixture = await readFixture(fixturePath)
-    const browser = await chromium.launch({
-      executablePath: "/usr/bin/chromium",
-      headless: true
-    })
-    try {
-      const context = await browser.newContext({
-        httpCredentials: {
-          username: "cobalt",
-          password: (await readFile(gatewayPath, "utf8")).trim(),
-          origin
-        }
-      })
-      try {
-        const { page, token } = await login(
-          context,
-          fixture,
-          (await readFile(adminPath, "utf8")).trim()
-        )
-        await exercise(page, context.request, token, fixture)
-      } finally {
-        await context.close()
-      }
-    } finally {
-      await browser.close()
-    }
-  }
+  () => withFixtureBrowser(exercise)
+)
+
+test(
+  "a colliding upload can replace the existing file as a new revision",
+  { timeout: 120_000 },
+  () => withFixtureBrowser(exerciseReplace)
 )

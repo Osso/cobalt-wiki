@@ -2,16 +2,23 @@
   import { onDestroy } from "svelte"
   import { pageLayoutState } from "$lib/stores.svelte"
   import { Layout } from "$lib/types"
-  import { uploadFiles, type UploadRow } from "$lib/fileUploadBatch"
+  import {
+    replaceFile,
+    uploadFiles,
+    type ExistingFile,
+    type UploadRow
+  } from "$lib/fileUploadBatch"
   import { formatFileSize } from "$lib/fileSize"
   import type { PageProps } from "./$types"
 
   let {
     data,
+    existingFiles = [],
     onUploaded,
     onClose
   }: {
     data: PageProps["data"]
+    existingFiles?: ExistingFile[]
     onUploaded: () => Promise<void>
     onClose: () => void
   } = $props()
@@ -20,7 +27,9 @@
     queued: "Queued",
     uploading: "Uploading",
     uploaded: "Uploaded",
-    failed: "Failed"
+    failed: "Failed",
+    replacing: "Replacing",
+    replaced: "Replaced"
   }
 
   let files = $state<File[]>([])
@@ -37,14 +46,16 @@
 
   let uploaded = $derived(rows.filter((row) => row.state === "uploaded").length)
   let failed = $derived(rows.filter((row) => row.state === "failed").length)
+  let replaced = $derived(rows.filter((row) => row.state === "replaced").length)
 
   let dragging = $state(false)
   let totalSize = $derived(files.reduce((total, file) => total + file.size, 0))
-  let settled = $derived(uploaded + failed)
+  let stored = $derived(uploaded + replaced)
+  let settled = $derived(stored + failed)
 
   function setSelection(selected: File[]) {
     files = selected
-    rows = files.map((file) => ({ file, state: "queued" }))
+    rows = files.map((file) => ({ file, name: file.name, state: "queued" }))
     submitted = false
     formError = ""
     name = ""
@@ -71,24 +82,58 @@
     setSelection(files.filter((_, current) => current !== index))
   }
 
-  async function submitUpload(event: SubmitEvent) {
-    event.preventDefault()
-    if (uploading || submitted || files.length === 0) return
+  function pageIdentity() {
     const pageId = data.page?.page_id
     const lastRevisionId = data.page_revision?.revision_id
     if (pageId === undefined || lastRevisionId === undefined) {
       formError = "Cannot upload without a page revision."
-      return
+      return null
     }
+    return { siteId: data.site.site_id, pageId, lastRevisionId }
+  }
+
+  /** The page file a failed upload collided with, if it is listed. */
+  function collidingFile(row: UploadRow): ExistingFile | undefined {
+    if (row.state !== "failed") return undefined
+    return existingFiles.find((file) => file.name === row.name)
+  }
+
+  function setRow(index: number, update: Pick<UploadRow, "state" | "error">) {
+    rows = rows.map((row, current) => (current === index ? { ...row, ...update } : row))
+  }
+
+  async function replaceRow(index: number) {
+    const existing = collidingFile(rows[index])
+    const identity = pageIdentity()
+    if (uploading || !existing || !identity) return
+    uploading = true
+    setRow(index, { state: "replacing", error: undefined })
+    try {
+      const outcome = await replaceFile({
+        file: rows[index].file,
+        existing,
+        identity,
+        comments,
+        url: new URL("?/fileEdit", window.location.href).href,
+        fetchUpload: (target, init) => fetch(target, init)
+      })
+      if (!active) return
+      setRow(index, outcome)
+      if (outcome.state === "replaced") await onUploaded()
+    } finally {
+      uploading = false
+    }
+  }
+
+  async function submitUpload(event: SubmitEvent) {
+    event.preventDefault()
+    if (uploading || submitted || files.length === 0) return
+    const identity = pageIdentity()
+    if (!identity) return
     uploading = true
     submitted = true
     formError = ""
     const url = new URL("?/fileUpload", window.location.href).href
-    const identity = {
-      siteId: data.site.site_id,
-      pageId,
-      lastRevisionId
-    }
     try {
       const result = await uploadFiles({
         files: [...files],
@@ -167,6 +212,7 @@
         <p role="status">
           {#if submitted}
             <span class="summary-count">{uploaded}</span> uploaded,
+            {#if replaced}<span class="summary-count">{replaced}</span> replaced,{/if}
             <span class="summary-count">{failed}</span> failed of
             <span class="summary-count">{rows.length}</span>
           {:else}
@@ -176,7 +222,7 @@
         </p>
         {#if submitted}
           <div
-            style:--done={uploaded / rows.length}
+            style:--done={stored / rows.length}
             style:--settled={settled / rows.length}
             class="upload-meter"
             aria-hidden="true"
@@ -185,6 +231,7 @@
       </header>
       <ul class="upload-results">
         {#each rows as row, index (index)}
+          {@const collision = collidingFile(row)}
           <li class="upload-row state-{row.state}" data-upload-index={index}>
             <span class="row-mark" aria-hidden="true"></span>
             <span class="row-body">
@@ -193,7 +240,14 @@
               {#if row.error}<span class="upload-error row-error">{row.error}</span>{/if}
             </span>
             <span class="row-state">{stateLabels[row.state]}</span>
-            {#if !submitted && !uploading}
+            {#if collision && !uploading}
+              <button
+                class="row-replace"
+                onclick={() => replaceRow(index)}
+                title="Replace {collision.name} with this upload; the old version stays in the file's history"
+                type="button">Replace existing</button
+              >
+            {:else if !submitted && !uploading}
               <button
                 class="row-remove"
                 aria-label="Remove {row.file.name}"
@@ -201,7 +255,9 @@
                 type="button">×</button
               >
             {/if}
-            {#if row.state === "uploading"}<span class="row-progress" aria-hidden="true"
+            {#if row.state === "uploading" || row.state === "replacing"}<span
+                class="row-progress"
+                aria-hidden="true"
               ></span>{/if}
           </li>
         {/each}
@@ -463,13 +519,15 @@
     border: 2px solid var(--upload-muted);
     border-radius: 50%;
 
-    .state-uploading & {
+    .state-uploading &,
+    .state-replacing & {
       border-color: var(--upload-busy);
       border-right-color: transparent;
       animation: upload-spin 700ms linear infinite;
     }
 
-    .state-uploaded & {
+    .state-uploaded &,
+    .state-replaced & {
       background: var(--upload-ok);
       border-color: var(--upload-ok);
     }
@@ -514,16 +572,43 @@
     border: 1px solid currentColor;
     border-radius: 999px;
 
-    .state-uploading & {
+    .state-uploading &,
+    .state-replacing & {
       color: var(--upload-busy);
     }
 
-    .state-uploaded & {
+    .state-uploaded &,
+    .state-replaced & {
       color: var(--upload-ok);
     }
 
     .state-failed & {
       color: var(--upload-bad);
+    }
+  }
+
+  .row-replace {
+    min-height: 32px;
+    padding: 4px 12px;
+    font: inherit;
+    font-size: 0.85em;
+    font-weight: 600;
+    color: var(--upload-busy);
+    white-space: nowrap;
+    cursor: pointer;
+    background: transparent;
+    border: 1px solid var(--upload-busy);
+    border-radius: var(--upload-radius);
+
+    &:hover,
+    &:focus-visible {
+      color: #fff;
+      background: var(--upload-busy);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--upload-busy);
+      outline-offset: 2px;
     }
   }
 
