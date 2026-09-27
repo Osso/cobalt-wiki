@@ -554,8 +554,8 @@
         <nav class="pager file-pager" aria-label="Files pages">
           <span class="pager-no">page {visiblePage} of {pageCount}</span>
           <button
-            disabled={visiblePage === 1}
             aria-label="Previous page"
+            disabled={visiblePage === 1}
             onclick={() => (currentPage = visiblePage - 1)}
             type="button">« previous</button
           >
@@ -565,15 +565,15 @@
             {/if}
             <button
               class:current={number === visiblePage}
-              aria-label={`Page ${number}`}
               aria-current={number === visiblePage ? "page" : undefined}
+              aria-label={`Page ${number}`}
               onclick={() => (currentPage = number)}
               type="button">{number}</button
             >
           {/each}
           <button
-            disabled={visiblePage === pageCount}
             aria-label="Next page"
+            disabled={visiblePage === pageCount}
             onclick={() => (currentPage = visiblePage + 1)}
             type="button">next »</button
           >
