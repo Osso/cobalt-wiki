@@ -52,6 +52,8 @@ The Wikidot-layout Files pane presents attached-file information using the exist
 
 ## Evidence
 
+- September 27, 2026: `da12c74d101e` deployed frontend-only through `install/dev-deploy.sh framerail`; backend PID/start time unchanged. Targeted tests pass 10/10 (`/tmp/cobalt-files-40-green.log`). Public read-only Icons navigation proves 468 files across 12 pages, 40-row first/second pages, 28-row last page, alphabetical cross-page order, exact return and stable full-list total (`/tmp/cobalt-files-40-production.log`). Deployment log: `/tmp/cobalt-files-40-deploy.log`.
+
 - **Historical — September 27, 2026, `20aa346ad`:** scoped ESLint and Prettier pass; targeted Files SSR/browser tests pass 10/10 (`/tmp/cobalt-files-final-proof-static-and-tests.log`). Test startup still reports missing `pnpm` and existing route-prefix diagnostics; these are not clean startup output. Readability evidence: `/tmp/cobalt-files-final-proof-readability.log`.
 - **Historical — local read-only Icons smoke at `20aa346ad`:** actual file-list responses: 468 files across 24 pages, 20 first/next rows and eight last-page rows, alphabetical cross-page order, exact return to page one, unchanged URL and 11,605,456-byte total. Evidence: `/tmp/cobalt-files-real-smoke.log`, screenshot `/tmp/cobalt-files-real-last.png`. Production rollout is not covered.
 
