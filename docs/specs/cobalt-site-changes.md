@@ -1,58 +1,63 @@
 # Cobalt site changes
 
-Site Changes will render the imported Wikidot `wikidot_site_change` feed in the current wiki. It targets full module-behavior parity while using the modern Files-table visual direction, not literal Wikidot styling. Deployment state is tracked in the [replica status](../wiki/systems/cobalt-replica-status.md).
+Site Changes renders the imported Wikidot `wikidot_site_change` feed in the current wiki. It targets full module-behavior parity while retaining the current Files-table direction exactly as established by `97261dde1`, rather than copying Wikidot’s legacy styling. [Replica status](../wiki/systems/cobalt-replica-status.md) records implementation evidence and rollout limits.
 
 ## What it must do
 
 ### Feed and filtering
 
-- [ ] Read only imported `wikidot_site_change` rows; native-feed merging, freshness, and privacy semantics are not implied.
-- [ ] Preserve existing category selection; `All` wins over selected change filters, and other selected filters use OR semantics.
-- [ ] Preserve page sizes 10, 20, 50, 100, and 200 (default 20), reset to URL page 1 when filters change, and retain pager links.
+- [x] Read only imported `wikidot_site_change` rows. The local fixture currently has 99 rows, latest `2026-09-24T16:45:15Z`; this is distinct from live Wikidot observed on 2026-09-27.
+- [x] Preserve module category selection: `All` wins over selected change filters; selected non-`All` filters use OR semantics.
+- [x] Preserve page sizes 10, 20, 50, 100, and 200 (default 20), reset to URL page 1 on filter change, and retain pager links.
 
-### Rendering
+### Rendering and time
 
-- [ ] Render a semantic five-column table: Page, Changes, Revision, Changed, and Author.
-- [ ] Render each change title and comments; display N, S, T, R, A, M, and F flags; render revision 0 as New; display authors only when their imported names are known strings.
-- [ ] Emit UTC server times with `datetime` ISO data and `data-epoch`; localize in the client timezone and expose relative time on hover and keyboard focus.
-- [ ] Match module behavior, while styling the table after the current Files UI at `97261dde1`, rather than reproducing Wikidot's legacy appearance.
+- [x] Render a semantic five-column table: Page, Changes, Revision, Changed, and Author.
+- [x] Render change titles and comments; display N, S, T, R, A, M, and F flags; render revision 0 as New; render a slugless imported author as escaped plain text.
+- [x] Emit ISO-second UTC server times in `datetime` plus `data-timestamp`, then localize them in the browser and expose relative time on hover and keyboard focus. The replica’s hidden `20.odate` spans are not source behavior; original Wikidot dates render inline.
+- [x] Preserve the Files UI from `97261dde1` exactly while meeting the Site Changes module behavior contract.
 
 ## How it works
 
-- [Replica status](../wiki/systems/cobalt-replica-status.md) records source evidence, implementation status, and rollout limits.
+- [Replica status](../wiki/systems/cobalt-replica-status.md) records source observations, implementation evidence, and rollout limits.
 
 ## Implementation inventory
 
-- Pending — no Site Changes-specific renderer, frontend component, or tests are introduced by this documentation-only change.
-- `wikidot_site_change` — imported source-feed boundary; source acquisition remains separate from rendering.
+- `36f9007b8` — renderer: semantic five-column output, comments, flags, ISO-second UTC values, and plain slugless authors.
+- `fe800e900` — default-view cache correction: default pages read the imported feed too; real-DB update regression covered.
+- `603ec2ce8` — frontend localization and Site Changes controls; 9/9 frontend checks pass.
+- `84d897cff` — waits for semantically localized dates and fixes type warnings, replacing the earlier Vite-overlay and SSR-before-hydration controls race evidence.
+- `wikidot_site_change` — imported source-feed boundary.
 
 ## Tests asserting this spec
 
-- None yet.
+- `deepwell/tests/page_site_changes.rs` — 3/3 targeted real-PostgreSQL tests: newest-first paging, categories/flags/page sizes/pager URLs, valid escaped table output, ISO/UTC serialization, and slugless author rendering (`/tmp/claude/cobalt-sitechanges-targeted-pass.log`).
+- Frontend Site Changes checks — 9/9 at `603ec2ce8`.
+- `framerail/tests/local/site-changes.mjs` — read-only browser proof 1/1: 20 visible Chicago-local dates with seconds and hover/focus relative time; writing/A filters across two disjoint 10-row pages; `All` reset; page sizes yield 10/20/50/99/99 (`/tmp/claude/cobalt-sitechanges-browser-ready.log`). Screenshot inspected: `/tmp/claude/cobalt-sitechanges-local.png`.
 
 ## Coverage matrix
 
 | Area | Status | Proof / limit |
 |---|---|---|
-| Main semantic markup | Missing | Pending implementation. |
-| Frontend | Partial evidence | `603ec2ce89/9`; not browser proof. |
-| Backend | RED expected | `38914d968` confirms expected markup is absent. |
-| Browser | Missing | Pending. |
-| Production rollout | Not authorized | No production rollout for this feature. |
+| Renderer | Green | `36f9007b8`: semantic five-column table, comments, flags, ISO-second UTC, and plain slugless author. |
+| Default view | Green | `fe800e900` reads the feed for default pages too; covered by a real-DB update regression. |
+| Backend | Green | 3/3 targeted tests; independent format/check/vendor-format gate is `PASS_WITH_INHERITED_READABILITY_DEBT` (`/tmp/claude/cobalt-sitechanges-backend-gate.json`). |
+| Frontend | Green, bounded | `603ec2ce8` 9/9; `84d897cff` supersedes the initial race evidence. Final frontend `1054` follow-up remains pending (`/tmp/claude/cobalt-sitechanges-final-followup.json`). |
+| Local runtime | Green | Root deploy exited 0; running and built hashes match. Local only. |
+| Browser | Green | Read-only local browser 1/1 as described above. |
+| Production rollout | Not authorized | No production rollout. |
 
 ## Source evidence and data limits
 
-- Public source observation found all 20 sampled `odate` elements `display:none`; inline `.localdatetime` showed seconds and an “ago” relative value on hover. The target time contract above is explicit; this observation does not establish source freshness or privacy behavior.
-- The legacy repository lacks `A` tags while the live source has them. Treat that as a source-parity gap until live behavior is separately captured.
-- Read-only candidate inventory (`/tmp/claude/cobalt-legacy-page-link-dry-run.json`, mode `0600`) covers 6,117 current local pages: 196 pages contain 269 old-host URL tokens; 260 targets are confirmed across 189 pages; seven are not in plan and two are non-page paths. The regex inventory does not parse link contexts and is not apply-ready; it made no mutations.
-- A future current-source import may transform qualifying links in memory before its current payload. It must not rewrite archived/history revisions. Existing local pages require latest-revision compare-and-swap protection and must not overwrite newer local edits. No rewrite policy or apply is authorized.
+- Live read-only GET confirms revision-type tags and four `A`-flag rows (`/tmp/claude/cobalt-sitechanges-live-tags-proof.json`). The retained old repository has six flags, not the current live seven; it is not definitive current-source evidence.
+- Imported feed scope is only `wikidot_site_change`: 99 local rows, latest `2026-09-24T16:45:15Z`, with 43 writing-tagged rows (`/tmp/claude/cobalt-sitechanges-feed-scope.json`). It does not establish freshness against live Wikidot on 2026-09-27.
+- Source page contents and history are unchanged. No native-feed merging, privacy contract, or fresh source acquisition is claimed.
+- Read-only dry URL inventory remains unchanged: 269 old-host tokens in 196 pages; 260 mapped targets across 189 pages; seven unconfirmed and two non-page paths. It is not syntax parsed or apply-ready. No migration, import rewrite policy, or rewrite was implemented.
 
 ## Known gaps (current cycle)
 
-- [ ] Implement the main renderer markup and backend/frontend behavior.
-- [ ] Add backend and browser assertions for the table, filters, pagination, flags, author visibility, and localized time behavior.
-- [ ] Capture source behavior for live `A` flags without treating legacy repository output as definitive.
+- [ ] Resolve or record the final frontend `1054` follow-up.
 
 ## Out of scope
 
-- Native feed merging, source-feed acquisition/freshness guarantees, privacy-policy inference, historical revision rewriting, production rollout, and applying legacy-link rewrites.
+- Native-feed merging, fresh source acquisition, source freshness guarantees, privacy-policy inference, production rollout, and rewriting current or archived content/history.
