@@ -18,7 +18,8 @@
 - [x] Create only the selected bounded page/file set. Create every selected page with its native `page_import` tags in the same atomic creation operation; do not issue a follow-up edit for tags.
 - [x] Before every mutation run, obtain a new complete site inventory and validate it against the immutable plan and actual RPC endpoint. On any mutation failure, stop; restart only from a newly acquired and validated inventory, never by blindly retrying a mutation.
 - [x] For the bounded production replica-sync path, update only a current page/file whose latest revision has a recognized technical marker and matching revision actor. Preserve unknown or human-edited targets and their history; omit date/file writes for protected pages. This marker policy is code-backed for the observed import markers, not universal provenance.
-- [ ] During replica sync, translate links only in the payload for an existing changed page. Require explicit source and target origins; replace only actual URL destinations whose active replica slug is confirmed exactly. Preserve any label, query, and fragment on a translated target URL. Leave opaque links, code, comments, and unconfirmed destinations unchanged. Do not rewrite archived or historical source content, and do not bulk-scan pages.
+- [x] During replica sync, translate links only in the current payload for an existing changed page. Require explicit source and target origins; replace only actual URL destinations whose active replica slug is confirmed exactly. Preserve any label, query, and fragment on a translated target URL. Leave opaque links, code, comments, and unconfirmed destinations unchanged. Do not rewrite archived or historical source content, and do not bulk-scan pages.
+- [x] For an existing changed page, replica sync calls `page_edit` with `preserve_draft: true`, retaining its shared draft. Its direct `page_import` creation route does not delete a draft; this is distinct from ordinary page creation.
 
 ## How it works
 
@@ -29,13 +30,15 @@
 
 - `tools/cobalt_migration/poc_import.py`: existing plan/apply CLI, trusted loopback JSON-RPC, and presigned PUT adapter; target module for the bounded local missing-only runner.
 - `tools/cobalt_migration/poc_missing_inventory.py`: pure validated selector of absent plan entries; preserves every existing/current/historical/deleted identity and skips ambiguous attachment owners.
-- `tools/cobalt_migration/wikidot_sync.py`: guarded replica sync; its current-target ownership check accepts only recognized import markers with the matching technical actor before page, file, rename, or revision-date mutation. The in-progress changed-page payload translation uses pure helper `d6a73496d` and explicit Nix origin wiring from `992c62849` and `802b7be0b`.
+- `tools/cobalt_migration/wikidot_sync.py`: guarded replica sync; its current-target ownership check accepts only recognized import markers with the matching technical actor before page, file, rename, or revision-date mutation. Existing changed-page edits preserve shared drafts; direct imports create missing pages without deleting drafts. Translation operates only on the current changed-page payload after exact active target confirmation, with explicit source/target origins.
 - Deepwell `page_import`: required native atomic exact-name page/first-revision/tag creation with technical attribution; no fallback to normalizing `page_create` or a tag-edit follow-up.
 - Deepwell `page_get`, `page_edit`, `blob_upload`, `file_create`, `file_get`: reconciliation, tags and attachment persistence/readback.
 
 ## Tests asserting this spec
 
 - `tests/cobalt_migration/test_poc_import.py`: synthetic archives and a persistent in-memory RPC datastore; exact multi-colon identity/content, collision refusal, restart after lost response without duplicate pages or attachments, non-import conflict, changed archive/content.
+- `tests/cobalt_migration/test_wikidot_sync.py`: existing changed-page draft-preserving edit and current-payload translation only after exact active target confirmation.
+- `tests/cobalt_migration/test_sync_https_transport.py`: HTTPS storage upload across separate RPC/storage sockets, exact issued URL enforcement, and no RPC-session header leakage.
 
 ## Completed local missing-only import
 
@@ -62,7 +65,7 @@ This completes the bounded local missing-page/file operation, not blanket full-r
 - [ ] Run the local missing-only slice only against a local target with one exclusive writer. Concurrent human edits, another importer, production targets, service administration, and database operations are excluded.
 - [x] The completed local run used fresh inventories from the exact target site and endpoint; injected lost responses were resolved only by a later fresh inventory, never by blindly retrying a mutation.
 - [ ] A failed upload may leave an unfinalized pending blob; this importer never deletes target objects.
-- [ ] Production hourly sync remains paused and undeployed before repair validation: `cobalt-wiki-wikidot-sync.timer` is enabled but inactive (`/tmp/claude/cobalt-import-timer-paused.log`), and no active job was interrupted. `f4e2032c3` permits authenticated exact backend-issued blob URLs while RPC remains strict loopback/no redirects; `79eae2046` supplies current-target ownership checks. Link-translation integration agent `1071` is still working. Verification is **FAIL**: `page_edit` can delete shared draft content. No completion claim is permitted. Restore the timer only after that failure is resolved and a validated repair completes.
+- [ ] Production hourly sync remains paused and undeployed: `cobalt-wiki-wikidot-sync.timer` is enabled but inactive (`/tmp/claude/cobalt-import-timer-paused.log`), and no active job was interrupted. `d2e43c184` adds requested `page_edit` draft preservation; `f898d2986` sends that flag for existing sync edits; `688344cbc` translates only confirmed current changed-page destinations; and `6f15029a6` passes the HTTPS socket regression. These are scoped proof, not a bulk migration or refresh claim. The user authorized a reviewed whole-host rollout after scoped verification and confirmation of no unrelated diff; it remains pending. Restore the timer only after that rollout.
 - [ ] Every host configuration must set `wikidotSync.targetOrigin`. Sakuin wiring is committed in `58a58f0`, but its configuration pin has not yet been updated.
 
 ## Out of scope
