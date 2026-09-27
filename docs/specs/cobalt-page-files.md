@@ -52,6 +52,9 @@ The Wikidot-layout Files pane presents attached-file information using the exist
 
 ## Evidence
 
+- September 27, 2026, `20aa346ad`: scoped ESLint and Prettier pass; targeted Files SSR/browser tests pass 10/10 (`/tmp/cobalt-files-final-proof-static-and-tests.log`). Test startup still reports missing `pnpm` and existing route-prefix diagnostics; these are not clean startup output. Readability evidence: `/tmp/cobalt-files-final-proof-readability.log`.
+- Local read-only Icons smoke at `20aa346ad` uses actual file-list responses: 468 files across 24 pages, 20 first/next rows and eight last-page rows, alphabetical cross-page order, exact return to page one, unchanged URL and 11,605,456-byte total. Evidence: `/tmp/cobalt-files-real-smoke.log`, screenshot `/tmp/cobalt-files-real-last.png`. Production rollout is not covered.
+
 - `/tmp/claude/cobalt-files-hidden-comment-green.log` — five SSR cases pass after a real RED case: totals, information, hidden-comment omission, encoded URLs, and alternate layout. The existing backend file-list payload is unchanged; omission is presentation-only, not an API-redaction claim.
 - `/tmp/claude/cobalt-file-info-final.png` — local captured file-information state; presentation evidence only.
 - `cb61f5543` — file edit and rollback now send `getClientAddress()` as RPC `ip_address`. `framerail/tests/page-file-rpc.test.ts` recorded targeted RED then GREEN 2/2 for serialized edit/rollback request IP and accepted revisions; this is server/RPC proof, not a browser lifecycle pass.
