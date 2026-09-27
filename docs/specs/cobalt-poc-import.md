@@ -18,6 +18,7 @@
 - [x] Create only the selected bounded page/file set. Create every selected page with its native `page_import` tags in the same atomic creation operation; do not issue a follow-up edit for tags.
 - [x] Before every mutation run, obtain a new complete site inventory and validate it against the immutable plan and actual RPC endpoint. On any mutation failure, stop; restart only from a newly acquired and validated inventory, never by blindly retrying a mutation.
 - [x] For the bounded production replica-sync path, update only a current page/file whose latest revision has a recognized technical marker and matching revision actor. Preserve unknown or human-edited targets and their history; omit date/file writes for protected pages. This marker policy is code-backed for the observed import markers, not universal provenance.
+- [ ] During replica sync, translate links only in the payload for an existing changed page. Require explicit source and target origins; replace only actual URL destinations whose active replica slug is confirmed exactly. Preserve any label, query, and fragment on a translated target URL. Leave opaque links, code, comments, and unconfirmed destinations unchanged. Do not rewrite archived or historical source content, and do not bulk-scan pages.
 
 ## How it works
 
@@ -28,7 +29,7 @@
 
 - `tools/cobalt_migration/poc_import.py`: existing plan/apply CLI, trusted loopback JSON-RPC, and presigned PUT adapter; target module for the bounded local missing-only runner.
 - `tools/cobalt_migration/poc_missing_inventory.py`: pure validated selector of absent plan entries; preserves every existing/current/historical/deleted identity and skips ambiguous attachment owners.
-- `tools/cobalt_migration/wikidot_sync.py`: guarded replica sync; its current-target ownership check accepts only recognized import markers with the matching technical actor before page, file, rename, or revision-date mutation.
+- `tools/cobalt_migration/wikidot_sync.py`: guarded replica sync; its current-target ownership check accepts only recognized import markers with the matching technical actor before page, file, rename, or revision-date mutation. The in-progress changed-page payload translation uses pure helper `d6a73496d` and explicit Nix origin wiring from `992c62849` and `802b7be0b`.
 - Deepwell `page_import`: required native atomic exact-name page/first-revision/tag creation with technical attribution; no fallback to normalizing `page_create` or a tag-edit follow-up.
 - Deepwell `page_get`, `page_edit`, `blob_upload`, `file_create`, `file_get`: reconciliation, tags and attachment persistence/readback.
 
@@ -56,12 +57,13 @@ This completes the bounded local missing-page/file operation, not blanket full-r
 
 - [x] Unmatched `))` is accepted through corrected FTML token dispatch. The exact archive fixture, native DB/rendering regression and complete 6,092-source parser corpus pass. Ordinary `page_create` normalization remains unchanged; logging suppression and blind mutation retries were reverted.
 - [ ] Provisioning must supply an existing positive-ID target site and a dedicated technical import principal with an authenticated session authorized to edit/import that site. The principal may be the seeded administrator (ID −1) or a positive user ID; the session identity must match the immutable plan. Runtime must allow the source archive's largest pages/attachments.
-- [ ] Deepwell and presigned S3 endpoints must be loopback IPv4/IPv6 literals (run on target or forward both ports). Session file and plan must be `0600` in an owner-only directory.
+- [ ] Deepwell RPC must use a loopback IPv4/IPv6 literal (run on target or forward the RPC port). Since `f4e2032c3`, authenticated exact URLs issued by Deepwell are permitted for blob PUTs; RPC remains loopback-only with no redirects. Session file and plan must be `0600` in an owner-only directory.
 - [ ] Host owner must protect every POC route before import. No source ACL parity is claimed.
 - [ ] Run the local missing-only slice only against a local target with one exclusive writer. Concurrent human edits, another importer, production targets, service administration, and database operations are excluded.
 - [x] The completed local run used fresh inventories from the exact target site and endpoint; injected lost responses were resolved only by a later fresh inventory, never by blindly retrying a mutation.
 - [ ] A failed upload may leave an unfinalized pending blob; this importer never deletes target objects.
-- [ ] Production hourly sync is paused before repair validation: `cobalt-wiki-wikidot-sync.timer` is enabled but inactive (`/tmp/claude/cobalt-import-timer-paused.log`), and no active job was interrupted. Its enabled service currently fails in `sync_files → upload_blob → LoopbackRpc.put → _loopback_url` when Deepwell issues an HTTPS storage URL, so final feed SQL does not advance. `f4e2032c3` gates blob PUTs on exact backend-issued URLs while RPC remains strict loopback/no redirects (10 tests pass); `79eae2046` supplies current-target ownership checks (21 tests pass). Neither change has been deployed or live-tested. Restore the timer only after a validated repair; pause is not completion.
+- [ ] Production hourly sync remains paused and undeployed before repair validation: `cobalt-wiki-wikidot-sync.timer` is enabled but inactive (`/tmp/claude/cobalt-import-timer-paused.log`), and no active job was interrupted. `f4e2032c3` permits authenticated exact backend-issued blob URLs while RPC remains strict loopback/no redirects; `79eae2046` supplies current-target ownership checks. Link-translation integration agent `1071` is still working. Verification is **FAIL**: `page_edit` can delete shared draft content. No completion claim is permitted. Restore the timer only after that failure is resolved and a validated repair completes.
+- [ ] Every host configuration must set `wikidotSync.targetOrigin`. Sakuin wiring is committed in `58a58f0`, but its configuration pin has not yet been updated.
 
 ## Out of scope
 
