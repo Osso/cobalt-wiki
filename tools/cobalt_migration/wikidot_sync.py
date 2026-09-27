@@ -32,7 +32,6 @@ replica database. Every Wikidot request waits 1s after the previous one.
 The Deepwell URL must be loopback (an SSH forward to the replica host).
 """
 
-from collections import Counter
 import hashlib
 import html
 import json
@@ -42,23 +41,34 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections import Counter
 
 from .page_link_translation import translate_page_links
 from .poc_import import LoopbackRpc
 from .wikidot_changes import fetch_changes
-from .wikidot_files import FileListError, check_download, file_events, parse_file_list, plan_files
+from .wikidot_files import (
+    FileListError,
+    check_download,
+    file_events,
+    parse_file_list,
+    plan_files,
+)
 
 TOKEN = "cobaltreplica"
 PAGE_ID = re.compile(r"WIKIREQUEST\.info\.pageId\s*=\s*(\d+);")
 META = re.compile(
     r'<span class="sync-meta">(.*?)\|(.*?)\|(.*?)\|<span class="odate time_(\d+)[^"]*">[^<]*</span>'
     r'\|<span class="odate time_(\d+)[^"]*">[^<]*</span></span>',
-    re.S,
+    re.DOTALL,
 )
 RENAMED = re.compile(r'You successfully renamed the page: "([^"]+)" to "([^"]+)"\.')
-POC_MARKER = re.compile(r"Cobalt POC import [0-9a-f]{64}; source authorship/history unacquired")
+POC_MARKER = re.compile(
+    r"Cobalt POC import [0-9a-f]{64}; source authorship/history unacquired"
+)
 PAGE_SYNC_MARKER = re.compile(r"Wikidot sync \(rev\. [0-9]+(?:, renamed)?\)")
-NOTHING_TO_MOVE = "nothing to move: neither slug on the replica (the page sync creates the new one)"
+NOTHING_TO_MOVE = (
+    "nothing to move: neither slug on the replica (the page sync creates the new one)"
+)
 INTERVAL = 1.0
 ATTEMPTS = 4
 _last_request = 0.0
@@ -69,9 +79,9 @@ def decode_view_source(body):
     HTML: `<br />` before each newline, include targets linked, runs of spaces
     as `&nbsp;`, and the saved source is trimmed."""
     marker = '<div class="page-source">'
-    inner = body[body.index(marker) + len(marker):body.rindex("</div>")]
+    inner = body[body.index(marker) + len(marker) : body.rindex("</div>")]
     inner = re.sub(r"<br\s*/?>", "", inner)
-    inner = re.sub(r"<a [^>]*>(.*?)</a>", r"\1", inner, flags=re.S)
+    inner = re.sub(r"<a [^>]*>(.*?)</a>", r"\1", inner, flags=re.DOTALL)
     if re.search(r"<\w", inner):
         raise ValueError("unexpected markup in page source")
     return html.unescape(inner.replace("&nbsp;", " ")).strip()
@@ -85,7 +95,9 @@ def parse_meta(body):
     title, tags, hidden, created, updated = match.groups()
     return {
         "title": html.unescape(title),
-        "tags": sorted(set(html.unescape(tags).split() + html.unescape(hidden).split())),
+        "tags": sorted(
+            set(html.unescape(tags).split() + html.unescape(hidden).split())
+        ),
         "created_at": int(created),
         "updated_at": int(updated),
     }
@@ -128,8 +140,11 @@ def wikidot_request(request):
             failure = error
         if attempt + 1 == ATTEMPTS:
             raise failure
-        print(f"retrying {getattr(request, 'full_url', request)}: {failure}", file=sys.stderr)
-        time.sleep(2 ** attempt)
+        print(
+            f"retrying {getattr(request, 'full_url', request)}: {failure}",
+            file=sys.stderr,
+        )
+        time.sleep(2**attempt)
     raise AssertionError("unreachable")
 
 
@@ -154,7 +169,9 @@ def wikidot_page(origin, slug):
     page_id = PAGE_ID.search(body.decode())
     if page_id is None:
         return {"status": "no page id"}
-    source = module(origin, moduleName="viewsource/ViewSourceModule", page_id=page_id.group(1))
+    source = module(
+        origin, moduleName="viewsource/ViewSourceModule", page_id=page_id.group(1)
+    )
     if source.get("status") != "ok":
         return {"status": source.get("status")}
     listing = module(
@@ -192,14 +209,26 @@ def import_owned(record, user_id, markers):
 
 def sync_page(rpc, site_id, user_id, slug, state, comment):
     """Create or edit the replica page to match; returns what was done."""
-    page = rpc.rpc("page_get", {"site_id": site_id, "page": slug, "details": {"wikitext": True}})
+    page = rpc.rpc(
+        "page_get", {"site_id": site_id, "page": slug, "details": {"wikitext": True}}
+    )
     if page is None:
-        rpc.rpc("page_import", {
-            "site_id": site_id, "user_id": user_id, "slug": slug,
-            "title": state["title"], "wikitext": state["source"], "tags": state["tags"],
-            "alt_title": None, "layout": None, "revision_comments": comment,
-            "bypass_filter": True, "ip_address": "127.0.0.1",
-        })
+        rpc.rpc(
+            "page_import",
+            {
+                "site_id": site_id,
+                "user_id": user_id,
+                "slug": slug,
+                "title": state["title"],
+                "wikitext": state["source"],
+                "tags": state["tags"],
+                "alt_title": None,
+                "layout": None,
+                "revision_comments": comment,
+                "bypass_filter": True,
+                "ip_address": "127.0.0.1",
+            },
+        )
         return "created"
     if not import_owned(page, user_id, (PAGE_SYNC_MARKER,)):
         return "kept: current page revision is not import-owned"
@@ -212,11 +241,19 @@ def sync_page(rpc, site_id, user_id, slug, state, comment):
         changes["tags"] = state["tags"]
     if not changes:
         return "unchanged"
-    rpc.rpc("page_edit", {
-        "site_id": site_id, "user_id": user_id, "page": page["page_id"],
-        "last_revision_id": page["revision_id"], "revision_comments": comment,
-        "ip_address": "127.0.0.1", **changes,
-    })
+    rpc.rpc(
+        "page_edit",
+        {
+            "site_id": site_id,
+            "user_id": user_id,
+            "page": page["page_id"],
+            "last_revision_id": page["revision_id"],
+            "revision_comments": comment,
+            "preserve_draft": True,
+            "ip_address": "127.0.0.1",
+            **changes,
+        },
+    )
     return "edited " + ",".join(sorted(changes))
 
 
@@ -228,13 +265,15 @@ def parse_renames(changes):
         if "R" not in row["flags"]:
             continue
         match = RENAMED.fullmatch(row["comments"])
-        renames.append({
-            "from": match.group(1) if match else None,
-            "to": match.group(2) if match else None,
-            "revision": row["revision"],
-            "changed_at": row["changed_at"],
-            "comments": row["comments"],
-        })
+        renames.append(
+            {
+                "from": match.group(1) if match else None,
+                "to": match.group(2) if match else None,
+                "revision": row["revision"],
+                "changed_at": row["changed_at"],
+                "comments": row["comments"],
+            }
+        )
     return renames
 
 
@@ -300,7 +339,9 @@ def list_wikidot_files(origin, page_id):
     """The page's complete file list on Wikidot, or FileListError."""
     files, page, pages, total = {}, 1, 1, 0
     while page <= pages:
-        reply = module(origin, moduleName="files/PageFilesModule", page_id=page_id, page=page)
+        reply = module(
+            origin, moduleName="files/PageFilesModule", page_id=page_id, page=page
+        )
         if reply.get("status") != "ok":
             raise FileListError(f"PageFilesModule: {reply.get('status')}")
         rows, total, pages = parse_file_list(reply["body"])
@@ -403,7 +444,9 @@ def sync_files(rpc, site_id, user_id, origin, replica_page_id, wikidot_page_id, 
                 )
                 outcomes[name] = "deleted"
             else:
-                outcomes[name] = "kept: absent on Wikidot, but no revision in the window removed it"
+                outcomes[name] = (
+                    "kept: absent on Wikidot, but no revision in the window removed it"
+                )
         except FileListError as error:
             outcomes[name] = f"skipped: {error}"
     return outcomes
@@ -437,9 +480,16 @@ def apply_sql(site_id, pages, changes, renames=()):
             f"WHERE site_id = {site_id} AND slug = {sql_literal(slug)} AND deleted_at IS NULL;"
         )
     for row in changes:
-        values = ", ".join(sql_literal(value) for value in [
-            site_id, row["slug"], row["title"], row["revision"], row["flags"],
-        ])
+        values = ", ".join(
+            sql_literal(value)
+            for value in [
+                site_id,
+                row["slug"],
+                row["title"],
+                row["revision"],
+                row["flags"],
+            ]
+        )
         lines.append(
             "INSERT INTO wikidot_site_change (site_id, page_slug, page_title, revision_number, "
             "flags, changed_at, user_slug, user_name, source_user_id, comments) VALUES "
@@ -474,7 +524,8 @@ def translate_sync_source(rpc, site_id, source, origin, target_origin, confirmat
 def main(argv):
     origin, target_origin, endpoint, site_id, password_file, since, out_dir = argv
     site_id, since = int(site_id), int(since)
-    password = open(password_file).read().strip()
+    with open(password_file) as password_input:
+        password = password_input.read().strip()
     login = LoopbackRpc(endpoint, "", site_id).rpc(
         "login",
         {
@@ -533,7 +584,14 @@ def main(argv):
         replica_page = rpc.rpc("page_get", {"site_id": site_id, "page": slug})
         try:
             entry["files"] = sync_files(
-                rpc, site_id, user_id, origin, replica_page["page_id"], pages[slug]["page_id"], events)
+                rpc,
+                site_id,
+                user_id,
+                origin,
+                replica_page["page_id"],
+                pages[slug]["page_id"],
+                events,
+            )
         except FileListError as error:
             entry["skipped"] = str(error)
 
