@@ -16,6 +16,7 @@ const rows = [
     flags: ["S"],
     author_id: null,
     author_name: null,
+    author_slug: null,
     created_at: "2020-01-02T00:00:00Z",
     comments: "<script>alert(1)</script>",
     is_current: true,
@@ -27,6 +28,7 @@ const rows = [
     flags: ["T"],
     author_id: 12,
     author_name: null,
+    author_slug: null,
     created_at: "2020-01-01T00:00:00Z",
     comments: "previous",
     is_current: false,
@@ -125,4 +127,29 @@ test("flags render as named change chips with their source letter", () => {
   assert.match(body, /aria-label="View revision 9"[^>]*>View</)
   assert.match(body, /aria-label="View source of revision 9"[^>]*>Wikitext</)
   assert.match(body, />From<[\s\S]*>To</)
+})
+
+test("authors with a local account link to their user page; others stay plain text", () => {
+  const body = display({
+    listing: {
+      origin: "wikidot",
+      page: 1,
+      per_page: 20,
+      total: 2,
+      total_pages: 1,
+      available: { wikidot: true, local: true },
+      rows: [
+        {
+          ...rows[0],
+          author_id: 7444794,
+          author_name: "OzmaAsimov",
+          author_slug: "ozmaasimov"
+        },
+        { ...rows[1], author_id: 12, author_name: "Former Member", author_slug: null }
+      ]
+    }
+  })
+  assert.match(body, /<a href="\/-\/user\/ozmaasimov"[^>]*>OzmaAsimov<\/a>/)
+  assert.match(body, />Former Member</)
+  assert.doesNotMatch(body, /<a[^>]*>Former Member<\/a>/)
 })

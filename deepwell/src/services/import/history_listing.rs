@@ -269,6 +269,8 @@ async fn imported_rows(
         .into_iter()
         .filter_map(|row| row.name.map(|name| (i64::from(row.user_id), name)))
         .collect();
+    // Imported members keep their Wikidot user ID as their local user ID.
+    let slugs = local_author_slugs(ctx, &models, |row| row.source_author_id).await?;
     Ok(models
         .into_iter()
         .map(|row| HistoryListingRow {
@@ -277,6 +279,7 @@ async fn imported_rows(
             flags: row.source_flags,
             author_id: row.source_author_id,
             author_name: row.source_author_id.and_then(|id| names.get(&id).cloned()),
+            author_slug: row.source_author_id.and_then(|id| slugs.get(&id).cloned()),
             created_at: row.source_created_at,
             comments: row.source_comments,
             is_current: false,
@@ -285,13 +288,11 @@ async fn imported_rows(
         .collect())
 }
 
-async fn native_rows(
+async fn local_authors(
     ctx: &ServiceContext<'_>,
-    models: Vec<page_revision::Model>,
-    latest_revision_id: Option<i64>,
-) -> Result<Vec<HistoryListingRow>> {
-    let ids: Vec<i64> = models.iter().map(|row| row.user_id).collect();
-    let names: HashMap<i64, String> = user::Entity::find()
+    ids: Vec<i64>,
+) -> Result<HashMap<i64, (String, String)>> {
+    Ok(user::Entity::find()
         .filter(user::Column::UserId.is_in(ids))
         .all(ctx.transaction())
         .await
@@ -302,8 +303,30 @@ async fn native_rows(
             )
         })?
         .into_iter()
-        .map(|row| (row.user_id, row.name))
-        .collect();
+        .map(|row| (row.user_id, (row.name, row.slug)))
+        .collect())
+}
+
+async fn local_author_slugs<T>(
+    ctx: &ServiceContext<'_>,
+    rows: &[T],
+    author_id: impl Fn(&T) -> Option<i64>,
+) -> Result<HashMap<i64, String>> {
+    let ids = rows.iter().filter_map(author_id).collect();
+    Ok(local_authors(ctx, ids)
+        .await?
+        .into_iter()
+        .map(|(id, (_, slug))| (id, slug))
+        .collect())
+}
+
+async fn native_rows(
+    ctx: &ServiceContext<'_>,
+    models: Vec<page_revision::Model>,
+    latest_revision_id: Option<i64>,
+) -> Result<Vec<HistoryListingRow>> {
+    let ids: Vec<i64> = models.iter().map(|row| row.user_id).collect();
+    let authors = local_authors(ctx, ids).await?;
     Ok(models
         .into_iter()
         .map(|row| {
@@ -313,7 +336,8 @@ async fn native_rows(
                 number: row.revision_number,
                 flags,
                 author_id: Some(row.user_id),
-                author_name: names.get(&row.user_id).cloned(),
+                author_name: authors.get(&row.user_id).map(|(name, _)| name.clone()),
+                author_slug: authors.get(&row.user_id).map(|(_, slug)| slug.clone()),
                 created_at: row.created_at,
                 comments: if row.hidden.iter().any(|field| field == "comments") {
                     String::new()

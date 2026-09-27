@@ -64,6 +64,7 @@ pub struct HistoryListingRow {
     pub flags: Vec<String>,
     pub author_id: Option<i64>,
     pub author_name: Option<String>,
+    pub author_slug: Option<String>,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
     pub comments: String,

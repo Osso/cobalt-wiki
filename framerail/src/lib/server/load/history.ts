@@ -18,6 +18,7 @@ export interface HistoryRow {
   flags: string[]
   author_id: number | null
   author_name: string | null
+  author_slug: string | null
   created_at: string
   comments: string
   is_current: boolean

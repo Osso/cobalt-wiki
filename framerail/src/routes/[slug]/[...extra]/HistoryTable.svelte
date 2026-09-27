@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { resolve } from "$app/paths"
   import type { HistoryList, HistoryRow } from "$lib/server/load/history"
 
   let {
@@ -133,7 +134,9 @@
               >
             </td>
             <td class="author">
-              {#if author}{author}{:else}<span class="muted">Unknown</span>{/if}
+              {#if author && row.author_slug}<a
+                  href={resolve("/-/user/[slug]", { slug: row.author_slug })}>{author}</a
+                >{:else if author}{author}{:else}<span class="muted">Unknown</span>{/if}
             </td>
             <td class="date">
               <time datetime={row.created_at}
@@ -356,6 +359,10 @@
 
   .author {
     white-space: nowrap;
+  }
+
+  .author a {
+    font-weight: 500;
   }
 
   .date {

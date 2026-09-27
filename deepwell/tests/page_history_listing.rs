@@ -120,7 +120,7 @@ async fn imported_history_pages_over_two_hundred_and_filters_before_counting() {
         json!({
             "user_id":987_654,"created_at":"2020-11-03T08:00:00Z",
             "fetched_at":"2026-09-24T00:00:00Z","user_type":"extant",
-            "name":"Archived Editor","slug":"archived-editor-987654",
+            "name":"Archived Editor","slug":"archived-editor",
             "avatar_uploaded_blob_id":null,"real_name":null,"gender":null,
             "birthday":null,"location":null,"biography":null,"website":null,
             "karma":3,"is_pro":false,"importing_user_id":ADMIN_USER_ID,
@@ -135,6 +135,27 @@ async fn imported_history_pages_over_two_hundred_and_filters_before_counting() {
     assert_eq!(
         named.rows[0].author_name.as_deref(),
         Some("Archived Editor")
+    );
+    assert_eq!(named.rows[0].author_slug, None);
+    run_endpoint!(
+        runner,
+        user_activate_from_wikidot,
+        json!({
+            "user_id": 987_654, "user_type": "regular",
+            "email": "wikidot-987654@members.invalid", "locales": ["en"],
+            "password": "secret nobody is told",
+            "bypass_filter": true, "bypass_email_verification": true,
+            "ip_address": common::IP_ADDRESS,
+        })
+    );
+    let member = run_endpoint!(
+        runner,
+        page_history_list,
+        request(site_id, page_id, "wikidot")
+    );
+    assert_eq!(
+        member.rows[0].author_slug.as_deref(),
+        Some("archived-editor")
     );
     let mut filtered = request(site_id, page_id, "wikidot");
     filtered["per_page"] = json!(10);
@@ -217,6 +238,7 @@ async fn native_history_uses_actual_revision_changes_and_local_name() {
     assert_eq!(last.rows[1].id, current);
     assert_eq!(last.rows[1].author_id, Some(ADMIN_USER_ID));
     assert!(last.rows[1].author_name.is_some());
+    assert_eq!(last.rows[1].author_slug.as_deref(), Some("administrator"));
     let mut title = request(site_id, page_id, "local");
     title["filters"] = json!({"all":false,"title":true});
     let title = run_endpoint!(runner, page_history_list, title);
