@@ -21,18 +21,19 @@ import urllib.request
 PER_PAGE = 100
 TOKEN = "cobaltreplica"
 ITEM = re.compile(
-    r'<div class="changes-list-item">(.*?)(?=<div class="changes-list-item">|\Z)', re.S
+    r'<div class="changes-list-item">(.*?)(?=<div class="changes-list-item">|\Z)',
+    re.DOTALL,
 )
-TITLE = re.compile(r'<td class="title">\s*<a href="/([^"]+)">(.*?)</a>', re.S)
+TITLE = re.compile(r'<td class="title">\s*<a href="/([^"]+)">(.*?)</a>', re.DOTALL)
 FLAG = re.compile(r'<span class="spantip" title="[^"]*">(\w)</span>')
 DATE = re.compile(r'class="odate time_(\d+)')
 REVISION = re.compile(r'<td class="revision-no">\s*\((?:rev\. (\d+)|new)\)')
 USER = re.compile(
     r'<td class="mod-by">\s*<span class="printuser[^"]*">.*?'
     r'user:info/([^"]+)"[^>]*userInfo\((\d+)\)[^>]*>(?:<img[^>]*>)?([^<]*)</a>',
-    re.S,
+    re.DOTALL,
 )
-COMMENTS = re.compile(r'<div class="comments">(.*?)</div>', re.S)
+COMMENTS = re.compile(r'<div class="comments">(.*?)</div>', re.DOTALL)
 
 
 def text(fragment):

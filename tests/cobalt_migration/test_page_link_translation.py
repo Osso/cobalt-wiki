@@ -2,7 +2,6 @@ import unittest
 
 from tools.cobalt_migration.page_link_translation import translate_page_links
 
-
 OLD = "https://cobalt-company.wikidot.com"
 NEW = "https://cobalt-company.sakuin.org"
 PAGES = {"writing:scene", "café:été", "home"}

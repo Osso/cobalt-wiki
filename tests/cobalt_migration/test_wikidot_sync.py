@@ -317,14 +317,9 @@ class OwnershipTest(unittest.TestCase):
                 "module",
                 side_effect=AssertionError("protected files reached"),
             ),
-            mock.patch("builtins.open", mock.mock_open(read_data="password")) as opened,
         ):
-            # Output files use real filesystem writes; only the password is supplied by mock.
-            opened.side_effect = lambda path, *args, **kwargs: (
-                mock.mock_open(read_data="password")()
-                if str(path) == "password"
-                else Path(path).open(*args, **kwargs)
-            )
+            password_file = Path(tmp) / "password"
+            password_file.write_text("password")
             factory.side_effect = [
                 mock.Mock(rpc=mock.Mock(return_value={"session_token": "token"})),
                 replica,
@@ -341,7 +336,7 @@ class OwnershipTest(unittest.TestCase):
                     "https://target",
                     "http://127.0.0.1:1/jsonrpc",
                     "6000000",
-                    "password",
+                    str(password_file),
                     "0",
                     tmp,
                 ]
@@ -378,13 +373,9 @@ class LinkSyncTest(unittest.TestCase):
             mock.patch.object(wikidot_sync, "paced", return_value=changes),
             mock.patch.object(wikidot_sync, "wikidot_page", return_value=state),
             mock.patch.object(wikidot_sync, "file_events", return_value={}),
-            mock.patch("builtins.open", mock.mock_open(read_data="password")) as opened,
         ):
-            opened.side_effect = lambda path, *args, **kwargs: (
-                mock.mock_open(read_data="password")()
-                if str(path) == "password"
-                else Path(path).open(*args, **kwargs)
-            )
+            password_file = Path(tmp) / "password"
+            password_file.write_text("password")
             factory.side_effect = [
                 mock.Mock(rpc=mock.Mock(return_value={"session_token": "token"})),
                 replica,
@@ -401,7 +392,7 @@ class LinkSyncTest(unittest.TestCase):
                     "https://target",
                     "http://127.0.0.1:1/jsonrpc",
                     "6000000",
-                    "password",
+                    str(password_file),
                     "0",
                     tmp,
                 ]
@@ -613,10 +604,12 @@ class SyncFilesTest(unittest.TestCase):
     def test_incomplete_listing_changes_nothing(self):
         replica = FakeReplica(["icons"], files={1: {"a.jpg": FakeReplica.file("a.jpg", b"a", 7)}})
         listing = {"status": "ok", "body": "<p>Total files: 468</p>"}
-        with mock.patch.object(wikidot_sync, "module", return_value=listing):
-            with self.assertRaisesRegex(wikidot_sync.FileListError, "listed 0 of 468"):
-                sync_files(replica, 6000000, -1, "https://cobalt-company.wikidot.com", 1, 5,
-                           {"touched": set(), "gone": {"a.jpg"}, "unrecognized": []})
+        with (
+            mock.patch.object(wikidot_sync, "module", return_value=listing),
+            self.assertRaisesRegex(wikidot_sync.FileListError, "listed 0 of 468"),
+        ):
+            sync_files(replica, 6000000, -1, "https://cobalt-company.wikidot.com", 1, 5,
+                       {"touched": set(), "gone": {"a.jpg"}, "unrecognized": []})
         self.assertEqual(list(replica.files[1]), ["a.jpg"])
 
 

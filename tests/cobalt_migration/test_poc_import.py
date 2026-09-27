@@ -626,6 +626,9 @@ class TransportTests(unittest.TestCase):
         ):
 
             class Opener:
+                def __init__(self, issued_url):
+                    self.issued_url = issued_url
+
                 def open(self, request, timeout):
                     return io.BytesIO(
                         json.dumps(
@@ -634,14 +637,14 @@ class TransportTests(unittest.TestCase):
                                 "id": 1,
                                 "result": {
                                     "pending_blob_id": "7",
-                                    "presign_url": issued,
+                                    "presign_url": self.issued_url,
                                 },
                             }
                         ).encode()
                     )
 
             client = poc.LoopbackRpc("http://127.0.0.1:2747/jsonrpc", "private", 10)
-            client.opener = Opener()
+            client.opener = Opener(issued)
             with self.subTest(issued=issued), self.assertRaises(poc.PocImportError):
                 client.rpc("blob_upload", {"user_id": 2, "blob_size": 3})
 

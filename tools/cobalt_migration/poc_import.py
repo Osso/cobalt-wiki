@@ -360,7 +360,7 @@ def _storage_url(url):
             or "#" in url
         ):
             raise PocImportError("invalid issued storage URL")
-        parts.port
+        _ = parts.port  # Validate the port; urlsplit defers invalid-port errors.
     except (TypeError, ValueError):
         raise PocImportError("invalid issued storage URL") from None
 
