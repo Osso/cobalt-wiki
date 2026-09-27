@@ -80,6 +80,20 @@ function chicagoDate(epoch) {
   return `${part("day")} ${part("month")} ${part("year")} - ${part("hour")}:${part("minute")}:${part("second")}`
 }
 
+/** @param {string} title @param {number} epoch */
+function assertRelativeAge(title, epoch) {
+  const match = /^(\d+) (second|minute|hour|day)s? ago$/.exec(title)
+  assert.ok(match, "relative time needs a numeric age and unit")
+  /** @type {Record<string, number>} */
+  const units = { second: 1, minute: 60, hour: 3600, day: 86400 }
+  const unitSeconds = units[match[2]]
+  assert.ok(unitSeconds, "relative unit must be supported")
+  const seconds = Number(match[1]) * unitSeconds
+  const elapsed = Math.max(1, Math.floor(Date.now() / 1000 - epoch))
+  assert.ok(seconds <= elapsed + 2, "relative age cannot exceed elapsed time")
+  assert.ok(elapsed - seconds < unitSeconds + 2, "relative age must track instant")
+}
+
 /** @param {import("@playwright/test").Page} page */
 async function assertDates(page) {
   const dates = rowsOn(page).locator("td.mod-date time.site-change-date")
@@ -96,11 +110,11 @@ async function assertDates(page) {
     const display = await date.evaluate((element) => getComputedStyle(element).display)
     assert.notEqual(display, "none", "date must not be hidden")
   }
+  const date = dates.first()
+  const epoch = Number(await date.getAttribute("data-timestamp"))
   for (const action of ["hover", "focus"]) {
-    const date = dates.first()
     await date[action]()
-    const title = await date.getAttribute("title")
-    assert.match(title ?? "", /^\d+ (second|minute|hour|day)s? ago$/)
+    assertRelativeAge((await date.getAttribute("title")) ?? "", epoch)
   }
 }
 
@@ -112,7 +126,10 @@ async function assertRowContent(page) {
     await expect(row.locator("td")).toHaveCount(5)
     await expect(row.locator("td.title a")).toHaveAttribute("href", /^\//)
     await expect(row.locator("td.revision-no")).toHaveText(/^\((?:new|rev\. \d+)\)$/)
-    const flags = await row.locator("td.flags .spantip").allTextContents()
+    const flagLabels = row.locator("td.flags .spantip")
+    const flags = await flagLabels.allTextContents()
+    for (const label of await flagLabels.all())
+      await expect(label).toHaveAttribute("title", /\S+/)
     assert.ok(
       flags.every((flag) => /^[NSTRAMF]$/.test(flag)),
       "known flags only"
