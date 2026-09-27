@@ -1,5 +1,8 @@
 import hashlib
+import json
+import tempfile
 import unittest
+from pathlib import Path
 from unittest import mock
 
 from tools.cobalt_migration import wikidot_sync
@@ -11,6 +14,7 @@ from tools.cobalt_migration.wikidot_sync import (
     parse_renames,
     plan_rename,
     sync_files,
+    sync_page,
     sync_renames,
 )
 
@@ -130,11 +134,18 @@ class RenameTest(unittest.TestCase):
         self.assertTrue(plan_rename(rename, False, False).startswith("nothing to move"))
 
 
+POC_MARKER = f"Cobalt POC import {'a' * 64}; source authorship/history unacquired"
+SYNC_MARKER = "Wikidot sync (rev. 12)"
+FILE_MARKER = "Wikidot sync (file)"
+
+
 class FakeReplica:
     """In-memory Deepwell: pages by slug, files by page ID, uploaded blobs."""
 
     def __init__(self, pages, files=None):
-        self.pages = {slug: {"page_id": i + 1, "revision_id": 100 + i, "slug": slug}
+        self.pages = {slug: {"page_id": i + 1, "revision_id": 100 + i, "slug": slug,
+                             "revision_user_id": -1, "revision_comments": SYNC_MARKER,
+                             "wikitext": "old", "title": slug, "tags": []}
                       for i, slug in enumerate(pages)}
         self.files = files or {}
         self.blobs, self.calls = {}, []
@@ -148,7 +159,23 @@ class FakeReplica:
         if method == "page_get":
             return self.pages.get(params["page"])
         if method == "page_move":
-            self.pages[params["new_slug"]] = self.pages.pop(self.slug_of(params["page"]))
+            page = self.pages.pop(self.slug_of(params["page"]))
+            page["slug"] = params["new_slug"]
+            page["revision_comments"] = params["revision_comments"]
+            self.pages[params["new_slug"]] = page
+            return {}
+        if method == "page_import":
+            slug = params["slug"]
+            self.pages[slug] = {"page_id": len(self.pages) + 1, "revision_id": 201,
+                                "slug": slug, "revision_user_id": params["user_id"],
+                                "revision_comments": params["revision_comments"],
+                                "wikitext": params["wikitext"], "title": params["title"],
+                                "tags": params["tags"]}
+            return {}
+        if method == "page_edit":
+            page = self.pages[self.slug_of(params["page"])]
+            page.update({key: params[key] for key in ("wikitext", "title", "tags") if key in params})
+            page["revision_comments"] = params["revision_comments"]
             return {}
         if method == "page_get_files":
             return list(self.files.get(params["page_id"], {}).values())
@@ -175,8 +202,15 @@ class FakeReplica:
 
     @staticmethod
     def file(name, data, file_id):
-        return {"name": name, "file_id": file_id, "revision_id": file_id * 10, "size": len(data),
-                "s3_hash": hashlib.sha512(data).hexdigest()}
+        return {
+            "name": name,
+            "file_id": file_id,
+            "revision_id": file_id * 10,
+            "size": len(data),
+            "s3_hash": hashlib.sha512(data).hexdigest(),
+            "revision_user_id": -1,
+            "revision_comments": FILE_MARKER,
+        }
 
 
 def files_listing(files):
@@ -187,6 +221,137 @@ def files_listing(files):
         for i, (name, data) in enumerate(files.items())
     )
     return f"<p>Total files: {len(files)}</p><table>{rows}</table>"
+
+
+class OwnershipTest(unittest.TestCase):
+    def test_newer_local_page_is_kept_without_rpc_write(self):
+        replica = FakeReplica(["story"])
+        page = replica.pages["story"]
+        page.update(revision_user_id=42, revision_comments=SYNC_MARKER)
+        before = page.copy()
+        state = {"title": "New", "source": "source", "tags": []}
+        outcome = sync_page(
+            replica, 6000000, -1, "story", state, "Wikidot sync (rev. 13)"
+        )
+        self.assertIn("kept:", outcome)
+        self.assertEqual(replica.pages["story"], before)
+        self.assertNotIn("page_edit", replica.calls)
+
+    def test_missing_page_revision_metadata_is_kept(self):
+        replica = FakeReplica(["story"])
+        del replica.pages["story"]["revision_comments"]
+        outcome = sync_page(
+            replica,
+            6000000,
+            -1,
+            "story",
+            {"title": "New", "source": "source", "tags": []},
+            SYNC_MARKER,
+        )
+        self.assertIn("kept:", outcome)
+        self.assertNotIn("page_edit", replica.calls)
+
+    def test_import_owned_page_and_rename_can_change(self):
+        replica = FakeReplica(["old"])
+        replica.pages["old"]["revision_comments"] = POC_MARKER
+        rename = {"from": "old", "to": "story", "revision": 13}
+        sync_renames(replica, 6000000, -1, [rename])
+        self.assertEqual(rename["outcome"], "moved")
+        outcome = sync_page(
+            replica,
+            6000000,
+            -1,
+            "story",
+            {"title": "New", "source": "source", "tags": []},
+            SYNC_MARKER,
+        )
+        self.assertIn("edited", outcome)
+        self.assertEqual(replica.pages["story"]["wikitext"], "source")
+
+    def test_unowned_rename_blocks_move(self):
+        replica = FakeReplica(["old"])
+        replica.pages["old"]["revision_comments"] = "Human edit"
+        rename = {"from": "old", "to": "story", "revision": 13}
+        sync_renames(replica, 6000000, -1, [rename])
+        self.assertIn("kept:", rename["outcome"])
+        self.assertNotIn("page_move", replica.calls)
+        self.assertEqual(list(replica.pages), ["old"])
+
+    def test_refused_page_has_no_date_update_or_duplicate_rename_target(self):
+        replica = FakeReplica(["old", "local"])
+        replica.pages["old"].update(revision_user_id=42, revision_comments="Human edit")
+        changes = [
+            {
+                "slug": "new",
+                "revision": revision,
+                "flags": "R",
+                "changed_at": revision,
+                "comments": f'You successfully renamed the page: "{old}" to "{new}".',
+                "title": "New",
+                "user_slug": "u",
+                "user_name": "U",
+                "user_id": 1,
+            }
+            for old, new, revision in [("old", "middle", 12), ("middle", "new", 13)]
+        ]
+        state = {
+            "status": "ok",
+            "page_id": 1,
+            "title": "New",
+            "source": "source",
+            "tags": [],
+            "created_at": 1,
+            "updated_at": 2,
+        }
+        events = {"new": {"touched": {"a.jpg"}, "gone": set(), "unrecognized": []}}
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            mock.patch.object(wikidot_sync, "LoopbackRpc") as factory,
+            mock.patch.object(wikidot_sync, "paced", return_value=changes),
+            mock.patch.object(wikidot_sync, "wikidot_page", return_value=state),
+            mock.patch.object(wikidot_sync, "file_events", return_value=events),
+            mock.patch.object(
+                wikidot_sync,
+                "module",
+                side_effect=AssertionError("protected files reached"),
+            ),
+            mock.patch("builtins.open", mock.mock_open(read_data="password")) as opened,
+        ):
+            # Output files use real filesystem writes; only the password is supplied by mock.
+            opened.side_effect = lambda path, *args, **kwargs: (
+                mock.mock_open(read_data="password")()
+                if str(path) == "password"
+                else Path(path).open(*args, **kwargs)
+            )
+            factory.side_effect = [
+                mock.Mock(rpc=mock.Mock(return_value={"session_token": "token"})),
+                replica,
+            ]
+            original_rpc = replica.rpc
+            replica.rpc = lambda method, params: (
+                {"user_id": -1}
+                if method == "session_get"
+                else original_rpc(method, params)
+            )
+            wikidot_sync.main(
+                [
+                    "https://source",
+                    "http://127.0.0.1:1/jsonrpc",
+                    "6000000",
+                    "password",
+                    "0",
+                    tmp,
+                ]
+            )
+            report = json.loads((Path(tmp) / "sync-report.json").read_text())
+            sql = (Path(tmp) / "sync-apply.sql").read_text()
+        self.assertIn("kept:", report["renames"][0]["outcome"])
+        self.assertIn("kept:", report["pages"]["new"])
+        self.assertEqual(report["files"]["new"]["skipped"], "page not synced")
+        self.assertNotIn("page_get_files", replica.calls)
+        self.assertNotIn("new", replica.pages)
+        self.assertNotIn("UPDATE page SET", sql)
+        self.assertNotIn("page_import", replica.calls)
 
 
 class SyncFilesTest(unittest.TestCase):
@@ -229,16 +394,82 @@ class SyncFilesTest(unittest.TestCase):
         ])
         self.assertEqual(
             {name: file["s3_hash"] for name, file in replica.files[1].items()},
-            {name: hashlib.sha512(data).hexdigest() for name, data in
-             {**wikidot, "icon_extra.jpg": b"x"}.items()},
+            {
+                name: hashlib.sha512(data).hexdigest()
+                for name, data in {**wikidot, "icon_extra.jpg": b"x"}.items()
+            },
         )
 
         again, _ = self.run_sync(replica, wikidot, events)
-        self.assertEqual(again, {
-            "icon_emdee.jpg": "unchanged",
-            "icon_extra.jpg": "kept: absent on Wikidot, but no revision in the window removed it",
-            "icon_valentine.jpg": "unchanged",
-        })
+        self.assertEqual(
+            again,
+            {
+                "icon_emdee.jpg": "unchanged",
+                "icon_extra.jpg": "kept: absent on Wikidot, but no revision in the window removed it",
+                "icon_valentine.jpg": "unchanged",
+            },
+        )
+
+    def test_existing_local_file_kept_even_when_filename_matches(self):
+        replica = FakeReplica(
+            ["icons"], files={1: {"a.jpg": FakeReplica.file("a.jpg", b"local", 7)}}
+        )
+        replica.files[1]["a.jpg"].update(
+            revision_user_id=42, revision_comments="Human edit"
+        )
+        before = replica.files[1]["a.jpg"].copy()
+        outcome, downloads = self.run_sync(
+            replica,
+            {"a.jpg": b"source"},
+            {"touched": {"a.jpg"}, "gone": set(), "unrecognized": []},
+        )
+        self.assertIn("kept:", outcome["a.jpg"])
+        self.assertEqual(replica.files[1]["a.jpg"], before)
+        self.assertEqual(downloads, [])
+        self.assertNotIn("blob_upload", replica.calls)
+
+    def test_unowned_file_is_not_deleted(self):
+        replica = FakeReplica(
+            ["icons"], files={1: {"b.jpg": FakeReplica.file("b.jpg", b"local", 8)}}
+        )
+        replica.files[1]["b.jpg"]["revision_comments"] = "Human edit"
+        outcome, _ = self.run_sync(
+            replica, {}, {"touched": set(), "gone": {"b.jpg"}, "unrecognized": []}
+        )
+        self.assertIn("kept:", outcome["b.jpg"])
+        self.assertIn("b.jpg", replica.files[1])
+        self.assertNotIn("file_delete", replica.calls)
+
+    def test_import_owned_file_can_be_updated_and_deleted(self):
+        replica = FakeReplica(
+            ["icons"],
+            files={
+                1: {
+                    "a.jpg": FakeReplica.file("a.jpg", b"old", 7),
+                    "b.jpg": FakeReplica.file("b.jpg", b"old", 8),
+                }
+            },
+        )
+        replica.files[1]["a.jpg"]["revision_comments"] = POC_MARKER
+        outcome, _ = self.run_sync(
+            replica,
+            {"a.jpg": b"new"},
+            {"touched": {"a.jpg"}, "gone": {"b.jpg"}, "unrecognized": []},
+        )
+        self.assertEqual(outcome, {"a.jpg": "updated", "b.jpg": "deleted"})
+
+    def test_missing_file_metadata_keeps_and_reports_conflict(self):
+        replica = FakeReplica(
+            ["icons"], files={1: {"a.jpg": FakeReplica.file("a.jpg", b"old", 7)}}
+        )
+        del replica.files[1]["a.jpg"]["revision_user_id"]
+        outcome, downloads = self.run_sync(
+            replica,
+            {"a.jpg": b"new"},
+            {"touched": {"a.jpg"}, "gone": set(), "unrecognized": []},
+        )
+        self.assertIn("kept:", outcome["a.jpg"])
+        self.assertEqual(downloads, [])
 
     def test_missing_file_page_is_reported_not_created(self):
         replica = FakeReplica(["icons"])

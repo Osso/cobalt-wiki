@@ -53,6 +53,8 @@ META = re.compile(
     re.S,
 )
 RENAMED = re.compile(r'You successfully renamed the page: "([^"]+)" to "([^"]+)"\.')
+POC_MARKER = re.compile(r"Cobalt POC import [0-9a-f]{64}; source authorship/history unacquired")
+PAGE_SYNC_MARKER = re.compile(r"Wikidot sync \(rev\. [0-9]+(?:, renamed)?\)")
 NOTHING_TO_MOVE = "nothing to move: neither slug on the replica (the page sync creates the new one)"
 INTERVAL = 1.0
 ATTEMPTS = 4
@@ -172,6 +174,19 @@ def wikidot_page(origin, slug):
     }
 
 
+def import_owned(record, user_id, markers):
+    """Only a current technical-user revision with an exact import marker is owned."""
+    comment = record.get("revision_comments")
+    return (
+        record.get("revision_user_id") == user_id
+        and isinstance(comment, str)
+        and (
+            POC_MARKER.fullmatch(comment) is not None
+            or any(marker.fullmatch(comment) for marker in markers)
+        )
+    )
+
+
 def sync_page(rpc, site_id, user_id, slug, state, comment):
     """Create or edit the replica page to match; returns what was done."""
     page = rpc.rpc("page_get", {"site_id": site_id, "page": slug, "details": {"wikitext": True}})
@@ -183,6 +198,8 @@ def sync_page(rpc, site_id, user_id, slug, state, comment):
             "bypass_filter": True, "ip_address": "127.0.0.1",
         })
         return "created"
+    if not import_owned(page, user_id, (PAGE_SYNC_MARKER,)):
+        return "kept: current page revision is not import-owned"
     changes = {}
     if page["wikitext"] != state["source"]:
         changes["wikitext"] = state["source"]
@@ -233,20 +250,38 @@ def plan_rename(rename, old_exists, new_exists):
 
 def sync_renames(rpc, site_id, user_id, renames):
     """Apply renames in order; records each one's outcome on it."""
+    blocked = set()
     for rename in renames:
+        if rename["from"] in blocked:
+            rename["outcome"] = (
+                "kept: earlier rename source revision is not import-owned"
+            )
+            blocked.add(rename["to"])
+            continue
         old = new = None
         if rename["from"] is not None:
             old = rpc.rpc("page_get", {"site_id": site_id, "page": rename["from"]})
             new = rpc.rpc("page_get", {"site_id": site_id, "page": rename["to"]})
         action = plan_rename(rename, old is not None, new is not None)
+        if action == "move" and not import_owned(old, user_id, (PAGE_SYNC_MARKER,)):
+            action = "kept: current page revision is not import-owned"
         if action == "move":
-            rpc.rpc("page_move", {
-                "site_id": site_id, "page": old["page_id"], "last_revision_id": old["revision_id"],
-                "new_slug": rename["to"], "user_id": user_id, "ip_address": "127.0.0.1",
-                "revision_comments": f"Wikidot sync (rev. {rename['revision']}, renamed)",
-            })
+            rpc.rpc(
+                "page_move",
+                {
+                    "site_id": site_id,
+                    "page": old["page_id"],
+                    "last_revision_id": old["revision_id"],
+                    "new_slug": rename["to"],
+                    "user_id": user_id,
+                    "ip_address": "127.0.0.1",
+                    "revision_comments": f"Wikidot sync (rev. {rename['revision']}, renamed)",
+                },
+            )
             action = "moved"
         rename["outcome"] = action
+        if action.startswith("kept:"):
+            blocked.add(rename["to"])
 
 
 def file_url(origin, href):
@@ -297,36 +332,72 @@ def sync_files(rpc, site_id, user_id, origin, replica_page_id, wikidot_page_id, 
     wikidot = list_wikidot_files(origin, wikidot_page_id)
     replica = {
         file["name"]: file
-        for file in rpc.rpc("page_get_files", {"site_id": site_id, "page_id": replica_page_id, "deleted": False})
+        for file in rpc.rpc(
+            "page_get_files",
+            {"site_id": site_id, "page_id": replica_page_id, "deleted": False},
+        )
     }
     comment = "Wikidot sync (file)"
+    file_marker = re.compile(re.escape(comment))
     outcomes = {}
-    for name, action in sorted(plan_files(wikidot, replica, events["touched"], events["gone"]).items()):
+    for name, action in sorted(
+        plan_files(wikidot, replica, events["touched"], events["gone"]).items()
+    ):
+        current = replica.get(name)
+        if (
+            action in {"create", "verify", "delete"}
+            and current is not None
+            and not import_owned(current, user_id, (file_marker,))
+        ):
+            outcomes[name] = "kept: current file revision is not import-owned"
+            continue
         try:
             if action in {"create", "verify"}:
-                data = download(file_url(origin, wikidot[name]["href"]), wikidot[name]["size"])
-                current = replica.get(name)
+                data = download(
+                    file_url(origin, wikidot[name]["href"]), wikidot[name]["size"]
+                )
                 if current and hashlib.sha512(data).hexdigest() == current["s3_hash"]:
                     outcomes[name] = "unchanged"
                     continue
                 blob = upload_blob(rpc, user_id, data)
-                common = {"site_id": site_id, "page_id": replica_page_id, "user_id": user_id,
-                          "revision_comments": comment, "bypass_filter": True, "ip_address": "127.0.0.1"}
+                common = {
+                    "site_id": site_id,
+                    "page_id": replica_page_id,
+                    "user_id": user_id,
+                    "revision_comments": comment,
+                    "bypass_filter": True,
+                    "ip_address": "127.0.0.1",
+                }
                 if current is None:
-                    rpc.rpc("file_create", {**common, "name": name, "uploaded_blob_id": blob})
+                    rpc.rpc(
+                        "file_create",
+                        {**common, "name": name, "uploaded_blob_id": blob},
+                    )
                     outcomes[name] = "created"
                 else:
-                    rpc.rpc("file_edit", {**common, "file_id": current["file_id"],
-                                          "last_revision_id": current["revision_id"],
-                                          "uploaded_blob_id": blob})
+                    rpc.rpc(
+                        "file_edit",
+                        {
+                            **common,
+                            "file_id": current["file_id"],
+                            "last_revision_id": current["revision_id"],
+                            "uploaded_blob_id": blob,
+                        },
+                    )
                     outcomes[name] = "updated"
             elif action == "delete":
                 current = replica[name]
-                rpc.rpc("file_delete", {
-                    "site_id": site_id, "page_id": replica_page_id, "file": current["file_id"],
-                    "last_revision_id": current["revision_id"], "user_id": user_id,
-                    "revision_comments": comment,
-                })
+                rpc.rpc(
+                    "file_delete",
+                    {
+                        "site_id": site_id,
+                        "page_id": replica_page_id,
+                        "file": current["file_id"],
+                        "last_revision_id": current["revision_id"],
+                        "user_id": user_id,
+                        "revision_comments": comment,
+                    },
+                )
                 outcomes[name] = "deleted"
             else:
                 outcomes[name] = "kept: absent on Wikidot, but no revision in the window removed it"
@@ -393,15 +464,25 @@ def main(argv):
     sync_renames(rpc, site_id, user_id, renames)
 
     report = {"pages": {}, "renames": renames, "files": {}}
+    blocked_targets = {
+        rename["to"] for rename in renames if rename["outcome"].startswith("kept:")
+    }
     pages = {}
     for slug in dict.fromkeys(row["slug"] for row in changes):
+        if slug in blocked_targets:
+            report["pages"][slug] = "kept: rename source revision is not import-owned"
+            continue
         state = wikidot_page(origin, slug)
         if state["status"] != "ok":
             report["pages"][slug] = f"skipped: {state['status']}"
             continue
         newest = max(row["revision"] for row in changes if row["slug"] == slug)
-        report["pages"][slug] = sync_page(rpc, site_id, user_id, slug, state, f"Wikidot sync (rev. {newest})")
-        pages[slug] = state
+        outcome = sync_page(
+            rpc, site_id, user_id, slug, state, f"Wikidot sync (rev. {newest})"
+        )
+        report["pages"][slug] = outcome
+        if not outcome.startswith("kept:"):
+            pages[slug] = state
 
     for slug, events in file_events(changes).items():
         entry = report["files"][slug] = {"unrecognized_comments": events["unrecognized"]}
