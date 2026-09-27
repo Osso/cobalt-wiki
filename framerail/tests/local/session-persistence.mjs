@@ -24,7 +24,9 @@ async function signIn(context, username, password, remember) {
   await page.goto(`${origin}/-/login`, { waitUntil: "networkidle" })
   await page.locator('#login [name="nameOrEmail"]').fill(username)
   await page.locator('#login [name="password"]').fill(password)
-  if (remember) await page.getByLabel("Keep me signed in").check()
+  const keep = page.getByLabel("Keep me signed in")
+  await expect(keep, "Keep me signed in starts checked").toBeChecked()
+  if (!remember) await keep.uncheck()
   await page.locator('#login button[type="submit"]').click()
   await expect(page.locator("#login")).toHaveCount(0)
   return page

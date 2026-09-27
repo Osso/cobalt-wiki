@@ -97,5 +97,5 @@ export async function loginAction({ request, getClientAddress, cookies }: Reques
 const loginSchema = object({
   nameOrEmail: pipe(string(), minLength(1)),
   password: pipe(string(), minLength(1)),
-  rememberMe: optional(boolean(), false)
+  rememberMe: optional(boolean(), true)
 })
