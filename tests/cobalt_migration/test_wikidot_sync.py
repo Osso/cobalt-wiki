@@ -1,7 +1,10 @@
+import contextlib
 import hashlib
+import io
 import json
 import tempfile
 import unittest
+import urllib.error
 from pathlib import Path
 from unittest import mock
 
@@ -39,6 +42,25 @@ LISTING = (
 
 
 class WikidotSyncTest(unittest.TestCase):
+    def test_retry_log_does_not_disclose_request_url_or_failure_reason(self):
+        url = "https://source.wikidot.com/page?token=private-query"
+        failure = urllib.error.HTTPError(url, 503, "private-reason", {}, None)
+        stderr = io.StringIO()
+        with (
+            mock.patch.object(wikidot_sync, "throttle"),
+            mock.patch.object(wikidot_sync.time, "sleep"),
+            mock.patch.object(
+                wikidot_sync.urllib.request, "urlopen", side_effect=failure
+            ),
+            contextlib.redirect_stderr(stderr),
+            self.assertRaises(urllib.error.HTTPError),
+        ):
+            wikidot_sync.wikidot_request(url)
+        self.assertEqual(
+            stderr.getvalue().splitlines(),
+            [f"retry {attempt}/4: HTTPError (http 503)" for attempt in range(1, 4)],
+        )
+
     def test_view_source_decodes_to_the_saved_source(self):
         self.assertEqual(
             decode_view_source(VIEW_SOURCE),
@@ -60,9 +82,19 @@ class WikidotSyncTest(unittest.TestCase):
         sql = apply_sql(
             6000000,
             {"writing:it's": {"created_at": 1, "updated_at": 2}},
-            [{"slug": "writing:it's", "title": "It's", "revision": 0, "flags": "N",
-              "changed_at": 1, "user_slug": "allicat", "user_name": "Allicat",
-              "user_id": 7570574, "comments": ""}],
+            [
+                {
+                    "slug": "writing:it's",
+                    "title": "It's",
+                    "revision": 0,
+                    "flags": "N",
+                    "changed_at": 1,
+                    "user_slug": "allicat",
+                    "user_name": "Allicat",
+                    "user_id": 7570574,
+                    "comments": "",
+                }
+            ],
         )
         self.assertIn(
             "UPDATE page SET created_at = to_timestamp(1), updated_at = to_timestamp(2) "
@@ -77,11 +109,21 @@ class WikidotSyncTest(unittest.TestCase):
 
     def test_apply_sql_moves_rows_to_renamed_pages(self):
         sql = apply_sql(
-            6000000, {}, [],
+            6000000,
+            {},
+            [],
             renames=[
-                {"from": "character:brynnal", "to": "character:baird", "outcome": "moved"},
+                {
+                    "from": "character:brynnal",
+                    "to": "character:baird",
+                    "outcome": "moved",
+                },
                 {"from": "a", "to": "b", "outcome": "already moved"},
-                {"from": "c", "to": "d", "outcome": "skip: both slugs exist on the replica"},
+                {
+                    "from": "c",
+                    "to": "d",
+                    "outcome": "skip: both slugs exist on the replica",
+                },
                 {"from": "e", "to": "f", "outcome": wikidot_sync.NOTHING_TO_MOVE},
             ],
         )
@@ -90,25 +132,45 @@ class WikidotSyncTest(unittest.TestCase):
             "WHERE site_id = 6000000 AND page_slug = 'character:brynnal';",
             sql,
         )
-        self.assertIn("SET page_slug = 'b' WHERE site_id = 6000000 AND page_slug = 'a';", sql)
+        self.assertIn(
+            "SET page_slug = 'b' WHERE site_id = 6000000 AND page_slug = 'a';", sql
+        )
         self.assertNotIn("page_slug = 'c'", sql)
-        self.assertIn("SET page_slug = 'f' WHERE site_id = 6000000 AND page_slug = 'e';", sql)
+        self.assertIn(
+            "SET page_slug = 'f' WHERE site_id = 6000000 AND page_slug = 'e';", sql
+        )
 
 
 def change(slug, flags, changed_at, revision, comments):
-    return {"slug": slug, "flags": flags, "changed_at": changed_at, "revision": revision,
-            "comments": comments}
+    return {
+        "slug": slug,
+        "flags": flags,
+        "changed_at": changed_at,
+        "revision": revision,
+        "comments": comments,
+    }
 
 
 # Rows as SiteChanges lists them (newest first, under the page's current slug).
 RENAME_ROWS = [
-    change("writing:2026-09-18-a-collection-of-thought-exercises", "R", 1789804618, 4,
-           'You successfully renamed the page: "writing:2028-09-18-a-collection-of-thought-exercises" '
-           'to "writing:2026-09-18-a-collection-of-thought-exercises".'),
+    change(
+        "writing:2026-09-18-a-collection-of-thought-exercises",
+        "R",
+        1789804618,
+        4,
+        'You successfully renamed the page: "writing:2028-09-18-a-collection-of-thought-exercises" '
+        'to "writing:2026-09-18-a-collection-of-thought-exercises".',
+    ),
     change("character:baird", "S", 1789090700, 119, ""),
-    change("character:baird", "R", 1789090609, 118,
-           'You successfully renamed the page: "character:brynnal" to "character:baird".'),
+    change(
+        "character:baird",
+        "R",
+        1789090609,
+        118,
+        'You successfully renamed the page: "character:brynnal" to "character:baird".',
+    ),
 ]
+
 
 class RenameTest(unittest.TestCase):
     def test_reads_old_and_new_names_oldest_first(self):
@@ -116,21 +178,28 @@ class RenameTest(unittest.TestCase):
             [(r["from"], r["to"], r["revision"]) for r in parse_renames(RENAME_ROWS)],
             [
                 ("character:brynnal", "character:baird", 118),
-                ("writing:2028-09-18-a-collection-of-thought-exercises",
-                 "writing:2026-09-18-a-collection-of-thought-exercises", 4),
+                (
+                    "writing:2028-09-18-a-collection-of-thought-exercises",
+                    "writing:2026-09-18-a-collection-of-thought-exercises",
+                    4,
+                ),
             ],
         )
 
     def test_unrecognized_rename_comment_has_no_names(self):
         [rename] = parse_renames([change("x", "R", 1, 2, "Renamed by magic")])
         self.assertEqual((rename["from"], rename["to"]), (None, None))
-        self.assertEqual(plan_rename(rename, True, False), "skip: rename comment not recognized")
+        self.assertEqual(
+            plan_rename(rename, True, False), "skip: rename comment not recognized"
+        )
 
     def test_decision_by_replica_state(self):
         rename = {"from": "character:brynnal", "to": "character:baird"}
         self.assertEqual(plan_rename(rename, True, False), "move")
         self.assertEqual(plan_rename(rename, False, True), "already moved")
-        self.assertEqual(plan_rename(rename, True, True), "skip: both slugs exist on the replica")
+        self.assertEqual(
+            plan_rename(rename, True, True), "skip: both slugs exist on the replica"
+        )
         self.assertTrue(plan_rename(rename, False, False).startswith("nothing to move"))
 
 
@@ -143,16 +212,27 @@ class FakeReplica:
     """In-memory Deepwell: pages by slug, files by page ID, uploaded blobs."""
 
     def __init__(self, pages, files=None):
-        self.pages = {slug: {"page_id": i + 1, "revision_id": 100 + i, "slug": slug,
-                             "revision_user_id": -1, "revision_comments": SYNC_MARKER,
-                             "wikitext": "old", "title": slug, "tags": []}
-                      for i, slug in enumerate(pages)}
+        self.pages = {
+            slug: {
+                "page_id": i + 1,
+                "revision_id": 100 + i,
+                "slug": slug,
+                "revision_user_id": -1,
+                "revision_comments": SYNC_MARKER,
+                "wikitext": "old",
+                "title": slug,
+                "tags": [],
+            }
+            for i, slug in enumerate(pages)
+        }
         self.files = files or {}
         self.blobs, self.calls = {}, []
         self.page_get_queries = []
 
     def slug_of(self, page_id):
-        [slug] = [slug for slug, page in self.pages.items() if page["page_id"] == page_id]
+        [slug] = [
+            slug for slug, page in self.pages.items() if page["page_id"] == page_id
+        ]
         return slug
 
     def rpc(self, method, params):
@@ -168,15 +248,26 @@ class FakeReplica:
             return {}
         if method == "page_import":
             slug = params["slug"]
-            self.pages[slug] = {"page_id": len(self.pages) + 1, "revision_id": 201,
-                                "slug": slug, "revision_user_id": params["user_id"],
-                                "revision_comments": params["revision_comments"],
-                                "wikitext": params["wikitext"], "title": params["title"],
-                                "tags": params["tags"]}
+            self.pages[slug] = {
+                "page_id": len(self.pages) + 1,
+                "revision_id": 201,
+                "slug": slug,
+                "revision_user_id": params["user_id"],
+                "revision_comments": params["revision_comments"],
+                "wikitext": params["wikitext"],
+                "title": params["title"],
+                "tags": params["tags"],
+            }
             return {}
         if method == "page_edit":
             page = self.pages[self.slug_of(params["page"])]
-            page.update({key: params[key] for key in ("wikitext", "title", "tags") if key in params})
+            page.update(
+                {
+                    key: params[key]
+                    for key in ("wikitext", "title", "tags")
+                    if key in params
+                }
+            )
             page["revision_comments"] = params["revision_comments"]
             return {}
         if method == "page_get_files":
@@ -189,10 +280,14 @@ class FakeReplica:
         by_id = {file["file_id"]: name for name, file in page_files.items()}
         if method == "file_create":
             name = params["name"]
-            page_files[name] = self.file(name, self.blobs[params["uploaded_blob_id"]], 500 + len(page_files))
+            page_files[name] = self.file(
+                name, self.blobs[params["uploaded_blob_id"]], 500 + len(page_files)
+            )
         elif method == "file_edit":
             name = by_id[params["file_id"]]
-            page_files[name] = self.file(name, self.blobs[params["uploaded_blob_id"]], params["file_id"])
+            page_files[name] = self.file(
+                name, self.blobs[params["uploaded_blob_id"]], params["file_id"]
+            )
         elif method == "file_delete":
             del page_files[by_id[params["file"]]]
         else:
@@ -478,35 +573,64 @@ class SyncFilesTest(unittest.TestCase):
             return 200, wikidot_files[url.rsplit("/", 1)[1]]
 
         listing = {"status": "ok", "body": files_listing(wikidot_files)}
-        with mock.patch.object(wikidot_sync, "module", return_value=listing), \
-                mock.patch.object(wikidot_sync, "wikidot_request", side_effect=request):
-            outcome = sync_files(replica, 6000000, -1, "https://cobalt-company.wikidot.com",
-                                 1, 1312278321, events)
+        with (
+            mock.patch.object(wikidot_sync, "module", return_value=listing),
+            mock.patch.object(wikidot_sync, "wikidot_request", side_effect=request),
+        ):
+            outcome = sync_files(
+                replica,
+                6000000,
+                -1,
+                "https://cobalt-company.wikidot.com",
+                1,
+                1312278321,
+                events,
+            )
         return outcome, downloads
 
     def test_adds_replaces_deletes_and_is_idempotent(self):
         new, changed, kept = b"e" * 30274, b"v2" * 700, b"k" * 2048
-        replica = FakeReplica(["icons"], files={1: {
-            "icon_valentine.jpg": FakeReplica.file("icon_valentine.jpg", b"v1" * 700, 7),
-            "icon_kept.jpg": FakeReplica.file("icon_kept.jpg", kept, 8),
-            "icon_brynnal.jpg": FakeReplica.file("icon_brynnal.jpg", b"b", 9),
-            "icon_extra.jpg": FakeReplica.file("icon_extra.jpg", b"x", 10),
-        }})
-        wikidot = {"icon_emdee.jpg": new, "icon_valentine.jpg": changed, "icon_kept.jpg": kept}
-        events = {"touched": {"icon_emdee.jpg", "icon_valentine.jpg"}, "gone": {"icon_brynnal.jpg"},
-                  "unrecognized": []}
+        replica = FakeReplica(
+            ["icons"],
+            files={
+                1: {
+                    "icon_valentine.jpg": FakeReplica.file(
+                        "icon_valentine.jpg", b"v1" * 700, 7
+                    ),
+                    "icon_kept.jpg": FakeReplica.file("icon_kept.jpg", kept, 8),
+                    "icon_brynnal.jpg": FakeReplica.file("icon_brynnal.jpg", b"b", 9),
+                    "icon_extra.jpg": FakeReplica.file("icon_extra.jpg", b"x", 10),
+                }
+            },
+        )
+        wikidot = {
+            "icon_emdee.jpg": new,
+            "icon_valentine.jpg": changed,
+            "icon_kept.jpg": kept,
+        }
+        events = {
+            "touched": {"icon_emdee.jpg", "icon_valentine.jpg"},
+            "gone": {"icon_brynnal.jpg"},
+            "unrecognized": [],
+        }
 
         outcome, downloads = self.run_sync(replica, wikidot, events)
-        self.assertEqual(outcome, {
-            "icon_brynnal.jpg": "deleted",
-            "icon_emdee.jpg": "created",
-            "icon_extra.jpg": "kept: absent on Wikidot, but no revision in the window removed it",
-            "icon_valentine.jpg": "updated",
-        })
-        self.assertEqual(downloads, [
-            "https://cobalt-company.wdfiles.com/local--files/icons/icon_emdee.jpg",
-            "https://cobalt-company.wdfiles.com/local--files/icons/icon_valentine.jpg",
-        ])
+        self.assertEqual(
+            outcome,
+            {
+                "icon_brynnal.jpg": "deleted",
+                "icon_emdee.jpg": "created",
+                "icon_extra.jpg": "kept: absent on Wikidot, but no revision in the window removed it",
+                "icon_valentine.jpg": "updated",
+            },
+        )
+        self.assertEqual(
+            downloads,
+            [
+                "https://cobalt-company.wdfiles.com/local--files/icons/icon_emdee.jpg",
+                "https://cobalt-company.wdfiles.com/local--files/icons/icon_valentine.jpg",
+            ],
+        )
         self.assertEqual(
             {name: file["s3_hash"] for name, file in replica.files[1].items()},
             {
@@ -592,24 +716,41 @@ class SyncFilesTest(unittest.TestCase):
         listing = {
             "status": "ok",
             "body": '<p>Total files: 1</p><tr id="file-row-1"><td><a href="/local--files/icons/a.jpg">'
-                    'a.jpg</a></td><td><span>x</span></td><td>29.56 kB</td></tr>',
+            "a.jpg</a></td><td><span>x</span></td><td>29.56 kB</td></tr>",
         }
         missing = b"<html><head><title>The file does not exist</title></head></html>"
-        with mock.patch.object(wikidot_sync, "module", return_value=listing), \
-                mock.patch.object(wikidot_sync, "wikidot_request", return_value=(200, missing)):
-            outcome = sync_files(replica, 6000000, -1, "https://cobalt-company.wikidot.com", 1, 5, events)
-        self.assertEqual(outcome, {"a.jpg": "skipped: Wikidot says the file does not exist"})
+        with (
+            mock.patch.object(wikidot_sync, "module", return_value=listing),
+            mock.patch.object(
+                wikidot_sync, "wikidot_request", return_value=(200, missing)
+            ),
+        ):
+            outcome = sync_files(
+                replica, 6000000, -1, "https://cobalt-company.wikidot.com", 1, 5, events
+            )
+        self.assertEqual(
+            outcome, {"a.jpg": "skipped: Wikidot says the file does not exist"}
+        )
         self.assertNotIn("file_create", replica.calls)
 
     def test_incomplete_listing_changes_nothing(self):
-        replica = FakeReplica(["icons"], files={1: {"a.jpg": FakeReplica.file("a.jpg", b"a", 7)}})
+        replica = FakeReplica(
+            ["icons"], files={1: {"a.jpg": FakeReplica.file("a.jpg", b"a", 7)}}
+        )
         listing = {"status": "ok", "body": "<p>Total files: 468</p>"}
         with (
             mock.patch.object(wikidot_sync, "module", return_value=listing),
             self.assertRaisesRegex(wikidot_sync.FileListError, "listed 0 of 468"),
         ):
-            sync_files(replica, 6000000, -1, "https://cobalt-company.wikidot.com", 1, 5,
-                       {"touched": set(), "gone": {"a.jpg"}, "unrecognized": []})
+            sync_files(
+                replica,
+                6000000,
+                -1,
+                "https://cobalt-company.wikidot.com",
+                1,
+                5,
+                {"touched": set(), "gone": {"a.jpg"}, "unrecognized": []},
+            )
         self.assertEqual(list(replica.files[1]), ["a.jpg"])
 
 
@@ -635,15 +776,23 @@ class SyncRenamesTest(unittest.TestCase):
             {"from": "writing:x", "to": "writing:y", "revision": 3},
         ]
         sync_renames(replica, 6000000, -1, renames)
-        self.assertEqual([r["outcome"] for r in renames],
-                         ["moved", "moved", "skip: both slugs exist on the replica"])
-        self.assertEqual(sorted(replica.pages), ["character:baird", "writing:x", "writing:y"])
+        self.assertEqual(
+            [r["outcome"] for r in renames],
+            ["moved", "moved", "skip: both slugs exist on the replica"],
+        )
+        self.assertEqual(
+            sorted(replica.pages), ["character:baird", "writing:x", "writing:y"]
+        )
 
         sync_renames(replica, 6000000, -1, renames)
         # A rerun finds the page at the end of the chain; nothing moves again.
-        self.assertEqual([r["outcome"] for r in renames][:2],
-                         [wikidot_sync.NOTHING_TO_MOVE, "already moved"])
-        self.assertEqual(sorted(replica.pages), ["character:baird", "writing:x", "writing:y"])
+        self.assertEqual(
+            [r["outcome"] for r in renames][:2],
+            [wikidot_sync.NOTHING_TO_MOVE, "already moved"],
+        )
+        self.assertEqual(
+            sorted(replica.pages), ["character:baird", "writing:x", "writing:y"]
+        )
 
 
 if __name__ == "__main__":

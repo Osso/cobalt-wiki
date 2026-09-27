@@ -140,8 +140,13 @@ def wikidot_request(request):
             failure = error
         if attempt + 1 == ATTEMPTS:
             raise failure
+        status = (
+            f" (http {failure.code})"
+            if isinstance(failure, urllib.error.HTTPError)
+            else ""
+        )
         print(
-            f"retrying {getattr(request, 'full_url', request)}: {failure}",
+            f"retry {attempt + 1}/{ATTEMPTS}: {type(failure).__name__}{status}",
             file=sys.stderr,
         )
         time.sleep(2**attempt)
@@ -421,29 +426,9 @@ def sync_files(
                 data = download(
                     file_url(origin, wikidot[name]["href"]), wikidot[name]["size"]
                 )
-                if current:
-                    if dry_run:
-                        stored = rpc.rpc(
-                            "file_get",
-                            {
-                                "site_id": site_id,
-                                "page_id": replica_page_id,
-                                "file": name,
-                                "details": {"data": True},
-                            },
-                        )
-                        try:
-                            current_data = bytes.fromhex(stored["data"])
-                        except (KeyError, TypeError, ValueError):
-                            raise FileListError(
-                                f"target bytes unavailable for {name}"
-                            ) from None
-                        equal = data == current_data
-                    else:
-                        equal = hashlib.sha512(data).hexdigest() == current["s3_hash"]
-                    if equal:
-                        outcomes[name] = "unchanged"
-                        continue
+                if current and hashlib.sha512(data).hexdigest() == current["s3_hash"]:
+                    outcomes[name] = "unchanged"
+                    continue
                 if dry_run:
                     outcomes[name] = "would-replace" if current else "would-create"
                     continue
