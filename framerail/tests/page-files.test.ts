@@ -167,3 +167,16 @@ test("alternate Files layout retains existing presentation without Wikidot addit
   assert.match(body, /file-history clickable/)
   assert.match(body, /application\/pdf/)
 })
+
+test("Files rows show readable sizes with exact bytes on hover", () => {
+  const body = renderFiles(Layout.WIKIDOT, [
+    { ...files[0], size: 290270 },
+    { ...files[0], file_id: 99, name: "tiny.txt", size: 512 },
+    { ...files[0], file_id: 98, name: "scan.tiff", size: 5_452_595 }
+  ])
+  assert.match(body, /title="290,270 Bytes"[^>]*>\s*283 KB\s*</)
+  assert.match(body, /title="512 Bytes"[^>]*>\s*512 B\s*</)
+  assert.match(body, /title="5,452,595 Bytes"[^>]*>\s*5\.2 MB\s*</)
+  assert.match(body, /Total files size:\s*5,743,377 Bytes/)
+  assert.match(body, /3\s*files/)
+})

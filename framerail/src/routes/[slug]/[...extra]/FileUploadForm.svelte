@@ -3,6 +3,7 @@
   import { pageLayoutState } from "$lib/stores.svelte"
   import { Layout } from "$lib/types"
   import { uploadFiles, type UploadRow } from "$lib/fileUploadBatch"
+  import { formatFileSize } from "$lib/fileSize"
   import type { PageProps } from "./$types"
 
   let {
@@ -40,18 +41,6 @@
   let dragging = $state(false)
   let totalSize = $derived(files.reduce((total, file) => total + file.size, 0))
   let settled = $derived(uploaded + failed)
-
-  function formatSize(bytes: number): string {
-    if (bytes < 1024) return `${bytes} B`
-    const units = ["KB", "MB", "GB"]
-    let value = bytes / 1024
-    let unit = 0
-    while (value >= 1024 && unit < units.length - 1) {
-      value /= 1024
-      unit += 1
-    }
-    return `${value.toFixed(value < 10 ? 1 : 0)} ${units[unit]}`
-  }
 
   function setSelection(selected: File[]) {
     files = selected
@@ -162,8 +151,8 @@
       <span class="upload-hint">
         {#if files.length > 0}
           {files.length}
-          {files.length === 1 ? "file" : "files"} · {formatSize(totalSize)} — browse or drop
-          again to replace
+          {files.length === 1 ? "file" : "files"} · {formatFileSize(totalSize)} — browse or
+          drop again to replace
         {:else}
           Select several files at once in the picker, or drop them here.
         {/if}
@@ -200,7 +189,7 @@
             <span class="row-mark" aria-hidden="true"></span>
             <span class="row-body">
               <span class="row-name">{row.file.name}</span>
-              <span class="row-size">{formatSize(row.file.size)}</span>
+              <span class="row-size">{formatFileSize(row.file.size)}</span>
               {#if row.error}<span class="upload-error row-error">{row.error}</span>{/if}
             </span>
             <span class="row-state">{stateLabels[row.state]}</span>

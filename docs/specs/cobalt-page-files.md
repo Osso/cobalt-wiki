@@ -5,6 +5,7 @@ The Wikidot-layout Files pane presents attached-file information using the exist
 ## What it must do
 
 - [x] Show total bytes for listed nondeleted files, including a zero-byte total for a nonempty active list; omit the total for an empty list.
+- [x] List rows align in one grid with an extension badge, date (full timestamp on hover), readable size (exact bytes on hover), and quiet row actions with Delete in red; a footer shows file count and exact total. Narrow screens stack each row. `framerail/tests/page-files.test.ts` asserts readable sizes, byte titles, and totals.
 - [x] Offer each active file a closable, read-only information view with its name, existing file URL, byte size, MIME type, local `file_created_at` value, and nonempty revision comment.
 - [x] Label `file_created_at` “Local file created”; it is not the original upload timestamp.
 - [x] Use absolute same-origin file URLs through the existing `/-/file` permission boundary; encode filename spaces and fragment markers.

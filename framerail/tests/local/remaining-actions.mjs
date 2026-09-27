@@ -357,7 +357,11 @@ async function checkFiles(page, request, token, badges) {
   for (const file of files) {
     const row = pane.locator(`.file-row[data-id="${file.file_id}"]`)
     await expect(row.locator(".name a")).toHaveText(file.name)
-    await expect(row.locator(".size")).toHaveText(String(file.size))
+    await expect(row.locator(".size")).toHaveAttribute(
+      "title",
+      `${file.size.toLocaleString("en-US")} Bytes`
+    )
+    await expect(row.locator(".size")).toHaveText(/^\d+(\.\d)? (B|KB|MB|GB)$/)
     if (file.revision_type === "delete") continue
     await row.locator(".file-information summary").click()
     const details = row.locator(".file-information-content dl")

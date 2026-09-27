@@ -9,6 +9,7 @@
   import { fileProxy, superForm } from "sveltekit-superforms"
   import { untrack } from "svelte"
   import FileUploadForm from "./FileUploadForm.svelte"
+  import { formatFileSize } from "$lib/fileSize"
 
   import type { PageProps } from "./$types"
   import type { PageFile, PageFileDelete } from "$lib/server/deepwell/pageFile"
@@ -28,6 +29,15 @@
   let totalFileSize = $derived(listedFiles.reduce((total, file) => total + file.size, 0))
   let fileEditId = $state<number>(0)
   let fileRevisionMap = new SvelteMap<number, FileRevisionModel>()
+
+  function fileExtension(name: string): string {
+    const dot = name.lastIndexOf(".")
+    return dot > 0 ? name.slice(dot + 1, dot + 5).toUpperCase() : "FILE"
+  }
+
+  function formatListDate(value: string): string {
+    return new Date(value).toLocaleDateString(undefined, { dateStyle: "medium" })
+  }
 
   async function getFileList(deleted = false) {
     const res = await fetch("?/fileList", {
@@ -312,7 +322,7 @@
   {/if}
 
   {#if fileMap.size > 0}
-    <div class="file-list">
+    <div class="file-list" class:has-mime={pageLayoutState.current !== Layout.WIKIDOT}>
       <div class="file-list-header">
         <div class="file-attribute name">
           {data.internationalization?.["wiki-page-file.name"]}
@@ -338,25 +348,45 @@
           `/-/file/${data.page?.slug}/${encodeURIComponent(file.name)}`,
           page.url
         ).href}
-        <div class="file-row" data-id={id}>
+        <div
+          class="file-row"
+          class:is-deleted={file.revision_type === "delete"}
+          data-id={id}
+        >
           <div class="file-attribute name">
+            <span class="file-ext" aria-hidden="true">{fileExtension(file.name)}</span>
             <a href={fileUrl} rel="external">
               {file.name}
             </a>
           </div>
           <div class="file-attribute created-at">
-            {new Date(file.file_created_at).toLocaleString()}
+            <time
+              datetime={file.file_created_at}
+              title={new Date(file.file_created_at).toLocaleString()}
+              >{formatListDate(file.file_created_at)}</time
+            >
           </div>
           <div class="file-attribute updated-at">
-            {file.file_updated_at ? new Date(file.file_updated_at).toLocaleString() : "-"}
+            {#if file.file_updated_at}
+              <time
+                datetime={file.file_updated_at}
+                title={new Date(file.file_updated_at).toLocaleString()}
+                >{formatListDate(file.file_updated_at)}</time
+              >
+            {:else}
+              <span class="file-empty" aria-label="Never updated">—</span>
+            {/if}
           </div>
           {#if pageLayoutState.current !== Layout.WIKIDOT}
             <div class="file-attribute mime">
               {file.mime}
             </div>
           {/if}
-          <div class="file-attribute size">
-            {file.size}
+          <div
+            class="file-attribute size"
+            title="{file.size.toLocaleString('en-US')} Bytes"
+          >
+            {formatFileSize(file.size)}
           </div>
           <div class="file-attribute action">
             {#if pageLayoutState.current === Layout.WIKIDOT}
@@ -432,7 +462,7 @@
                 </a>
                 <!-- svelte-ignore a11y_invalid_attribute -->
                 <a
-                  class="btn btn-primary btn-sm btn-small"
+                  class="btn btn-primary btn-sm btn-small is-danger"
                   href="javascript:;"
                   onclick={() => {
                     deleteFile(file.file_id, file.revision_id)
@@ -495,11 +525,17 @@
         </div>
       {/each}
       {#if pageLayoutState.current === Layout.WIKIDOT && listedFiles.length > 0}
-        <p>Total files size: {totalFileSize.toLocaleString("en-US")} Bytes</p>
+        <div class="file-list-footer">
+          <span class="file-count">
+            {listedFiles.length}
+            {listedFiles.length === 1 ? "file" : "files"}
+          </span>
+          <p>Total files size: {totalFileSize.toLocaleString("en-US")} Bytes</p>
+        </div>
       {/if}
     </div>
   {:else}
-    <div class="file-list">
+    <div class="file-list is-empty">
       <div class="file-list-message">
         {data.internationalization?.["wiki-page-file-no-files"]}
       </div>
@@ -828,47 +864,307 @@
     width: 100%;
   }
 
+  .file-panel {
+    --files-line: color-mix(in srgb, currentColor 16%, transparent);
+    --files-tint: color-mix(in srgb, currentColor 4%, transparent);
+    --files-muted: color-mix(in srgb, currentColor 60%, transparent);
+    --files-accent: #1f5fa8;
+    --files-danger: #b3261e;
+    --files-radius: var(--size-border-radius, 6px);
+  }
+
+  .file-panel > .buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-bottom: 12px;
+
+    input {
+      min-height: 36px;
+      padding: 6px 16px;
+      font: inherit;
+      font-weight: 600;
+      color: inherit;
+      cursor: pointer;
+      background: transparent;
+      border: 1px solid var(--files-line);
+      border-radius: var(--files-radius);
+
+      &:hover {
+        background: var(--files-tint);
+      }
+
+      &.btn-primary {
+        color: #fff;
+        background: var(--files-accent);
+        border-color: var(--files-accent);
+
+        &:hover {
+          background: color-mix(in srgb, var(--files-accent) 85%, #000);
+        }
+      }
+
+      &:focus-visible {
+        outline: 3px solid color-mix(in srgb, var(--files-accent) 55%, transparent);
+        outline-offset: 2px;
+      }
+    }
+  }
+
+  // Rows are subgrids so every column lines up across rows, including actions.
   .file-list {
-    display: table;
-    width: 100%;
-    padding: 0 0 2em;
+    display: grid;
+    grid-template-columns: minmax(12rem, 1fr) auto auto auto auto;
+    margin: 0 0 2em;
+    border: 1px solid var(--files-line);
+    border-radius: var(--files-radius);
+
+    &.has-mime {
+      grid-template-columns: minmax(12rem, 1fr) auto auto auto auto auto;
+    }
+
+    &.is-empty {
+      display: block;
+      padding: 24px 16px;
+      color: var(--files-muted);
+      text-align: center;
+      border-style: dashed;
+    }
 
     .file-list-header,
     .file-row {
-      display: table-row;
+      display: grid;
+      grid-template-columns: subgrid;
+      grid-column: 1 / -1;
+      column-gap: 20px;
+      align-items: center;
+      padding: 0 14px;
+    }
+
+    .file-list-header {
+      padding-block: 8px;
+      font-size: 0.75em;
+      font-weight: 600;
+      color: var(--files-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      background: var(--files-tint);
+      border-bottom: 1px solid var(--files-line);
 
       .file-attribute {
-        display: table-cell;
+        font-size: inherit;
+        color: inherit;
       }
+    }
+
+    .file-row {
+      min-height: 48px;
+      padding-block: 6px;
+
+      + .file-row {
+        border-top: 1px solid var(--files-line);
+      }
+
+      &:hover {
+        background: var(--files-tint);
+      }
+
+      &.is-deleted .name a {
+        color: var(--files-muted);
+        text-decoration: line-through;
+      }
+    }
+
+    .created-at,
+    .updated-at,
+    .mime {
+      font-size: 0.9em;
+      color: var(--files-muted);
+      white-space: nowrap;
+    }
+
+    .size {
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .action {
+      display: flex;
+      gap: 2px;
+      align-items: center;
+      justify-content: flex-end;
+    }
+  }
+
+  .file-attribute.name {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    min-width: 0;
+
+    a {
+      font-weight: 500;
+      overflow-wrap: anywhere;
+    }
+  }
+
+  .file-ext {
+    flex: none;
+    min-width: 2.75em;
+    padding: 2px 4px;
+    font-family: var(--font-mono, monospace);
+    font-size: 0.7em;
+    font-weight: 600;
+    color: var(--files-muted);
+    text-align: center;
+    border: 1px solid var(--files-line);
+    border-radius: 3px;
+  }
+
+  .file-empty {
+    color: var(--files-muted);
+  }
+
+  // Wikidot row actions: quiet text buttons, Delete in red.
+  .file-attribute.action > a,
+  .file-information > summary {
+    padding: 4px 8px;
+    font-size: 0.9em;
+    line-height: 1.4;
+    color: var(--files-accent);
+    white-space: nowrap;
+    text-decoration: none;
+    cursor: pointer;
+    border-radius: var(--files-radius);
+
+    &:hover,
+    &:focus-visible {
+      background: color-mix(in srgb, var(--files-accent) 10%, transparent);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--files-accent);
+    }
+  }
+
+  .file-attribute.action > a.is-danger {
+    color: var(--files-danger);
+
+    &:hover,
+    &:focus-visible {
+      background: color-mix(in srgb, var(--files-danger) 10%, transparent);
+    }
+  }
+
+  .file-list-footer {
+    display: flex;
+    flex-wrap: wrap;
+    grid-column: 1 / -1;
+    gap: 4px 16px;
+    justify-content: space-between;
+    padding: 8px 14px;
+    font-size: 0.9em;
+    color: var(--files-muted);
+    background: var(--files-tint);
+    border-top: 1px solid var(--files-line);
+
+    p {
+      margin: 0;
+      font-variant-numeric: tabular-nums;
     }
   }
 
   .file-information {
     position: relative;
-    display: inline-block;
-    margin-right: 0.5em;
 
     summary {
-      cursor: pointer;
+      list-style: none;
+
+      &::-webkit-details-marker {
+        display: none;
+      }
+    }
+
+    &[open] > summary {
+      background: color-mix(in srgb, var(--files-accent) 10%, transparent);
     }
 
     .file-information-content {
       position: absolute;
-      z-index: 1;
+      top: calc(100% + 6px);
+      right: 0;
+      z-index: 2;
       width: max-content;
       max-width: min(28rem, 80vw);
-      padding: 1em;
+      padding: 14px 16px;
       overflow-wrap: anywhere;
-      background: white;
-      border: 1px solid currentColor;
+      background: var(--background, #fff);
+      border: 1px solid var(--files-line);
+      border-radius: var(--files-radius);
+      box-shadow: 0 6px 20px rgb(0 0 0 / 15%);
+
+      h2 {
+        margin: 0 0 8px;
+        font-size: 1em;
+      }
+    }
+
+    dl {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 4px 14px;
+      margin: 0;
+      font-size: 0.9em;
     }
 
     dt {
-      font-weight: bold;
+      font-weight: 600;
+      color: var(--files-muted);
     }
 
     dd {
-      margin: 0 0 0.5em;
+      margin: 0;
+    }
+  }
+
+  // Narrow screens: each row becomes a card-like block; the header is dropped.
+  @media (max-width: 40rem) {
+    .file-list,
+    .file-list.has-mime {
+      display: block;
+
+      .file-list-header {
+        display: none;
+      }
+
+      .file-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 12px;
+        padding: 10px 14px;
+      }
+
+      .file-attribute.name {
+        flex-basis: 100%;
+      }
+
+      .updated-at:has(.file-empty) {
+        display: none;
+      }
+
+      .file-information-content {
+        right: auto;
+        left: 0;
+      }
+
+      .action {
+        flex-basis: 100%;
+        flex-wrap: wrap;
+        justify-content: flex-start;
+        margin-left: -8px;
+      }
     }
   }
 
