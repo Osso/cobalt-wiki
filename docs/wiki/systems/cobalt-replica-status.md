@@ -176,6 +176,8 @@ The origin had retained file IDs 1168/1277/1278 for Auralind/Gabriella/Niksi whi
 
 Evidence: `/tmp/cobalt-replacement-red.log` reproduces old ETag after replacement and excessive freshness; `/tmp/cobalt-replacement-final-tests.log` passes 35 tests (external-store presign test excluded), with fmt/check passing. `/tmp/cobalt-replacement-deploy.log` records successful owning-workflow deployment. `/tmp/cobalt-replacement-public-proof.json` verifies public bodies against current Deepwell SHA-512 and sizes: 20,837 / 18,083 / 20,575 bytes. `/tmp/cobalt-replacement-browser.log` verifies six ordinary browser fetches, current bytes, revalidation headers and no disk-cache reuse. `/tmp/cobalt-replacement-range.log` verifies 206 and exact first 16 bytes of Auralind. No production attachments were changed by this work.
 
+Production mutation smoke (user-authorized): created `smoke-test:file-replacement-20260927-1730` (page 3000006111), uploaded `cache-proof.txt` (file 1480, 38 bytes), fetched twice to warm caches, uploaded 55-byte same-name content and clicked **Replace existing** after the expected collision. The same browser and unchanged URL immediately served the replacement twice with matching SHA-512/ETag; anonymous GET matched too. No manual purge occurred between upload and replacement. Page/file retained for inspection; existing pages untouched. Proof: `/tmp/cobalt-smoke-replacement-proof.json`, screenshot `/tmp/cobalt-smoke-replaced.png`.
+
 ## WWS file access, 2026-09-24
 
 Historical record; caching policy superseded by [attachment freshness](#attachment-replacement-freshness-2026-09-27).
