@@ -295,7 +295,7 @@
       min-height: 34px;
       padding: 4px 8px;
       font: inherit;
-      background: var(--background, #fff);
+      background: transparent;
       border: 1px solid var(--history-line);
       border-radius: var(--history-radius);
 
@@ -319,7 +319,7 @@
       font-weight: 600;
       color: inherit;
       cursor: pointer;
-      background: var(--background, #fff);
+      background: transparent;
       border: 1px solid var(--history-line);
       border-radius: var(--history-radius);
 
@@ -378,7 +378,7 @@
     margin: 0;
     font-size: 0.9em;
     cursor: pointer;
-    background: var(--background, #fff);
+    background: transparent;
     border: 1px solid var(--history-line);
     border-radius: 999px;
 
@@ -389,7 +389,7 @@
 
     &.is-checked {
       color: var(--history-accent);
-      background: color-mix(in srgb, var(--history-accent) 8%, var(--background, #fff));
+      background: color-mix(in srgb, var(--history-accent) 8%, transparent);
       border-color: var(--history-accent);
     }
 

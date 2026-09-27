@@ -1099,8 +1099,9 @@
       width: max-content;
       max-width: min(28rem, 80vw);
       padding: 14px 16px;
+      color: #111;
       overflow-wrap: anywhere;
-      background: var(--background, #fff);
+      background: #fff;
       border: 1px solid var(--files-line);
       border-radius: var(--files-radius);
       box-shadow: 0 6px 20px rgb(0 0 0 / 15%);
