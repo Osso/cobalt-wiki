@@ -23,10 +23,8 @@
 //! Whenever you make changes to this module, make sure that the code is
 //! compatible with DEEPWELL's Redis code.
 
-use crate::deepwell::FileData;
 use crate::error::Result;
 use redis::AsyncCommands;
-use redis::aio::MultiplexedConnection;
 
 macro_rules! get_connection {
     ($client:expr) => {
@@ -45,9 +43,6 @@ macro_rules! redis_key {
     (page_slug => $site_id:expr, $page_slug:expr $(,)?) => {
         format!("page_slug:{}:{}", $site_id, $page_slug)
     };
-    (file_name => $site_id:expr, $page_id:expr, $filename:expr $(,)?) => {
-        format!("file_name:{}:{}:{}", $site_id, $page_id, $filename)
-    };
     (user_avatar => $user_id:expr $(,)?) => {
         format!("user_avatar:{}", $user_id)
     };
@@ -56,18 +51,6 @@ macro_rules! redis_key {
 macro_rules! set {
     ($conn:expr, $key:expr, $value:expr $(,)?) => {
         $conn.set::<_, _, ()>($key, $value).await?
-    };
-}
-
-macro_rules! hset {
-    ($conn:expr, $key:expr, $field:expr, $value:expr $(,)?) => {
-        $conn.hset::<_, _, _, ()>(&$key, $field, $value).await?
-    };
-}
-
-macro_rules! hdel {
-    ($conn:expr, $key:expr, $field:expr $(,)?) => {
-        $conn.hdel::<_, _, ()>(&$key, $field).await?
     };
 }
 
@@ -122,55 +105,6 @@ impl Cache {
         Ok(())
     }
 
-    /// Gets the file ID for a site ID, page ID, and filename triplet.
-    pub async fn get_file(
-        &self,
-        site_id: i64,
-        page_id: i64,
-        filename: &str,
-    ) -> Result<Option<FileData>> {
-        let mut conn = get_connection!(self.client);
-        let key = redis_key!(file_name => site_id, page_id, filename);
-        let fields = &["id", "mime", "size", "s3_hash"];
-        let values = conn.hmget(&key, fields).await?;
-        match values {
-            // Ideally, all of these should be non-null, if it's a cache hit.
-            (Some(file_id), Some(mime), Some(size), Some(s3_hash)) => {
-                Ok(Some(FileData {
-                    file_id,
-                    mime,
-                    size,
-                    s3_hash,
-                }))
-            }
-
-            // Cache miss
-            (None, None, None, None) => Ok(None),
-
-            // Some fields are set and others aren't. Let's clear all them out.
-            _ => {
-                clear_inconsistent_fields(&mut conn, &key, fields).await?;
-                Ok(None)
-            }
-        }
-    }
-
-    pub async fn set_file(
-        &self,
-        site_id: i64,
-        page_id: i64,
-        filename: &str,
-        data: &FileData,
-    ) -> Result<()> {
-        let mut conn = get_connection!(self.client);
-        let key = redis_key!(file_name => site_id, page_id, filename);
-        hset!(conn, key, "id", data.file_id);
-        hset!(conn, key, "mime", &data.mime);
-        hset!(conn, key, "size", data.size);
-        hset!(conn, key, "s3_hash", &data.s3_hash);
-        Ok(())
-    }
-
     /// Gets the avatar hash for a user ID.
     pub async fn get_avatar(&self, user_id: i64) -> Result<Option<String>> {
         let mut conn = get_connection!(self.client);
@@ -185,14 +119,4 @@ impl Cache {
         set!(conn, key, avatar_s3_hash);
         Ok(())
     }
-}
-
-async fn clear_inconsistent_fields(
-    conn: &mut MultiplexedConnection,
-    key: &str,
-    fields: &[&str],
-) -> Result<()> {
-    warn!(key = key, "Inconsistent cache data, deleting");
-    hdel!(conn, key, fields);
-    Ok(())
 }

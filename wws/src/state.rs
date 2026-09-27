@@ -232,19 +232,7 @@ impl ServerStateInner {
         page_id: i64,
         filename: &str,
     ) -> Result<Option<FileData>> {
-        match self.cache.get_file(site_id, page_id, filename).await? {
-            Some(data) => Ok(Some(data)),
-            None => match self.deepwell.get_file(site_id, page_id, filename).await? {
-                None => Ok(None),
-                Some(data) => {
-                    self.cache
-                        .set_file(site_id, page_id, filename, &data)
-                        .await?;
-
-                    Ok(Some(data))
-                }
-            },
-        }
+        self.deepwell.get_file(site_id, page_id, filename).await
     }
 
     pub async fn get_file_or_response(

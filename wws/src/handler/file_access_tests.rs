@@ -162,6 +162,87 @@ async fn delayed_deepwell_still_times_out_when_backend_stalls() {
     ));
 }
 
+async fn replacement_sources() -> (String, String, Arc<std::sync::atomic::AtomicBool>) {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    let replaced = Arc::new(AtomicBool::new(false));
+    let current = Arc::clone(&replaced);
+    let rpc = Router::new().route(
+        "/",
+        post(move |body: String| {
+            let current = Arc::clone(&current);
+            async move {
+                let request: Value = serde_json::from_str(&body).unwrap();
+                if request["method"] != "file_get" {
+                    return fake_deepwell(body).await.into_response();
+                }
+                let (id, hash) = if current.load(Ordering::SeqCst) {
+                    (2, "replacement")
+                } else {
+                    (1, "original")
+                };
+                let response = json!({"jsonrpc": "2.0", "id": request["id"], "result": {
+                    "file_id": id, "mime": "image/jpeg", "size": 4, "s3_hash": hash
+                }});
+                ([(CONTENT_TYPE, "application/json")], response.to_string())
+                    .into_response()
+            }
+        }),
+    );
+    let storage = Router::new().route(
+        "/wikijump-files/{hash}",
+        axum::routing::get(
+            |axum::extract::Path(hash): axum::extract::Path<String>| async move {
+                match hash.as_str() {
+                    "original" => "old!".into_response(),
+                    "replacement" => "new!".into_response(),
+                    _ => StatusCode::NOT_FOUND.into_response(),
+                }
+            },
+        ),
+    );
+    let mut addresses = Vec::new();
+    for app in [rpc, storage] {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        addresses.push(format!("http://{}", listener.local_addr().unwrap()));
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    }
+    (addresses.remove(0), addresses.remove(0), replaced)
+}
+
+#[tokio::test]
+#[ignore = "needs Redis at WWS_TEST_REDIS_URL"]
+async fn same_filename_replacement_serves_current_bytes_after_cache_warmup() {
+    use std::sync::atomic::Ordering;
+
+    let (rpc, storage, replaced) = replacement_sources().await;
+    let router = router_with_sources(rpc, storage).await;
+    let site_id = unique_site_id();
+    let path = "/-/file/writing:2021-10-21-to-paint-a-picture:the-game/chessset.jpg";
+    let original = request(&router, Method::GET, site_id, path, None).await;
+    assert_eq!(original.status(), StatusCode::OK);
+    assert_eq!(header(&original, ETAG), "\"original\"");
+    assert_eq!(
+        axum::body::to_bytes(original.into_body(), 100)
+            .await
+            .unwrap(),
+        "old!"
+    );
+
+    // Replacement creates a different file ID under the same filename, as in production.
+    replaced.store(true, Ordering::SeqCst);
+    let replacement = request(&router, Method::GET, site_id, path, None).await;
+    assert_eq!(replacement.status(), StatusCode::OK);
+    assert_eq!(header(&replacement, ETAG), "\"replacement\"");
+    assert_eq!(header(&replacement, CACHE_CONTROL), "public, no-cache");
+    assert_eq!(
+        axum::body::to_bytes(replacement.into_body(), 100)
+            .await
+            .unwrap(),
+        "new!"
+    );
+}
+
 /// Fresh site ID per run, so earlier runs' cached pages and files never match.
 fn unique_site_id() -> i64 {
     let nanos = SystemTime::now()
@@ -172,16 +253,20 @@ fn unique_site_id() -> i64 {
 }
 
 async fn router() -> Router {
+    router_with_sources(start_fake_deepwell().await, str!(R2_ENDPOINT)).await
+}
+
+async fn router_with_sources(deepwell_url: String, endpoint: String) -> Router {
     let redis_url = env::var("WWS_TEST_REDIS_URL")
         .expect("WWS_TEST_REDIS_URL must name a Redis database");
     let secrets = Secrets {
-        deepwell_url: start_fake_deepwell().await,
+        deepwell_url,
         redis_url,
         s3_files_bucket: str!("wikijump-files"),
         s3_tblocks_bucket: str!("wikijump-text-blocks"),
         s3_region: Region::Custom {
             region: str!("auto"),
-            endpoint: str!(R2_ENDPOINT),
+            endpoint,
         },
         s3_path_style: true,
         // AWS documentation example keys.
@@ -287,7 +372,7 @@ async fn private_page_file_redirects_viewer_and_refuses_anonymous() {
 
 #[tokio::test]
 #[ignore = "needs Redis at WWS_TEST_REDIS_URL"]
-async fn public_multi_colon_page_file_is_served_with_long_public_cache() {
+async fn public_multi_colon_page_file_requires_revalidation() {
     let router = router().await;
     let site_id = unique_site_id();
     let file = "/-/file/writing:2021-10-21-to-paint-a-picture:the-game/chessset.jpg";
@@ -296,7 +381,7 @@ async fn public_multi_colon_page_file_is_served_with_long_public_cache() {
     for session in [None, Some(MEMBER_TOKEN)] {
         let response = request(&router, Method::HEAD, site_id, file, session).await;
         assert_eq!(response.status(), StatusCode::OK);
-        assert_eq!(header(&response, CACHE_CONTROL), "public, max-age=2592000");
+        assert_eq!(header(&response, CACHE_CONTROL), "public, no-cache");
         assert_eq!(header(&response, ETAG), "\"hash-of-chessset.jpg\"");
         assert_eq!(header(&response, CONTENT_TYPE), "image/jpeg");
         assert!(response.headers().get(LOCATION).is_none());
