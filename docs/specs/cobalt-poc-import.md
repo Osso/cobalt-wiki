@@ -23,7 +23,7 @@
 
 ## Completed current-source link migration
 
-The approved reviewed plan ran on 2026-09-27. Rollout status and bounded execution evidence are maintained in [current proof](../wiki/systems/cobalt-replica-status.md); independent artifact gate 1089 remains pending.
+The approved reviewed plan ran on 2026-09-27. Final artifact-only production acceptance PASS confirms the bounded result; rollout evidence remains in [current proof](../wiki/systems/cobalt-replica-status.md).
 
 - [x] Scope was the reviewed current-source plan only: 140 link destinations across 96 import-owned pages. No archived or historical revision was rewritten.
 - [x] The immutable reviewed plan bound each target page ID and current revision ID to before/after source SHA-256 digests and reviewed totals; all 96 receipts match it.
