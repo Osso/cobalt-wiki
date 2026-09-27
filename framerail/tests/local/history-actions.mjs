@@ -182,8 +182,14 @@ async function assertListing(history, listing) {
   const rows = history.locator(".history-table tbody tr")
   for (const [index, expected] of listing.rows.entries()) {
     const cells = rows.nth(index).locator("td")
-    await expect(cells.nth(0)).toHaveText(`${expected.number}.`)
-    await expect(cells.nth(2)).toHaveText(expected.flags.join(" ") || "—")
+    await expect(cells.nth(0)).toHaveText(String(expected.number))
+    await expect(cells.nth(2).locator("[data-flag]")).toHaveCount(expected.flags.length)
+    for (const [flagIndex, flag] of expected.flags.entries()) {
+      await expect(cells.nth(2).locator("[data-flag]").nth(flagIndex)).toHaveAttribute(
+        "data-flag",
+        flag
+      )
+    }
     await expect(cells.nth(6)).toHaveText(expected.comments)
     await expect(cells.nth(5).locator("time")).toHaveAttribute(
       "datetime",

@@ -69,8 +69,11 @@ test("one table labels revision actions and unknown Wikidot authors without inve
   assert.match(body, /Compare from revision 9/)
   assert.match(body, /Compare to revision 9/)
   assert.doesNotMatch(body, />from<\/label>|>to<\/label>/)
-  assert.match(body, /2 Jan 2020/)
-  assert.doesNotMatch(body, /<time[^>]*>[^<]*:[^<]*<\/time>/)
+  assert.match(
+    body,
+    /<time datetime="2020-01-02T00:00:00Z"[^>]*>2 Jan 2020, 00:00<\/time>/
+  )
+  assert.match(body, /Date \(UTC\)/)
   assert.doesNotMatch(body, /<script>/)
   assert.match(body, /&lt;script>alert\(1\)&lt;\/script>/)
   assert.doesNotMatch(body, /rollback|avatar/i)
@@ -101,4 +104,25 @@ test("local dataset keeps local provenance rather than Wikidot author IDs", () =
   })
   assert.match(body, /Ada/)
   assert.doesNotMatch(body, /Wikidot ID 12/)
+})
+
+test("flags render as named change chips with their source letter", () => {
+  const body = display({
+    listing: {
+      origin: "wikidot",
+      page: 1,
+      per_page: 20,
+      total: 1,
+      total_pages: 1,
+      available: { wikidot: true, local: false },
+      rows: [{ ...rows[0], flags: ["N", "S", "A"], created_at: "2026-06-08T14:23:51Z" }]
+    }
+  })
+  assert.match(body, /data-flag="N"[^>]*title="Page created"[^>]*>New</)
+  assert.match(body, /data-flag="S"[^>]*title="Source changed"[^>]*>Source</)
+  assert.match(body, /data-flag="A"[^>]*title="Tags changed"[^>]*>Tags</)
+  assert.match(body, />8 Jun 2026, 14:23</)
+  assert.match(body, /aria-label="View revision 9"[^>]*>View</)
+  assert.match(body, /aria-label="View source of revision 9"[^>]*>Wikitext</)
+  assert.match(body, />From<[\s\S]*>To</)
 })

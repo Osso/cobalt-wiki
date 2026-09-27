@@ -167,28 +167,58 @@
 <section aria-busy={busy} aria-label="Page history">
   <h1>Page history of changes</h1>
   <div class="history-controls">
-    {#if listing && listing.available.wikidot && listing.available.local}
-      <label for="history-dataset">History dataset</label>
-      <select
-        id="history-dataset"
-        disabled={busy}
-        onchange={(event) => selectOrigin(event.currentTarget.value as HistoryOrigin)}
-        value={origin}
-      >
-        <option value="wikidot">Wikidot source</option>
-        <option value="local">Local revisions</option>
-      </select>
-    {:else}
-      <span
-        >History dataset: {origin === "wikidot"
-          ? "Wikidot source"
-          : "Local revisions"}</span
-      >
-    {/if}
+    <div class="history-toolbar">
+      <div class="history-control">
+        {#if listing && listing.available.wikidot && listing.available.local}
+          <label for="history-dataset">History dataset</label>
+          <select
+            id="history-dataset"
+            disabled={busy}
+            onchange={(event) => selectOrigin(event.currentTarget.value as HistoryOrigin)}
+            value={origin}
+          >
+            <option value="wikidot">Wikidot source</option>
+            <option value="local">Local revisions</option>
+          </select>
+        {:else}
+          <span class="history-control-label">History dataset</span>
+          <span class="history-control-value"
+            >{origin === "wikidot" ? "Wikidot source" : "Local revisions"}</span
+          >
+        {/if}
+      </div>
+      <div class="history-control history-page-size">
+        <label for="history-perpage">Revisions per page:</label>
+        <select
+          id="history-perpage"
+          onchange={() => {
+            page = 1
+          }}
+          bind:value={perPage}
+        >
+          <option value={10}>10</option><option value={20}>20</option><option value={50}
+            >50</option
+          >
+          <option value={100}>100</option><option value={200}>200</option>
+        </select>
+      </div>
+      <div class="history-buttons">
+        <button disabled={busy} onclick={() => loadList(1)} type="button"
+          >Update list</button
+        >
+        <button
+          class="is-primary"
+          disabled={busy || from === null || to === null || from === to}
+          onclick={compareVersions}
+          title="Pick a From and a To revision in the table first"
+          type="button">Compare versions</button
+        >
+      </div>
+    </div>
     <fieldset>
       <legend>Show page changes</legend>
       {#each filterLabels as filter (filter.key)}
-        <label
+        <label class="history-filter" class:is-checked={filters[filter.key]}
           ><input
             checked={filters[filter.key]}
             onchange={(event) => updateFilter(filter.key, event.currentTarget.checked)}
@@ -197,31 +227,6 @@
         >
       {/each}
     </fieldset>
-    <div class="history-page-size">
-      <label for="history-perpage">Revisions per page:</label>
-      <select
-        id="history-perpage"
-        onchange={() => {
-          page = 1
-        }}
-        bind:value={perPage}
-      >
-        <option value={10}>10</option><option value={20}>20</option><option value={50}
-          >50</option
-        >
-        <option value={100}>100</option><option value={200}>200</option>
-      </select>
-    </div>
-    <div class="history-buttons">
-      <button disabled={busy} onclick={() => loadList(1)} type="button"
-        >Update list</button
-      >
-      <button
-        disabled={busy || from === null || to === null || from === to}
-        onclick={compareVersions}
-        type="button">Compare versions</button
-      >
-    </div>
   </div>
   {#if message}<p role="alert">{message}</p>{/if}
   {#if busy}<p role="status">Loading history…</p>{/if}
@@ -244,49 +249,153 @@
   <HistoryDetail {comparison} {origin} {rendered} {revision} />
 </section>
 
-<style>
+<style lang="scss">
   .history-controls {
-    width: fit-content;
-    max-width: 100%;
-    margin: 1rem auto;
+    --history-line: color-mix(in srgb, currentColor 16%, transparent);
+    --history-tint: color-mix(in srgb, currentColor 4%, transparent);
+    --history-muted: color-mix(in srgb, currentColor 60%, transparent);
+    --history-accent: #1f5fa8;
+    --history-radius: var(--size-border-radius, 6px);
+
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px 16px;
+    margin-block: 16px;
+    background: var(--history-tint);
+    border: 1px solid var(--history-line);
+    border-radius: var(--history-radius);
   }
-  fieldset {
-    display: grid;
-    grid-template-columns: minmax(10rem, auto) auto;
-    row-gap: 0.1rem;
-    column-gap: 0.75rem;
-    padding: 0;
-    margin-block: 0.75rem;
-    border: 0;
+
+  .history-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 20px;
+    align-items: flex-end;
   }
-  fieldset legend {
-    float: left;
-    width: 10rem;
+
+  .history-control {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+
+    label,
+    .history-control-label {
+      font-size: 0.8em;
+      font-weight: 600;
+      color: var(--history-muted);
+    }
+
+    .history-control-value {
+      min-height: 34px;
+      line-height: 34px;
+    }
+
+    select {
+      min-height: 34px;
+      padding: 4px 8px;
+      font: inherit;
+      background: var(--background, #fff);
+      border: 1px solid var(--history-line);
+      border-radius: var(--history-radius);
+
+      &:focus-visible {
+        outline: 2px solid var(--history-accent);
+        outline-offset: 1px;
+      }
+    }
   }
-  fieldset label {
-    display: block;
-    grid-column: 2;
-    margin: 0;
-    line-height: 1.35;
-  }
-  fieldset input {
-    margin-right: 0.4rem;
-  }
-  .history-page-size {
-    display: grid;
-    grid-template-columns: minmax(10rem, auto) auto;
-    gap: 0.75rem;
-    align-items: center;
-  }
-  .history-page-size select {
-    justify-self: start;
-    width: auto;
-  }
+
   .history-buttons {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.5rem;
-    justify-content: center;
-    margin-block: 0.75rem;
+    gap: 8px;
+    margin-left: auto;
+
+    button {
+      min-height: 36px;
+      padding: 6px 16px;
+      font: inherit;
+      font-weight: 600;
+      color: inherit;
+      cursor: pointer;
+      background: var(--background, #fff);
+      border: 1px solid var(--history-line);
+      border-radius: var(--history-radius);
+
+      &:hover:not(:disabled) {
+        border-color: var(--history-accent);
+      }
+
+      &.is-primary {
+        color: #fff;
+        background: var(--history-accent);
+        border-color: var(--history-accent);
+
+        &:hover:not(:disabled) {
+          background: color-mix(in srgb, var(--history-accent) 85%, #000);
+        }
+      }
+
+      &:focus-visible {
+        outline: 3px solid color-mix(in srgb, var(--history-accent) 55%, transparent);
+        outline-offset: 2px;
+      }
+
+      &:disabled {
+        cursor: not-allowed;
+        opacity: 0.5;
+      }
+    }
+  }
+
+  // Change filters as toggle pills; the native checkbox stays visible inside.
+  fieldset {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    padding: 12px 0 0;
+    margin: 0;
+    border: 0;
+    border-top: 1px solid var(--history-line);
+
+    legend {
+      float: left;
+      margin-right: 6px;
+      font-size: 0.8em;
+      font-weight: 600;
+      color: var(--history-muted);
+    }
+  }
+
+  .history-filter {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+    min-height: 32px;
+    padding: 2px 12px 2px 8px;
+    margin: 0;
+    font-size: 0.9em;
+    cursor: pointer;
+    background: var(--background, #fff);
+    border: 1px solid var(--history-line);
+    border-radius: 999px;
+
+    input {
+      margin: 0;
+      accent-color: var(--history-accent);
+    }
+
+    &.is-checked {
+      color: var(--history-accent);
+      background: color-mix(in srgb, var(--history-accent) 8%, var(--background, #fff));
+      border-color: var(--history-accent);
+    }
+
+    &:has(:focus-visible) {
+      outline: 2px solid var(--history-accent);
+      outline-offset: 1px;
+    }
   }
 </style>
