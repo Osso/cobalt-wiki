@@ -68,8 +68,9 @@
   function dropFiles(event: DragEvent) {
     event.preventDefault()
     dragging = false
-    if (uploading) return
-    setSelection(Array.from(event.dataTransfer?.files ?? []))
+    const dropped = Array.from(event.dataTransfer?.files ?? [])
+    if (uploading || dropped.length === 0) return
+    setSelection(dropped)
   }
 
   function leaveDropzone(event: DragEvent) {
@@ -332,7 +333,7 @@
       border-color: var(--upload-busy);
     }
 
-    &:focus-within {
+    &:has(:focus-visible) {
       outline: 3px solid color-mix(in srgb, var(--upload-busy) 55%, transparent);
       outline-offset: 2px;
     }

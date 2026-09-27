@@ -255,6 +255,14 @@ async function submitUploadsAndAssertRows(page, fixture, uploads) {
     }))
   )
   await form.locator('[name="comments"]').fill("Batch proof")
+  await form.locator(".upload-dropzone").dispatchEvent("drop", {
+    dataTransfer: await page.evaluateHandle(() => {
+      const transfer = new DataTransfer()
+      transfer.setData("text/plain", "not a file")
+      return transfer
+    })
+  })
+  await expect(form.locator("[data-upload-index]")).toHaveCount(uploads.length)
   await form.evaluate((element) => {
     if (!(element instanceof HTMLFormElement)) throw new Error("upload form required")
     /** @type {HTMLFormElement & { uploadStates?: string[] }} */
