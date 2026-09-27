@@ -34,6 +34,10 @@
 - Deepwell `page_import`: required native atomic exact-name page/first-revision/tag creation with technical attribution; no fallback to normalizing `page_create` or a tag-edit follow-up.
 - Deepwell `page_get`, `page_edit`, `blob_upload`, `file_create`, `file_get`: reconciliation, tags and attachment persistence/readback.
 
+## Verified bounded production sync
+
+On 2026-09-27, deployed backend `fdba6ecaa` completed an official 34-event source-window sync. It refreshed that window exactly, made one current page revision with one confirmed active-replica URL translation, and uploaded one 76,193-byte attachment with source/native hash readback. Existing native content, files, file revisions, and grants were retained; baseline history and drafts were zero, so this does not prove preservation of a real-user draft. Three human page/file targets were skipped. No bulk old-link migration ran: classified unsafe or unconfirmed destinations remain unchanged pending review and explicit apply authorization. Full deployment/runtime evidence and operational constraints are in [current proof](../wiki/systems/cobalt-replica-status.md).
+
 ## Tests asserting this spec
 
 - `tests/cobalt_migration/test_poc_import.py`: synthetic archives and a persistent in-memory RPC datastore; exact multi-colon identity/content, collision refusal, restart after lost response without duplicate pages or attachments, non-import conflict, changed archive/content.
