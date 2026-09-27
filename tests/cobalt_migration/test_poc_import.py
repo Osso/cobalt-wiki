@@ -543,6 +543,226 @@ class TransportTests(unittest.TestCase):
             client.rpc("page_import", {"slug": "home:start"})
         self.assertEqual(client.opener.calls, 1)
 
+    def test_authenticated_blob_upload_grants_exact_https_put_once(self):
+        issued = "https://storage.example.test/objects/7?signature=private"
+        calls = []
+
+        class Opener:
+            def open(self, request, timeout):
+                calls.append(
+                    (
+                        request.full_url,
+                        request.get_method(),
+                        request.data,
+                        dict(request.header_items()),
+                    )
+                )
+                if request.get_method() == "POST":
+                    return io.BytesIO(
+                        json.dumps(
+                            {
+                                "jsonrpc": "2.0",
+                                "id": 1,
+                                "result": {
+                                    "pending_blob_id": "7",
+                                    "presign_url": issued,
+                                },
+                            }
+                        ).encode()
+                    )
+                return io.BytesIO(b"")
+
+        client = poc.LoopbackRpc("http://127.0.0.1:2747/jsonrpc", "private", 10)
+        client.opener = Opener()
+        client.rpc("blob_upload", {"user_id": 2, "blob_size": 3})
+        client.put(issued, b"abc")
+        self.assertEqual(calls[1][:3], (issued, "PUT", b"abc"))
+        self.assertNotIn("X-deepwell-session-token", calls[1][3])
+        with self.assertRaises(poc.PocImportError):
+            client.put(issued, b"abc")
+        self.assertEqual(len(calls), 2)
+
+    def test_put_rejects_unissued_and_tampered_urls_before_network(self):
+        issued = "https://storage.example.test/objects/7?signature=private"
+        calls = []
+
+        class Opener:
+            def open(self, request, timeout):
+                calls.append(request.full_url)
+                return io.BytesIO(
+                    json.dumps(
+                        {
+                            "jsonrpc": "2.0",
+                            "id": 1,
+                            "result": {
+                                "pending_blob_id": "7",
+                                "presign_url": issued,
+                            },
+                        }
+                    ).encode()
+                )
+
+        client = poc.LoopbackRpc("http://127.0.0.1:2747/jsonrpc", "private", 10)
+        client.opener = Opener()
+        client.rpc("blob_upload", {"user_id": 2, "blob_size": 3})
+        for url in (
+            "http://127.0.0.1:2747/other",
+            "https://other.example.test/objects/7?signature=private",
+            "http://127.0.0.1:2747/objects/7?signature=private",
+            "https://storage.example.test/objects/7?signature=changed",
+            "https://storage.example.test/objects/7?signature=private&extra=1",
+        ):
+            with self.subTest(url=url), self.assertRaises(poc.PocImportError):
+                client.put(url, b"abc")
+        self.assertEqual(calls, ["http://127.0.0.1:2747/jsonrpc"])
+
+    def test_blob_upload_rejects_invalid_storage_urls_without_grant(self):
+        for issued in (
+            "http://storage.example.test/objects/7",
+            "https://user@storage.example.test/objects/7",
+            "https://storage.example.test/objects/7#fragment",
+            "https://storage.example.test/objects/7#",
+            "ftp://storage.example.test/objects/7",
+        ):
+
+            class Opener:
+                def open(self, request, timeout):
+                    return io.BytesIO(
+                        json.dumps(
+                            {
+                                "jsonrpc": "2.0",
+                                "id": 1,
+                                "result": {
+                                    "pending_blob_id": "7",
+                                    "presign_url": issued,
+                                },
+                            }
+                        ).encode()
+                    )
+
+            client = poc.LoopbackRpc("http://127.0.0.1:2747/jsonrpc", "private", 10)
+            client.opener = Opener()
+            with self.subTest(issued=issued), self.assertRaises(poc.PocImportError):
+                client.rpc("blob_upload", {"user_id": 2, "blob_size": 3})
+
+    def test_issued_loopback_put_retries_transient_failure(self):
+        issued = "http://127.0.0.1:2747/blob?signature=private"
+        calls = []
+
+        class Opener:
+            def open(self, request, timeout):
+                calls.append(request.get_method())
+                if request.get_method() == "POST":
+                    return io.BytesIO(
+                        json.dumps(
+                            {
+                                "jsonrpc": "2.0",
+                                "id": 1,
+                                "result": {
+                                    "pending_blob_id": "7",
+                                    "presign_url": issued,
+                                },
+                            }
+                        ).encode()
+                    )
+                if calls.count("PUT") == 1:
+                    raise HTTPError(
+                        request.full_url, 503, "busy", {"Retry-After": "3"}, None
+                    )
+                return io.BytesIO(b"")
+
+        client = poc.LoopbackRpc("http://127.0.0.1:2747/jsonrpc", "private", 10)
+        client.opener = Opener()
+        client.rpc("blob_upload", {"user_id": 2, "blob_size": 3})
+        with patch.object(poc.time, "sleep"):
+            client.put(issued, b"abc")
+        self.assertEqual(calls, ["POST", "PUT", "PUT"])
+
+    def test_issued_put_stops_after_four_transient_failures(self):
+        issued = "https://storage.example.test/blob?signature=private"
+        calls = []
+
+        class Opener:
+            def open(self, request, timeout):
+                calls.append(request.get_method())
+                if request.get_method() == "POST":
+                    return io.BytesIO(
+                        json.dumps(
+                            {
+                                "jsonrpc": "2.0",
+                                "id": 1,
+                                "result": {
+                                    "pending_blob_id": "7",
+                                    "presign_url": issued,
+                                },
+                            }
+                        ).encode()
+                    )
+                raise HTTPError(request.full_url, 503, "busy", {}, None)
+
+        client = poc.LoopbackRpc("http://127.0.0.1:2747/jsonrpc", "private", 10)
+        client.opener = Opener()
+        client.rpc("blob_upload", {"user_id": 2, "blob_size": 3})
+        with (
+            patch.object(poc.time, "sleep"),
+            self.assertRaises(poc.PocImportError) as failure,
+        ):
+            client.put(issued, b"abc")
+        self.assertNotIn("signature=private", str(failure.exception))
+        self.assertEqual(calls, ["POST", "PUT", "PUT", "PUT", "PUT"])
+
+    def test_issued_put_does_not_follow_redirect(self):
+        paths = []
+
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *_):
+                pass
+
+            def do_POST(self):
+                self.rfile.read(int(self.headers["Content-Length"]))
+                issued = (
+                    f"http://127.0.0.1:{self.server.server_port}/blob?signature=private"
+                )
+                body = json.dumps(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": 1,
+                        "result": {
+                            "pending_blob_id": "7",
+                            "presign_url": issued,
+                        },
+                    }
+                ).encode()
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def do_PUT(self):
+                paths.append(self.path)
+                self.rfile.read(int(self.headers["Content-Length"]))
+                self.send_response(307)
+                self.send_header("Location", "/redirected")
+                self.end_headers()
+
+        with ThreadingHTTPServer(("127.0.0.1", 0), Handler) as server:
+            thread = Thread(target=server.serve_forever)
+            thread.start()
+            try:
+                client = poc.LoopbackRpc(
+                    f"http://127.0.0.1:{server.server_port}/jsonrpc", "private", 10
+                )
+                issued = client.rpc("blob_upload", {"user_id": 2, "blob_size": 3})[
+                    "presign_url"
+                ]
+                with self.assertRaises(poc.PocImportError) as failure:
+                    client.put(issued, b"abc")
+                self.assertNotIn("signature=private", str(failure.exception))
+                self.assertEqual(paths, ["/blob?signature=private"])
+            finally:
+                server.shutdown()
+                thread.join()
+
     def test_transport_refuses_non_loopback_and_redirect_endpoints(self):
         for url in [
             "https://example.org/jsonrpc",

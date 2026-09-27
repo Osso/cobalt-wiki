@@ -342,14 +342,27 @@ def _loopback_url(url):
         valid = ipaddress.ip_address(parts.hostname).is_loopback
     except ValueError:
         valid = False
-    if (
-        parts.scheme != "http"
-        or not valid
-        or parts.username
-        or parts.password
-        or parts.fragment
-    ):
+    if parts.scheme != "http" or not valid or "@" in parts.netloc or "#" in url:
         raise PocImportError("transport requires an explicit HTTP loopback IP endpoint")
+
+
+def _storage_url(url):
+    if not isinstance(url, str):
+        raise PocImportError("invalid issued storage URL")
+    try:
+        parts = urlsplit(url)
+        if parts.scheme == "http":
+            _loopback_url(url)
+        elif (
+            parts.scheme != "https"
+            or not parts.hostname
+            or "@" in parts.netloc
+            or "#" in url
+        ):
+            raise PocImportError("invalid issued storage URL")
+        parts.port
+    except (TypeError, ValueError):
+        raise PocImportError("invalid issued storage URL") from None
 
 
 def encode_rpc_request(method, params):
@@ -365,6 +378,7 @@ class LoopbackRpc:
         _loopback_url(endpoint)
         self.endpoint, self.token, self.site_id = endpoint, session_token, site_id
         self.opener = build_opener(_NoRedirect())
+        self.issued_uploads = set()
 
     def _request(self, request, safe):
         for attempt in range(4 if safe else 1):
@@ -416,11 +430,20 @@ class LoopbackRpc:
             raise PocImportError(
                 f"Deepwell rejected {method}; inspect protected server logs"
             )
-        return response["result"]
+        result = response["result"]
+        if method == "blob_upload":
+            if not self.token or not isinstance(result, dict):
+                raise PocImportError("invalid authenticated blob upload response")
+            url = result.get("presign_url")
+            _storage_url(url)
+            self.issued_uploads.add(url)
+        return result
 
     def put(self, url, data):
-        _loopback_url(url)
+        if not isinstance(url, str) or url not in self.issued_uploads:
+            raise PocImportError("PUT requires an issued storage URL")
         self._request(Request(url, data=data, method="PUT"), True)
+        self.issued_uploads.remove(url)
 
 
 def main(argv=None):
