@@ -1,6 +1,7 @@
 import unittest
+from unittest.mock import patch
 
-from tools.cobalt_migration.wikidot_changes import parse_changes
+from tools.cobalt_migration.wikidot_changes import fetch_changes, parse_changes
 
 DATE = "format_%25e%20%25b%20%25Y%20-%20%25H%3A%25M%3A%25S%7Cagohover"
 
@@ -57,6 +58,35 @@ class ParseChangesTest(unittest.TestCase):
                     "user_name": "Allicat",
                     "comments": "",
                 },
+            ],
+        )
+
+    def test_incremental_fetch_keeps_equal_second_boundary_across_pages(self):
+        def row(slug, revision, timestamp):
+            return (
+                '<div class="changes-list-item"><table><tr>'
+                f'<td class="title"><a href="/{slug}">{slug}</a></td>'
+                f'<td class="mod-date"><span class="odate time_{timestamp}"></span></td>'
+                f'<td class="revision-no">(rev. {revision})</td>'
+                "</tr></table></div>"
+            )
+
+        pages = [
+            row("writing:first", 2, 101) + row("writing:first", 1, 100),
+            row("writing:second", 1, 100) + row("writing:older", 1, 99),
+        ]
+        with patch(
+            "tools.cobalt_migration.wikidot_changes.fetch_page", side_effect=pages
+        ):
+            rows = fetch_changes(
+                "https://cobalt-company.wikidot.com", since=100, interval=0
+            )
+        self.assertEqual(
+            [(item["slug"], item["revision"], item["changed_at"]) for item in rows],
+            [
+                ("writing:first", 2, 101),
+                ("writing:first", 1, 100),
+                ("writing:second", 1, 100),
             ],
         )
 
