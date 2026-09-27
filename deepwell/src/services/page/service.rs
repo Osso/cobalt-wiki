@@ -245,6 +245,7 @@ impl PageService {
                     title,
                     alt_title,
                     tags,
+                    preserve_draft,
                 },
             ip_address,
         }: EditPage<'_>,
@@ -360,10 +361,12 @@ impl PageService {
         .await
         .or_raise(make_error)?;
 
-        crate::services::page_draft::PageDraftService::delete_for_target(
-            txn, site_id, &slug,
-        )
-        .await?;
+        if !preserve_draft {
+            crate::services::page_draft::PageDraftService::delete_for_target(
+                txn, site_id, &slug,
+            )
+            .await?;
+        }
 
         // Build and return
         Ok(revision_output)

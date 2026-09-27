@@ -176,6 +176,7 @@ pub struct EditPageBody {
     pub title: Maybe<String>,
     pub alt_title: Maybe<Option<String>>,
     pub tags: Maybe<Vec<String>>,
+    pub preserve_draft: bool,
 }
 
 #[derive(Deserialize, Debug, Clone)]

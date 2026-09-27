@@ -546,6 +546,45 @@ async fn import_does_not_discard_existing_missing_page_draft() {
 }
 
 #[tokio::test]
+async fn import_style_edit_preserves_entire_existing_draft() {
+    let (mut runner, site_id) = setup().await;
+    let revision_id = create(&mut runner, site_id, SLUG, "Original body").await;
+    let saved = run_endpoint!(
+        runner,
+        page_draft_save,
+        json!({
+            "title": "Unpublished 🦊", "wikitext": "Draft body\n[[code]]\n",
+            "last_revision_id": revision_id
+        })
+    )
+    .draft
+    .unwrap();
+    let before = serde_json::to_value(saved).unwrap();
+    let edit = run_endpoint!(
+        runner,
+        page_edit,
+        json!({
+            "site_id": site_id, "page": SLUG, "last_revision_id": revision_id,
+            "revision_comments": "Import refresh", "user_id": ADMIN_USER_ID,
+            "wikitext": "Refreshed public body", "preserve_draft": true,
+            "ip_address": common::IP_ADDRESS
+        })
+    )
+    .unwrap();
+    assert_ne!(edit.revision_id, revision_id);
+    let page = run_endpoint!(
+        runner,
+        page_get,
+        json!({"site_id": site_id, "page": SLUG, "details": {"wikitext": true}})
+    )
+    .unwrap();
+    assert_eq!(page.revision_id, edit.revision_id);
+    assert_eq!(page.wikitext.as_deref(), Some("Refreshed public body"));
+    let after = run_endpoint!(runner, page_draft_get).draft.unwrap();
+    assert_eq!(serde_json::to_value(after).unwrap(), before);
+}
+
+#[tokio::test]
 async fn successful_edit_and_noop_save_original_both_discard_draft() {
     let (mut runner, site_id) = setup().await;
     let revision_id = create(&mut runner, site_id, SLUG, "Original body").await;
@@ -581,7 +620,8 @@ async fn successful_edit_and_noop_save_original_both_discard_draft() {
         json!({
             "site_id": site_id, "page": SLUG, "last_revision_id": edit.revision_id,
             "revision_comments": "Save original", "user_id": ADMIN_USER_ID,
-            "wikitext": "New published body", "ip_address": common::IP_ADDRESS
+            "wikitext": "New published body", "preserve_draft": false,
+            "ip_address": common::IP_ADDRESS
         })
     );
     assert!(no_revision.is_none());
@@ -592,30 +632,29 @@ async fn successful_edit_and_noop_save_original_both_discard_draft() {
 async fn rejected_stale_edit_keeps_draft() {
     let (mut runner, site_id) = setup().await;
     let revision_id = create(&mut runner, site_id, SLUG, "Original").await;
-    run_endpoint!(
+    let saved = run_endpoint!(
         runner,
         page_draft_save,
         json!({
             "title": "Unpublished", "wikitext": "Draft body", "last_revision_id": revision_id
         })
-    );
+    )
+    .draft
+    .unwrap();
+    let before = serde_json::to_value(saved).unwrap();
     let error = run_endpoint_err!(
         runner,
         page_edit,
         json!({
             "site_id": site_id, "page": SLUG, "last_revision_id": revision_id - 1,
             "revision_comments": "Stale", "user_id": ADMIN_USER_ID,
-            "wikitext": "Other", "ip_address": common::IP_ADDRESS
+            "wikitext": "Other", "preserve_draft": true,
+            "ip_address": common::IP_ADDRESS
         })
     );
     assert_contains_error!(error, ErrorType::NotLatestRevisionId);
-    assert_eq!(
-        run_endpoint!(runner, page_draft_get)
-            .draft
-            .unwrap()
-            .wikitext,
-        "Draft body"
-    );
+    let after = run_endpoint!(runner, page_draft_get).draft.unwrap();
+    assert_eq!(serde_json::to_value(after).unwrap(), before);
 }
 
 #[tokio::test]
