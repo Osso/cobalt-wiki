@@ -35,6 +35,9 @@ let
         files = cfg.filesDomain;
       };
       locale.path = "${deepwellShare}/locales";
+      # Sessions slide on use; 400 days matches the longest cookie browsers
+      # keep, so "Keep me signed in" members are never logged out by expiry.
+      security.session.duration-session-minutes = 576000;
       email = {
         mock-mailcheck = false;
         automation-address = "noreply@${cfg.mainDomain}";

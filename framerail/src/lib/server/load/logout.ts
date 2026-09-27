@@ -3,6 +3,7 @@ import { requireDeepwellError } from "$lib/deepwell-errors"
 
 import { parseAcceptLangHeader } from "$lib/locales"
 import { authLogout } from "$lib/server/auth/logout"
+import { clearSessionCookies } from "$lib/server/auth/sessionCookie"
 import { translate } from "$lib/server/deepwell/translate"
 import { loadSiteChrome } from "$lib/server/load/site-chrome"
 import { loadSiteInfo } from "$lib/server/load/site-info"
@@ -73,12 +74,7 @@ export async function logoutAction({ cookies, request }: RequestEvent) {
 
     await authLogout(sessionToken)
 
-    cookies.delete("wikijump_token", {
-      path: "/",
-      httpOnly: true,
-      secure: true,
-      sameSite: "lax"
-    })
+    clearSessionCookies(cookies)
 
     return { success: true }
   } catch (caught) {

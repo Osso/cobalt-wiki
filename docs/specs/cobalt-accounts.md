@@ -13,6 +13,8 @@ Imported members (see [replica status](../wiki/systems/cobalt-replica-status.md)
 - [x] Without Mailgun configured, every send fails with `EmailSend` (1210, reported as a server error), for every address alike; a partial configuration stops Deepwell at startup. Nothing is ever silently not sent.
 - [x] Invites refuse users whose address is not deliverable (the `.invalid` placeholders).
 - [x] The invite tool sets each member's email without MailCheck verification (`user_edit` with `bypass_email_verification`, like the import), creates the link and emails it only with `--send`; the default dry run writes nothing and masks addresses. Reruns skip members who chose a password or have a live link (an emailed one when sending) unless their email changed, and at most one member is changed per `--interval` seconds (default 2).
+- [x] Sessions slide: each use pushes expiry out to `duration-session-minutes` (400 days via `install/nixos/module.nix`), writing at most once per half duration capped at a day; restricted MFA sessions never slide and expired ones are not revived (`deepwell/tests/session_sliding.rs`).
+- [x] Sign-in without "Keep me signed in" stores a browser-session cookie (signed out when the browser closes). With it, `wikijump_token` and a `wikijump_remember` flag last 400 days (the browser cap) and are re-set on every page load, so members are never signed out by expiry. Sign-out clears both (`framerail/tests/session-cookie.test.ts`, `framerail/tests/local/session-persistence.mjs`).
 - [x] Pages in the site theme: `/-/set-password/<token>` (new password twice, then a sign-in link), `/-/forgot-password` (email, neutral confirmation), and a "Forgotten your password?" link on the sign-in page.
 
 ## Configuration

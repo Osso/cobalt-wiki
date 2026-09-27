@@ -2,6 +2,7 @@ import defaults from "$lib/defaults"
 
 import { parseAcceptLangHeader } from "$lib/locales"
 
+import { refreshRememberedSession } from "$lib/server/auth/sessionCookie"
 import { preloadView } from "$lib/server/deepwell/views"
 import { loadSiteInfo } from "$lib/server/load/site-info"
 import { sanitizeUserData } from "$lib/user-data"
@@ -38,6 +39,8 @@ export async function loadPreload(request: Request, cookies: Cookies) {
   }
 
   if (!locales.includes(defaults.fallbackLocale)) locales.push(defaults.fallbackLocale)
+
+  if (response.user_session) refreshRememberedSession(cookies)
 
   const userSession = response.user_session
     ? {

@@ -65,6 +65,10 @@
       type="password"
       bind:value={$form.password}
     />
+    <label class="login-remember">
+      <input name="rememberMe" type="checkbox" bind:checked={$form.rememberMe} />
+      Keep me signed in
+    </label>
     <button class="btn btn-primary" type="submit">Sign in</button>
     <p>
       <a href={resolve("/-/forgot-password", {})}>Forgotten your password?</a>
@@ -85,7 +89,21 @@
     max-width: 24em;
     margin: 1em auto;
 
-    @include account-form-controls;
+    @include account-form-controls("input.text");
+  }
+
+  .login-remember {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+    cursor: pointer;
+
+    input {
+      width: 1.1em;
+      height: 1.1em;
+      margin: 0;
+      accent-color: #1f5fa8;
+    }
   }
 
   #login-title {

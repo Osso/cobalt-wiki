@@ -1,15 +1,15 @@
 import defaults from "$lib/defaults"
 import { requireDeepwellError } from "$lib/deepwell-errors"
 
-import { authGetSession } from "$lib/server/auth/getSession"
 import { authLogin } from "$lib/server/auth/login"
+import { setSessionCookie } from "$lib/server/auth/sessionCookie"
 import { translate } from "$lib/server/deepwell/translate"
 import { loadSiteChrome } from "$lib/server/load/site-chrome"
 import { loadSiteInfo } from "$lib/server/load/site-info"
 import { fail } from "@sveltejs/kit"
 import { superValidate } from "sveltekit-superforms"
 import { valibot } from "sveltekit-superforms/adapters"
-import { minLength, object, pipe, string } from "valibot"
+import { boolean, minLength, object, optional, pipe, string } from "valibot"
 
 import type { PreloadDataAsync } from "$lib/server/deepwell/views"
 import type { TranslateKeys } from "$lib/types"
@@ -79,14 +79,7 @@ export async function loginAction({ request, getClientAddress, cookies }: Reques
     const res = await authLogin(data.nameOrEmail, data.password, ipAddress, userAgent)
 
     if (res.session_token) {
-      const session = await authGetSession(res.session_token)
-      cookies.set("wikijump_token", res.session_token, {
-        path: "/",
-        httpOnly: true,
-        secure: true,
-        sameSite: "lax",
-        expires: new Date(session.expires_at)
-      })
+      setSessionCookie(cookies, res.session_token, data.rememberMe)
     }
 
     return { form, session_token: res.session_token, isLoggedIn: true }
@@ -103,5 +96,6 @@ export async function loginAction({ request, getClientAddress, cookies }: Reques
 
 const loginSchema = object({
   nameOrEmail: pipe(string(), minLength(1)),
-  password: pipe(string(), minLength(1))
+  password: pipe(string(), minLength(1)),
+  rememberMe: optional(boolean(), false)
 })

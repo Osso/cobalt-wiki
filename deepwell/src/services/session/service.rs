@@ -27,8 +27,8 @@
 //! The session token is the only means through which a session
 //! is validated. It is a unique, securely randomly generated value
 //! which represents the current session. It has a somewhat short
-//! expiry (30 minutes) which needs to be renewed by the client
-//! periodically.
+//! expiry (`normal_session_duration`) which slides forward whenever the
+//! session is used.
 
 use super::prelude::*;
 use crate::models::known_user;
@@ -143,7 +143,37 @@ impl SessionService {
                 Error::new("failed to look up session by token", ErrorType::Session)
             })?;
 
-        Ok(session)
+        match session {
+            Some(session) => Ok(Some(Self::slide_expiry(ctx, session).await?)),
+            None => Ok(None),
+        }
+    }
+
+    /// Pushes an in-use session's expiry out to a full `normal_session_duration`,
+    /// so members are only logged out after that long without using the site.
+    ///
+    /// Writes at most once per half duration (capped at a day) of use, and
+    /// never extends restricted (MFA login) sessions.
+    async fn slide_expiry(
+        ctx: &ServiceContext<'_>,
+        session: SessionModel,
+    ) -> Result<SessionModel> {
+        if session.restricted {
+            return Ok(session);
+        }
+
+        let duration = ctx.config().normal_session_duration;
+        let step = std::cmp::min(duration / 2, time::Duration::days(1));
+        let now = now();
+        if session.expires_at > now + duration - step {
+            return Ok(session);
+        }
+
+        let mut model: session::ActiveModel = session.into();
+        model.expires_at = Set(now + duration);
+        model.update(ctx.transaction()).await.or_raise(|| {
+            Error::new("failed to extend session expiry", ErrorType::Session)
+        })
     }
 
     /// Gets the associated `UserModel` from an active session.
