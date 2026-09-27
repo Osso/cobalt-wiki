@@ -102,7 +102,8 @@ async function assertDates(page) {
     await expect(date).toBeVisible()
     const iso = await date.getAttribute("datetime")
     const raw = await date.getAttribute("data-timestamp")
-    assert.match(iso ?? "", /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:Z|\+00:00)$/)
+    assert.ok(iso, "revision ISO timestamp required")
+    assert.match(iso, /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:Z|\+00:00)$/)
     assert.match(raw ?? "", /^\d+$/)
     const epoch = Number(raw)
     assert.equal(Date.parse(iso), epoch * 1000, "ISO and epoch must be same instant")
@@ -112,8 +113,8 @@ async function assertDates(page) {
   }
   const date = dates.first()
   const epoch = Number(await date.getAttribute("data-timestamp"))
-  for (const action of ["hover", "focus"]) {
-    await date[action]()
+  for (const action of [() => date.hover(), () => date.focus()]) {
+    await action()
     assertRelativeAge((await date.getAttribute("title")) ?? "", epoch)
   }
 }
@@ -128,8 +129,9 @@ async function assertRowContent(page) {
     await expect(row.locator("td.revision-no")).toHaveText(/^\((?:new|rev\. \d+)\)$/)
     const flagLabels = row.locator("td.flags .spantip")
     const flags = await flagLabels.allTextContents()
-    for (const label of await flagLabels.all())
+    for (const label of await flagLabels.all()) {
       await expect(label).toHaveAttribute("title", /\S+/)
+    }
     assert.ok(
       flags.every((flag) => /^[NSTRAMF]$/.test(flag)),
       "known flags only"
@@ -150,8 +152,17 @@ async function assertRowContent(page) {
   )
 }
 
+/** @param {import("@playwright/test").Page} page */
+async function waitForLocalizedDate(page) {
+  const date = rowsOn(page).first().locator("time.site-change-date")
+  const raw = await date.getAttribute("data-timestamp")
+  assert.ok(raw, "date required before interacting with filters")
+  await expect(date).toHaveText(chicagoDate(Number(raw)))
+}
+
 /** @param {import("@playwright/test").Page} page @param {number} size */
 async function selectGlobalSize(page, size) {
+  await waitForLocalizedDate(page)
   await page.locator("#rev-type-all").check()
   await page.locator("#rev-category").selectOption("")
   await page.locator("#rev-perpage").selectOption(String(size))
@@ -176,6 +187,7 @@ async function assertWritingTags(page) {
 
 /** @param {import("@playwright/test").Page} page */
 async function selectWritingTags(page) {
+  await waitForLocalizedDate(page)
   await page.locator("#rev-type-all").uncheck()
   await page.locator("#rev-type-tags").check()
   await page.locator("#rev-category").selectOption("writing")
@@ -242,6 +254,7 @@ async function assertDefault(page) {
  *   defaultKeys
  */
 async function assertAllAndSizes(page, defaultKeys) {
+  await waitForLocalizedDate(page)
   await page.locator("#rev-type-all").check()
   await page.locator("#rev-category").selectOption("")
   await page.locator('.site-changes-box input[value="Update list"]').click()
@@ -249,8 +262,9 @@ async function assertAllAndSizes(page, defaultKeys) {
   assert.deepEqual(await revisionKeys(page), defaultKeys.slice(0, 10), "ALL overrides A")
   /** @type {Record<number, number>} */
   const counts = {}
-  for (const size of [10, 20, 50, 100, 200])
+  for (const size of [10, 20, 50, 100, 200]) {
     counts[size] = await selectGlobalSize(page, size)
+  }
   console.log(JSON.stringify({ pageSizes: counts }))
 }
 

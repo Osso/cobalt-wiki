@@ -70,8 +70,9 @@ export function enhanceSiteChangeDates(
   )) {
     if (enhancedDates.has(time)) continue
     const raw = time.getAttribute("data-timestamp")
-    if (!raw || !/^-?\d+$/.test(raw))
+    if (!raw || !/^-?\d+$/.test(raw)) {
       throw new Error(`Invalid SiteChanges timestamp: ${raw}`)
+    }
     const timestamp = Number(raw)
     if (
       !Number.isSafeInteger(timestamp) ||
