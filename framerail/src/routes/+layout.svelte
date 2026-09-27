@@ -10,6 +10,7 @@
   import GalleryViewer from "$lib/component/GalleryViewer.svelte"
   import { readGallerySelection, type GallerySelection } from "$lib/gallery"
   import { afterNavigate } from "$app/navigation"
+  import { onMount } from "svelte"
 
   import { page } from "$app/state"
   import { pageLayoutState, errorPopupState } from "$lib/stores.svelte"
@@ -17,7 +18,8 @@
   import { pageLayout } from "$lib/page-layout"
   import { asset, resolve } from "$app/paths"
   import { submitNewPage } from "$lib/new-page"
-  import { clickSiteChanges } from "$lib/site-changes"
+  import { clickSiteChanges, enhanceSiteChangeDates } from "$lib/site-changes"
+  import "$lib/css/site-changes.scss"
   import { clickCollapsible } from "$lib/collapsible"
   import { clickTabview, keydownTabview } from "$lib/tabview"
 
@@ -30,7 +32,11 @@
     opener?.focus()
   }
 
-  afterNavigate(closeGallery)
+  onMount(() => enhanceSiteChangeDates(document))
+  afterNavigate(() => {
+    closeGallery()
+    enhanceSiteChangeDates(document)
+  })
 
   function openGallery(event: MouseEvent) {
     const selection = readGallerySelection(event)
