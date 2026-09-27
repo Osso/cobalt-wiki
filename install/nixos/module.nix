@@ -16,8 +16,7 @@ let
   # Development deploys (install/dev-deploy.sh) run the apps from a mutable
   # directory instead of the Nix packages.
   app = cfg.appDirectory;
-  deepwellBin =
-    if app == null then "${packages.deepwell}/bin/deepwell" else "${app}/deepwell/deepwell";
+  deepwellBin = if app == null then "${packages.deepwell}/bin/deepwell" else "${app}/deepwell/deepwell";
   deepwellShare = if app == null then "${packages.deepwell}/share/deepwell" else "${app}/deepwell";
   defaults = builtins.fromTOML (builtins.readFile ../../deepwell/config.example.toml);
   runtimeConfig = (pkgs.formats.toml { }).generate "cobalt-deepwell.toml" (
@@ -314,166 +313,163 @@ in
     };
     systemd.services =
       lib.optionalAttrs (cfg.externalStorage == null) {
-        cobalt-wiki-storage = {
-          description = "Cobalt private S3 storage";
-          wantedBy = [ "multi-user.target" ];
-          environment.MINIO_REGION_NAME = "local";
-          serviceConfig = daemon // {
-            StateDirectory = [
-              "cobalt-wiki-s3"
-              "cobalt-wiki-s3-config"
-            ];
-            EnvironmentFile = cfg.environmentFile;
-            ExecStart = "${python} ${startStorage}";
-          };
-        };
-        cobalt-wiki-buckets = {
-          description = "Initialize Cobalt S3 buckets";
-          requires = [ "cobalt-wiki-storage.service" ];
-          after = [ "cobalt-wiki-storage.service" ];
-          serviceConfig = common // {
-            Type = "oneshot";
-            RemainAfterExit = true;
-            RuntimeDirectory = "cobalt-wiki-buckets";
-            EnvironmentFile = cfg.environmentFile;
-            ExecStart = "${python} ${prepareBuckets}";
-          };
-        };
-      }
-      // {
-        cobalt-wiki-database-backup = lib.mkIf cfg.databaseBackup.enable {
-          description = "Back up the Cobalt database to S3";
-          requires = [ "cobalt-wiki-postgresql.service" ];
-          after = [
-            "cobalt-wiki-postgresql.service"
-            "network-online.target"
+      cobalt-wiki-storage = {
+        description = "Cobalt private S3 storage";
+        wantedBy = [ "multi-user.target" ];
+        environment.MINIO_REGION_NAME = "local";
+        serviceConfig = daemon // {
+          StateDirectory = [
+            "cobalt-wiki-s3"
+            "cobalt-wiki-s3-config"
           ];
-          wants = [ "network-online.target" ];
-          environment = {
-            PGHOST = socket;
-            PGUSER = account;
-          };
-          serviceConfig = common // {
-            Type = "oneshot";
-            RuntimeDirectory = "cobalt-wiki-database-backup";
-            EnvironmentFile = cfg.environmentFile;
-            ExecStart = lib.escapeShellArgs [
-              python
-              "${./database_backup.py}"
-              "${postgres}/bin/pg_dump"
-              "${pkgs.minio-client}/bin/mc"
-              cfg.databaseBackup.endpoint
-              cfg.databaseBackup.bucket
-            ];
-          };
-        };
-        cobalt-wiki-wikidot-sync = lib.mkIf cfg.wikidotSync.enable {
-          description = "Sync pages changed on Wikidot into the Cobalt replica";
-          requires = [ "cobalt-wiki-deepwell.service" ];
-          after = [
-            "cobalt-wiki-deepwell.service"
-            "network-online.target"
-          ];
-          wants = [ "network-online.target" ];
-          environment.PYTHONPATH = "${packages.wikidot-tools}/lib/cobalt";
-          serviceConfig = common // {
-            Type = "oneshot";
-            RuntimeDirectory = "cobalt-wiki-wikidot-sync";
-            ExecStart = lib.escapeShellArgs [
-              python
-              "${./wikidot_sync.py}"
-              cfg.wikidotSync.origin
-              (toString cfg.wikidotSync.siteId)
-              cfg.wikidotSync.passwordFile
-              "${postgres}/bin/psql --host=${socket} --username=${account} --dbname=cobalt_wiki"
-              "http://127.0.0.1:2747/jsonrpc"
-              cfg.wikidotSync.targetOrigin
-            ];
-          };
-        };
-        cobalt-wiki-postgresql = {
-          description = "Cobalt private PostgreSQL 17";
-          wantedBy = [ "multi-user.target" ];
-          serviceConfig = daemon // {
-            StateDirectory = "cobalt-wiki-postgresql";
-            RuntimeDirectory = "cobalt-wiki-postgresql";
-            ExecStartPre = "${python} ${databaseInit}";
-            ExecStart = "${postgres}/bin/postgres -D /var/lib/cobalt-wiki-postgresql -k ${socket} -h '' -c unix_socket_permissions=0700 -c shared_buffers=128MB -c max_connections=110";
-            ExecStartPost = "${python} ${databasePrepare}";
-            Type = "notify";
-          };
-        };
-        cobalt-wiki-cache = {
-          description = "Cobalt private Valkey";
-          wantedBy = [ "multi-user.target" ];
-          serviceConfig = daemon // {
-            StateDirectory = "cobalt-wiki-cache";
-            ExecStart = "${pkgs.valkey}/bin/valkey-server --bind 127.0.0.1 --port 6381 --protected-mode yes --dir /var/lib/cobalt-wiki-cache --appendonly yes --daemonize no";
-          };
-        };
-        cobalt-wiki-deepwell = {
-          description = "Cobalt Wikijump backend";
-          wantedBy = [ "multi-user.target" ];
-          requires = dependencies;
-          after = dependencies;
-          environment = backendEnvironment;
-          serviceConfig = daemon // {
-            StateDirectory = "cobalt-wiki";
-            EnvironmentFile = cfg.environmentFile;
-            ExecStartPre = "${python} ${requireProvisioning}";
-            ExecStart = "${deepwellBin} ${runtimeConfig}";
-            ExecStartPost = "${python} ${./wait_deepwell.py}";
-          };
-        };
-        cobalt-wiki-framerail = {
-          description = "Cobalt production SvelteKit server";
-          wantedBy = [ "multi-user.target" ];
-          requires = [ "cobalt-wiki-deepwell.service" ];
-          after = [ "cobalt-wiki-deepwell.service" ];
-          environment = {
-            NODE_ENV = "production";
-            HOST = "127.0.0.1";
-            PORT = "3393";
-            ORIGIN = "https://${cfg.mainDomain}";
-            DEEPWELL_HOST = "127.0.0.1";
-            DEEPWELL_PORT = "2747";
-          };
-          serviceConfig = daemon // {
-            ExecStart =
-              if app == null then
-                "${packages.framerail}/bin/framerail"
-              else
-                "${pkgs.nodejs_22}/bin/node ${app}/framerail/build/index.js";
-          };
-        };
-        cobalt-wiki-wws = {
-          description = "Cobalt Wikijump file server";
-          wantedBy = [ "multi-user.target" ];
-          requires = dependencies ++ [ "cobalt-wiki-deepwell.service" ];
-          after = dependencies ++ [ "cobalt-wiki-deepwell.service" ];
-          environment = backendEnvironment // {
-            ADDRESS = "127.0.0.1:3466";
-            DEEPWELL_URL = "http://127.0.0.1:2747";
-          };
-          serviceConfig = daemon // {
-            EnvironmentFile = cfg.environmentFile;
-            ExecStart = "${packages.wws}/bin/wws";
-          };
-        };
-      }
-      // lib.optionalAttrs (cfg.bootstrapSeedDirectory != null) {
-        cobalt-wiki-bootstrap = {
-          description = "Manually provision Cobalt from reviewed production seeds";
-          requires = dependencies;
-          after = dependencies;
-          environment = backendEnvironment;
-          serviceConfig = common // {
-            Type = "oneshot";
-            StateDirectory = "cobalt-wiki";
-            EnvironmentFile = cfg.environmentFile;
-            ExecStart = "${python} ${bootstrap}";
-          };
+          EnvironmentFile = cfg.environmentFile;
+          ExecStart = "${python} ${startStorage}";
         };
       };
+      cobalt-wiki-buckets = {
+        description = "Initialize Cobalt S3 buckets";
+        requires = [ "cobalt-wiki-storage.service" ];
+        after = [ "cobalt-wiki-storage.service" ];
+        serviceConfig = common // {
+          Type = "oneshot";
+          RemainAfterExit = true;
+          RuntimeDirectory = "cobalt-wiki-buckets";
+          EnvironmentFile = cfg.environmentFile;
+          ExecStart = "${python} ${prepareBuckets}";
+        };
+      };
+      }
+      // {
+      cobalt-wiki-database-backup = lib.mkIf cfg.databaseBackup.enable {
+        description = "Back up the Cobalt database to S3";
+        requires = [ "cobalt-wiki-postgresql.service" ];
+        after = [
+          "cobalt-wiki-postgresql.service"
+          "network-online.target"
+        ];
+        wants = [ "network-online.target" ];
+        environment = {
+          PGHOST = socket;
+          PGUSER = account;
+        };
+        serviceConfig = common // {
+          Type = "oneshot";
+          RuntimeDirectory = "cobalt-wiki-database-backup";
+          EnvironmentFile = cfg.environmentFile;
+          ExecStart = lib.escapeShellArgs [
+            python
+            "${./database_backup.py}"
+            "${postgres}/bin/pg_dump"
+            "${pkgs.minio-client}/bin/mc"
+            cfg.databaseBackup.endpoint
+            cfg.databaseBackup.bucket
+          ];
+        };
+      };
+      cobalt-wiki-wikidot-sync = lib.mkIf cfg.wikidotSync.enable {
+        description = "Sync pages changed on Wikidot into the Cobalt replica";
+        requires = [ "cobalt-wiki-deepwell.service" ];
+        after = [ "cobalt-wiki-deepwell.service" "network-online.target" ];
+        wants = [ "network-online.target" ];
+        environment.PYTHONPATH = "${packages.wikidot-tools}/lib/cobalt";
+        serviceConfig = common // {
+          Type = "oneshot";
+          RuntimeDirectory = "cobalt-wiki-wikidot-sync";
+          ExecStart = lib.escapeShellArgs [
+            python
+            "${./wikidot_sync.py}"
+            cfg.wikidotSync.origin
+            (toString cfg.wikidotSync.siteId)
+            cfg.wikidotSync.passwordFile
+            "${postgres}/bin/psql --host=${socket} --username=${account} --dbname=cobalt_wiki"
+            "http://127.0.0.1:2747/jsonrpc"
+            cfg.wikidotSync.targetOrigin
+          ];
+        };
+      };
+      cobalt-wiki-postgresql = {
+        description = "Cobalt private PostgreSQL 17";
+        wantedBy = [ "multi-user.target" ];
+        serviceConfig = daemon // {
+          StateDirectory = "cobalt-wiki-postgresql";
+          RuntimeDirectory = "cobalt-wiki-postgresql";
+          ExecStartPre = "${python} ${databaseInit}";
+          ExecStart = "${postgres}/bin/postgres -D /var/lib/cobalt-wiki-postgresql -k ${socket} -h '' -c unix_socket_permissions=0700 -c shared_buffers=128MB -c max_connections=110";
+          ExecStartPost = "${python} ${databasePrepare}";
+          Type = "notify";
+        };
+      };
+      cobalt-wiki-cache = {
+        description = "Cobalt private Valkey";
+        wantedBy = [ "multi-user.target" ];
+        serviceConfig = daemon // {
+          StateDirectory = "cobalt-wiki-cache";
+          ExecStart = "${pkgs.valkey}/bin/valkey-server --bind 127.0.0.1 --port 6381 --protected-mode yes --dir /var/lib/cobalt-wiki-cache --appendonly yes --daemonize no";
+        };
+      };
+      cobalt-wiki-deepwell = {
+        description = "Cobalt Wikijump backend";
+        wantedBy = [ "multi-user.target" ];
+        requires = dependencies;
+        after = dependencies;
+        environment = backendEnvironment;
+        serviceConfig = daemon // {
+          StateDirectory = "cobalt-wiki";
+          EnvironmentFile = cfg.environmentFile;
+          ExecStartPre = "${python} ${requireProvisioning}";
+          ExecStart = "${deepwellBin} ${runtimeConfig}";
+          ExecStartPost = "${python} ${./wait_deepwell.py}";
+        };
+      };
+      cobalt-wiki-framerail = {
+        description = "Cobalt production SvelteKit server";
+        wantedBy = [ "multi-user.target" ];
+        requires = [ "cobalt-wiki-deepwell.service" ];
+        after = [ "cobalt-wiki-deepwell.service" ];
+        environment = {
+          NODE_ENV = "production";
+          HOST = "127.0.0.1";
+          PORT = "3393";
+          ORIGIN = "https://${cfg.mainDomain}";
+          DEEPWELL_HOST = "127.0.0.1";
+          DEEPWELL_PORT = "2747";
+        };
+        serviceConfig = daemon // {
+          ExecStart =
+            if app == null then
+              "${packages.framerail}/bin/framerail"
+            else
+              "${pkgs.nodejs_22}/bin/node ${app}/framerail/build/index.js";
+        };
+      };
+      cobalt-wiki-wws = {
+        description = "Cobalt Wikijump file server";
+        wantedBy = [ "multi-user.target" ];
+        requires = dependencies ++ [ "cobalt-wiki-deepwell.service" ];
+        after = dependencies ++ [ "cobalt-wiki-deepwell.service" ];
+        environment = backendEnvironment // {
+          ADDRESS = "127.0.0.1:3466";
+          DEEPWELL_URL = "http://127.0.0.1:2747";
+        };
+        serviceConfig = daemon // {
+          EnvironmentFile = cfg.environmentFile;
+          ExecStart = "${packages.wws}/bin/wws";
+        };
+      };
+    }
+    // lib.optionalAttrs (cfg.bootstrapSeedDirectory != null) {
+      cobalt-wiki-bootstrap = {
+        description = "Manually provision Cobalt from reviewed production seeds";
+        requires = dependencies;
+        after = dependencies;
+        environment = backendEnvironment;
+        serviceConfig = common // {
+          Type = "oneshot";
+          StateDirectory = "cobalt-wiki";
+          EnvironmentFile = cfg.environmentFile;
+          ExecStart = "${python} ${bootstrap}";
+        };
+      };
+    };
   };
 }
