@@ -301,13 +301,14 @@
   }
 
   .flags {
-    white-space: nowrap;
+    min-width: 9rem;
+    max-width: 13rem;
   }
 
   .flag {
     display: inline-block;
     padding: 1px 8px;
-    margin-right: 4px;
+    margin: 2px 4px 2px 0;
     font-size: 0.8em;
     font-weight: 600;
     border: 1px solid var(--history-line);
@@ -326,12 +327,14 @@
   }
 
   .actions {
-    white-space: nowrap;
+    width: 1%;
 
     button {
-      min-height: 30px;
+      display: block;
+      width: 100%;
+      min-height: 28px;
       padding: 2px 10px;
-      margin-right: 4px;
+      margin: 2px 0;
       font: inherit;
       font-size: 0.85em;
       color: var(--history-accent);
@@ -358,7 +361,9 @@
   }
 
   .author {
-    white-space: nowrap;
+    min-width: 6rem;
+    max-width: 10rem;
+    overflow-wrap: break-word;
   }
 
   .author a {
@@ -366,13 +371,14 @@
   }
 
   .date {
+    min-width: 7rem;
+    max-width: 8rem;
     font-variant-numeric: tabular-nums;
     color: var(--history-muted);
-    white-space: nowrap;
   }
 
   .comments {
-    min-width: 12rem;
+    min-width: 14rem;
     font-size: 0.9em;
     color: var(--history-muted);
     overflow-wrap: anywhere;
