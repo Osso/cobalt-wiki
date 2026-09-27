@@ -355,8 +355,10 @@ impl ViewService {
                         compiled_side_bar_html,
                     ) = raise_multiple!(wikitext_result, compiled_body_result, compiled_top_bar_result, compiled_side_bar_result; make_error);
 
-                    // Stored HTML uses the default URL arguments; others render on demand.
-                    if body != BodyArguments::default() {
+                    // SiteChanges is a live feed even with the default URL arguments.
+                    let live_site_changes =
+                        compiled_body_html.contains("class=\"site-changes-box\"");
+                    if live_site_changes || body != BodyArguments::default() {
                         compiled_body_html = PageRevisionService::render_body_view(
                             ctx,
                             page.site_id,
