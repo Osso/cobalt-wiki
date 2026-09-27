@@ -9,14 +9,23 @@ import subprocess
 import sys
 import urllib.request
 
-origin, site_id, password_file, psql, deepwell = sys.argv[1:6]
+origin, site_id, password_file, psql, deepwell, target_origin = sys.argv[1:]
 runtime = pathlib.Path(os.environ["RUNTIME_DIRECTORY"])
 
 
 def query(sql):
     output = subprocess.run(
-        [*psql.split(), "--tuples-only", "--no-align", "--field-separator=,", "--command", sql],
-        check=True, capture_output=True, text=True,
+        [
+            *psql.split(),
+            "--tuples-only",
+            "--no-align",
+            "--field-separator=,",
+            "--command",
+            sql,
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
     ).stdout
     return [line.split(",") for line in output.splitlines() if line]
 
@@ -24,7 +33,9 @@ def query(sql):
 def rpc(method, params):
     request = urllib.request.Request(
         deepwell,
-        data=json.dumps({"jsonrpc": "2.0", "id": 1, "method": method, "params": params}).encode(),
+        data=json.dumps(
+            {"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
+        ).encode(),
         headers={"Content-Type": "application/json"},
     )
     with urllib.request.urlopen(request, timeout=120) as response:
@@ -38,11 +49,30 @@ def rpc(method, params):
     f"FROM wikidot_site_change WHERE site_id = {int(site_id)}"
 )
 subprocess.run(
-    [sys.executable, "-m", "tools.cobalt_migration.wikidot_sync",
-     origin, deepwell, site_id, password_file, since, str(runtime)],
+    [
+        sys.executable,
+        "-m",
+        "tools.cobalt_migration.wikidot_sync",
+        origin,
+        target_origin,
+        deepwell,
+        site_id,
+        password_file,
+        since,
+        str(runtime),
+    ],
     check=True,
 )
-subprocess.run([*psql.split(), "--set=ON_ERROR_STOP=1", "--quiet", "--file", str(runtime / "sync-apply.sql")], check=True)
+subprocess.run(
+    [
+        *psql.split(),
+        "--set=ON_ERROR_STOP=1",
+        "--quiet",
+        "--file",
+        str(runtime / "sync-apply.sql"),
+    ],
+    check=True,
+)
 
 if json.loads((runtime / "sync-report.json").read_text())["changed"]:
     pages = query(
@@ -53,6 +83,13 @@ if json.loads((runtime / "sync-report.json").read_text())["changed"]:
         "AND t.contents ~* '\\[\\[\\s*module\\s+SiteChanges'"
     )
     for page_site, category, page in pages:
-        rpc("page_rerender", {"site_id": int(page_site), "category_id": int(category),
-                              "page_id": int(page), "rerender_type": "standalone"})
+        rpc(
+            "page_rerender",
+            {
+                "site_id": int(page_site),
+                "category_id": int(category),
+                "page_id": int(page),
+                "rerender_type": "standalone",
+            },
+        )
     print(f"rerendered {len(pages)} SiteChanges pages")
