@@ -135,7 +135,7 @@ test("Files sort filenames before limiting to 20 rows without losing totals or d
   const body = renderFiles(Layout.WIKIDOT, manyFiles)
   const names = [
     ...body.matchAll(
-      /class="file-row[^\"]*"[^>]*>[\s\S]*?<a href="[^\"]+" rel="external"[^>]*>\s*([^<]+)\s*<\/a>/g
+      /class="file-row[^"]*"[^>]*>[\s\S]*?<a href="[^"]+" rel="external"[^>]*>\s*([^<]+)\s*<\/a>/g
     )
   ].map((match) => match[1].trim())
   assert.deepEqual(
@@ -162,7 +162,7 @@ test("Files sort case-insensitively and break identical-name ties by file ID", (
   ])
   const rows = [
     ...body.matchAll(
-      /class="file-row[^\"]*" data-id="(\d+)"[^>]*>[\s\S]*?<a href="[^\"]+" rel="external"[^>]*>\s*([^<]+)\s*<\/a>/g
+      /class="file-row[^"]*" data-id="(\d+)"[^>]*>[\s\S]*?<a href="[^"]+" rel="external"[^>]*>\s*([^<]+)\s*<\/a>/g
     )
   ]
   assert.deepEqual(
