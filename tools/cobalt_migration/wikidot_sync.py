@@ -207,12 +207,14 @@ def import_owned(record, user_id, markers):
     )
 
 
-def sync_page(rpc, site_id, user_id, slug, state, comment):
+def sync_page(rpc, site_id, user_id, slug, state, comment, dry_run=False):
     """Create or edit the replica page to match; returns what was done."""
     page = rpc.rpc(
         "page_get", {"site_id": site_id, "page": slug, "details": {"wikitext": True}}
     )
     if page is None:
+        if dry_run:
+            return "would-create"
         rpc.rpc(
             "page_import",
             {
@@ -241,6 +243,8 @@ def sync_page(rpc, site_id, user_id, slug, state, comment):
         changes["tags"] = state["tags"]
     if not changes:
         return "unchanged"
+    if dry_run:
+        return "would-edit " + ",".join(sorted(changes))
     rpc.rpc(
         "page_edit",
         {
@@ -290,7 +294,7 @@ def plan_rename(rename, old_exists, new_exists):
     return NOTHING_TO_MOVE
 
 
-def sync_renames(rpc, site_id, user_id, renames):
+def sync_renames(rpc, site_id, user_id, renames, dry_run=False):
     """Apply renames in order; records each one's outcome on it."""
     blocked = set()
     for rename in renames:
@@ -307,6 +311,9 @@ def sync_renames(rpc, site_id, user_id, renames):
         action = plan_rename(rename, old is not None, new is not None)
         if action == "move" and not import_owned(old, user_id, (PAGE_SYNC_MARKER,)):
             action = "kept: current page revision is not import-owned"
+        if action == "move" and dry_run:
+            rename["outcome"] = "would-move"
+            return True
         if action == "move":
             rpc.rpc(
                 "page_move",
@@ -324,6 +331,7 @@ def sync_renames(rpc, site_id, user_id, renames):
         rename["outcome"] = action
         if action.startswith("kept:"):
             blocked.add(rename["to"])
+    return False
 
 
 def file_url(origin, href):
@@ -371,16 +379,29 @@ def upload_blob(rpc, user_id, data):
     return upload["pending_blob_id"]
 
 
-def sync_files(rpc, site_id, user_id, origin, replica_page_id, wikidot_page_id, events):
+def sync_files(
+    rpc,
+    site_id,
+    user_id,
+    origin,
+    replica_page_id,
+    wikidot_page_id,
+    events,
+    dry_run=False,
+):
     """Make the replica page's files match Wikidot's; {name: outcome}."""
     wikidot = list_wikidot_files(origin, wikidot_page_id)
-    replica = {
-        file["name"]: file
-        for file in rpc.rpc(
-            "page_get_files",
-            {"site_id": site_id, "page_id": replica_page_id, "deleted": False},
-        )
-    }
+    replica = (
+        {
+            file["name"]: file
+            for file in rpc.rpc(
+                "page_get_files",
+                {"site_id": site_id, "page_id": replica_page_id, "deleted": False},
+            )
+        }
+        if replica_page_id is not None
+        else {}
+    )
     comment = "Wikidot sync (file)"
     file_marker = re.compile(re.escape(comment))
     outcomes = {}
@@ -400,8 +421,31 @@ def sync_files(rpc, site_id, user_id, origin, replica_page_id, wikidot_page_id, 
                 data = download(
                     file_url(origin, wikidot[name]["href"]), wikidot[name]["size"]
                 )
-                if current and hashlib.sha512(data).hexdigest() == current["s3_hash"]:
-                    outcomes[name] = "unchanged"
+                if current:
+                    if dry_run:
+                        stored = rpc.rpc(
+                            "file_get",
+                            {
+                                "site_id": site_id,
+                                "page_id": replica_page_id,
+                                "file": name,
+                                "details": {"data": True},
+                            },
+                        )
+                        try:
+                            current_data = bytes.fromhex(stored["data"])
+                        except (KeyError, TypeError, ValueError):
+                            raise FileListError(
+                                f"target bytes unavailable for {name}"
+                            ) from None
+                        equal = data == current_data
+                    else:
+                        equal = hashlib.sha512(data).hexdigest() == current["s3_hash"]
+                    if equal:
+                        outcomes[name] = "unchanged"
+                        continue
+                if dry_run:
+                    outcomes[name] = "would-replace" if current else "would-create"
                     continue
                 blob = upload_blob(rpc, user_id, data)
                 common = {
@@ -430,6 +474,9 @@ def sync_files(rpc, site_id, user_id, origin, replica_page_id, wikidot_page_id, 
                     )
                     outcomes[name] = "updated"
             elif action == "delete":
+                if dry_run:
+                    outcomes[name] = "would-delete"
+                    continue
                 current = replica[name]
                 rpc.rpc(
                     "file_delete",
@@ -522,6 +569,9 @@ def translate_sync_source(rpc, site_id, source, origin, target_origin, confirmat
 
 
 def main(argv):
+    dry_run = "--dry-run" in argv
+    if dry_run:
+        argv = [arg for arg in argv if arg != "--dry-run"]
     origin, target_origin, endpoint, site_id, password_file, since, out_dir = argv
     site_id, since = int(site_id), int(since)
     with open(password_file) as password_input:
@@ -540,9 +590,20 @@ def main(argv):
 
     changes = paced(fetch_changes, origin, since=since)
     renames = parse_renames(changes)
-    sync_renames(rpc, site_id, user_id, renames)
+    blocked_rename = sync_renames(rpc, site_id, user_id, renames, dry_run=dry_run)
 
     report = {"pages": {}, "renames": renames, "files": {}}
+    if blocked_rename:
+        report["blocker"] = (
+            "actionable rename requires target namespace movement; dependent preview not planned"
+        )
+        with open(f"{out_dir}/sync-report.json", "w") as file:
+            json.dump(report, file, indent=1)
+        with open(f"{out_dir}/sync-apply.sql", "w") as file:
+            file.write(apply_sql(site_id, {}, []))
+        raise RuntimeError(
+            "dry-run blocked: actionable rename; inspect sync-report.json"
+        )
     link_counts = Counter()
     confirmations = {}
     blocked_targets = {
@@ -568,6 +629,7 @@ def main(argv):
             slug,
             {**state, "source": translation.text},
             f"Wikidot sync (rev. {newest})",
+            dry_run=dry_run,
         )
         link_counts.update(translation.counts)
         report["pages"][slug] = outcome
@@ -588,9 +650,12 @@ def main(argv):
                 site_id,
                 user_id,
                 origin,
-                replica_page["page_id"],
+                replica_page["page_id"]
+                if not dry_run
+                else (replica_page["page_id"] if replica_page else None),
                 pages[slug]["page_id"],
                 events,
+                dry_run=dry_run,
             )
         except FileListError as error:
             entry["skipped"] = str(error)
@@ -602,6 +667,15 @@ def main(argv):
         json.dump(report, file, indent=1)
     with open(f"{out_dir}/sync-apply.sql", "w") as file:
         file.write(apply_sql(site_id, pages, changes, renames))
+    if dry_run:
+        counts = Counter(report["pages"].values())
+        for entry in report["files"].values():
+            counts.update(entry.get("files", {}).values())
+        print(
+            "dry-run: "
+            + ", ".join(f"{key}: {value}" for key, value in sorted(counts.items()))
+        )
+        return
     for rename in renames:
         print(f"rename {rename['from']} -> {rename['to']}: {rename['outcome']}")
     for slug, outcome in report["pages"].items():
