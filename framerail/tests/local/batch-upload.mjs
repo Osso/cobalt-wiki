@@ -245,6 +245,9 @@ async function submitUploadsAndAssertRows(page, fixture, uploads) {
   const pane = await openFiles(page, fixture.sourceSlug)
   await pane.locator(".upload-file, .buttons input[value='Upload']").click()
   const form = pane.locator("#file-upload")
+  await expect(pane.locator(".upload-file, .buttons input[value='Upload']")).toHaveCount(
+    1
+  )
   const input = form.locator('[name="file"]')
   await expect(input).toHaveAttribute("multiple", "")
   await input.setInputFiles(

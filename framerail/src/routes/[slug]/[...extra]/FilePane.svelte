@@ -275,12 +275,14 @@
 <div class="file-panel">
   {#if pageLayoutState.current === Layout.WIKIDOT}
     <div class="buttons">
-      <input
-        class="btn btn-primary"
-        onclick={() => (activeFileAction = "upload")}
-        type="button"
-        value={data.internationalization?.upload}
-      />
+      {#if activeFileAction !== "upload"}
+        <input
+          class="btn btn-primary"
+          onclick={() => (activeFileAction = "upload")}
+          type="button"
+          value={data.internationalization?.upload}
+        />
+      {/if}
       <input
         class="btn btn-default"
         onclick={() => getFileList(true)}
@@ -290,13 +292,15 @@
     </div>
   {:else}
     <div class="action-row file-action">
-      <button
-        class="action-button upload-file clickable"
-        onclick={() => (activeFileAction = "upload")}
-        type="button"
-      >
-        {data.internationalization?.upload}
-      </button>
+      {#if activeFileAction !== "upload"}
+        <button
+          class="action-button upload-file clickable"
+          onclick={() => (activeFileAction = "upload")}
+          type="button"
+        >
+          {data.internationalization?.upload}
+        </button>
+      {/if}
       <button
         class="action-button deleted-file clickable"
         onclick={() => getFileList(true)}

@@ -158,17 +158,18 @@
       <path d="M4 14v4.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V14" />
     </svg>
     <span class="upload-prompt">
-      <strong>{data.internationalization?.["wiki-page-file-upload.select"]}</strong>
+      <strong>{files.length > 0 ? "Selected files" : "Choose files"}</strong>
       <span class="upload-hint">
         {#if files.length > 0}
           {files.length}
-          {files.length === 1 ? "file" : "files"} · {formatSize(totalSize)} — drop or browse
-          to replace
+          {files.length === 1 ? "file" : "files"} · {formatSize(totalSize)} — browse or drop
+          again to replace
         {:else}
-          Drop files here or <u>browse</u>. Several files upload one after another.
+          Select several files at once in the picker, or drop them here.
         {/if}
       </span>
     </span>
+    <span class="upload-browse" aria-hidden="true">Browse files</span>
   </label>
 
   {#if rows.length > 0}
@@ -377,6 +378,22 @@
 
     strong {
       font-weight: 600;
+    }
+  }
+
+  .upload-browse {
+    flex: none;
+    padding: 8px 16px;
+    margin-left: auto;
+    font-weight: 600;
+    color: var(--upload-busy);
+    white-space: nowrap;
+    border: 1px solid var(--upload-busy);
+    border-radius: var(--upload-radius);
+
+    .upload-dropzone:hover & {
+      color: #fff;
+      background: var(--upload-busy);
     }
   }
 
