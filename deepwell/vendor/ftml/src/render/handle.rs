@@ -555,8 +555,8 @@ fn render_pages_by_tag(buffer: &mut String, tag: &str, pages: &[(String, String)
     buffer.push_str("</div>");
 }
 
-/// Wikidot's SiteChangesModule markup. The filter form is shown but inert;
-/// pager links go to `/<page>/p/N`.
+/// SiteChanges controls preserve the source filter contract; Framerail handles
+/// their navigation and localizes the timestamped table cells.
 fn render_site_changes(buffer: &mut String, view: &SiteChanges) {
     let checked = |selected: bool| if selected { " checked=\"checked\"" } else { "" };
     buffer.push_str(
@@ -624,14 +624,26 @@ fn render_site_changes(buffer: &mut String, view: &SiteChanges) {
     buffer.push_str(
         "</select></td></tr></table><div class=\"buttons\">\
          <input type=\"button\" class=\"btn btn-default btn-sm\" value=\"Update list\"/></div></form>\
-         <div class=\"changes-list\" id=\"site-changes-list\">",
+         <div class=\"changes-list\" id=\"site-changes-list\">\
+         <table class=\"site-changes-table\"><thead><tr>\
+         <th scope=\"col\">Page</th><th scope=\"col\">Changes</th>\
+         <th scope=\"col\">Revision</th><th scope=\"col\">Changed</th>\
+         <th scope=\"col\">Author</th></tr></thead><tbody>",
     );
-    render_site_changes_pager(buffer, view);
     for change in &view.changes {
         render_site_change(buffer, change);
     }
+    if view.changes.is_empty() {
+        buffer.push_str("<tr><td colspan=\"5\" class=\"site-changes-empty\">Sorry, no revisions matching your criteria.</td></tr>");
+    }
+    buffer.push_str("</tbody></table><div class=\"site-changes-footer\">");
+    str_write!(
+        buffer,
+        "<span class=\"rowcount\">{} revisions shown</span>",
+        view.changes.len()
+    );
     render_site_changes_pager(buffer, view);
-    buffer.push_str("</div></div>");
+    buffer.push_str("</div></div></div>");
 }
 
 /// Pages 1–2 and the current page ±2, with dots for gaps; Wikidot never
@@ -688,9 +700,7 @@ fn render_site_changes_pager(buffer: &mut String, view: &SiteChanges) {
 }
 
 fn render_site_change(buffer: &mut String, change: &SiteChange) {
-    buffer.push_str(
-        "<div class=\"changes-list-item\"><table><tr><td class=\"title\"><a href=\"/",
-    );
+    buffer.push_str("<tr class=\"changes-list-item\"><td class=\"title\"><a href=\"/");
     escape(buffer, &change.slug);
     buffer.push_str("\">");
     if let Some((category, _)) = change.slug.split_once(':') {
@@ -705,7 +715,13 @@ fn render_site_change(buffer: &mut String, change: &SiteChange) {
             &change.title
         },
     );
-    buffer.push_str("</a></td><td class=\"flags\">");
+    buffer.push_str("</a>");
+    if !change.comments.is_empty() {
+        buffer.push_str("<div class=\"comments\">");
+        escape(buffer, &change.comments);
+        buffer.push_str("</div>");
+    }
+    buffer.push_str("</td><td class=\"flags\">");
     for flag in change.flags.chars() {
         let title = match flag {
             'N' => "new page created",
@@ -722,18 +738,14 @@ fn render_site_change(buffer: &mut String, change: &SiteChange) {
             "<span class=\"spantip\" title=\"{title}\">{flag}</span>"
         );
     }
-    str_write!(
-        buffer,
-        "</td><td class=\"mod-date\"><span class=\"odate time_{} format_%25e%20%25b%20%25Y%20-%20%25H%3A%25M%3A%25S%7Cagohover\">{}</span></td>",
-        change.changed_at,
-        wikidot_date(change.changed_at),
-    );
+    buffer.push_str("</td>");
     match change.revision {
         0 => buffer.push_str("<td class=\"revision-no\">(new)</td>"),
         revision => {
             str_write!(buffer, "<td class=\"revision-no\">(rev. {revision})</td>")
         }
     }
+    render_site_change_date(buffer, change.changed_at);
     buffer.push_str("<td class=\"mod-by\">");
     if let (Some(slug), Some(name)) = (&change.user_slug, &change.user_name) {
         buffer.push_str(
@@ -743,31 +755,29 @@ fn render_site_change(buffer: &mut String, change: &SiteChange) {
         buffer.push_str("\">");
         escape(buffer, name);
         buffer.push_str("</a></span>");
+    } else if let Some(name) = &change.user_name {
+        escape(buffer, name);
     }
-    buffer.push_str("</td></tr></table>");
-    if !change.comments.is_empty() {
-        buffer.push_str("<div class=\"comments\">");
-        escape(buffer, &change.comments);
-        buffer.push_str("</div>");
-    }
-    buffer.push_str("</div>");
+    buffer.push_str("</td></tr>");
 }
 
-/// The server-side date text Wikidot shows before its script localizes it:
-/// `%e %b %Y %H:%M` in UTC, e.g. "23 Sep 2026 16:27".
-fn wikidot_date(timestamp: i64) -> String {
+/// Visible UTC text before Framerail localizes the real instant for the viewer.
+fn render_site_change_date(buffer: &mut String, timestamp: i64) {
     use time::OffsetDateTime;
+    use time::format_description::well_known::Rfc3339;
     use time::macros::format_description;
-    OffsetDateTime::from_unix_timestamp(timestamp)
-        .ok()
-        .and_then(|date| {
-            date.format(format_description!(
-                "[day padding:space] [month repr:short] [year] [hour]:[minute]"
-            ))
-            .ok()
-        })
-        .map(|date| date.trim_start().to_owned())
-        .unwrap_or_default()
+    let date = OffsetDateTime::from_unix_timestamp(timestamp)
+        .expect("SiteChanges timestamps must fit the date range");
+    let iso = date.format(&Rfc3339).expect("valid SiteChanges ISO date");
+    let text = date
+        .format(format_description!(
+            "[day padding:none] [month repr:short] [year] - [hour]:[minute]:[second] UTC"
+        ))
+        .expect("valid SiteChanges display date");
+    str_write!(
+        buffer,
+        "<td class=\"mod-date\"><time class=\"site-change-date\" datetime=\"{iso}\" data-timestamp=\"{timestamp}\" tabindex=\"0\">{text}</time></td>"
+    );
 }
 
 #[cfg(test)]
@@ -950,16 +960,16 @@ mod tests {
     }
 
     #[test]
-    fn site_changes_items_match_wikidot() {
+    fn site_changes_table_retains_revision_metadata() {
         let html = render_site_changes_module(&site_changes(1, 1));
         assert!(html.contains(
-            "<div class=\"changes-list-item\"><table><tr><td class=\"title\">\
-             <a href=\"/writing:2025-09-04-thousand-needles:ice-cream-empire\">writing: (2025-09-04) Thousand Needles: Ice Cream Empire</a></td>\
+            "<tr class=\"changes-list-item\"><td class=\"title\">\
+             <a href=\"/writing:2025-09-04-thousand-needles:ice-cream-empire\">writing: (2025-09-04) Thousand Needles: Ice Cream Empire</a>\
+             <div class=\"comments\">Added tags: kalimdor-newbies.</div></td>\
              <td class=\"flags\"><span class=\"spantip\" title=\"tags changed\">A</span></td>\
-             <td class=\"mod-date\"><span class=\"odate time_1790180877 format_%25e%20%25b%20%25Y%20-%20%25H%3A%25M%3A%25S%7Cagohover\">23 Sep 2026 16:27</span></td>\
              <td class=\"revision-no\">(rev. 3)</td>\
-             <td class=\"mod-by\"><span class=\"printuser\"><a href=\"https://www.wikidot.com/user:info/allicat\">Allicat</a></span></td></tr></table>\
-             <div class=\"comments\">Added tags: kalimdor-newbies.</div></div>"
+             <td class=\"mod-date\"><time class=\"site-change-date\" datetime=\"2026-09-23T16:27:57Z\" data-timestamp=\"1790180877\" tabindex=\"0\">23 Sep 2026 - 16:27:57 UTC</time></td>\
+             <td class=\"mod-by\"><span class=\"printuser\"><a href=\"https://www.wikidot.com/user:info/allicat\">Allicat</a></span></td></tr>"
         ), "{html}");
         assert!(!html.contains("class=\"pager\""), "one page needs no pager");
         assert!(html.contains("<option value=\"writing\">writing</option>"));
