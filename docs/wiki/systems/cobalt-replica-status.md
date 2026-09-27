@@ -16,7 +16,7 @@ The refreshed source window contained exactly 34 events; target feed coverage ma
 
 The marker policy remains observed, not universal provenance: unknown or human-edited targets keep their local content/history and omit date/file writes. No bulk old-link migration ran. Read-only classification inventories 140 destinations across 96 import-owned pages; 146 unsafe contexts and two unconfirmed destinations remain unchanged pending review and explicit apply authorization.
 
-Nix activation started the service despite runtime masks; the main stopped it, and the resulting snapshot showed zero writes. Runtime masks are therefore not a safe Nix-switch control. A future preview must run before activation or use a reviewed maintenance strategy; no new code or control is authorized here. Independent artifact acceptance remains pending if required.
+Nix activation started the service despite runtime masks; the main stopped it, and the resulting snapshot showed zero writes. Runtime masks are therefore not a safe Nix-switch control. A future preview must run before activation or use a reviewed maintenance strategy. Independent artifact acceptance passed in `/tmp/claude/cobalt-sync-production-gate.json`; zero-draft/history baselines and unapplied bulk-link inventory remain explicit limits.
 
 ## Coverage
 
