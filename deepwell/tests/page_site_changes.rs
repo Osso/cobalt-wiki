@@ -148,7 +148,7 @@ async fn site_changes_render_valid_table_with_explicit_utc_dates_and_escaped_con
             DatabaseBackend::Postgres,
             "UPDATE wikidot_site_change
              SET page_title = 'A <title> & \"quote\"',
-                 user_slug = 'unregistered-editor', user_name = 'Guest <writer> & Friend',
+                 user_slug = NULL, user_name = 'Guest <writer> & Friend',
                  comments = 'Changed <script> & \"notes\"'
              WHERE site_id = $1 AND revision_number = 24",
             [site_id.into()],
@@ -189,6 +189,12 @@ async fn site_changes_render_valid_table_with_explicit_utc_dates_and_escaped_con
         ["Changed <script> & \"notes\""]
     );
     assert_eq!(select_text(first, "td.mod-by"), ["Guest <writer> & Friend"]);
+    assert_eq!(
+        first
+            .select(&Selector::parse("td.mod-by a").unwrap())
+            .count(),
+        0
+    );
     assert_eq!(select_text(first, "td.revision-no"), ["(rev. 24)"]);
     assert_eq!(first.select(&Selector::parse("script").unwrap()).count(), 0);
     let date = first
@@ -259,7 +265,7 @@ async fn site_changes_filter_flags_categories_and_page_sizes_with_preserved_page
         ('M', 1),
         ('F', 1),
     ] {
-        let page = view(&runner, site_id, &format!("p/1/types/{flag}")).await;
+        let page = view(&runner, site_id, &format!("p/1/perpage/50/types/{flag}")).await;
         let html = Html::parse_fragment(&page);
         assert_eq!(change_rows(&html).len(), count, "flag {flag}: {page}");
     }
@@ -286,7 +292,7 @@ async fn site_changes_filter_flags_categories_and_page_sizes_with_preserved_page
                 html.root_element()
                     .text()
                     .collect::<String>()
-                    .contains("No changes")
+                    .contains("Sorry, no revisions matching your criteria.")
             );
         }
     }
