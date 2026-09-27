@@ -149,6 +149,7 @@ class FakeReplica:
                       for i, slug in enumerate(pages)}
         self.files = files or {}
         self.blobs, self.calls = {}, []
+        self.page_get_queries = []
 
     def slug_of(self, page_id):
         [slug] = [slug for slug, page in self.pages.items() if page["page_id"] == page_id]
@@ -157,6 +158,7 @@ class FakeReplica:
     def rpc(self, method, params):
         self.calls.append(method)
         if method == "page_get":
+            self.page_get_queries.append(params)
             return self.pages.get(params["page"])
         if method == "page_move":
             page = self.pages.pop(self.slug_of(params["page"]))
@@ -336,6 +338,7 @@ class OwnershipTest(unittest.TestCase):
             wikidot_sync.main(
                 [
                     "https://source",
+                    "https://target",
                     "http://127.0.0.1:1/jsonrpc",
                     "6000000",
                     "password",
@@ -352,6 +355,127 @@ class OwnershipTest(unittest.TestCase):
         self.assertNotIn("new", replica.pages)
         self.assertNotIn("UPDATE page SET", sql)
         self.assertNotIn("page_import", replica.calls)
+
+
+class LinkSyncTest(unittest.TestCase):
+    def run_page_sync(self, replica, state):
+        changes = [
+            {
+                "slug": "story",
+                "revision": 13,
+                "flags": "S",
+                "changed_at": 13,
+                "comments": "",
+                "title": "Story",
+                "user_slug": "u",
+                "user_name": "U",
+                "user_id": 1,
+            }
+        ]
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            mock.patch.object(wikidot_sync, "LoopbackRpc") as factory,
+            mock.patch.object(wikidot_sync, "paced", return_value=changes),
+            mock.patch.object(wikidot_sync, "wikidot_page", return_value=state),
+            mock.patch.object(wikidot_sync, "file_events", return_value={}),
+            mock.patch("builtins.open", mock.mock_open(read_data="password")) as opened,
+        ):
+            opened.side_effect = lambda path, *args, **kwargs: (
+                mock.mock_open(read_data="password")()
+                if str(path) == "password"
+                else Path(path).open(*args, **kwargs)
+            )
+            factory.side_effect = [
+                mock.Mock(rpc=mock.Mock(return_value={"session_token": "token"})),
+                replica,
+            ]
+            original_rpc = replica.rpc
+            replica.rpc = lambda method, params: (
+                {"user_id": -1}
+                if method == "session_get"
+                else original_rpc(method, params)
+            )
+            wikidot_sync.main(
+                [
+                    "https://source",
+                    "https://target",
+                    "http://127.0.0.1:1/jsonrpc",
+                    "6000000",
+                    "password",
+                    "0",
+                    tmp,
+                ]
+            )
+            return json.loads((Path(tmp) / "sync-report.json").read_text())
+
+    def test_changed_page_translates_only_confirmed_active_exact_slug(self):
+        source = (
+            "[[[https://source/character%3Aally?mode=1#bio|Ally]]] "
+            "https://source/character%3Aally#next "
+            "[[[https://source/absent|Absent]]] "
+            "[[[https://source/renamed|Renamed]]] "
+            "[[[https://source/deleted|Deleted]]] "
+            "[!-- https://source/character%3Aally --]"
+        )
+        state = {
+            "status": "ok",
+            "page_id": 11,
+            "title": "Story",
+            "source": source,
+            "tags": [],
+            "created_at": 1,
+            "updated_at": 2,
+        }
+        replica = FakeReplica(["story", "character:ally", "renamed", "deleted"])
+        replica.pages["renamed"]["slug"] = "different-name"
+        replica.pages["deleted"]["deleted_at"] = 123
+        report = self.run_page_sync(replica, state)
+        self.assertEqual(
+            replica.pages["story"]["wikitext"],
+            source.replace(
+                "https://source/character%3Aally", "https://target/character%3Aally", 2
+            ),
+        )
+        self.assertEqual(state["source"], source)
+        self.assertEqual(
+            report["link_translation"],
+            {
+                "rewritten": 2,
+                "unconfirmed": 3,
+                "unsafe_context": 1,
+            },
+        )
+        candidates = [
+            query for query in replica.page_get_queries if query["page"] != "story"
+        ]
+        self.assertEqual(
+            {query["page"] for query in candidates},
+            {"character:ally", "absent", "renamed", "deleted"},
+        )
+        self.assertEqual(len(candidates), 4)
+        self.assertTrue(all(query["site_id"] == 6000000 for query in candidates))
+
+    def test_human_owned_page_remains_unmodified(self):
+        source = "[[[https://source/character%3Aally|Ally]]]"
+        state = {
+            "status": "ok",
+            "page_id": 11,
+            "title": "Story",
+            "source": source,
+            "tags": [],
+            "created_at": 1,
+            "updated_at": 2,
+        }
+        replica = FakeReplica(["story", "character:ally"])
+        replica.pages["story"].update(
+            revision_user_id=42, revision_comments="Human edit"
+        )
+        before = replica.pages["story"].copy()
+        report = self.run_page_sync(replica, state)
+        self.assertEqual(replica.pages["story"], before)
+        self.assertEqual(state["source"], source)
+        self.assertIn("kept:", report["pages"]["story"])
+        self.assertNotIn("page_edit", replica.calls)
 
 
 class SyncFilesTest(unittest.TestCase):

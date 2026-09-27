@@ -26,11 +26,13 @@ moved to renamed pages), to run with psql on the
 replica database. Every Wikidot request waits 1s after the previous one.
 
     python -m tools.cobalt_migration.wikidot_sync https://cobalt-company.wikidot.com \\
-        http://127.0.0.1:27471/jsonrpc 6000000 PASSWORD_FILE SINCE_EPOCH OUT_DIR
+        https://cobalt-company.sakuin.org http://127.0.0.1:27471/jsonrpc \\
+        6000000 PASSWORD_FILE SINCE_EPOCH OUT_DIR
 
 The Deepwell URL must be loopback (an SSH forward to the replica host).
 """
 
+from collections import Counter
 import hashlib
 import html
 import json
@@ -41,6 +43,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+from .page_link_translation import translate_page_links
 from .poc_import import LoopbackRpc
 from .wikidot_changes import fetch_changes
 from .wikidot_files import FileListError, check_download, file_events, parse_file_list, plan_files
@@ -448,14 +451,39 @@ def apply_sql(site_id, pages, changes, renames=()):
     return "\n".join(lines) + "\n"
 
 
+def translate_sync_source(rpc, site_id, source, origin, target_origin, confirmations):
+    """Confirm only link destinations against active, exact site-bound page slugs."""
+    candidates = translate_page_links(source, origin, target_origin, set())
+    for decision in candidates.decisions:
+        if decision.status != "unconfirmed":
+            continue
+        slug = urllib.parse.unquote(
+            urllib.parse.urlsplit(decision.url).path[1:], errors="strict"
+        )
+        if slug not in confirmations:
+            page = rpc.rpc("page_get", {"site_id": site_id, "page": slug})
+            confirmations[slug] = (
+                page is not None
+                and page.get("slug") == slug
+                and page.get("deleted_at") is None
+            )
+    confirmed = {slug for slug, active in confirmations.items() if active}
+    return translate_page_links(source, origin, target_origin, confirmed)
+
+
 def main(argv):
-    origin, endpoint, site_id, password_file, since, out_dir = argv
+    origin, target_origin, endpoint, site_id, password_file, since, out_dir = argv
     site_id, since = int(site_id), int(since)
     password = open(password_file).read().strip()
-    login = LoopbackRpc(endpoint, "", site_id).rpc("login", {
-        "name_or_email": "cobalt-import", "password": password,
-        "ip_address": "127.0.0.1", "user_agent": "cobalt-wikidot-sync",
-    })
+    login = LoopbackRpc(endpoint, "", site_id).rpc(
+        "login",
+        {
+            "name_or_email": "cobalt-import",
+            "password": password,
+            "ip_address": "127.0.0.1",
+            "user_agent": "cobalt-wikidot-sync",
+        },
+    )
     rpc = LoopbackRpc(endpoint, login["session_token"], site_id)
     user_id = rpc.rpc("session_get", [login["session_token"]])["user_id"]
 
@@ -464,6 +492,8 @@ def main(argv):
     sync_renames(rpc, site_id, user_id, renames)
 
     report = {"pages": {}, "renames": renames, "files": {}}
+    link_counts = Counter()
+    confirmations = {}
     blocked_targets = {
         rename["to"] for rename in renames if rename["outcome"].startswith("kept:")
     }
@@ -477,15 +507,26 @@ def main(argv):
             report["pages"][slug] = f"skipped: {state['status']}"
             continue
         newest = max(row["revision"] for row in changes if row["slug"] == slug)
-        outcome = sync_page(
-            rpc, site_id, user_id, slug, state, f"Wikidot sync (rev. {newest})"
+        translation = translate_sync_source(
+            rpc, site_id, state["source"], origin, target_origin, confirmations
         )
+        outcome = sync_page(
+            rpc,
+            site_id,
+            user_id,
+            slug,
+            {**state, "source": translation.text},
+            f"Wikidot sync (rev. {newest})",
+        )
+        link_counts.update(translation.counts)
         report["pages"][slug] = outcome
         if not outcome.startswith("kept:"):
             pages[slug] = state
 
     for slug, events in file_events(changes).items():
-        entry = report["files"][slug] = {"unrecognized_comments": events["unrecognized"]}
+        entry = report["files"][slug] = {
+            "unrecognized_comments": events["unrecognized"]
+        }
         if slug not in pages:
             entry["skipped"] = "page not synced"
             continue
@@ -497,6 +538,7 @@ def main(argv):
             entry["skipped"] = str(error)
 
     # The wrapper rerenders SiteChanges pages when the revision list changed.
+    report["link_translation"] = dict(link_counts)
     report["changed"] = bool(changes)
     with open(f"{out_dir}/sync-report.json", "w") as file:
         json.dump(report, file, indent=1)
