@@ -126,7 +126,6 @@ mod tests {
 
     fn file() -> FileData {
         FileData {
-            file_id: 1,
             mime: str!("font/woff2"),
             size: 1234,
             s3_hash: str!("5f1c0ffee"),
@@ -232,7 +231,6 @@ mod tests {
             .unwrap()
             .with_path_style();
         let file = FileData {
-            file_id: 1,
             mime: str!("image/jpeg"),
             size: 5,
             s3_hash: str!("wws-presign-test-object"),
