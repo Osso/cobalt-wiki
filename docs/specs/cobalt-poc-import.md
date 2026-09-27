@@ -17,6 +17,7 @@
 - [x] Reject inventories with orphan audit page IDs. Skip an attachment whose current owner cannot be determined uniquely; do not infer an owner from historical identities.
 - [x] Create only the selected bounded page/file set. Create every selected page with its native `page_import` tags in the same atomic creation operation; do not issue a follow-up edit for tags.
 - [x] Before every mutation run, obtain a new complete site inventory and validate it against the immutable plan and actual RPC endpoint. On any mutation failure, stop; restart only from a newly acquired and validated inventory, never by blindly retrying a mutation.
+- [x] For the bounded production replica-sync path, update only a current page/file whose latest revision has a recognized technical marker and matching revision actor. Preserve unknown or human-edited targets and their history; omit date/file writes for protected pages. This marker policy is code-backed for the observed import markers, not universal provenance.
 
 ## How it works
 
@@ -27,6 +28,7 @@
 
 - `tools/cobalt_migration/poc_import.py`: existing plan/apply CLI, trusted loopback JSON-RPC, and presigned PUT adapter; target module for the bounded local missing-only runner.
 - `tools/cobalt_migration/poc_missing_inventory.py`: pure validated selector of absent plan entries; preserves every existing/current/historical/deleted identity and skips ambiguous attachment owners.
+- `tools/cobalt_migration/wikidot_sync.py`: guarded replica sync; its current-target ownership check accepts only recognized import markers with the matching technical actor before page, file, rename, or revision-date mutation.
 - Deepwell `page_import`: required native atomic exact-name page/first-revision/tag creation with technical attribution; no fallback to normalizing `page_create` or a tag-edit follow-up.
 - Deepwell `page_get`, `page_edit`, `blob_upload`, `file_create`, `file_get`: reconciliation, tags and attachment persistence/readback.
 
@@ -59,6 +61,7 @@ This completes the bounded local missing-page/file operation, not blanket full-r
 - [ ] Run the local missing-only slice only against a local target with one exclusive writer. Concurrent human edits, another importer, production targets, service administration, and database operations are excluded.
 - [x] The completed local run used fresh inventories from the exact target site and endpoint; injected lost responses were resolved only by a later fresh inventory, never by blindly retrying a mutation.
 - [ ] A failed upload may leave an unfinalized pending blob; this importer never deletes target objects.
+- [ ] Production hourly sync is paused before repair validation: `cobalt-wiki-wikidot-sync.timer` is enabled but inactive (`/tmp/claude/cobalt-import-timer-paused.log`), and no active job was interrupted. Its enabled service currently fails in `sync_files → upload_blob → LoopbackRpc.put → _loopback_url` when Deepwell issues an HTTPS storage URL, so final feed SQL does not advance. `f4e2032c3` gates blob PUTs on exact backend-issued URLs while RPC remains strict loopback/no redirects (10 tests pass); `79eae2046` supplies current-target ownership checks (21 tests pass). Neither change has been deployed or live-tested. Restore the timer only after a validated repair; pause is not completion.
 
 ## Out of scope
 
