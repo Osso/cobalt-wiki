@@ -65,7 +65,9 @@ RENAMED = re.compile(r'You successfully renamed the page: "([^"]+)" to "([^"]+)"
 POC_MARKER = re.compile(
     r"Cobalt POC import [0-9a-f]{64}; source authorship/history unacquired"
 )
-PAGE_SYNC_MARKER = re.compile(r"Wikidot sync \(rev\. [0-9]+(?:, renamed)?\)")
+PAGE_SYNC_MARKER = re.compile(
+    r"(?:Wikidot sync \(rev\. [0-9]+(?:, renamed)?\)|Cobalt page-link migration [0-9a-f]{64})"
+)
 NOTHING_TO_MOVE = (
     "nothing to move: neither slug on the replica (the page sync creates the new one)"
 )

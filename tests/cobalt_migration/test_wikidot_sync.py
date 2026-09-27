@@ -321,6 +321,29 @@ def files_listing(files):
 
 
 class OwnershipTest(unittest.TestCase):
+    def test_link_migration_stays_refreshable_only_for_exact_marker_and_actor(self):
+        marker = "Cobalt page-link migration " + "a" * 64
+        for actor, comment, editable in [
+            (-1, marker, True),
+            (42, marker, False),
+            (-1, marker + " extra", False),
+            (-1, "Cobalt page-link migration short", False),
+        ]:
+            with self.subTest(actor=actor, comment=comment):
+                replica = FakeReplica(["story"])
+                page = replica.pages["story"]
+                page.update(revision_user_id=actor, revision_comments=comment)
+                before = page["wikitext"]
+                sync_page(
+                    replica,
+                    6000000,
+                    -1,
+                    "story",
+                    {"title": "New", "source": "refreshed", "tags": []},
+                    SYNC_MARKER,
+                )
+                self.assertEqual(page["wikitext"], "refreshed" if editable else before)
+
     def test_newer_local_page_is_kept_without_rpc_write(self):
         replica = FakeReplica(["story"])
         page = replica.pages["story"]
