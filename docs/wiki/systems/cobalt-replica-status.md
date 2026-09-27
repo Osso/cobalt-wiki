@@ -168,7 +168,17 @@ Public browser proof: Melancholy's portrait and all six gallery assets loaded; i
 
 A static archive audit found 59 bare ImageBox references across 32 character pages, each with an exact owner/file archive entry; this is coverage evidence, not live browser proof. `icon_tanith.jpg` remains absent: the replica returns 404 and the upstream wdfiles request returns `200 text/html` stating that the file does not exist. No substitute was introduced. Fixture corrections `13a9afcab` and `f0306352a` report the final routing test 3/3; fresh verifier log review remains pending. Existing `cargo fmt --check` and `cargo check` proof predates those test-only fixture changes.
 
+## Attachment replacement freshness, 2026-09-27
+
+Verified: 2026-09-27. Deployed Cobalt `eeeb0a55d` through Sakuin pin `84c47e7` and `ops/deploy.sh`; only `cobalt-wiki-wws` was replaced/restarted. Active system: `/nix/store/7b8qm114cqlpjlb8r14wpv8dq00psm3j-nixos-system-sakuin-digital-ocean-26.05.20260606.9b69646`. Current contract: [same-site media routing](../../specs/cobalt-media-routing.md).
+
+The origin had retained file IDs 1168/1277/1278 for Auralind/Gabriella/Niksi while Deepwell returned 1473/1474/1475. Filename metadata is now fetched fresh after permission checks; old Redis mappings are unused. Public filename URLs require HTTP revalidation. Purged exactly the three reported canonical Cloudflare URLs, without touching content/history or unrelated caches. Existing browser responses with the former 30-day lifetime may require one forced reload; no origin fix can revoke those already-fresh responses.
+
+Evidence: `/tmp/cobalt-replacement-red.log` reproduces old ETag after replacement and excessive freshness; `/tmp/cobalt-replacement-final-tests.log` passes 35 tests (external-store presign test excluded), with fmt/check passing. `/tmp/cobalt-replacement-deploy.log` records successful owning-workflow deployment. `/tmp/cobalt-replacement-public-proof.json` verifies public bodies against current Deepwell SHA-512 and sizes: 20,837 / 18,083 / 20,575 bytes. `/tmp/cobalt-replacement-browser.log` verifies six ordinary browser fetches, current bytes, revalidation headers and no disk-cache reuse. `/tmp/cobalt-replacement-range.log` verifies 206 and exact first 16 bytes of Auralind. No production attachments were changed by this work.
+
 ## WWS file access, 2026-09-24
+
+Historical record; caching policy superseded by [attachment freshness](#attachment-replacement-freshness-2026-09-27).
 
 Committed on branch `worktree-agent-a20dbe13be5fa7c62`, not deployed. Requirements: [same-site media routing](../../specs/cobalt-media-routing.md).
 
