@@ -1,14 +1,13 @@
 """Conservative, pure translation of confirmed Wikidot page URL destinations."""
 
+import re
 from collections import Counter
 from dataclasses import dataclass
-import re
 from urllib.parse import unquote_to_bytes, urlsplit
 
-
 URL = re.compile(r"https?://[^\s<>\"|\[\]]+")
-BLOCK = re.compile(r"\[\[(code|html|css|module\s+css)\b[^\]\n]*\]\]", re.I)
-HTML = re.compile(r"<([a-z][\w:-]*)\b[^>]*>", re.I)
+BLOCK = re.compile(r"\[\[(code|html|css|module\s+css)\b[^\]\n]*\]\]", re.IGNORECASE)
+HTML = re.compile(r"<([a-z][\w:-]*)\b[^>]*>", re.IGNORECASE)
 BAD_PERCENT = re.compile(r"%(?![0-9a-fA-F]{2})")
 TRAILING = ",.;!?) }"
 
@@ -44,7 +43,9 @@ def _opaque_end(source: str, pos: int) -> int | None:
     block = BLOCK.match(source, pos)
     if block:
         name = block.group(1).split()[0]
-        close = re.search(r"\[\[/" + name + r"\]\]", source[block.end() :], re.I)
+        close = re.search(
+            r"\[\[/" + name + r"\]\]", source[block.end() :], re.IGNORECASE
+        )
         return len(source) if close is None else block.end() + close.end()
 
     tag = HTML.match(source, pos)
@@ -52,7 +53,9 @@ def _opaque_end(source: str, pos: int) -> int | None:
         if source[tag.start() : tag.end()].endswith("/>"):
             return tag.end()
         closing = re.search(
-            r"</" + re.escape(tag.group(1)) + r"\s*>", source[tag.end() :], re.I
+            r"</" + re.escape(tag.group(1)) + r"\s*>",
+            source[tag.end() :],
+            re.IGNORECASE,
         )
         return len(source) if closing is None else tag.end() + closing.end()
 
