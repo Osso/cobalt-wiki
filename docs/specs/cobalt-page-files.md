@@ -10,10 +10,10 @@ The Wikidot-layout Files pane presents attached-file information using the exist
 - [x] Label `file_created_at` “Local file created”; it is not the original upload timestamp.
 - [x] Use absolute same-origin file URLs through the existing `/-/file` permission boundary; encode filename spaces and fragment markers.
 - [x] Keep deleted-file restore actions and non-Wikidot presentation unchanged.
-- [ ] Sort Files rows alphabetically by filename before selecting visible rows.
-- [ ] Show 20 Files rows per client-side page with ListPages-style pagination controls.
-- [ ] Preserve full-list totals and uploader checks; pagination must not remove deleted-file restore entries.
-- [ ] After refresh, render a valid Files page when the prior client-side page is no longer available.
+- [x] Sort Files rows alphabetically by filename before selecting visible rows.
+- [x] Show 20 Files rows per client-side page with ListPages-style pagination controls.
+- [x] Preserve full-list totals and uploader checks; pagination does not remove deleted-file restore entries.
+- [x] After refresh, render a valid Files page when the prior client-side page is no longer available.
 - [x] Dispatch file revision rollback from the page route to the existing RPC, preserving the request IP and accepting its revised file response.
 - [x] Serialize an omitted rollback comment as an empty string for the RPC wire contract.
 - [x] Complete the disposable Files lifecycle: upload, rename, byte replacement, revision-history read, rollback, move, delete, restore, and final deletion. The run preserves original fixture files and pages.
@@ -40,7 +40,8 @@ The Wikidot-layout Files pane presents attached-file information using the exist
 
 ## Tests asserting this spec
 
-- `framerail/tests/page-files.test.ts` — five SSR cases for totals, information, hidden comments, same-origin encoded URLs, and alternate layout.
+- `framerail/tests/page-files.test.ts` — nine SSR cases for existing totals and readable sizes, information/hidden comments/encoded URLs, alternate layout, and sorting/pagination: 20 visible alphabetical rows, full-list totals with retained deleted rows, case-insensitive ordering with file-ID ties, and bounded controls.
+- `framerail/tests/local/file-pagination.mjs` — local browser coverage for 42 mock file-list entries: alphabetical first/second/third pages, ListPages-style navigation without URL changes, retained deleted row and all-file total, and clamping to a valid first page after the refreshed list shrinks to five entries.
 - `framerail/tests/page-file-rpc.test.ts` — rollback route dispatch, request-IP serialization, revised-response acceptance, and empty omitted-comment wire contract.
 - `framerail/tests/local/remaining-actions.mjs` — local browser information, total, and close coverage.
 - `framerail/tests/local/file-action-mutations.mjs` — disposable browser file-mutation lifecycle; main GREEN 1/1 covers upload, rename, byte replacement, history read, rollback, move, delete, restore, final deletion, and original-fixture preservation.
