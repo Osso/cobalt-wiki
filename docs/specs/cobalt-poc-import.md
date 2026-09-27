@@ -21,17 +21,16 @@
 - [x] During replica sync, translate links only in the current payload for an existing changed page. Require explicit source and target origins; replace only actual URL destinations whose active replica slug is confirmed exactly. Preserve any label, query, and fragment on a translated target URL. Leave opaque links, code, comments, and unconfirmed destinations unchanged. Do not rewrite archived or historical source content, and do not bulk-scan pages.
 - [x] For an existing changed page, replica sync calls `page_edit` with `preserve_draft: true`, retaining its shared draft. Its direct `page_import` creation route does not delete a draft; this is distinct from ordinary page creation.
 
-## Approved pending current-source link migration
+## Completed current-source link migration
 
-This approved migration is not an apply authorization. Rollout status and execution evidence are maintained only in [current proof](../wiki/systems/cobalt-replica-status.md).
+The approved reviewed plan ran on 2026-09-27. Rollout status and bounded execution evidence are maintained in [current proof](../wiki/systems/cobalt-replica-status.md); independent artifact gate 1089 remains pending.
 
-- [ ] Limit scope to the reviewed current-source plan: 140 link destinations across 96 import-owned pages. Do not scan or edit pages outside that plan; do not rewrite archived or historical revisions.
-- [ ] Persist an immutable reviewed plan containing each target page ID, expected current revision ID, before and after source SHA-256 digests, and the reviewed page/destination/count totals. Refuse a plan whose counts, identities, revisions, or digests differ from review.
-- [ ] Before any write, preflight every planned page: confirm it is active, import-owned, at the expected current revision, and has the expected before digest. Confirm every replacement destination is the exact active replica slug for its source URL under the explicit source and target origins.
-- [ ] Immediately before each write, repeat that page's ownership, current-revision, and before-digest checks. Refuse all writes on page drift, destination drift, inactive or non-exact destinations, or ownership conflicts; do not overwrite or adopt conflicting content.
-- [ ] For each changed page, issue exactly one attributable ordinary `page_edit` revision with `preserve_draft: true` and `do_not_notify_watchers: true`. Its source must match the planned after digest and exact readback must confirm the resulting page ID, revision ID, source bytes, and SHA-256.
-- [ ] Mark every migration revision exactly as `Cobalt page-link migration <64 lowerhex prior source digest>`. Periodic page sync must recognize this marker only with the existing technical actor guard `d5badc00c`, so a later ordinary replica refresh remains eligible rather than being silently disabled.
-- [ ] `current_link_migration` agent 1085 is pending implementation. It has no apply action yet.
+- [x] Scope was the reviewed current-source plan only: 140 link destinations across 96 import-owned pages. No archived or historical revision was rewritten.
+- [x] The immutable reviewed plan bound each target page ID and current revision ID to before/after source SHA-256 digests and reviewed totals; all 96 receipts match it.
+- [x] Every planned page passed active/import-owner/current-revision/before-digest and exact active-destination preflight immediately before its write.
+- [x] Each changed page received exactly one attributable ordinary `page_edit` revision with `preserve_draft: true` and `do_not_notify_watchers: true`; exact readback confirms the page ID, new revision ID, source bytes, and after digest.
+- [x] All 96 new revisions carry `Cobalt page-link migration <64 lowerhex prior source digest>` and are recognized only with technical actor guard `d5badc00c`, leaving subsequent ordinary replica refresh eligible.
+- [x] Post-apply classification found zero eligible replacements. It left 145 opaque/unsafe contexts and two unconfirmed destinations unchanged; the scan excludes pages that no longer contain the old origin.
 
 ## How it works
 
@@ -42,8 +41,8 @@ This approved migration is not an apply authorization. Rollout status and execut
 
 - `tools/cobalt_migration/poc_import.py`: existing plan/apply CLI, trusted loopback JSON-RPC, and presigned PUT adapter; target module for the bounded local missing-only runner.
 - `tools/cobalt_migration/poc_missing_inventory.py`: pure validated selector of absent plan entries; preserves every existing/current/historical/deleted identity and skips ambiguous attachment owners.
-- `tools/cobalt_migration/wikidot_sync.py`: guarded replica sync; its current-target ownership check accepts only recognized import markers with the matching technical actor before page, file, rename, or revision-date mutation. Existing changed-page edits preserve shared drafts; direct imports create missing pages without deleting drafts. Translation operates only on the current changed-page payload after exact active target confirmation, with explicit source/target origins. It must recognize the approved current-link-migration marker with actor guard `d5badc00c`.
-- `current_link_migration` agent 1085: pending implementation of the approved migration contract; no apply path exists.
+- `tools/cobalt_migration/wikidot_sync.py`: guarded replica sync; its current-target ownership check accepts only recognized import markers with the matching technical actor before page, file, rename, or revision-date mutation. Existing changed-page edits preserve shared drafts; direct imports create missing pages without deleting drafts. Translation operates only on the current changed-page payload after exact active target confirmation, with explicit source/target origins. It recognizes the current-link-migration marker with actor guard `d5badc00c`.
+- `tools/cobalt_migration/current_link_migration.py`: applies the immutable reviewed current-source link plan with per-page drift checks and receipt/readback proof.
 - Deepwell `page_import`: required native atomic exact-name page/first-revision/tag creation with technical attribution; no fallback to normalizing `page_create` or a tag-edit follow-up.
 - Deepwell `page_get`, `page_edit`, `blob_upload`, `file_create`, `file_get`: reconciliation, tags and attachment persistence/readback.
 
@@ -51,6 +50,7 @@ This approved migration is not an apply authorization. Rollout status and execut
 
 - `tests/cobalt_migration/test_poc_import.py`: synthetic archives and a persistent in-memory RPC datastore; exact multi-colon identity/content, collision refusal, restart after lost response without duplicate pages or attachments, non-import conflict, changed archive/content.
 - `tests/cobalt_migration/test_wikidot_sync.py`: existing changed-page draft-preserving edit and current-payload translation only after exact active target confirmation.
+- `tests/cobalt_migration/test_current_link_migration.py`: immutable-plan validation, per-page drift refusal, marker/actor eligibility, and receipt/readback behavior.
 - `tests/cobalt_migration/test_sync_https_transport.py`: HTTPS storage upload across separate RPC/storage sockets, exact issued URL enforcement, and no RPC-session header leakage.
 
 ## Completed local missing-only import
@@ -78,8 +78,8 @@ This completes the bounded local missing-page/file operation, not blanket full-r
 - [ ] Run the local missing-only slice only against a local target with one exclusive writer. Concurrent human edits, another importer, production targets, service administration, and database operations are excluded.
 - [x] The completed local run used fresh inventories from the exact target site and endpoint; injected lost responses were resolved only by a later fresh inventory, never by blindly retrying a mutation.
 - [ ] A failed upload may leave an unfinalized pending blob; this importer never deletes target objects.
-- [ ] Production hourly sync remains paused and undeployed: `cobalt-wiki-wikidot-sync.timer` is enabled but inactive (`/tmp/claude/cobalt-import-timer-paused.log`), and no active job was interrupted. `d2e43c184` adds requested `page_edit` draft preservation; `f898d2986` sends that flag for existing sync edits; `688344cbc` translates only confirmed current changed-page destinations; and `6f15029a6` passes the HTTPS socket regression. These are scoped proof, not a bulk migration or refresh claim. The user authorized a reviewed whole-host rollout after scoped verification and confirmation of no unrelated diff; it remains pending. Restore the timer only after that rollout.
-- [ ] Every host configuration must set `wikidotSync.targetOrigin`. Sakuin wiring is committed in `58a58f0`, but its configuration pin has not yet been updated.
+- [x] Production hourly sync is deployed and active. The timer's successful 2026-09-27 05:00:16 UTC run is followed by the 06:00 UTC schedule; the host pin is `97521ee` for Cobalt `5792a09ea`.
+- [x] Every host configuration sets `wikidotSync.targetOrigin`; Sakuin wiring is pinned through `97521ee`.
 
 ## Out of scope
 
