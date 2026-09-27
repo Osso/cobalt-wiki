@@ -9,9 +9,9 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from tests.cobalt_migration.test_wikidot_sync import FakeReplica, files_listing
 from tools.cobalt_migration import wikidot_sync as sync
 from tools.cobalt_migration.wikidot_files import format_size
-from tests.cobalt_migration.test_wikidot_sync import FakeReplica, files_listing
 
 
 class ReadOnlyReplica:
