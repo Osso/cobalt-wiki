@@ -1,20 +1,20 @@
 # Cobalt site changes
 
-Site Changes renders the imported Wikidot `wikidot_site_change` feed in the current wiki. It targets full module-behavior parity while retaining the current Files-table direction exactly as established by `97261dde1`, rather than copying Wikidot’s legacy styling. [Replica status](../wiki/systems/cobalt-replica-status.md) records implementation evidence and rollout limits.
+Site Changes renders the imported Wikidot `wikidot_site_change` feed in the current wiki. It targets module-behavior parity using the Files-table visual direction established by `97261dde1`, rather than copying Wikidot’s legacy styling. [Replica status](../wiki/systems/cobalt-replica-status.md) records implementation evidence and rollout limits.
 
 ## What it must do
 
 ### Feed and filtering
 
-- [x] Read only imported `wikidot_site_change` rows. The local fixture currently has 99 rows, latest `2026-09-24T16:45:15Z`; this is distinct from live Wikidot observed on 2026-09-27.
+- [x] Preserve revision metadata without rewriting page source or history; report feed coverage separately from rendering behavior.
 - [x] Preserve module category selection: `All` wins over selected change filters; selected non-`All` filters use OR semantics.
 - [x] Preserve page sizes 10, 20, 50, 100, and 200 (default 20), reset to URL page 1 on filter change, and retain pager links.
 
 ### Rendering and time
 
 - [x] Render a semantic five-column table: Page, Changes, Revision, Changed, and Author.
-- [x] Render change titles and comments; display N, S, T, R, A, M, and F flags; render revision 0 as New; render a slugless imported author as escaped plain text.
-- [x] Emit ISO-second UTC server times in `datetime` plus `data-timestamp`, then localize them in the browser and expose relative time on hover and keyboard focus. The replica’s hidden `20.odate` spans are not source behavior; original Wikidot dates render inline.
+- [x] Render change titles and comments; display N, S, T, R, A, M, and F flags; render revision 0 as `(new)`; render a slugless imported author as escaped plain text.
+- [x] Emit ISO-second UTC server times in `datetime` plus `data-timestamp`, then localize them in the browser and expose relative time on hover and keyboard focus. The replica’s 20 hidden `.odate` spans are not source behavior; original Wikidot dates render inline.
 - [x] Preserve the Files UI from `97261dde1` exactly while meeting the Site Changes module behavior contract.
 
 ## How it works
@@ -42,7 +42,7 @@ Site Changes renders the imported Wikidot `wikidot_site_change` feed in the curr
 | Renderer | Green | `36f9007b8`: semantic five-column table, comments, flags, ISO-second UTC, and plain slugless author. |
 | Default view | Green | `fe800e900` reads the feed for default pages too; covered by a real-DB update regression. |
 | Backend | Green | 3/3 targeted tests; independent format/check/vendor-format gate is `PASS_WITH_INHERITED_READABILITY_DEBT` (`/tmp/claude/cobalt-sitechanges-backend-gate.json`). |
-| Frontend | Green, bounded | `603ec2ce8` 9/9; `84d897cff` supersedes the initial race evidence. Final frontend `1054` follow-up remains pending (`/tmp/claude/cobalt-sitechanges-final-followup.json`). |
+| Frontend | Green, bounded | `603ec2ce8` 9/9; `84d897cff` supersedes the initial race evidence. Final frontend follow-up passes: Svelte 0 errors/0 warnings and scoped format/lint/style checks clean (`/tmp/claude/cobalt-sitechanges-final-followup.json`). |
 | Local runtime | Green | Root deploy exited 0; running and built hashes match. Local only. |
 | Browser | Green | Read-only local browser 1/1 as described above. |
 | Production rollout | Not authorized | No production rollout. |
@@ -56,7 +56,7 @@ Site Changes renders the imported Wikidot `wikidot_site_change` feed in the curr
 
 ## Known gaps (current cycle)
 
-- [ ] Resolve or record the final frontend `1054` follow-up.
+- [x] Final frontend follow-up passes; inherited backend readability debt is recorded separately and was not expanded by this change.
 
 ## Out of scope
 
