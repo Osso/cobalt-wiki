@@ -82,6 +82,7 @@ pub mod all {
     pub use super::site::*;
     pub use super::site_ban::*;
     pub use super::site_member::*;
+    pub use super::site_tag_admin::*;
     pub use super::text::*;
     pub use super::text_block::*;
     pub use super::user::*;
@@ -124,6 +125,7 @@ pub mod search;
 pub mod site;
 pub mod site_ban;
 pub mod site_member;
+pub mod site_tag_admin;
 pub mod text;
 pub mod text_block;
 pub mod user;

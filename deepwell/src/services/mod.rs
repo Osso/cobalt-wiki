@@ -101,6 +101,7 @@ pub mod search;
 pub mod session;
 pub mod settings;
 pub mod site;
+pub mod site_tag_admin;
 pub mod text;
 pub mod text_block;
 pub mod user;

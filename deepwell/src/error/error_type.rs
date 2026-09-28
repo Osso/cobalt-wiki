@@ -212,6 +212,9 @@ pub enum ErrorType {
     PageNotDeleted,
     CannotHideLatestRevision,
     NotLatestRevisionId,
+    TagPreviewStale,
+    TagUndoConflict,
+    TagPageNotEditable,
 
     // 4400
     FileNameEmpty,
@@ -518,6 +521,9 @@ impl ErrorType {
             ErrorType::PageNotDeleted => 4301,
             ErrorType::CannotHideLatestRevision => 4302,
             ErrorType::NotLatestRevisionId => 4303,
+            ErrorType::TagPreviewStale => 4304,
+            ErrorType::TagUndoConflict => 4305,
+            ErrorType::TagPageNotEditable => 4306,
 
             // 4400 - File
             ErrorType::FileNameEmpty => 4400,
@@ -793,6 +799,13 @@ impl ErrorType {
             }
             ErrorType::NotLatestRevisionId => {
                 "Revision ID passed for this operation is not the latest"
+            }
+            ErrorType::TagPreviewStale => "Affected pages changed; preview again",
+            ErrorType::TagUndoConflict => {
+                "Affected page changed since this operation; cannot undo"
+            }
+            ErrorType::TagPageNotEditable => {
+                "Affected page is locked or cannot be edited"
             }
 
             // 4400

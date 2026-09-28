@@ -125,6 +125,7 @@ impl PageService {
         }: CreatePage,
     ) -> Result<CreatePageOutput> {
         let txn = ctx.transaction();
+        crate::services::site_tag_admin::lock_site_tags(ctx, site_id).await?;
 
         let make_error = || {
             Error::new(
@@ -251,6 +252,7 @@ impl PageService {
         }: EditPage<'_>,
     ) -> Result<Option<EditPageOutput>> {
         let txn = ctx.transaction();
+        crate::services::site_tag_admin::lock_site_tags(ctx, site_id).await?;
 
         let PageModel {
             page_id,
@@ -387,6 +389,7 @@ impl PageService {
         }: MovePage<'_>,
     ) -> Result<MovePageOutput> {
         let txn = ctx.transaction();
+        crate::services::site_tag_admin::lock_site_tags(ctx, site_id).await?;
         normalize(&mut new_slug);
 
         let PageModel {
@@ -559,6 +562,7 @@ impl PageService {
         }: DeletePage<'_>,
     ) -> Result<DeletePageOutput> {
         let txn = ctx.transaction();
+        crate::services::site_tag_admin::lock_site_tags(ctx, site_id).await?;
 
         let PageModel {
             page_id,
@@ -658,6 +662,7 @@ impl PageService {
         }: RestorePage,
     ) -> Result<RestorePageOutput> {
         let txn = ctx.transaction();
+        crate::services::site_tag_admin::lock_site_tags(ctx, site_id).await?;
 
         let page = Self::get_direct(ctx, page_id, true)
             .await
@@ -789,6 +794,7 @@ impl PageService {
         }: RollbackPage<'_>,
     ) -> Result<Option<EditPageOutput>> {
         let txn = ctx.transaction();
+        crate::services::site_tag_admin::lock_site_tags(ctx, site_id).await?;
 
         let PageModel {
             page_id,
