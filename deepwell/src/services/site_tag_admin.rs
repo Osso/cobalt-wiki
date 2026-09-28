@@ -269,17 +269,19 @@ fn normalize_names(mut names: TagNames) -> Result<TagNames> {
 }
 
 fn replace_tag(tags: &[String], source: &str, target: Option<&str>) -> Vec<String> {
+    let target_present =
+        target.is_some_and(|target| tags.iter().any(|tag| tag == target));
+    let mut inserted_target = false;
     let mut result = Vec::with_capacity(tags.len());
     for tag in tags {
-        let value = if tag == source {
-            target
-        } else {
-            Some(tag.as_str())
-        };
-        if let Some(value) = value
-            && !result.iter().any(|existing| existing == value)
+        if tag != source {
+            result.push(tag.clone());
+        } else if let Some(target) = target
+            && !target_present
+            && !inserted_target
         {
-            result.push(value.to_owned());
+            result.push(target.to_owned());
+            inserted_target = true;
         }
     }
     result

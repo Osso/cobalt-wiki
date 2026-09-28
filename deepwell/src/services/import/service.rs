@@ -221,6 +221,7 @@ impl ImportService {
         info!("Creating page '{slug}' in site ID {site_id}");
 
         let txn = ctx.transaction();
+        crate::services::site_tag_admin::lock_site_tags(ctx, site_id).await?;
         let make_error = || {
             Error::new(
                 format!(
@@ -311,6 +312,7 @@ impl ImportService {
         );
 
         let txn = ctx.transaction();
+        crate::services::site_tag_admin::lock_site_tags(ctx, site_id).await?;
         let make_error = || {
             Error::new(
                 format!(

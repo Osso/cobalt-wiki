@@ -4,8 +4,15 @@ mod common;
 use common::TestRunner;
 use deepwell::constants::ADMIN_USER_ID;
 use deepwell::error::prelude::*;
-use deepwell::services::RequestContext;
+use deepwell::services::import::{ImportPage, ImportPageRevision, ImportService};
+use deepwell::services::page::{EditPage, EditPageBody};
+use deepwell::services::{
+    PageRevisionService, PageService, RequestContext, ServiceContext,
+};
+use deepwell::types::{Maybe, PageRevisionType, Reference};
+use sea_orm::{ConnectionTrait, DatabaseBackend, Statement, TransactionTrait};
 use serde_json::json;
+use std::time::Duration;
 
 async fn site_id(runner: &TestRunner) -> i64 {
     run_endpoint!(runner, site_get, json!({"site": "test"}))
@@ -50,7 +57,13 @@ async fn tags(runner: &TestRunner, site_id: i64, page_id: i64) -> Vec<String> {
 async fn admin_preview_merge_and_undo_preserve_other_tags() {
     let mut runner = TestRunner::setup().await;
     let site = site_id(&runner).await;
-    let first = page(&runner, site, "tag-first", &["source", "other", "target"]).await;
+    let first = page(
+        &runner,
+        site,
+        "tag-first",
+        &["source", "other", "other", "target"],
+    )
+    .await;
     let second = page(&runner, site, "tag-second", &["source", "other"]).await;
     let unaffected = page(&runner, site, "tag-unaffected", &["other"]).await;
     act_as(&mut runner, site, Some(ADMIN_USER_ID));
@@ -72,7 +85,10 @@ async fn admin_preview_merge_and_undo_preserve_other_tags() {
             "ip_address":common::IP_ADDRESS
         })
     );
-    assert_eq!(tags(&runner, site, first).await, ["target", "other"]);
+    assert_eq!(
+        tags(&runner, site, first).await,
+        ["other", "other", "target"]
+    );
     assert_eq!(tags(&runner, site, second).await, ["target", "other"]);
     assert_eq!(tags(&runner, site, unaffected).await, ["other"]);
     let history = run_endpoint!(runner, site_tag_history);
@@ -85,7 +101,7 @@ async fn admin_preview_merge_and_undo_preserve_other_tags() {
     );
     assert_eq!(
         tags(&runner, site, first).await,
-        ["source", "other", "target"]
+        ["source", "other", "other", "target"]
     );
     assert_eq!(tags(&runner, site, second).await, ["source", "other"]);
     assert!(run_endpoint!(runner, site_tag_history)[0].reversed);
@@ -131,6 +147,12 @@ async fn preview_staleness_and_later_edit_conflict_are_atomic() {
     .unwrap()
     .latest_revision_id
     .unwrap();
+    runner.set_request_context(RequestContext {
+        site_id: Some(site),
+        user_id: Some(ADMIN_USER_ID),
+        page_reference: Some(deepwell::types::Reference::Id(second)),
+        ..Default::default()
+    });
     run_endpoint!(
         runner,
         page_edit,
@@ -179,6 +201,167 @@ async fn locked_page_prevents_partial_apply() {
     assert_eq!(tags(&runner, site, first).await, ["source"]);
     assert_eq!(tags(&runner, site, second).await, ["source"]);
     assert!(run_endpoint!(runner, site_tag_history).is_empty());
+}
+
+#[tokio::test]
+async fn importing_page_waits_for_inflight_site_tag_change() {
+    let runner = TestRunner::setup().await;
+    let site = site_id(&runner).await;
+    let state = runner.state();
+    let first = state.database.begin().await.unwrap();
+    let second = state.database.begin().await.unwrap();
+    let context = ServiceContext::new(state, &second);
+    first
+        .query_one_raw(Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            "SELECT pg_advisory_xact_lock($1)",
+            [site.into()],
+        ))
+        .await
+        .unwrap();
+    let mut import = Box::pin(ImportService::add_page(
+        &context,
+        ImportPage {
+            page_id: -9282026,
+            site_id: site,
+            created_at: time::OffsetDateTime::now_utc(),
+            slug: "tag-concurrent-import".to_owned(),
+            locked: false,
+            discussion_thread_id: None,
+            ip_address: common::IP_ADDRESS,
+        },
+    ));
+    assert!(
+        tokio::time::timeout(Duration::from_millis(150), &mut import)
+            .await
+            .is_err(),
+        "import raced tag lock"
+    );
+    first.rollback().await.unwrap();
+    let result = tokio::time::timeout(Duration::from_secs(10), import)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(result.page_id, -9282026);
+    second.rollback().await.unwrap();
+}
+
+#[tokio::test]
+async fn importing_revision_waits_for_inflight_site_tag_change() {
+    let runner = TestRunner::setup().await;
+    let site = run_endpoint!(runner, site_get, json!({"site":"www"}))
+        .unwrap()
+        .site
+        .site_id;
+    let page = PageService::get(runner.context(), site, Reference::Slug("start".into()))
+        .await
+        .unwrap();
+    let previous = PageRevisionService::get_latest(runner.context(), site, page.page_id)
+        .await
+        .unwrap();
+    let state = runner.state();
+    let first = state.database.begin().await.unwrap();
+    let second = state.database.begin().await.unwrap();
+    first
+        .query_one_raw(Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            "SELECT pg_advisory_xact_lock($1)",
+            [site.into()],
+        ))
+        .await
+        .unwrap();
+    let context = ServiceContext::new(state, &second);
+    let mut import = Box::pin(ImportService::add_page_revision(
+        &context,
+        ImportPageRevision {
+            revision_id: -9282027,
+            revision_type: PageRevisionType::Regular,
+            created_at: time::OffsetDateTime::now_utc(),
+            updated_at: None,
+            revision_number: previous.revision_number + 1,
+            page_id: page.page_id,
+            site_id: site,
+            user_id: ADMIN_USER_ID,
+            wikitext: "Revision imported after site tag lock".to_owned(),
+            comments: "concurrent imported revision".to_owned(),
+            title: previous.title,
+            slug: page.slug,
+            tags: vec!["imported-tag".to_owned()],
+        },
+    ));
+    assert!(
+        tokio::time::timeout(Duration::from_secs(2), &mut import)
+            .await
+            .is_err(),
+        "imported revision raced tag lock"
+    );
+    first.rollback().await.unwrap();
+    let result = tokio::time::timeout(Duration::from_secs(10), import)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(result.page_revision_id, -9282027);
+    second.rollback().await.unwrap();
+}
+
+#[tokio::test]
+async fn ordinary_edit_waits_for_inflight_site_tag_change() {
+    let runner = TestRunner::setup().await;
+    let site = run_endpoint!(runner, site_get, json!({"site":"www"}))
+        .unwrap()
+        .site
+        .site_id;
+    let page = PageService::get(runner.context(), site, Reference::Slug("start".into()))
+        .await
+        .unwrap();
+    let state = runner.state();
+    let first = state.database.begin().await.unwrap();
+    let second = state.database.begin().await.unwrap();
+    first
+        .query_one_raw(Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            "SELECT pg_advisory_xact_lock($1)",
+            [site.into()],
+        ))
+        .await
+        .unwrap();
+    let context = ServiceContext::new(state, &second).with_request(RequestContext {
+        site_id: Some(site),
+        user_id: Some(ADMIN_USER_ID),
+        page_reference: Some(Reference::Id(page.page_id)),
+        ..Default::default()
+    });
+    let mut edit = Box::pin(PageService::edit(
+        &context,
+        EditPage {
+            site_id: site,
+            page: Reference::Id(page.page_id),
+            last_revision_id: page.latest_revision_id.unwrap(),
+            revision_comments: "concurrent tag edit".to_owned(),
+            user_id: ADMIN_USER_ID,
+            body: EditPageBody {
+                tags: Maybe::Set(vec!["tag-concurrent".to_owned()]),
+                preserve_draft: true,
+                ..Default::default()
+            },
+            ip_address: common::IP_ADDRESS,
+        },
+    ));
+    assert!(
+        tokio::time::timeout(Duration::from_millis(150), &mut edit)
+            .await
+            .is_err(),
+        "ordinary edit raced tag lock"
+    );
+    first.rollback().await.unwrap();
+    assert!(
+        tokio::time::timeout(Duration::from_secs(10), edit)
+            .await
+            .unwrap()
+            .unwrap()
+            .is_some()
+    );
+    second.rollback().await.unwrap();
 }
 
 #[tokio::test]
