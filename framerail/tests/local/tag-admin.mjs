@@ -145,8 +145,9 @@ async function assertFixtureState(actor, fixtures, state) {
       stored.page_revision.wikitext_hash,
       fixture.before.page_revision.wikitext_hash
     )
-    if (state === "unchanged")
+    if (state === "unchanged") {
       assert.equal(stored.page.latest_revision_id, fixture.before.page.latest_revision_id)
+    }
   }
 }
 
@@ -161,14 +162,12 @@ async function readPendingOperation(actor) {
 
 /** @param {BrowserPage} page @param {TagOperation} operation */
 async function undoThroughUi(page, operation) {
-  const article = page
-    .locator("article")
-    .filter({
-      has: page.getByRole("heading", {
-        name: `#${operation.operation_id}: ${source} → ${target}`,
-        exact: true
-      })
+  const article = page.locator("article").filter({
+    has: page.getByRole("heading", {
+      name: `#${operation.operation_id}: ${source} → ${target}`,
+      exact: true
     })
+  })
   await article.getByText("Undo this operation", { exact: true }).click()
   await article
     .getByRole("button", { name: `Confirm undo #${operation.operation_id}`, exact: true })
