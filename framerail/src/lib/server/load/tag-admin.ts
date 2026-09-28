@@ -59,22 +59,30 @@ async function runAction(
   action: (form: FormData, context: RequestContext) => Promise<ActionData>
 ) {
   const sessionToken = event.cookies.get("wikijump_token")
-  if (!sessionToken)
+  if (!sessionToken) {
     return fail(401, { saved: false, message: "You are not signed in.", preview: null })
+  }
   const { siteId } = loadSiteInfo(event.request.headers)
   const form = await event.request.formData()
   try {
     return await action(form, { siteId, sessionToken })
   } catch (caught) {
-    if (caught instanceof InvalidTagForm)
+    if (caught instanceof InvalidTagForm) {
       return fail(400, { saved: false, message: caught.message, preview: null })
+    }
     const error = requireDeepwellError(caught)
-    return fail(error.code === PERMISSION_DENIED ? 403 : ERRORS[error.code] ? 400 : 500, {
+    const status = errorStatus(error.code)
+    return fail(status, {
       saved: false,
       message: ERRORS[error.code] ?? `Tag operation failed: ${error.message}`,
       preview: null
     })
   }
+}
+
+function errorStatus(code: number) {
+  if (code === PERMISSION_DENIED) return 403
+  return ERRORS[code] ? 400 : 500
 }
 
 class InvalidTagForm extends Error {}
@@ -88,24 +96,28 @@ function readChange(form: FormData): TagChange {
   const source = formText(form, "sourceTag").trim()
   const operation = formText(form, "operation")
   const target = operation === "delete" ? null : formText(form, "targetTag").trim()
-  if (
-    !["rename", "delete"].includes(operation) ||
-    !source ||
-    /\s/.test(source) ||
-    (target !== null && (!target || /\s/.test(target)))
-  ) {
+  const validOperation = operation === "rename" || operation === "delete"
+  const validSource = isSingleTag(source)
+  const validTarget = target === null || isSingleTag(target)
+  if (!validOperation || !validSource || !validTarget) {
     throw new InvalidTagForm(
       "Enter one source tag and, for rename, one destination tag. Tags cannot contain spaces."
     )
   }
-  if (source === target)
+  if (source === target) {
     throw new InvalidTagForm("Choose a destination different from the source tag.")
+  }
   return { source_tag: source, target_tag: target }
 }
 
+function isSingleTag(tag: string) {
+  return tag.length > 0 && !/\s/.test(tag)
+}
+
 function requireConfirmation(form: FormData) {
-  if (formText(form, "confirmed") !== "yes")
+  if (formText(form, "confirmed") !== "yes") {
     throw new InvalidTagForm("Confirm the operation before changing tags.")
+  }
 }
 
 export function tagPreviewAction(event: RequestEvent) {
@@ -135,8 +147,9 @@ export function tagUndoAction(event: RequestEvent) {
   return runAction(event, async (form, context) => {
     requireConfirmation(form)
     const id = Number(formText(form, "operationId"))
-    if (!Number.isSafeInteger(id) || id <= 0)
+    if (!Number.isSafeInteger(id) || id <= 0) {
       throw new InvalidTagForm("Choose an operation to undo.")
+    }
     const result = await tagUndo(id, event.getClientAddress(), context)
     return {
       saved: true,

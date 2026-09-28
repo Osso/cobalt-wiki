@@ -1,6 +1,8 @@
 import assert from "node:assert/strict"
 import { after, test } from "node:test"
 import { createSsrServer } from "./ssr-server.ts"
+import type { TagPreview } from "../src/lib/server/deepwell/tag-admin.ts"
+import type { loadTagAdminPage } from "../src/lib/server/load/tag-admin.ts"
 
 const { vite, close } = await createSsrServer()
 after(close)
@@ -34,6 +36,13 @@ const operation = {
 }
 type Rpc = { method: string; params: Record<string, unknown>; id: number }
 type Call = Rpc & { headers: Record<string, string> }
+type Loaded = Awaited<ReturnType<typeof loadTagAdminPage>>
+type ActionResponse = {
+  saved?: boolean
+  preview?: TagPreview | null
+  status?: number
+  data?: { message: string }
+}
 async function withRpc<T>(reply: (rpc: Rpc) => object, invoke: () => Promise<T>) {
   const previous = globalThis.fetch
   const calls: Call[] = []
@@ -56,7 +65,7 @@ async function withRpc<T>(reply: (rpc: Rpc) => object, invoke: () => Promise<T>)
 }
 function loadPage(token: string | null, reply: (rpc: Rpc) => object) {
   return withRpc(reply, () =>
-    load({
+    (load as (event: unknown) => Promise<Loaded>)({
       request: new Request("http://local.test/-/admin/tags", { headers: HEADERS }),
       cookies: { get: () => token },
       parent: async () => ({
@@ -75,7 +84,7 @@ function submit(
   token: string | null = "session-secret"
 ) {
   return withRpc(reply, () =>
-    actions[action]({
+    (actions[action] as (event: unknown) => Promise<ActionResponse>)({
       request: new Request("http://local.test/-/admin/tags", {
         method: "POST",
         headers: HEADERS,
@@ -185,6 +194,7 @@ test("denial and stale preview are visible failures, not successful mutations", 
     error: { code: 4304, message: "Preview changed; preview again" }
   }))
   assert.equal(stale.value.status, 400)
+  assert.ok(stale.value.data)
   assert.match(stale.value.data.message, /preview/i)
 })
 

@@ -32,18 +32,18 @@ export interface TagResult {
   count: number
 }
 
-export function tagHistory(context: RequestContext): Promise<TagOperation[]> {
+export async function tagHistory(context: RequestContext): Promise<TagOperation[]> {
   return client.request("site_tag_history", {}, context)
 }
 
-export function tagPreview(
+export async function tagPreview(
   change: TagChange,
   context: RequestContext
 ): Promise<TagPreview> {
   return client.request("site_tag_preview", change, context)
 }
 
-export function tagApply(
+export async function tagApply(
   change: TagChange,
   previewToken: string,
   ipAddress: string,
@@ -56,7 +56,7 @@ export function tagApply(
   )
 }
 
-export function tagUndo(
+export async function tagUndo(
   operationId: number,
   ipAddress: string,
   context: RequestContext

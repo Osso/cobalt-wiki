@@ -37,7 +37,7 @@
     are preserved.
   </p>
   {#if form?.message}
-    <p role="status" class:error={!form.saved}>{form.message}</p>
+    <p class:error={!form.saved} role="status">{form.message}</p>
   {/if}
   {#if pending}<p role="status">Working…</p>{/if}
 
@@ -50,10 +50,10 @@
         <option value="delete">Delete tag</option>
       </select>
       <label for="source-tag">Existing tag</label>
-      <input id="source-tag" name="sourceTag" required autocomplete="off" />
+      <input id="source-tag" name="sourceTag" autocomplete="off" required />
       {#if operation === "rename"}
         <label for="target-tag">Destination tag</label>
-        <input id="target-tag" name="targetTag" required autocomplete="off" />
+        <input id="target-tag" name="targetTag" autocomplete="off" required />
         <p>If a page already has the destination tag, it keeps one copy.</p>
       {/if}
       <button type="submit">Preview affected pages</button>
@@ -73,27 +73,27 @@
       </p>
       <ul class="page-list">
         {#each preview.pages as page (page.page_id)}
-          <li><a href={"/" + page.slug}>{page.title}</a> <small>({page.slug})</small></li>
+          <li><a href={`/${page.slug}`}>{page.title}</a> <small>({page.slug})</small></li>
         {:else}
           <li>No current pages have this tag.</li>
         {/each}
       </ul>
       {#if preview.count > 0}
         <form action="?/apply" method="POST" use:enhance={submit}>
-          <input type="hidden" name="sourceTag" value={preview.source_tag} />
-          <input type="hidden" name="targetTag" value={preview.target_tag ?? ""} />
+          <input name="sourceTag" type="hidden" value={preview.source_tag} />
+          <input name="targetTag" type="hidden" value={preview.target_tag ?? ""} />
           <input
-            type="hidden"
             name="operation"
+            type="hidden"
             value={preview.target_tag === null ? "delete" : "rename"}
           />
-          <input type="hidden" name="previewToken" value={preview.preview_token} />
+          <input name="previewToken" type="hidden" value={preview.preview_token} />
           <p>Confirm this exact preview. If pages changed, a new preview is required.</p>
           <div class="actions">
-            <button type="submit" name="confirmed" value="yes" disabled={pending}>
+            <button name="confirmed" disabled={pending} type="submit" value="yes">
               {preview.target_tag === null ? "Confirm delete tag" : "Confirm rename"}
             </button>
-            <button type="button" disabled={pending} onclick={() => (dismissed = true)}
+            <button disabled={pending} onclick={() => (dismissed = true)} type="button"
               >Cancel</button
             >
           </div>
@@ -120,7 +120,7 @@
           <ul class="page-list">
             {#each item.pages as page (page.page_id)}
               <li>
-                <a href={"/" + page.slug}>{page.title}</a> <small>({page.slug})</small>
+                <a href={`/${page.slug}`}>{page.title}</a> <small>({page.slug})</small>
               </li>
             {/each}
           </ul>
@@ -131,11 +131,11 @@
           <details>
             <summary>Undo this operation</summary>
             <form action="?/undo" method="POST" use:enhance={submit}>
-              <input type="hidden" name="operationId" value={item.operation_id} />
+              <input name="operationId" type="hidden" value={item.operation_id} />
               <p>
                 Restore the prior tags on all {item.count} pages from operation #{item.operation_id}?
               </p>
-              <button type="submit" name="confirmed" value="yes" disabled={pending}
+              <button name="confirmed" disabled={pending} type="submit" value="yes"
                 >Confirm undo #{item.operation_id}</button
               >
             </form>
@@ -167,8 +167,8 @@
   input,
   select {
     box-sizing: border-box;
-    min-width: 0;
     width: 100%;
+    min-width: 0;
   }
 
   button,
