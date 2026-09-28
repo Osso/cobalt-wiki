@@ -34,7 +34,7 @@ const operation = {
 }
 type Rpc = { method: string; params: Record<string, unknown>; id: number }
 type Call = Rpc & { headers: Record<string, string> }
-async function withRpc(reply: (rpc: Rpc) => object, invoke: () => Promise<any>) {
+async function withRpc<T>(reply: (rpc: Rpc) => object, invoke: () => Promise<T>) {
   const previous = globalThis.fetch
   const calls: Call[] = []
   globalThis.fetch = async (_url, init) => {
