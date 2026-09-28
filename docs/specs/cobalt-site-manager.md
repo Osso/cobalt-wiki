@@ -1,6 +1,6 @@
 # Cobalt Site Manager entry point
 
-The imported Admin menu's `/_admin` entry must reach the native site administration screen. This is the existing site-info editor and [member administration](cobalt-member-admin.md), not a complete Wikidot administration suite.
+The imported Admin menu's `/_admin` entry must reach the native site administration screen. This provides the site-info editor, [member administration](cobalt-member-admin.md), and [tag management](cobalt-tag-admin.md), not a complete Wikidot administration suite.
 
 ## What it must do
 
@@ -25,7 +25,7 @@ The imported Admin menu's `/_admin` entry must reach the native site administrat
 
 ## Known gaps (current cycle)
 
-- [ ] Public status is unchanged: these fixes have no public deployment. This screen remains native site information plus member administration, not the complete legacy Site Manager suite.
+- [ ] Public status is unchanged: these fixes have no public deployment. This screen links native site information, member administration, and tag management, not the complete legacy Site Manager suite.
 - [ ] Membership application review belongs in Site members, not this entry screen. Its locally integrated queue and verification status are documented in the [membership applications](cobalt-member-applications.md) spec.
 
 ## Out of scope

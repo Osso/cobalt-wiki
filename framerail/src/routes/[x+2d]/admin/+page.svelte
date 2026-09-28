@@ -55,6 +55,7 @@
 <h1>Site Manager</h1>
 
 <p><a href={resolve("/-/admin/members", {})}>Site members</a></p>
+<p><a href={resolve("/-/admin/tags", {})}>Manage tags</a></p>
 
 {#if isEdit}
   <form id="editor" class="editor" method="POST" use:enhance>
