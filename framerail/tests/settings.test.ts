@@ -553,3 +553,21 @@ test("a save result opens the category of the submitted form", async () => {
   const avatar = render(SettingsPage, { props: { data, form: avatarSaved } }).body
   assert.deepEqual(categorySections(avatar).shown, ["profile"])
 })
+
+test("email and password forms name the account so password managers leave New email empty", async () => {
+  const { value: data } = await loadSettings(alice)
+  const { body } = render(SettingsPage, { props: { data, form: null } })
+  for (const action of ["email", "password"]) {
+    const start = body.indexOf(`action="?/${action}"`)
+    const formHtml = body.slice(start, body.indexOf("</form>", start))
+    assert.match(
+      formHtml,
+      /<input[^>]*name="username"[^>]*autocomplete="username"[^>]*hidden[^>]*value="alice"/,
+      `${action} form names the account`
+    )
+    assert.ok(
+      formHtml.indexOf('name="username"') < formHtml.indexOf('type="password"'),
+      `${action} username comes before the password`
+    )
+  }
+})

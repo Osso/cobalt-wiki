@@ -214,6 +214,17 @@
         <form class="settings-form" action="?/email" method="POST" use:enhance>
           <h2>Email address</h2>
           {@render result("email")}
+          <!-- Names the account for password managers, which otherwise treat the
+               first text field before a password as the login name. -->
+          <input
+            name="username"
+            aria-hidden="true"
+            autocomplete="username"
+            hidden
+            readonly
+            type="text"
+            value={data.account.slug}
+          />
           <label>
             New email address
             <input name="email" class="text" autocomplete="email" required type="email" />
@@ -235,6 +246,17 @@
         <form class="settings-form" action="?/password" method="POST" use:enhance>
           <h2>Password</h2>
           {@render result("password")}
+          <!-- Names the account for password managers, which otherwise treat the
+               first text field before a password as the login name. -->
+          <input
+            name="username"
+            aria-hidden="true"
+            autocomplete="username"
+            hidden
+            readonly
+            type="text"
+            value={data.account.slug}
+          />
           <label>
             Current password
             <input
@@ -296,29 +318,31 @@
               >Save watching preferences</button
             >
           </form>
-          <h2>My subscriptions</h2>
-          {#if form?.message && !form.section}<p role="status">{form.message}</p>{/if}
-          {#if data.watchingSubscriptions?.length}
-            <ul>
-              {#each data.watchingSubscriptions as subscription (`${subscription.scope}:${subscription.target_id}`)}
-                <li>
-                  {subscription.scope} #{subscription.target_id}
-                  <form action="?/unwatch" method="POST">
-                    <input name="scope" type="hidden" value={subscription.scope} />
-                    <input
-                      name="target_id"
-                      type="hidden"
-                      value={subscription.target_id}
-                    />
-                    <input name="watching" type="hidden" value="false" />
-                    <button class="btn btn-default" type="submit">Unwatch</button>
-                  </form>
-                </li>
-              {/each}
-            </ul>
-          {:else}
-            <p>No subscriptions on this site.</p>
-          {/if}
+          <div class="settings-form settings-subscriptions">
+            <h2>My subscriptions</h2>
+            {#if form?.message && !form.section}<p role="status">{form.message}</p>{/if}
+            {#if data.watchingSubscriptions?.length}
+              <ul class="subscription-list">
+                {#each data.watchingSubscriptions as subscription (`${subscription.scope}:${subscription.target_id}`)}
+                  <li>
+                    {subscription.scope} #{subscription.target_id}
+                    <form action="?/unwatch" method="POST">
+                      <input name="scope" type="hidden" value={subscription.scope} />
+                      <input
+                        name="target_id"
+                        type="hidden"
+                        value={subscription.target_id}
+                      />
+                      <input name="watching" type="hidden" value="false" />
+                      <button class="btn btn-default" type="submit">Unwatch</button>
+                    </form>
+                  </li>
+                {/each}
+              </ul>
+            {:else}
+              <p>No subscriptions on this site.</p>
+            {/if}
+          </div>
           <p><a href={resolve("/-/activity", {})}>My Activity</a></p>
         </section>
       {/if}
@@ -417,6 +441,29 @@
     }
 
     @include account-form-controls(".text");
+  }
+
+  .subscription-list {
+    padding: 0;
+    margin: 0;
+    list-style: none;
+
+    li {
+      display: flex;
+      gap: 1em;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.4em 0;
+      border-bottom: 1px solid #e2e6ec;
+    }
+
+    form {
+      margin: 0;
+    }
+  }
+
+  .settings-subscriptions p {
+    margin: 0;
   }
 
   .avatar-row {
