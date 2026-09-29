@@ -25,7 +25,7 @@ The imported Admin menu's `/_admin` entry must reach the native site administrat
 
 ## Known gaps (current cycle)
 
-- [ ] This is not the complete legacy Site Manager suite. Tag rename/merge/delete rollout is recorded in the [tag-management production proof](cobalt-tag-admin.md#production-rollout); bulk-add remains under development.
+- [ ] This is not the complete legacy Site Manager suite. Tag rename/merge/delete production rollout and locally complete bulk-add evidence are recorded in [tag management](cobalt-tag-admin.md); bulk-add production rollout is intentionally not deployed.
 - [ ] Membership application review belongs in Site members, not this entry screen. Its locally integrated queue and verification status are documented in the [membership applications](cobalt-member-applications.md) spec.
 
 ## Out of scope

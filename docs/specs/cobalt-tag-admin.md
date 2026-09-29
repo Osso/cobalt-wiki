@@ -35,19 +35,19 @@ Site admins manage tags across currently live pages from a confirmed site-wide p
 
 ## Tests asserting this spec
 
-- `deepwell/tests/site_tag_admin.rs` — isolated real-DB authorization (including member and restricted-session denial), merge/deletion/add, AND filters with `_default` and literal title matching, preview and later-edit conflicts, draft preservation, locked apply/undo atomicity, and serialization with ordinary edits/imports. The targeted suite passed 8/8 at `3762ffc49`. The merge regression passed again at `c9820eb69` with an existing duplicate destination, preserving unrelated duplicates and restoring the exact original array on undo.
-- `framerail/tests/tag-admin.test.ts` — 7/7 action/rendering tests at `5da81ecf1`: trusted context, input validation, preview/confirmation, denial/staleness, undo, and escaped preview rendering.
-- `framerail/tests/local/tag-admin.mjs` — browser fixture flow at `a3c84f1f4`, backend `c9820eb69`: 1/1 rename/merge (including duplicate destination tags), delete, undo, cancel, anonymous denial, content preservation, and fixture cleanup. Receipt: `/tmp/cobalt-tag-ui-live-final.log`.
+- `deepwell/tests/site_tag_admin.rs` — isolated real-DB authorization (including member and restricted-session denial), merge/deletion/add, AND filters with `_default` and literal title matching, preview and later-edit conflicts, draft preservation, locked apply/undo atomicity, and serialization with ordinary edits/imports. Current targeted suite: 13/13 at backend `f74ad6a6d`, test revision `1bebf777d` (`/tmp/cobalt-tag-add-green6.log`).
+- `framerail/tests/tag-admin.test.ts` — 11/11 action/rendering tests at frontend `1dd3f7d4b`; the four bulk-add cases cover literal filter forwarding, required filter validation, confirmed snapshot forwarding, and add-history preview/undo (`/tmp/cobalt-tag-add-ui-green.log`).
+- `framerail/tests/local/tag-admin.mjs` — local browser fixtures: 2/2 at backend `f74ad6a6d` / frontend `1dd3f7d4b`; retained rename/delete/undo and bulk add verify AND selection, literal `%`/`_` title matching, source/category exclusions, already-tagged exclusion, history filters, undo, content preservation, and cleanup (`/tmp/cobalt-tag-add-browser-green.log`).
 
 ## Local rollout proof
 
-Local `deploy.sh` installed backend `c9820eb69`; running and built artifact SHA-256 values match (`525d438c…42f5fbf4`) in `/tmp/cobalt-tag-local-runtime-final.json`. This is local deployment evidence only; production was unchanged. Browser tests used new, randomly tagged fixture pages and removed them afterward.
+Local `deploy.sh` installed backend `f74ad6a6d`; running and built artifact SHA-256 values match (`04039d16…4dc061`) in `/tmp/cobalt-tag-add-local-runtime.json`. This is local deployment evidence only; production was unchanged. Browser tests used new, randomly tagged fixture pages and removed them afterward.
 
 ## Verification
 
-- Independent Rust gate at `a3c84f1f4` confirms backend source unchanged from `c9820eb69`; `cargo fmt --check` and `cargo check` exit 0 with no warnings. Receipt: `/tmp/cobalt-tag-final-rust-receipts.txt`.
-- Frontend typecheck: 0 errors/warnings; scoped action tests: 7/7; scoped lint, formatting, and styles pass. Final browser fixture lint/format receipt: `/tmp/cobalt-tag-final-browser-style.log`.
-- Readability audit found no complexity violations. The straight-line apply/undo orchestration remains together to keep preflight-before-write ordering visible; line-count-only extraction suggestions were not adopted.
+- Final Rust gate: `cargo fmt --check` and `cargo check` exit 0 with no warnings; current backend production source and migration match `f74ad6a6d`. Receipt: `/tmp/cobalt-tag-add-final-gate/cargo-final-gate-receipt.txt`.
+- Frontend: Svelte diagnostics report 0 errors and 0 warnings; scoped ESLint, Prettier, and prior scoped Stylelint pass. The check output retains existing missing-route-prefix notices, so this is not a claim of zero inherited build output. Current action/rendering suite: 11/11; corrected touched bulk-add cases: 4/4 (`/tmp/cobalt-tag-add-final-gate/frontend-final-gate-receipt-ci.txt`, `/tmp/cobalt-tag-add-ui-correction-green.log`).
+- Readability metrics found no cognitive-complexity or cyclomatic violation. `add_apply()` is approximately 43 body lines, above the 30-line advisory threshold; extraction was rejected because its visible straight-line preflight-before-write sequence is the required all-or-none ordering, not a complexity defect.
 
 ## Production rollout
 
@@ -55,7 +55,7 @@ Verified 2026-09-29 UTC: `install/dev-deploy.sh all` deployed `f77f6976e79a` (re
 
 ## Known gaps (current cycle)
 
-Bulk-add is under development; it is not included in the production revision above.
+Bulk-add is locally complete and verified, but intentionally not deployed to production. The production revision above remains rename/merge/delete only. No production add operation, authenticated admin workflow, or Sentry integration evidence exists; no Sentry-clean claim is made.
 
 ## Out of scope
 
