@@ -8,7 +8,8 @@ Ordinary image-heavy pages must fit the gateway and internal RPC admission budge
 - [x] A lower active burst (80 proxied requests alongside 180 idle clients) does not forcibly reclaim those idle connections within the supported budget.
 - [x] Gateway forwarding still supplies the trusted site ID and removes client-supplied Authorization and user-ID headers.
 - [x] Deepwell admits 512 concurrent active HTTP RPC calls, rejects an additional active call with 429, and accepts calls again after capacity is released. Idle HTTP keep-alives do not consume this request-admission budget.
-- [ ] Owning production configuration and app deployment apply these settings; ordinary roster and pet-icon browser checks show no connection-related image 5xx in the bounded post-deploy sample.
+- [x] Owning production configuration and app deployment apply these settings.
+- [ ] Ordinary roster and pet-icon browser checks show no connection-related image 5xx in the bounded post-deploy sample; independent final verification is also pending.
 
 ## How it works
 
@@ -21,6 +22,7 @@ Ordinary image-heavy pages must fit the gateway and internal RPC admission budge
 - `deepwell/src/api.rs` — shared production/test transport builder with a bounded 512 admission limit, giving WWS's 256 in-flight RPCs room alongside other internal clients. Database pool and shared memory caps remain unchanged.
 - `tests/gateway/test_connection_capacity.py` — real Nginx 1.30.2 and a loopback-only held-response fixture, using configuration generated from the actual Nix module. Only ports, runtime paths and diagnostic logging are adjusted for isolation.
 - `deepwell/src/api/tests.rs` — real HTTP/jsonrpsee admission, idle-lifetime and capacity-recovery tests.
+- Production rollout (2026-09-29): Sakuin `61f8478` pinned Cobalt `603f7af7ad97` through `ops/deploy.sh`; readiness returned 200. `install/dev-deploy.sh deepwell` then completed with exit 0 for release `603f7af7ad97`. The host now uses `/nix/store/q15xqrdlkfm5fnwqd334arzhawbxqkca-nixos-system-sakuin-digital-ocean-26.05.20260606.9b69646`.
 
 ## Tests asserting this spec
 
@@ -30,7 +32,7 @@ Ordinary image-heavy pages must fit the gateway and internal RPC admission budge
 
 ## Known gaps (current cycle)
 
-- [ ] Complete owning host/app rollout and final independent/post-deploy proof.
+- [ ] Complete bounded production browser proof and final independent verification. The owning host/app rollout is complete; only the gateway unit changed substantively. Sync `PYTHONPATH` package changes only added unused `wikidot_avatars.py`; the existing importer is byte-identical and no other service units changed.
 - [ ] These finite budgets do not guarantee arbitrary concurrent traffic. The isolated reproduction establishes the connection-reclamation failure mechanism, not the exact state of every historical socket.
 
 ## Out of scope

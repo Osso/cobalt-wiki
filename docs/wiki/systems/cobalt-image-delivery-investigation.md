@@ -2,7 +2,7 @@
 
 verified: 2026-09-29 UTC
 
-Follow-up to the [production crawl](cobalt-page-performance-crawl.md), limited to its **56 image 5xx failures**: 53 pet icons and three character icons. This is not the separate 404/malformed-image-URL cohort. Investigation only; no fixes, deployment, cache purge, permission changes or burst replay.
+Follow-up to the [production crawl](cobalt-page-performance-crawl.md), limited to its **56 image 5xx failures**: 53 pet icons and three character icons. This is not the separate 404/malformed-image-URL cohort. Investigation plus tracked capacity-rollout status; no cache purge, permission changes or burst replay.
 
 ## Were the original images missing?
 
@@ -36,6 +36,12 @@ Two capacity constraints are evidenced:
 - Deepwell uses `jsonrpsee-server` 0.26.0 without overriding its **100-connection default**. That library returns HTTP 429 when no connection permit remains. WWS connects directly to Deepwell's loopback port. This is connection admission/backpressure, not an established per-second rate limit.
 
 The exact low-level cause of each gateway EOF/reset remains unproven. In particular, the earlier Nginx alerts do not by themselves explain the later pet-icon burst. No new burst was generated to force the failure.
+
+## Capacity rollout status
+
+On 2026-09-29, Sakuin `61f8478` pinned Cobalt `603f7af7ad97` through `ops/deploy.sh`; readiness returned 200. `install/dev-deploy.sh deepwell` then completed with exit 0 for release `603f7af7ad97`. The host now uses `/nix/store/q15xqrdlkfm5fnwqd334arzhawbxqkca-nixos-system-sakuin-digital-ocean-26.05.20260606.9b69646`.
+
+Only the gateway unit changed substantively. Sync `PYTHONPATH` package changes only added unused `wikidot_avatars.py`; the existing importer is byte-identical, and no other service units changed. Production browser proof and independent verification remain pending. This rollout evidence does not attribute all historical image failures to capacity.
 
 ## Ruled-out and unproven explanations
 
