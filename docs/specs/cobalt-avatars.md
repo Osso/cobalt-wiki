@@ -17,7 +17,9 @@ Members have a round avatar: their uploaded image, or their initials. Imported m
 Wikidot's largest avatar is `size=normal` (about 100×100; `medium`/`large` return 403). At the local full import (31 members): 5 custom avatars, 25 Wikidot defaults, 1 slug with no Wikidot account.
 
 1. Dry run: `python -m tools.cobalt_migration.wikidot_avatars http://127.0.0.1:27471/jsonrpc SITE_ID PASSWORD_FILE` (signs in as `cobalt-import`, a site admin, to list members).
-2. Apply: the same command with `--apply`. Production needs the storage presign URLs reachable from the machine running it.
+2. Apply: the same command with `--apply`. Production storage is Cloudflare R2, so its HTTPS presign URLs are reachable through the SSH-forwarded endpoint.
+
+Production, verified 2026-09-29 UTC: `--apply` imported booriley22, etone, invisibleinkie, ladystoryteller and luridel (12–21 KB PNGs, each served 200 at `/-/avatar/<id>` with its original size); 25 members kept Wikidot's default and were skipped; the rerun planned 0 (`/tmp/claude/avatars-prod-apply.log`, `avatars-prod-rerun.log`).
 
 ## Implementation inventory
 
