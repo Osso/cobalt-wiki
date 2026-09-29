@@ -109,8 +109,8 @@
   $chrome-panel: rgb(8 12 36 / 72%);
   $chrome-text: #e6eaff;
   $chrome-link: #9fd4ff;
-  $tab-fill: #a8d7ea;
-  $tab-hover: #d6f3ff;
+  $tab-fill: #bcc9f2;
+  $tab-hover: #e0e6fb;
 
   #header #login-status {
     padding: 0.25em 0.75em;
@@ -224,27 +224,28 @@
     border-radius: 0 6px 6px;
   }
 
-  #top-bar li:not(li li),
-  #top-bar li:not(li li) > strong > a {
+  #header #top-bar li:not(li li),
+  #header #top-bar li:not(li li) > strong > a {
     border-top-right-radius: 3px;
   }
 
-  #top-bar li:not(li li) {
+  #header #top-bar li:not(li li) {
     position: relative;
     padding-block: 2px;
     background-color: $tab-fill;
     border-top-left-radius: 3px;
   }
 
-  // The theme's pure-black bold labels clash with the navy chrome.
-  #top-bar li:not(li li) > strong > a {
+  // The theme's pure-black bold labels clash with the navy chrome. The
+  // #header prefix outranks the theme's equal-specificity #top-bar rules.
+  #header #top-bar li:not(li li) > strong > a {
     font-weight: 600;
     color: #10254f;
   }
 
   // The theme leaves each dropdown at its static position, 1em inside the
   // tab; pin it to the tab's own bottom-left corner instead.
-  #top-bar li:not(li li) > ul {
+  #header #top-bar li:not(li li) > ul {
     top: 100%;
     left: 0;
     overflow: hidden;
@@ -252,17 +253,33 @@
     box-shadow: 0 4px 12px rgb(0 0 0 / 30%);
   }
 
-  #top-bar ul li ul a {
+  // Replace the theme's 1em hanging indent with block links, so each row's
+  // highlight spans the menu width and items get even padding.
+  #header #top-bar li:not(li li) > ul {
+    padding-block: 4px;
     background-color: $tab-fill;
   }
 
+  #header #top-bar ul li ul li {
+    padding: 0;
+    text-indent: 0;
+    background-color: transparent;
+  }
+
+  #header #top-bar ul li ul a {
+    display: block;
+    padding: 5px 14px;
+    color: #10254f;
+    background-color: transparent;
+  }
+
   // Highlight the whole tab, not just its label past the theme's 1em indent.
-  #top-bar li:not(li li):hover,
-  #top-bar ul li ul a:hover {
+  #header #top-bar li:not(li li):hover,
+  #header #top-bar ul li ul a:hover {
     background-color: $tab-hover;
   }
 
-  #top-bar li:not(li li) > strong > a:hover {
+  #header #top-bar li:not(li li) > strong > a:hover {
     background-color: transparent;
   }
 
