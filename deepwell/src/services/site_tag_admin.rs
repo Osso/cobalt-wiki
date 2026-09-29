@@ -274,6 +274,12 @@ fn replace_tag(tags: &[String], source: &str, target: Option<&str>) -> Vec<Strin
     let mut inserted_target = false;
     let mut result = Vec::with_capacity(tags.len());
     for tag in tags {
+        if target == Some(tag.as_str()) {
+            if inserted_target {
+                continue;
+            }
+            inserted_target = true;
+        }
         if tag != source {
             result.push(tag.clone());
         } else if let Some(target) = target

@@ -63,7 +63,7 @@ async fn admin_preview_merge_and_undo_preserve_other_tags() {
         &runner,
         site,
         "tag-first",
-        &["source", "other", "other", "target"],
+        &["source", "other", "other", "target", "target"],
     )
     .await;
     let second = page(&runner, site, "tag-second", &["source", "other"]).await;
@@ -136,7 +136,7 @@ async fn admin_preview_merge_and_undo_preserve_other_tags() {
     );
     assert_eq!(
         tags(&runner, site, first).await,
-        ["source", "other", "other", "target"]
+        ["source", "other", "other", "target", "target"]
     );
     assert_eq!(tags(&runner, site, second).await, ["source", "other"]);
     runner.set_request_context(RequestContext {
