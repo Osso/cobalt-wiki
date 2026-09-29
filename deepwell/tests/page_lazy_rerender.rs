@@ -81,3 +81,67 @@ async fn viewing_a_page_from_another_renderer_build_rerenders_it() {
         .unwrap();
     assert_eq!(revision.compiled_generator, *COMPILED_GENERATOR);
 }
+
+#[tokio::test]
+async fn viewing_a_current_renderer_page_reuses_stored_html() {
+    let runner = TestRunner::setup().await;
+    let ctx = runner.context();
+    let site_id = run_endpoint!(runner, site_get, json!({"site": "test"}))
+        .unwrap()
+        .site
+        .site_id;
+    let page_id = PageService::import(
+        ctx,
+        CreatePage {
+            site_id,
+            slug: "renderer-current".into(),
+            title: "Current renderer".into(),
+            wikitext: "Source body".into(),
+            alt_title: None,
+            tags: vec![],
+            layout: Some(ftml::layout::Layout::Wikidot),
+            revision_comments: "Current renderer fixture".into(),
+            user_id: ADMIN_USER_ID,
+            bypass_filter: true,
+            ip_address: common::IP_ADDRESS,
+        },
+    )
+    .await
+    .unwrap()
+    .page_id;
+    let revision = PageRevisionService::get_latest(ctx, site_id, page_id)
+        .await
+        .unwrap();
+    let cached_html = "<p>Stored HTML reused without compilation</p>";
+    let cached_hash = TextService::create(ctx, cached_html.into()).await.unwrap();
+    page_revision::ActiveModel {
+        revision_id: Set(revision.revision_id),
+        compiled_body_html_hash: Set(cached_hash.to_vec()),
+        ..Default::default()
+    }
+    .update(ctx.transaction())
+    .await
+    .unwrap();
+
+    let view = deepwell::endpoints::view::page_view(
+        ctx,
+        common::make_params(json!({
+            "site_id": site_id, "session_token": null, "locales": ["en"],
+            "route": {"slug": "renderer-current", "extra": ""}
+        })),
+    )
+    .await
+    .unwrap();
+    match view {
+        GetPageViewOutput::Found {
+            compiled_body_html, ..
+        } => assert_eq!(compiled_body_html, cached_html),
+        other => panic!("page must be found: {other:?}"),
+    }
+    let after = PageRevisionService::get_latest(ctx, site_id, page_id)
+        .await
+        .unwrap();
+    assert_eq!(after.revision_id, revision.revision_id);
+    assert_eq!(after.compiled_body_html_hash, cached_hash.to_vec());
+    assert_eq!(after.compiled_generator, revision.compiled_generator);
+}

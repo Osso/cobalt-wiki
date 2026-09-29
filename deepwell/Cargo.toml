@@ -90,6 +90,8 @@ wikidot-normalize = { path = "vendor/wikidot-normalize" }
 
 [build-dependencies]
 built = { version = "0.8", features = ["chrono", "git2"] }
+# Reuse the backend's SHA-256 dependency for stable rendering-input identity.
+sha2 = "0.11"
 
 # Lints
 

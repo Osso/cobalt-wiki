@@ -32,14 +32,11 @@ use ftml::tree::CodeBlock;
 use std::sync::LazyLock;
 use tokio::time::timeout;
 
-/// Identifies what compiled stored HTML: FTML's version plus this Deepwell build
-/// (`DEEPWELL_BUILD_ID`, set by the Nix package from the source hash). A page
-/// compiled by another build is rerendered when it is next viewed.
+/// Content-based identity of the backend, rendering dependencies and locales.
+/// Git revision metadata is deliberately absent: unrelated deploys must not
+/// invalidate otherwise-current stored HTML.
 pub static COMPILED_GENERATOR: LazyLock<String> =
-    LazyLock::new(|| match option_env!("DEEPWELL_BUILD_ID") {
-        Some(build) => format!("{} {build}", *FTML_VERSION),
-        None => FTML_VERSION.to_string(),
-    });
+    LazyLock::new(|| format!("render-inputs-v1:{}", env!("DEEPWELL_RENDER_ID")));
 
 /// URL arguments that change a page body: the ListPages page (`/p/N`) and
 /// the PagesByTag tag (`/tag/NAME`). The stored render uses the defaults.

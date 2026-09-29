@@ -66,23 +66,25 @@ let
   deepwell = craneLib.buildPackage (
     deepwellArgs
     // {
-      # Stored pages compiled by another build are rerendered when viewed; the
-      # source store hash names the build. Kept out of the dependency build.
-      DEEPWELL_BUILD_ID = builtins.substring 0 12 (
-        builtins.baseNameOf (builtins.path {
-          path = root + /deepwell;
-          name = "deepwell-source";
-        })
-      );
+      # Keep locales beside Deepwell so every build uses the same content-based
+      # rendering identity, independent of Git commits and Nix store paths.
+      src = lib.fileset.toSource {
+        inherit root;
+        fileset = lib.fileset.unions [
+          (root + /deepwell)
+          (root + /locales)
+        ];
+      };
+      sourceRoot = "source/deepwell";
       # Only manifests feed the dependency build, so source edits keep its cache.
       cargoArtifacts = craneLib.buildDepsOnly (
         deepwellArgs
         // {
           src = lib.fileset.toSource {
             root = root + /deepwell;
-            fileset = lib.fileset.fileFilter (
-              file: file.name == "Cargo.toml" || file.name == "Cargo.lock"
-            ) (root + /deepwell);
+            fileset = lib.fileset.fileFilter (file: file.name == "Cargo.toml" || file.name == "Cargo.lock") (
+              root + /deepwell
+            );
           };
         }
       );

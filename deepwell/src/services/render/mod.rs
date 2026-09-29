@@ -23,7 +23,6 @@ mod prelude {
     pub use super::super::prelude::*;
     pub use super::structs::*;
     pub use ftml::data::PageInfo;
-    pub use ftml::info::VERSION as FTML_VERSION;
     pub use ftml::parsing::ParseError;
     pub use ftml::render::Render;
     pub use ftml::render::html::{HtmlOutput, HtmlRender};

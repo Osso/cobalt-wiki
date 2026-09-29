@@ -14,8 +14,8 @@ WHAT="${1:-all}"
 # Personal cargo config may carry linker flags for other linkers; build clean.
 shell() { CARGO_ENCODED_RUSTFLAGS="" nix develop "$ROOT#deploy" --command "$@"; }
 
-# Lazy rerendering keys stored pages to the build: commit plus local changes.
-build_id() {
+# Deployment label only; Deepwell's build script fingerprints rendering inputs.
+release_id() {
 	local id
 	id="$(git -C "$ROOT" rev-parse --short=12 HEAD)"
 	if ! git -C "$ROOT" diff --quiet HEAD -- deepwell; then
@@ -25,7 +25,7 @@ build_id() {
 }
 
 deploy_deepwell() {
-	DEEPWELL_BUILD_ID="$(build_id)" shell cargo build --profile deploy \
+	shell cargo build --profile deploy \
 		--manifest-path "$ROOT/deepwell/Cargo.toml" --target-dir "$ROOT/deepwell/target/nix-deploy"
 	ssh "$HOST" "install -d -o cobalt-wiki -g cobalt-wiki -m 0700 $APP $APP/deepwell"
 	rsync -z --chown=cobalt-wiki:cobalt-wiki "$ROOT/deepwell/target/nix-deploy/deploy/deepwell" "$HOST:$APP/deepwell/deepwell.new"
@@ -60,4 +60,4 @@ esac
 ssh "$HOST" 'systemctl is-active cobalt-wiki-deepwell cobalt-wiki-framerail >/dev/null &&
 	curl -sf -o /dev/null -H "Content-Type: application/json" http://127.0.0.1:2747/jsonrpc \
 	-d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"page_view\",\"params\":{\"site_id\":6000000,\"session_token\":null,\"locales\":[\"en\"],\"route\":{\"slug\":\"roster\",\"extra\":\"\"}}}"' &&
-	echo "Deployed $WHAT ($(build_id))."
+	echo "Deployed $WHAT ($(release_id))."
