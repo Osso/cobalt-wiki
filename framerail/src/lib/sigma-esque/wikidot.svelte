@@ -136,18 +136,59 @@
       color: $chrome-text;
     }
 
+    // Signed in: the avatar overlaps the pill, whose panel starts at the
+    // avatar's vertical midline and matches its height.
+    &:has(#account-topbutton) {
+      padding: 0;
+      background: none;
+    }
+
     #account-topbutton {
+      --avatar: 30px;
+
       display: inline-flex;
       align-items: center;
-      padding: 0 0.15em;
-      vertical-align: middle;
+      padding: 0;
+      font: inherit;
+      color: inherit;
+      cursor: pointer;
+      background: none;
+      border: 0;
+
+      .user-avatar {
+        position: relative;
+        z-index: 1;
+        box-shadow: 0 0 0 2px rgb(255 255 255 / 18%);
+      }
+
+      .account-pill {
+        display: inline-flex;
+        gap: 0.4em;
+        align-items: center;
+        height: var(--avatar);
+        padding: 0 0.7em 0 calc(var(--avatar) / 2 + 0.5em);
+        margin-left: calc(var(--avatar) / -2);
+        background: $chrome-panel;
+        border-radius: 0 calc(var(--avatar) / 2) calc(var(--avatar) / 2) 0;
+      }
 
       svg {
+        color: $chrome-link;
         transition: transform 0.15s;
       }
 
       &.open svg {
         transform: rotate(180deg);
+      }
+
+      &:hover .printuser {
+        text-decoration: underline;
+      }
+
+      &:focus-visible {
+        outline: 2px solid $chrome-link;
+        outline-offset: 2px;
+        border-radius: calc(var(--avatar) / 2);
       }
     }
 
@@ -155,9 +196,10 @@
       position: absolute;
       right: 0;
       z-index: 20;
-      margin-top: 0.25em;
-      background: $chrome-panel;
+      margin-top: 0.35em;
+      background: rgb(8 12 36);
       border-radius: 6px;
+      box-shadow: 0 4px 12px rgb(0 0 0 / 35%);
 
       ul {
         padding: 0.4em 0.9em;

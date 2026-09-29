@@ -46,6 +46,10 @@ test("header Sign in opens the site's login page and returns to the page", async
     await page.locator("#login button[type=submit]").click()
     await page.waitForURL(url)
     await expect(status.locator(".printuser")).not.toBeEmpty()
+    await expect(status.locator("#account-topbutton .user-avatar")).toBeVisible()
+    const menuButton = status.getByRole("button", { expanded: false })
+    await menuButton.click()
+    await expect(status.getByRole("button", { expanded: true })).toBeVisible()
     await expect(status.locator("#my-account")).toHaveText("My account")
   } finally {
     await browser.close()

@@ -3,6 +3,7 @@
   import { page } from "$app/state"
   import { ChevronDown } from "lucide"
   import LucideIcon from "$lib/component/LucideIcon.svelte"
+  import UserAvatar from "$lib/component/UserAvatar.svelte"
 
   // Wikidot's header account links (#login-status), pointing at this site's pages.
   const user = $derived(page.data?.user_session?.user)
@@ -13,22 +14,27 @@
 
 <div id="login-status">
   {#if user}
-    <span class="printuser">{user.name}</span> |
-    <a id="my-account" href={resolve("/-/settings", {})}>My account</a>
-    <!-- svelte-ignore a11y_invalid_attribute -->
-    <a
+    <button
       id="account-topbutton"
       class:open={optionsOpen}
       aria-expanded={optionsOpen}
-      aria-label="Account options"
-      href="javascript:;"
       onclick={() => (optionsOpen = !optionsOpen)}
+      type="button"
     >
-      <LucideIcon icon={ChevronDown} size="16px" />
-    </a>
+      <UserAvatar
+        name={user.name}
+        avatarHash={user.avatar_s3_hash}
+        size={30}
+        userId={user.user_id}
+      />
+      <span class="account-pill">
+        <span class="printuser">{user.name}</span>
+        <LucideIcon icon={ChevronDown} size="16px" />
+      </span>
+    </button>
     <div id="account-options" style:display={optionsOpen ? "block" : "none"}>
       <ul>
-        <li><a href={resolve("/-/settings", {})}>My account</a></li>
+        <li><a id="my-account" href={resolve("/-/settings", {})}>My account</a></li>
         {#if siteAdmin}
           <li><a href={resolve("/-/admin/members", {})}>Site members</a></li>
         {/if}
