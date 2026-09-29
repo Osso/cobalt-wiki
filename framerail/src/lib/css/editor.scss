@@ -10,6 +10,12 @@ $editor-font:
   "Segoe UI",
   sans-serif;
 
+.page-edit-header,
+.page-create-header {
+  padding-bottom: 6px;
+  margin: 40px 0 18px;
+}
+
 .editor {
   .editor-title,
   .editor-alt-title,
