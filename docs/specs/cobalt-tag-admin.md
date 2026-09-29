@@ -51,12 +51,14 @@ Local `deploy.sh` installed backend `f74ad6a6d`; running and built artifact SHA-
 
 ## Production rollout
 
-Verified 2026-09-29 UTC: `install/dev-deploy.sh all` deployed `f77f6976e79a` (rename/merge/delete). Deepwell's installed SHA-256 matches the deploy artifact (`758f2d51…86f8675`); all 570 Framerail build files match. Services are active, post-start logs contain no startup/migration/tag errors, and anonymous preview/history are denied with 3106. Root, roster and the tag-admin sign-in screen return 200 with no browser errors. No production tag changes or authenticated admin operations were exercised. Receipt: `/tmp/cobalt-tag-production-verification.json`. No Sentry integration is configured; existing unrelated build warnings remain recorded there.
+Verified 2026-09-29 UTC: `install/dev-deploy.sh all` deployed `ac963e66eb46b153032aa825def691385b322ff4` (deploy log: `Deployed all (ac963e66eb46)`). Fresh artifact comparisons after the SSH-banner timeout show zero differences: installed Deepwell matches `/syncthing/Sync/Projects/cobalt-company-wiki/deepwell/target/nix-deploy/deploy/deepwell` at SHA-256 `69b22f8e2fc249a9e62b504b6970cef3ec71f1cb14283a1f7e12c00c265974a7`, and the installed Framerail build matches its local build. Both services are active; Deepwell reports `v2026.8.20 [ac963e66]`; and startup applied `20260929000000_site_tag_add.sql` (`migrate site tag add`). The installed migration file matches SHA-256 `11099d2743ebaa1b569aaeb795f9ab9269d458507e68c05edaffbd41814d7b0a`.
+
+Anonymous proof: a cookie-free `GET https://cobalt-company.sakuin.org/-/admin/tags` returned 200, while cookie-free JSON-RPC `site_tag_add_preview` and `site_tag_add_apply` both returned `PermissionDenied` 3106. No authenticated tag mutation or authenticated admin workflow was exercised. No Sentry integration is configured, so no Sentry-clean claim is made. Receipt: `/tmp/cobalt-tag-add-production-verification.json`; deploy log: `/tmp/cobalt-tag-add-production-deploy.log`.
 
 ## Known gaps (current cycle)
 
-Bulk-add is locally complete and verified, but intentionally not deployed to production. The production revision above remains rename/merge/delete only. No production add operation, authenticated admin workflow, or Sentry integration evidence exists; no Sentry-clean claim is made. The unrelated wildcard-language limitation is tracked in [Site Manager gaps](cobalt-site-manager.md#known-gaps-current-cycle).
+Bulk-add is deployed, but no production add operation or authenticated admin workflow was exercised. No Sentry integration evidence exists. The unrelated wildcard-language limitation is tracked in [Site Manager gaps](cobalt-site-manager.md#known-gaps-current-cycle).
 
 ## Out of scope
 
-- Automatic tagging rules and real-content site-wide mutations. Bulk-add production rollout requires separate authorization.
+- Automatic tagging rules and real-content site-wide mutations.

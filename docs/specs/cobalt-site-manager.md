@@ -25,7 +25,7 @@ The imported Admin menu's `/_admin` entry must reach the native site administrat
 
 ## Known gaps (current cycle)
 
-- [ ] This is not the complete legacy Site Manager suite. Tag rename/merge/delete production rollout and locally complete bulk-add evidence are recorded in [tag management](cobalt-tag-admin.md); bulk-add production rollout is intentionally not deployed.
+- [ ] This is not the complete legacy Site Manager suite. [Tag management production rollout status and evidence](cobalt-tag-admin.md#production-rollout), including bulk-add, are the SSOT.
 - [ ] Membership application review belongs in Site members, not this entry screen. Its locally integrated queue and verification status are documented in the [membership applications](cobalt-member-applications.md) spec.
 
 - [ ] Shared locale parsing returns 500 for `Accept-Language: *` on member and tag admin routes; an explicit `en-US,en;q=0.9` returns 200. Normal headless-browser checks pass locally and in production. `framerail/src/lib/locales.ts` is unchanged by tag administration. This unrelated issue was reproduced during final rollout checks, not fixed in the tag scope. Receipts: `/tmp/cobalt-tag-locale-diagnostic.json`, `/tmp/cobalt-tag-add-health-diagnostic.log`, `/tmp/cobalt-tag-add-health-browser.log`.
