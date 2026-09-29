@@ -54,7 +54,7 @@ The remaining priority suggested by this run is **image-request fan-out and deli
 
 ## Coverage, method and limits
 
-- Inventory: active site `6000000` page rows, captured before the run and reconciled afterward. Both snapshots contained 6,110 identical page IDs; no latest revision IDs changed. This is not a full-database immutability audit.
+- Inventory: active site `6000000` page rows, captured before the run and reconciled after the HTML pass. Both snapshots contained 6,110 identical page IDs; no latest revision IDs changed. This is not a full-database immutability audit.
 - HTML crawler: same-origin canonical GETs only, one request at a time, at most two starts/second, 20-second timeout, explicit English locale, no authentication, no redirect following, and no asset fetching. Transient attempts were retained separately; 6,112 attempts produced 6,110 final outcomes. Rate-limit, challenge, certificate and consecutive-failure circuit breakers did not pause the crawl.
 - The first pass was **not uniformly cold**: 230 inventory rows already had the current renderer identity. Afterward, 6,070 rows had it, versus 230 before. Ordinary reads can warm stale compiled HTML. No forced invalidation or rerender sweep was issued. `search:site` is a successful native search URL whose stored wiki revision retained its older identity.
 - Repeat measurements: three requests each across 30 selected pages, all 200. The additional transfer-outlier records store completion timestamps (`finished_utc`), not request-start timestamps.
@@ -74,4 +74,4 @@ Protected raw data and per-page CSV:
 - `browser-selection.json`, `browser-extra-selection.json`, `browser-results.jsonl`, `browser-extra-results.jsonl`, `browser-summary.json` — 28-page selection and browser measurements.
 - `asset-failures.json`, `asset-rechecks.json`, `browser-gateway-journal.txt`, `html-transient-restart-journal.txt`, `final-service-health.txt`, `frontend-artifact-comparison.txt` — resource failures, bounded rechecks and runtime context.
 
-Early methodology audit: `/tmp/cobalt-crawl-method-audit.md`. Final independent audit is recorded alongside the run artifacts.
+Early methodology audit: `/tmp/cobalt-crawl-method-audit.md`. Final independent audit passed; its full reconciliation is `final-verification.md` in the protected run directory.
