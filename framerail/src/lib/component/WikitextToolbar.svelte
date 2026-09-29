@@ -4,6 +4,7 @@
   import { applyEnterAssist, shortcutControl } from "$lib/wikitext-keyboard"
   import { applyWizard, type WizardKind, type WizardOptions } from "$lib/wikitext-wizards"
   import WikitextWizard from "$lib/component/WikitextWizard.svelte"
+  import LucideIcon from "$lib/component/LucideIcon.svelte"
   import { toolbarRows, type ToolbarControl } from "$lib/wikitext-toolbar-layout"
 
   let {
@@ -125,19 +126,7 @@
     type="button"
   >
     {#if item.icon}
-      <svg
-        aria-hidden="true"
-        fill="none"
-        stroke="currentColor"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        stroke-width="2"
-        viewBox="0 0 24 24"
-      >
-        {#each item.icon as [tag, attributes], index (index)}
-          <svelte:element this={tag} {...attributes} />
-        {/each}
-      </svg>
+      <LucideIcon icon={item.icon} size="18px" />
     {:else}
       <span class="text">{@html item.text}</span>
     {/if}

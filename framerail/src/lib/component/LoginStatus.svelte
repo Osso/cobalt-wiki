@@ -1,6 +1,8 @@
 <script lang="ts">
   import { resolve } from "$app/paths"
   import { page } from "$app/state"
+  import { ChevronDown } from "lucide"
+  import LucideIcon from "$lib/component/LucideIcon.svelte"
 
   // Wikidot's header account links (#login-status), pointing at this site's pages.
   const user = $derived(page.data?.user_session?.user)
@@ -16,10 +18,14 @@
     <!-- svelte-ignore a11y_invalid_attribute -->
     <a
       id="account-topbutton"
+      class:open={optionsOpen}
+      aria-expanded={optionsOpen}
       aria-label="Account options"
       href="javascript:;"
-      onclick={() => (optionsOpen = !optionsOpen)}>&#9660;</a
+      onclick={() => (optionsOpen = !optionsOpen)}
     >
+      <LucideIcon icon={ChevronDown} size="16px" />
+    </a>
     <div id="account-options" style:display={optionsOpen ? "block" : "none"}>
       <ul>
         <li><a href={resolve("/-/settings", {})}>My account</a></li>

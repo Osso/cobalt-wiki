@@ -354,14 +354,19 @@ async function assertStructuredFooterGeometry(page) {
   const buttons = names.map((name) => bar.getByRole("button", { name, exact: true }))
   for (const control of [table, ...buttons]) await expect(control).toBeVisible()
   const tableBox = await table.boundingBox()
-  const boxes = await Promise.all(buttons.map((button) => button.boundingBox()))
-  assert.ok(tableBox && boxes.every(Boolean), "structured footer rectangles required")
+  const measured = await Promise.all(buttons.map((button) => button.boundingBox()))
+  assert.ok(tableBox, "structured table rectangle required")
+  const boxes = measured.map((box, index) => {
+    assert.ok(box, `${names[index]} rectangle required`)
+    return box
+  })
   const [cancelBox, , , saveBox] = boxes
   const leftOffset = cancelBox.x - tableBox.x
   assert.ok(
     Math.abs(leftOffset - 2) <= 2,
     `Cancel must sit 2 ± 2 px from form table left; got ${leftOffset}`
   )
+  /** @param {{ y: number; height: number }} box */
   const center = (box) => box.y + box.height / 2
   for (const [index, box] of boxes.entries()) {
     const offset = center(box) - center(saveBox)

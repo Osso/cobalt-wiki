@@ -135,8 +135,18 @@
     }
 
     #account-topbutton {
-      padding: 0 0.25em;
-      font-size: 0.8em;
+      display: inline-flex;
+      align-items: center;
+      padding: 0 0.15em;
+      vertical-align: middle;
+
+      svg {
+        transition: transform 0.15s;
+      }
+
+      &.open svg {
+        transform: rotate(180deg);
+      }
     }
 
     #account-options {
@@ -213,11 +223,11 @@
 
   #top-bar > ul > li,
   #top-bar > ul > li > strong > a {
-    border-top-right-radius: 6px;
+    border-top-right-radius: 3px;
   }
 
   #top-bar > ul > li {
-    border-top-left-radius: 6px;
+    border-top-left-radius: 3px;
   }
 
   // Line up with #main-content, which the site theme insets 10px per side;
