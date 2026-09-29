@@ -145,13 +145,6 @@
       bind:draft
       bind:title={$form.title}
     />
-    <input
-      name="altTitle"
-      class="editor-alt-title"
-      placeholder={data.internationalization?.["alt-title"]}
-      type="text"
-      bind:value={$form.altTitle}
-    />
   {:else}
     <input
       name="title"
@@ -159,13 +152,6 @@
       placeholder={data.internationalization?.title}
       type="text"
       bind:value={$form.title}
-    />
-    <input
-      name="altTitle"
-      class="editor-alt-title"
-      placeholder={data.internationalization?.["alt-title"]}
-      type="text"
-      bind:value={$form.altTitle}
     />
     <WikitextToolbar
       attachmentLookup={data.page

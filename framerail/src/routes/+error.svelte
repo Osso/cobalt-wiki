@@ -187,13 +187,6 @@
           bind:draft={formDraft}
           bind:title={$editForm.title}
         />
-        <input
-          name="altTitle"
-          class="editor-alt-title"
-          placeholder={errorData.internationalization?.["alt-title"]}
-          type="text"
-          bind:value={$editForm.altTitle}
-        />
       {:else}
         <input
           name="title"
@@ -201,13 +194,6 @@
           placeholder={errorData.internationalization?.title}
           type="text"
           bind:value={$editForm.title}
-        />
-        <input
-          name="altTitle"
-          class="editor-alt-title"
-          placeholder={errorData.internationalization?.["alt-title"]}
-          type="text"
-          bind:value={$editForm.altTitle}
         />
         <WikitextToolbar
           pageLookup={lookupEditorPages}
