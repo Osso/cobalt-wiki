@@ -155,6 +155,33 @@ async function assertFixtureState(actor, fixtures, state) {
   }
 }
 
+/**
+ * Holds the apply request so the in-flight indicator is observable, then
+ * releases it.
+ *
+ * @param {BrowserPage} page @param {string} button @param {string} label
+ */
+async function confirmWhileHeld(page, button, label) {
+  /** @type {() => void} */
+  let release = () => {}
+  const held = new Promise((resolve) => (release = () => resolve(undefined)))
+  /** @param {URL} url */
+  const isApply = (url) => url.search === "?/apply"
+  await page.route(isApply, async (route) => {
+    await held
+    await route.continue()
+  })
+  const confirm = page.getByRole("button", { name: button, exact: true })
+  await confirm.click()
+  const progress = page.locator(".progress")
+  await expect(progress.getByRole("status")).toHaveText(label)
+  await expect(confirm).toBeDisabled()
+  await expect(progress).toContainText(/\b[1-9]\d*s$/)
+  release()
+  await expect(progress).toHaveCount(0)
+  await page.unroute(isApply)
+}
+
 /** @param {Actor} actor */
 async function readPendingOperation(actor) {
   /** @type {TagOperation[]} */
@@ -247,7 +274,11 @@ test(
         await assertFixtureState(actor, fixtures, "unchanged")
 
         await previewChange(page, "rename")
-        await page.getByRole("button", { name: "Confirm rename", exact: true }).click()
+        await confirmWhileHeld(
+          page,
+          "Confirm rename",
+          `Renaming ${source} to ${target} on 2 pages…`
+        )
         await expect(
           page.getByRole("status").filter({ hasText: "Tags changed on 2 pages" })
         ).toBeVisible()
