@@ -18,6 +18,7 @@ Site admins manage tags across currently live pages from a confirmed site-wide p
 - [x] `/-/admin/tags` lets an authorized administrator choose rename/merge or delete, preview exact affected pages, then explicitly confirm the snapshot before applying it.
 - [x] It lists recorded operations with affected pages and requires an explicit confirmation before undo. Signed-out and denied visitors receive no mutation form.
 - [x] Bulk add requires at least one filter; the preview shows the normalized tag and AND criteria, exact affected pages and count. Confirmation uses the preview token, cancel does not mutate, and history shows add filters and undo.
+- [x] While a preview, apply, or undo request runs, the submitted form shows a spinner, the operation with its page count (e.g. `Renaming a to b on 2 pages…`), and elapsed seconds; all tag-admin controls stay disabled until it finishes.
 
 ## How it works
 
@@ -37,7 +38,7 @@ Site admins manage tags across currently live pages from a confirmed site-wide p
 
 - `deepwell/tests/site_tag_admin.rs` — isolated real-DB authorization (including member and restricted-session denial), merge/deletion/add, AND filters with `_default` and literal title matching, preview and later-edit conflicts, draft preservation, locked apply/undo atomicity, and serialization with ordinary edits/imports. Current targeted suite: 13/13 at backend `f74ad6a6d`, test revision `1bebf777d` (`/tmp/cobalt-tag-add-green6.log`).
 - `framerail/tests/tag-admin.test.ts` — 11/11 action/rendering tests for `d3a4ad897`; the four affected bulk-add cases passed again at `1dd3f7d4b`. They cover literal filter forwarding, required filter validation, confirmed snapshot forwarding, and add-history preview/undo (`/tmp/cobalt-tag-add-ui-green.log`, `/tmp/cobalt-tag-add-ui-correction-green.log`).
-- `framerail/tests/local/tag-admin.mjs` — local browser fixtures: 2/2 at backend `f74ad6a6d` / frontend `1dd3f7d4b`; retained rename/delete/undo and bulk add verify AND selection, literal `%`/`_` title matching, source/category exclusions, already-tagged exclusion, history filters, undo, content preservation, and cleanup (`/tmp/cobalt-tag-add-browser-green.log`).
+- `framerail/tests/local/tag-admin.mjs` — local browser fixtures: 2/2 at backend `6ee6f7dc3` / frontend `4e31dc6b7` (`/tmp/claude/tag-progress-green.log`); the rename apply is held in the browser to assert the in-flight label, disabled confirm, and ticking elapsed time (fails against the prior `Working…` page: `/tmp/claude/tag-progress-red.log`); retained rename/delete/undo and bulk add verify AND selection, literal `%`/`_` title matching, source/category exclusions, already-tagged exclusion, history filters, undo, content preservation, and cleanup (`/tmp/cobalt-tag-add-browser-green.log`).
 
 ## Local rollout proof
 
