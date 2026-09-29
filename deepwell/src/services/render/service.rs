@@ -126,6 +126,7 @@ impl RenderService {
             category_id,
             page_id,
         }: PageId,
+        navigation: bool,
     ) -> Result<RenderPageOutput> {
         let page_settings = WikitextSettings::from_mode(WikitextMode::Page, layout);
         let nav_settings = WikitextSettings::from_mode(WikitextMode::PageNav, layout);
@@ -156,9 +157,17 @@ impl RenderService {
         let NavigationPageWikitext {
             top_bar_page_wikitext,
             side_bar_page_wikitext,
-        } = SettingsService::get_nav_page_wikitext(ctx, site_id, Some(category_id))
-            .await
-            .or_raise(make_error)?;
+        } = if navigation {
+            SettingsService::get_nav_page_wikitext(ctx, site_id, Some(category_id))
+                .await
+                .or_raise(make_error)?
+        } else {
+            // The caller keeps the previous bars and queues their rerender.
+            NavigationPageWikitext {
+                top_bar_page_wikitext: None,
+                side_bar_page_wikitext: None,
+            }
+        };
 
         let render_nav_page = |wikitext| async {
             match wikitext {

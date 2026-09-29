@@ -37,6 +37,14 @@ pub struct ListingChange {
     states: Vec<(String, Vec<String>)>,
 }
 
+/// Outdating collected during `OutdateService::outdate_once()`.
+#[derive(Debug, Default)]
+pub struct DeferredOutdates {
+    pub listings: Vec<ListingChange>,
+    /// Changed pages whose navigation bars were not rendered with the change.
+    pub navigation: Vec<PageId>,
+}
+
 #[derive(Debug)]
 pub struct OutdateService;
 
@@ -212,7 +220,7 @@ impl OutdateService {
 
     /// Rerender the listing pages that could show `page_id` in any of the given
     /// states (`(slug, tags)` before and after a change). Inside
-    /// `outdate_listings_once()` the change is collected instead.
+    /// `outdate_once()` the change is collected instead.
     pub async fn outdate_listings(
         ctx: &ServiceContext<'_>,
         site_id: i64,
@@ -232,18 +240,23 @@ impl OutdateService {
         }
     }
 
-    /// Runs `body`, then rerenders the listing pages its page changes affect with
-    /// one read of the site's listings instead of one per changed page.
-    pub async fn outdate_listings_once<T>(
+    /// Runs `body`, then rerenders what its page changes affect: listing pages,
+    /// with one read of the site's listings instead of one per changed page,
+    /// and the changed pages' navigation bars, which revisions created in
+    /// `body` keep from their previous revision instead of rendering inline.
+    pub async fn outdate_once<T>(
         ctx: &ServiceContext<'_>,
         site_id: i64,
         body: impl Future<Output = Result<T>>,
     ) -> Result<T> {
-        ctx.defer_listings();
+        ctx.defer_outdates();
         let result = body.await;
-        let changes = ctx.take_deferred_listings();
+        let deferred = ctx.take_deferred_outdates();
         let output = result?;
-        Self::outdate_listing_changes(ctx, site_id, &changes).await?;
+        Self::outdate_listing_changes(ctx, site_id, &deferred.listings).await?;
+        for id in deferred.navigation {
+            JobService::queue_rerender_nav_page(ctx, id).await?;
+        }
         Ok(output)
     }
 

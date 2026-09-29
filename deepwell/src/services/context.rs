@@ -24,9 +24,9 @@ use crate::error::prelude::*;
 use crate::locales::Localizations;
 use crate::models::session::Model as SessionModel;
 use crate::services::blob::MimeAnalyzer;
-use crate::services::outdate::ListingChange;
+use crate::services::outdate::{DeferredOutdates, ListingChange};
 use crate::services::permission::{CheckPermissionContext, PermissionService};
-use crate::types::{Permission, Reference};
+use crate::types::{PageId, Permission, Reference};
 use redis::aio::MultiplexedConnection as RedisMultiplexedConnection;
 use rsmq_async::Rsmq;
 use s3::bucket::Bucket;
@@ -86,7 +86,7 @@ pub struct ServiceContext<'txn> {
     transaction: &'txn DatabaseTransaction,
     request_ctx: RequestContext,
     user_permissions: OnceCell<HashSet<Permission<'static>>>,
-    deferred_listings: Mutex<Option<Vec<ListingChange>>>,
+    deferred_outdates: Mutex<Option<DeferredOutdates>>,
 }
 
 impl<'txn> ServiceContext<'txn> {
@@ -100,7 +100,7 @@ impl<'txn> ServiceContext<'txn> {
             transaction,
             request_ctx: RequestContext::default(),
             user_permissions: OnceCell::new(),
-            deferred_listings: Mutex::new(None),
+            deferred_outdates: Mutex::new(None),
         }
     }
 
@@ -121,14 +121,15 @@ impl<'txn> ServiceContext<'txn> {
         self.user_permissions = OnceCell::new();
     }
 
-    /// Starts collecting listing changes instead of outdating each one.
-    pub fn defer_listings(&self) {
-        *self.deferred_listings.lock().unwrap() = Some(Vec::new());
+    /// Starts collecting listing changes and navigation rerenders instead of
+    /// running them for each page change.
+    pub fn defer_outdates(&self) {
+        *self.deferred_outdates.lock().unwrap() = Some(DeferredOutdates::default());
     }
 
-    /// Stops collecting listing changes, returning those collected.
-    pub fn take_deferred_listings(&self) -> Vec<ListingChange> {
-        self.deferred_listings
+    /// Stops collecting, returning what was collected.
+    pub fn take_deferred_outdates(&self) -> DeferredOutdates {
+        self.deferred_outdates
             .lock()
             .unwrap()
             .take()
@@ -137,12 +138,23 @@ impl<'txn> ServiceContext<'txn> {
 
     /// Collects `change` if deferral is active, otherwise returns it.
     pub fn try_defer_listing(&self, change: ListingChange) -> Option<ListingChange> {
-        match self.deferred_listings.lock().unwrap().as_mut() {
-            Some(changes) => {
-                changes.push(change);
+        match self.deferred_outdates.lock().unwrap().as_mut() {
+            Some(deferred) => {
+                deferred.listings.push(change);
                 None
             }
             None => Some(change),
+        }
+    }
+
+    /// Collects the page's navigation rerender if deferral is active.
+    pub fn try_defer_navigation(&self, id: PageId) -> bool {
+        match self.deferred_outdates.lock().unwrap().as_mut() {
+            Some(deferred) => {
+                deferred.navigation.push(id);
+                true
+            }
+            None => false,
         }
     }
 

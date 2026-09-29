@@ -152,7 +152,7 @@ impl SiteTagAdminService {
             require_editable(ctx, site_id, user_id, tagged.page.page_id).await?;
         }
         let operation_id = insert_add_operation(ctx, site_id, user_id, &preview).await?;
-        OutdateService::outdate_listings_once(ctx, site_id, async {
+        OutdateService::outdate_once(ctx, site_id, async {
             for tagged in &pages {
                 let mut after = tagged.tags.clone();
                 after.push(preview.tag.clone());
@@ -219,7 +219,7 @@ impl SiteTagAdminService {
         }
         let operation_id =
             insert_operation(ctx, site_id, user_id, &preview, input.ip_address).await?;
-        OutdateService::outdate_listings_once(ctx, site_id, async {
+        OutdateService::outdate_once(ctx, site_id, async {
             for (tagged, after) in pages.iter().zip(changed) {
                 let revision_id = edit_tags(
                     ctx,
@@ -311,7 +311,7 @@ impl SiteTagAdminService {
             }
             require_editable(ctx, site_id, user_id, record.page.page_id).await?;
         }
-        OutdateService::outdate_listings_once(ctx, site_id, async {
+        OutdateService::outdate_once(ctx, site_id, async {
             for record in &records {
                 edit_tags(
                     ctx,

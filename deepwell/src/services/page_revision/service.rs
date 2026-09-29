@@ -232,6 +232,9 @@ impl PageRevisionService {
         let tasks = PageRevisionTasks::determine(&changes);
 
         if tasks.render_and_update_links {
+            // Deferred bars stay as they were until their queued rerender.
+            let navigation = !ctx.try_defer_navigation(id);
+
             // This is necessary until we are able to replace the
             // 'tags' column with TEXT[] instead of JSON.
             let render_input = RenderPageInfo {
@@ -256,13 +259,25 @@ impl PageRevisionService {
                 compiled_side_bar_html_hash: new_side_bar_html_hash,
                 compiled_at: new_compiled_at,
                 compiled_generator: new_compiled_generator,
-            } = Self::render_and_update_links(ctx, id, wikitext, render_input).await?;
+            } = Self::render_and_update_links(
+                ctx,
+                id,
+                wikitext,
+                render_input,
+                navigation,
+            )
+            .await?;
 
             // Update fields
             parser_errors = Some(errors);
             replace_hash(&mut compiled_body_html_hash, &new_body_html_hash);
-            replace_hash_opt(&mut compiled_top_bar_html_hash, new_top_bar_html_hash);
-            replace_hash_opt(&mut compiled_side_bar_html_hash, new_side_bar_html_hash);
+            if navigation {
+                replace_hash_opt(&mut compiled_top_bar_html_hash, new_top_bar_html_hash);
+                replace_hash_opt(
+                    &mut compiled_side_bar_html_hash,
+                    new_side_bar_html_hash,
+                );
+            }
             compiled_generator = new_compiled_generator;
             compiled_at = new_compiled_at;
         }
@@ -452,7 +467,7 @@ impl PageRevisionService {
             compiled_side_bar_html_hash,
             compiled_at,
             compiled_generator,
-        } = Self::render_and_update_links(ctx, id, wikitext, render_input)
+        } = Self::render_and_update_links(ctx, id, wikitext, render_input, true)
             .await
             .or_raise(make_error)?;
 
@@ -691,6 +706,7 @@ impl PageRevisionService {
             },
             wikitext,
             render_input,
+            true,
         )
         .await
         .or_raise(make_error)?;
@@ -759,6 +775,7 @@ impl PageRevisionService {
             score,
             tags,
         }: RenderPageInfo<'_>,
+        navigation: bool,
     ) -> Result<RenderPageOutput> {
         // Get site
         let PageId {
@@ -795,9 +812,10 @@ impl PageRevisionService {
         };
 
         // Parse and render
-        let output = RenderService::render_page(ctx, wikitext, &page_info, layout, id)
-            .await
-            .or_raise(make_error)?;
+        let output =
+            RenderService::render_page(ctx, wikitext, &page_info, layout, id, navigation)
+                .await
+                .or_raise(make_error)?;
 
         // Update backlinks
         LinkService::update(ctx, site_id, page_id, &output.html_output.backlinks)
@@ -867,7 +885,7 @@ impl PageRevisionService {
             compiled_side_bar_html_hash,
             compiled_generator,
             ..
-        } = Self::render_and_update_links(ctx, id, wikitext, render_input)
+        } = Self::render_and_update_links(ctx, id, wikitext, render_input, true)
             .await
             .or_raise(make_error)?;
 

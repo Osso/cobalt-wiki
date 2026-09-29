@@ -412,3 +412,148 @@ async fn site_tag_changes_rerender_every_listing_that_could_show_changed_pages()
     );
     assert!(!queued.contains(&unrelated), "{queued:?}");
 }
+
+/// `(page_id, type)` of every rerender job queued so far.
+async fn queued_rerender_jobs(
+    connection: &mut redis::aio::MultiplexedConnection,
+) -> Vec<(i64, String)> {
+    let messages: HashMap<String, Vec<u8>> =
+        connection.hgetall("rsmq:job:Q").await.unwrap();
+    messages
+        .into_iter()
+        .filter(|(field, _)| !field.contains(':') && field.len() > 10)
+        .filter_map(|(_, body)| serde_json::from_slice::<serde_json::Value>(&body).ok())
+        .filter_map(|job| {
+            let id = job.pointer("/data/id/page_id")?.as_i64()?;
+            let kind = job.pointer("/data/type")?.as_str()?.to_owned();
+            Some((id, kind))
+        })
+        .collect()
+}
+
+#[tokio::test]
+#[ignore = "requires a dedicated empty Redis database; run explicitly with --ignored"]
+async fn site_tag_changes_queue_navigation_bars_instead_of_rendering_them() {
+    let queue = redis::Client::open(std::env::var("REDIS_URL").unwrap()).unwrap();
+    let mut connection = queue.get_multiplexed_async_connection().await.unwrap();
+    Rsmq::new_with_connection(connection.clone(), false, Some("rsmq"))
+        .await
+        .unwrap()
+        .create_queue(
+            JOB_QUEUE_NAME,
+            JOB_QUEUE_PROCESS_TIME,
+            JOB_QUEUE_DELAY,
+            JOB_QUEUE_MAXIMUM_SIZE,
+        )
+        .await
+        .expect("use a fresh dedicated Redis database");
+    let mut runner = TestRunner::setup_with_idle_job_workers().await;
+    let site_id = run_endpoint!(runner, site_get, json!({"site": "test"}))
+        .unwrap()
+        .site
+        .site_id;
+
+    // The top bar lists the destination tag, so the change alters every bar.
+    let nav =
+        PageService::get(runner.context(), site_id, Reference::Slug("nav:top".into()))
+            .await
+            .expect("seeded top bar");
+    act_as_admin(&mut runner, site_id, Reference::Id(nav.page_id));
+    PageService::edit(
+        runner.context(),
+        EditPage {
+            site_id,
+            page: Reference::Id(nav.page_id),
+            last_revision_id: nav.latest_revision_id.unwrap(),
+            revision_comments: "List destination tag".into(),
+            user_id: ADMIN_USER_ID,
+            body: EditPageBody {
+                wikitext: Maybe::Set(
+                    "[[module ListPages category=\"*\" tags=\"navbulk-new\"]]\n* %%title%%\n[[/module]]"
+                        .into(),
+                ),
+                ..Default::default()
+            },
+            ip_address: common::IP_ADDRESS,
+        },
+    )
+    .await
+    .expect("edit top bar");
+    let mut pages = Vec::new();
+    for slug in ["navbulk-one", "navbulk-two"] {
+        let page_id =
+            create_page(&mut runner, site_id, slug, "Body", &["navbulk-old"]).await;
+        let bar = PageRevisionService::get_latest(runner.context(), site_id, page_id)
+            .await
+            .unwrap()
+            .compiled_top_bar_html_hash;
+        assert!(bar.is_some(), "created page renders its top bar");
+        pages.push((page_id, bar));
+    }
+    let queued = queued_rerender_jobs(&mut connection).await;
+    for (page_id, _) in &pages {
+        assert!(
+            !queued.contains(&(*page_id, "nav".into())),
+            "fixture setup queued {page_id}: {queued:?}"
+        );
+    }
+
+    runner.set_request_context(RequestContext {
+        session: None,
+        user_id: Some(ADMIN_USER_ID),
+        site_id: Some(site_id),
+        page_reference: None,
+    });
+    let preview = run_endpoint!(
+        runner,
+        site_tag_preview,
+        json!({"source_tag": "navbulk-old", "target_tag": "navbulk-new"})
+    );
+    assert_eq!(preview.count, 2);
+    run_endpoint!(
+        runner,
+        site_tag_apply,
+        json!({
+            "source_tag": "navbulk-old", "target_tag": "navbulk-new",
+            "preview_token": preview.preview_token, "ip_address": common::IP_ADDRESS
+        })
+    );
+
+    let queued = queued_rerender_jobs(&mut connection).await;
+    for (page_id, bar_before) in &pages {
+        assert!(
+            queued.contains(&(*page_id, "nav".into())),
+            "bar rerender queued for {page_id}: {queued:?}"
+        );
+        let revision =
+            PageRevisionService::get_latest(runner.context(), site_id, *page_id)
+                .await
+                .unwrap();
+        assert_eq!(revision.tags, ["navbulk-new"]);
+        assert_eq!(
+            &revision.compiled_top_bar_html_hash, bar_before,
+            "tag change keeps the previous bar until its rerender"
+        );
+
+        let page = PageService::get(runner.context(), site_id, Reference::Id(*page_id))
+            .await
+            .unwrap();
+        PageRevisionService::rerender(
+            runner.context(),
+            PageId::from_page_model(&page),
+            RerenderType::NavigationOnly,
+        )
+        .await
+        .expect("run queued bar rerender");
+        let rerendered =
+            PageRevisionService::get_latest(runner.context(), site_id, *page_id)
+                .await
+                .unwrap()
+                .compiled_top_bar_html_hash;
+        assert!(rerendered.is_some());
+        assert_ne!(
+            &rerendered, bar_before,
+            "rerendered bar lists the retagged pages"
+        );
+    }
+}
