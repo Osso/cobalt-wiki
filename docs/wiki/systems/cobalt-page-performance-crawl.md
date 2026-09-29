@@ -46,6 +46,8 @@ All 28 document navigations returned 200 with no uncaught JavaScript errors or n
 
 ### Remaining image-delivery problem
 
+The subsequent [image investigation and Wikidot comparison](cobalt-image-delivery-investigation.md) verifies the 56 original files and attributes their replica failures to specific tunnel/RPC boundaries. The observations below describe the initial crawl.
+
 Across the browser samples there were **55 image 502 responses and one image 500 response**. All **56 URLs returned 200 when rechecked individually at low rate**. Nginx logged **23** `256 worker_connections are not enough` alerts during the browser window, specifically around roster/class loading. This establishes a real capacity limit and burst-sensitive media failures; it does not prove that this one limit caused every failed asset, particularly the later pet-icon burst.
 
 There were also **29 resource 404s** and **six 400s**. The 404s include missing roster icons and writing-page requests whose apparent filename starts with `style="margin:`. The 400s were on direct template viewing. These are separate resource/content-compatibility findings; no fixes were applied.
