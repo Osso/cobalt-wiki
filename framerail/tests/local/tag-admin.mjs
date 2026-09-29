@@ -83,15 +83,19 @@ async function login(context, passwordPath) {
   }
 }
 
-/** @param {Actor} actor @param {number} index @returns {Promise<Fixture>} */
-async function createFixture(actor, index) {
-  const slug = `local-tag-admin-proof:page-${index}-${nonce}`
-  const tags = index ? [source, target, target, kept] : [source, kept]
+/**
+ * @param {Actor} actor @param {number} index @param
+ *   {{tags?:string[],title?:string,category?:string,wikitext?:string}}
+ *   [options] @returns {Promise<Fixture>}
+ */
+async function createFixture(actor, index, options = {}) {
+  const slug = `${options.category ?? "local-tag-admin-proof"}:page-${index}-${nonce}`
+  const tags = options.tags ?? (index ? [source, target, target, kept] : [source, kept])
   const created = await rpc(actor.request, actor.token, "page_import", {
     site_id: siteId,
     slug,
-    title: `Tag admin fixture ${index}`,
-    wikitext: "Preserve this fixture body.",
+    title: options.title ?? `Tag admin fixture ${index}`,
+    wikitext: options.wikitext ?? "Preserve this fixture body.",
     tags,
     user_id: actor.actorId,
     ip_address: "127.0.0.1",
@@ -181,7 +185,8 @@ async function undoThroughUi(page, operation) {
 async function deleteFixtures(actor, fixtures) {
   for (const fixture of fixtures) {
     assert.ok(
-      fixture.slug.startsWith("local-tag-admin-proof:") && fixture.slug.endsWith(nonce)
+      /^local-tag-admin-proof(?:-other)?:/.test(fixture.slug) &&
+        fixture.slug.endsWith(nonce)
     )
     const stored = await readPage(actor, fixture.slug)
     assert.equal(stored.page.page_id, fixture.pageId)
@@ -273,3 +278,144 @@ test(
     }
   }
 )
+
+/**
+ * @param {Actor} actor @param {Fixture[]} fixtures @param {boolean}
+ *   applied
+ */
+async function assertAddedState(actor, fixtures, applied) {
+  for (const [index, fixture] of fixtures.entries()) {
+    const stored = await readPage(actor, fixture.slug)
+    const expected =
+      applied && index < 2 ? [...fixture.tags, target].sort() : fixture.tags
+    assert.deepEqual([...stored.page_revision.tags].sort(), expected)
+    assert.deepEqual(
+      stored.page_revision.wikitext_hash,
+      fixture.before.page_revision.wikitext_hash
+    )
+    if (index >= 2) {
+      assert.equal(
+        stored.page.latest_revision_id,
+        fixture.before.page.latest_revision_id,
+        "excluded and already-tagged pages have no new revision"
+      )
+    }
+  }
+}
+
+/** @param {Actor} actor @param {Fixture[]} fixtures */
+async function createAddFixtures(actor, fixtures) {
+  const variants = [
+    { title: "Ready 100%_ One", tags: [source, kept] },
+    { title: "READY 100%_ Two", tags: [source, kept] },
+    { title: "Ready 100%_ Already tagged", tags: [source, target, kept] },
+    {
+      title: "Different title",
+      tags: [source, kept],
+      wikitext: "Ready 100%_ in body only"
+    },
+    {
+      title: "Ready 100%_ Other category",
+      tags: [source, kept],
+      category: "local-tag-admin-proof-other"
+    },
+    { title: "Ready 100%_ Missing source tag", tags: [kept] },
+    { title: "Ready 100xyz_ Wildcard lookalike", tags: [source, kept] }
+  ]
+  for (const [index, variant] of variants.entries()) {
+    fixtures.push(await createFixture(actor, index + 10, variant))
+  }
+}
+
+/** @param {BrowserPage} page @param {TagOperation} operation */
+async function undoAddition(page, operation) {
+  const article = page
+    .locator("article")
+    .filter({
+      has: page.getByRole("heading", {
+        name: `#${operation.operation_id}: Add ${target}`,
+        exact: true
+      })
+    })
+  await article.getByText("Undo this operation", { exact: true }).click()
+  await article
+    .getByRole("button", { name: `Confirm undo #${operation.operation_id}`, exact: true })
+    .click()
+  await expect(
+    page.getByRole("status").filter({ hasText: "undone on 2 pages" })
+  ).toBeVisible()
+}
+
+test(
+  "bulk-add combines title-only, category and tag filters, skips existing tags and undoes",
+  { timeout: 180000 },
+  async () => {
+    const passwordPath = process.env.COBALT_LOCAL_ADMIN_PASSWORD_FILE
+    assert.ok(passwordPath, "local admin password file required")
+    const browser = await chromium.launch({
+      executablePath: "/usr/bin/chromium",
+      headless: true
+    })
+    try {
+      const context = await browser.newContext()
+      const { page, actor } = await login(context, passwordPath)
+      /** @type {Fixture[]} */
+      const fixtures = []
+      try {
+        await createAddFixtures(actor, fixtures)
+        await page.goto(`${origin}/-/admin/tags`, { waitUntil: "networkidle" })
+        await page.locator("#tag-operation").selectOption("add")
+        await page.locator("#add-tag").fill(target)
+        await page.locator("#filter-tag").fill(source)
+        await page.locator("#filter-category").fill("local-tag-admin-proof")
+        await page.locator("#filter-title").fill("ready 100%_")
+        await page.getByRole("button", { name: "Preview affected pages" }).click()
+        const previewSection = page.locator('section[aria-labelledby="preview-heading"]')
+        await expect(
+          previewSection.getByRole("heading", { name: "Preview: 2 pages", exact: true })
+        ).toBeVisible()
+        assert.deepEqual(
+          await previewSection
+            .locator("li a")
+            .evaluateAll((links) =>
+              links.map((link) => link.getAttribute("href")).sort()
+            ),
+          fixtures
+            .slice(0, 2)
+            .map((f) => `/${f.slug}`)
+            .sort()
+        )
+        await assertAddedState(actor, fixtures, false)
+        await page.getByRole("button", { name: "Confirm add tag", exact: true }).click()
+        await expect(
+          page.getByRole("status").filter({ hasText: "Tags changed on 2 pages" })
+        ).toBeVisible()
+        await assertAddedState(actor, fixtures, true)
+        const operation = await readPendingOperationForAdd(actor)
+        assert.equal(operation.kind, "add")
+        assert.deepEqual(operation.filters, {
+          existing_tag: source,
+          category: "local-tag-admin-proof",
+          title_contains: "ready 100%_"
+        })
+        await undoAddition(page, operation)
+        await assertAddedState(actor, fixtures, false)
+      } finally {
+        await deleteFixtures(actor, fixtures)
+      }
+    } finally {
+      await browser.close()
+    }
+  }
+)
+
+/** @param {Actor} actor */
+async function readPendingOperationForAdd(actor) {
+  /** @type {TagOperation[]} */
+  const history = await rpc(actor.request, actor.token, "site_tag_history", {})
+  const operation = history.find(
+    (item) => item.kind === "add" && item.target_tag === target && !item.reversed
+  )
+  assert.ok(operation)
+  return operation
+}
