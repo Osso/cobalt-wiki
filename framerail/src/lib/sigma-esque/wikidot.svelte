@@ -109,6 +109,8 @@
   $chrome-panel: rgb(8 12 36 / 72%);
   $chrome-text: #e6eaff;
   $chrome-link: #9fd4ff;
+  $tab-fill: #a8d7ea;
+  $tab-hover: #d6f3ff;
 
   #header #login-status {
     padding: 0.25em 0.75em;
@@ -228,7 +230,40 @@
   }
 
   #top-bar li:not(li li) {
+    position: relative;
+    padding-block: 2px;
+    background-color: $tab-fill;
     border-top-left-radius: 3px;
+  }
+
+  // The theme's pure-black bold labels clash with the navy chrome.
+  #top-bar li:not(li li) > strong > a {
+    font-weight: 600;
+    color: #10254f;
+  }
+
+  // The theme leaves each dropdown at its static position, 1em inside the
+  // tab; pin it to the tab's own bottom-left corner instead.
+  #top-bar li:not(li li) > ul {
+    top: 100%;
+    left: 0;
+    overflow: hidden;
+    border-radius: 0 3px 3px;
+    box-shadow: 0 4px 12px rgb(0 0 0 / 30%);
+  }
+
+  #top-bar ul li ul a {
+    background-color: $tab-fill;
+  }
+
+  // Highlight the whole tab, not just its label past the theme's 1em indent.
+  #top-bar li:not(li li):hover,
+  #top-bar ul li ul a:hover {
+    background-color: $tab-hover;
+  }
+
+  #top-bar li:not(li li) > strong > a:hover {
+    background-color: transparent;
   }
 
   // Line up with #main-content, which the site theme insets 10px per side;
