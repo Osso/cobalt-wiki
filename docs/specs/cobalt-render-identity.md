@@ -35,10 +35,15 @@ Stored HTML is reused while its rendering-input identity remains current. `deepw
 
 Local and production backend deployment passed at `60d7abaf6`. The race-roster's first ordinary view transitioned its legacy key to `render-inputs-v1:5eb243ea930e3b22a5bed3d752a78f342a1bbbcb84caa16e7c43cdbb1a2b814f` in 527 ms; the next host-local RPC took 13 ms. Revision `3000002431` and body hash remained unchanged. Receipts: `/tmp/cobalt-render-identity-before-transition.csv`, `/tmp/cobalt-render-identity-before-doc-deploy.csv`, `/tmp/cobalt-render-identity-transition-{0,1}.log`.
 
+## Verified redeployment behavior
+
+A documentation-only commit (`30f6d1b82`) was deployed after the initial rollout. The first subsequent race-roster RPC took 23 ms. Its revision ID, revision `updated_at`, rendering identity and compiled body hash exactly matched the pre-deploy row: no rerender occurred. Local debug and production deploy builds report the same content identity. Receipts: `/tmp/cobalt-render-identity-{before-doc-deploy,after-doc-deploy}.csv`, `/tmp/cobalt-render-identity-after-doc-deploy-timing.log`, `/tmp/cobalt-render-identity-local-production.json`.
+
+Independent verification passed Cargo formatting/checking, retained the 8 fingerprint and 2 database tests, checked the Nix package/input identity, and matched the running production binary to the deploy artifact (`/tmp/cobalt-render-identity-verifier.md`). Container Dockerfile checks and Compose validation passed separately (`/tmp/cobalt-render-identity-container-gate.txt`); full container images were not compiled. Native app and Nix builds were compiled.
+
 ## Known gaps (current cycle)
 
-- [ ] Complete the docs-only redeployment/cache-retention proof and final independent checks.
-- [ ] The initial transition from legacy commit-based keys requires one normal lazy rerender per viewed page. It does not perform a site-wide sweep.
+No blocker for the deployed native path. The first transition from legacy commit-based keys still requires one normal lazy rerender per viewed page; the canary verified that transition. No site-wide sweep was performed. Backend runtime-input changes intentionally still invalidate compiled HTML.
 
 ## Out of scope
 
