@@ -129,6 +129,9 @@ async fn admin_preview_merge_and_undo_preserve_other_tags() {
     let history = run_endpoint!(runner, site_tag_history);
     assert_eq!(history[0].operation_id, applied.operation_id);
     assert!(!history[0].reversed);
+    assert_eq!(history[0].kind, "rename");
+    assert_eq!(history[0].source_tag.as_deref(), Some("source"));
+    assert!(history[0].filters.is_none());
     run_endpoint!(
         runner,
         site_tag_undo,
@@ -603,6 +606,21 @@ async fn add_filters_and_literal_title_match_only_live_untagged_pages() {
     assert_eq!(
         preview.pages.iter().map(|p| p.page_id).collect::<Vec<_>>(),
         vec![selected, no_source]
+    );
+    let category_preview = run_endpoint!(
+        runner,
+        site_tag_add_preview,
+        json!({
+            "tag":"new","existing_tag":null,"category":"other","title_contains":null
+        })
+    );
+    assert_eq!(
+        category_preview
+            .pages
+            .iter()
+            .map(|p| p.page_id)
+            .collect::<Vec<_>>(),
+        vec![other_category]
     );
     // Every filter combines with AND, and already-tagged pages are omitted.
     let preview = run_endpoint!(
