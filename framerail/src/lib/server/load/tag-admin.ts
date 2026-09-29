@@ -1,12 +1,25 @@
 import defaults from "$lib/defaults"
 import { requireDeepwellError } from "$lib/deepwell-errors"
-import { tagApply, tagHistory, tagPreview, tagUndo } from "$lib/server/deepwell/tag-admin"
+import {
+  tagAddApply,
+  tagAddPreview,
+  tagApply,
+  tagHistory,
+  tagPreview,
+  tagUndo
+} from "$lib/server/deepwell/tag-admin"
 import { translate } from "$lib/server/deepwell/translate"
 import { loadSiteChrome } from "$lib/server/load/site-chrome"
 import { loadSiteInfo } from "$lib/server/load/site-info"
 import { fail } from "@sveltejs/kit"
 
-import type { TagChange, TagOperation, TagPreview } from "$lib/server/deepwell/tag-admin"
+import type {
+  TagAddPreview,
+  TagAddSelection,
+  TagChange,
+  TagOperation,
+  TagPreview
+} from "$lib/server/deepwell/tag-admin"
 import type { PreloadDataAsync } from "$lib/server/deepwell/views"
 import type { RequestContext } from "$lib/server/load/request-ctx"
 import type { Cookies, RequestEvent } from "@sveltejs/kit"
@@ -52,7 +65,11 @@ export async function loadTagAdminPage(
   }
 }
 
-type ActionData = { saved: boolean; message: string; preview: TagPreview | null }
+type ActionData = {
+  saved: boolean
+  message: string
+  preview: TagPreview | TagAddPreview | null
+}
 
 async function runAction(
   event: RequestEvent,
@@ -110,6 +127,24 @@ function readChange(form: FormData): TagChange {
   return { source_tag: source, target_tag: target }
 }
 
+function readAddition(form: FormData): TagAddSelection {
+  const tag = formText(form, "tag").trim()
+  const existing_tag = formText(form, "existingTag").trim() || null
+  const category = formText(form, "category").trim() || null
+  const title_contains = formText(form, "titleContains").trim() || null
+  if (!isSingleTag(tag) || (existing_tag !== null && !isSingleTag(existing_tag))) {
+    throw new InvalidTagForm(
+      "Enter one tag to add and, if filtering by tag, one existing tag. Tags cannot contain spaces."
+    )
+  }
+  if (!existing_tag && !category && !title_contains) {
+    throw new InvalidTagForm(
+      "Choose at least one filter: existing tag, category, or title text."
+    )
+  }
+  return { tag, existing_tag, category, title_contains }
+}
+
 function isSingleTag(tag: string) {
   return tag.length > 0 && !/\s/.test(tag)
 }
@@ -124,7 +159,10 @@ export function tagPreviewAction(event: RequestEvent) {
   return runAction(event, async (form, context) => ({
     saved: false,
     message: "",
-    preview: await tagPreview(readChange(form), context)
+    preview:
+      formText(form, "operation") === "add"
+        ? await tagAddPreview(readAddition(form), context)
+        : await tagPreview(readChange(form), context)
   }))
 }
 
@@ -133,8 +171,11 @@ export function tagApplyAction(event: RequestEvent) {
     requireConfirmation(form)
     const token = formText(form, "previewToken")
     if (!token) throw new InvalidTagForm("Preview the affected pages before confirming.")
-    const change = readChange(form)
-    const result = await tagApply(change, token, event.getClientAddress(), context)
+    const ipAddress = event.getClientAddress()
+    const result =
+      formText(form, "operation") === "add"
+        ? await tagAddApply(readAddition(form), token, ipAddress, context)
+        : await tagApply(readChange(form), token, ipAddress, context)
     return {
       saved: true,
       message: `Tags changed on ${result.count} pages. Operation #${result.operation_id} recorded below.`,

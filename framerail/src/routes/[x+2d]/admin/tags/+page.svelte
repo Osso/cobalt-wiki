@@ -2,6 +2,7 @@
   import { enhance } from "$app/forms"
   import { resolve } from "$app/paths"
   import type { SubmitFunction } from "@sveltejs/kit"
+  import type { TagAddFilters } from "$lib/server/deepwell/tag-admin"
   import type { PageProps } from "./$types"
 
   let { data, form }: PageProps = $props()
@@ -9,6 +10,16 @@
   let pending = $state(false)
   let dismissed = $state(false)
   const preview = $derived(dismissed ? null : form?.preview)
+  function describeFilters(filters: TagAddFilters) {
+    return [
+      filters.existing_tag && `Existing tag: ${filters.existing_tag}`,
+      filters.category && `Category: ${filters.category}`,
+      filters.title_contains && `Title contains: ${filters.title_contains}`
+    ]
+      .filter(Boolean)
+      .join(" · ")
+  }
+
   const submit: SubmitFunction = () => {
     pending = true
     dismissed = false
@@ -33,8 +44,8 @@
   <p role="status">Only administrators of this site can manage tags.</p>
 {:else}
   <p>
-    Rename or remove a tag across all current pages. Page content and historical revisions
-    are preserved.
+    Rename or remove a tag across current pages, or add a tag to matching pages. Page
+    content and historical revisions are preserved.
   </p>
   {#if form?.message}
     <p class:error={!form.saved} role="status">{form.message}</p>
@@ -48,9 +59,29 @@
       <select id="tag-operation" name="operation" bind:value={operation}>
         <option value="rename">Rename / merge</option>
         <option value="delete">Delete tag</option>
+        <option value="add">Add tag to matching pages</option>
       </select>
-      <label for="source-tag">Existing tag</label>
-      <input id="source-tag" name="sourceTag" autocomplete="off" required />
+      {#if operation === "add"}
+        <label for="add-tag">Tag to add</label>
+        <input id="add-tag" name="tag" autocomplete="off" required />
+        <p>
+          Use at least one filter. Pages must match all selected filters. Pages already
+          carrying this tag are excluded.
+        </p>
+        <label for="filter-tag">Has existing tag</label>
+        <input id="filter-tag" name="existingTag" autocomplete="off" />
+        <label for="filter-category">Category</label>
+        <input id="filter-category" name="category" autocomplete="off" />
+        <p>
+          Use the category slug, such as writing, or _default for uncategorized pages.
+        </p>
+        <label for="filter-title">Title contains</label>
+        <input id="filter-title" name="titleContains" autocomplete="off" />
+        <p>Literal text, ignoring case. Titles only; page bodies are not searched.</p>
+      {:else}
+        <label for="source-tag">Existing tag</label>
+        <input id="source-tag" name="sourceTag" autocomplete="off" required />
+      {/if}
       {#if operation === "rename"}
         <label for="target-tag">Destination tag</label>
         <input id="target-tag" name="targetTag" autocomplete="off" required />
@@ -64,34 +95,52 @@
     <section aria-labelledby="preview-heading">
       <h2 id="preview-heading">Preview: {preview.count} pages</h2>
       <p>
-        {#if preview.target_tag === null}
+        {#if "tag" in preview}
+          Add <strong>{preview.tag}</strong> to these pages. All selected filters must match.
+        {:else if preview.target_tag === null}
           Remove <strong>{preview.source_tag}</strong> from these pages. Pages will not be deleted.
         {:else}
           Replace <strong>{preview.source_tag}</strong> with
           <strong>{preview.target_tag}</strong> on these pages.
         {/if}
       </p>
+      {#if "tag" in preview}
+        <p>{describeFilters(preview)}</p>
+      {/if}
       <ul class="page-list">
         {#each preview.pages as page (page.page_id)}
           <li><a href={`/${page.slug}`}>{page.title}</a> <small>({page.slug})</small></li>
         {:else}
-          <li>No current pages have this tag.</li>
+          <li>No pages need this tag change.</li>
         {/each}
       </ul>
       {#if preview.count > 0}
         <form action="?/apply" method="POST" use:enhance={submit}>
-          <input name="sourceTag" type="hidden" value={preview.source_tag} />
-          <input name="targetTag" type="hidden" value={preview.target_tag ?? ""} />
-          <input
-            name="operation"
-            type="hidden"
-            value={preview.target_tag === null ? "delete" : "rename"}
-          />
+          {#if "tag" in preview}
+            <input name="operation" type="hidden" value="add" />
+            <input name="tag" type="hidden" value={preview.tag} />
+            <input name="existingTag" type="hidden" value={preview.existing_tag ?? ""} />
+            <input name="category" type="hidden" value={preview.category ?? ""} />
+            <input
+              name="titleContains"
+              type="hidden"
+              value={preview.title_contains ?? ""}
+            />
+          {:else}
+            <input name="sourceTag" type="hidden" value={preview.source_tag} />
+            <input name="targetTag" type="hidden" value={preview.target_tag ?? ""} />
+            <input
+              name="operation"
+              type="hidden"
+              value={preview.target_tag === null ? "delete" : "rename"}
+            />
+          {/if}
           <input name="previewToken" type="hidden" value={preview.preview_token} />
           <p>Confirm this exact preview. If pages changed, a new preview is required.</p>
           <div class="actions">
             <button name="confirmed" disabled={pending} type="submit" value="yes">
-              {preview.target_tag === null ? "Confirm delete tag" : "Confirm rename"}
+              {#if "tag" in preview}Confirm add tag{:else if preview.target_tag === null}Confirm
+                delete tag{:else}Confirm rename{/if}
             </button>
             <button disabled={pending} onclick={() => (dismissed = true)} type="button"
               >Cancel</button
@@ -110,7 +159,11 @@
     </p>
     {#each data.operations as item (item.operation_id)}
       <article>
-        <h3>#{item.operation_id}: {item.source_tag} → {item.target_tag ?? "deleted"}</h3>
+        <h3>
+          #{item.operation_id}: {#if item.kind === "add"}Add {item.target_tag}{:else}{item.source_tag}
+            → {item.target_tag ?? "deleted"}{/if}
+        </h3>
+        {#if item.filters}<p>{describeFilters(item.filters)}</p>{/if}
         <p>
           {item.count} pages · User #{item.actor_user_id} ·
           <time datetime={item.created_at}>{item.created_at}</time>

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { after, test } from "node:test"
 import { createSsrServer } from "./ssr-server.ts"
-import type { TagPreview } from "../src/lib/server/deepwell/tag-admin.ts"
+import type { TagAddPreview, TagPreview } from "../src/lib/server/deepwell/tag-admin.ts"
 import type { loadTagAdminPage } from "../src/lib/server/load/tag-admin.ts"
 
 const { vite, close } = await createSsrServer()
@@ -25,6 +25,8 @@ const preview = {
   ]
 }
 const operation = {
+  kind: "rename",
+  filters: null,
   operation_id: 31,
   source_tag: "old",
   target_tag: "new",
@@ -39,7 +41,7 @@ type Call = Rpc & { headers: Record<string, string> }
 type Loaded = Awaited<ReturnType<typeof loadTagAdminPage>>
 type ActionResponse = {
   saved?: boolean
-  preview?: TagPreview | null
+  preview?: TagPreview | TagAddPreview | null
   status?: number
   data?: { message: string }
 }
@@ -224,4 +226,109 @@ test("rendered preview escapes names, shows count and confirmation; denied UI ha
     props: { data: { access: "denied", operations: [] }, form: null }
   }).body
   assert.doesNotMatch(denied, /<form/)
+})
+
+const addPreview = {
+  tag: "published",
+  existing_tag: "draft",
+  category: "writing",
+  title_contains: "100%_ Ready",
+  preview_token: "add-snapshot",
+  count: 2,
+  pages: preview.pages
+}
+const addFields = {
+  operation: "add",
+  tag: "published",
+  existingTag: "draft",
+  category: "writing",
+  titleContains: "100%_ Ready"
+}
+
+test("bulk-add preview sends all filters literally and never mutates", async () => {
+  const { value, calls } = await submit("preview", addFields, () => ({
+    result: addPreview
+  }))
+  assert.deepEqual(value.preview, addPreview)
+  assert.deepEqual(
+    tagCalls(calls).map((c) => [c.method, c.params]),
+    [
+      [
+        "site_tag_add_preview",
+        {
+          tag: "published",
+          existing_tag: "draft",
+          category: "writing",
+          title_contains: "100%_ Ready"
+        }
+      ]
+    ]
+  )
+})
+
+test("bulk-add requires a tag and at least one filter, blank optional filters become null", async () => {
+  for (const fields of [
+    { operation: "add", tag: "new" },
+    { operation: "add", tag: "two tags", category: "writing" },
+    { operation: "add", tag: "new", category: "   " },
+    { operation: "add", tag: "new", existingTag: "two tags" }
+  ]) {
+    const result = await submit("preview", fields, deny)
+    assert.equal(result.value.status, 400)
+    assert.equal(tagCalls(result.calls).length, 0)
+  }
+  const valid = await submit(
+    "preview",
+    { operation: "add", tag: "new", category: "_default" },
+    () => ({ result: addPreview })
+  )
+  assert.deepEqual(tagCalls(valid.calls)[0].params, {
+    tag: "new",
+    existing_tag: null,
+    category: "_default",
+    title_contains: null
+  })
+})
+
+test("bulk-add apply requires confirmed preview and forwards trusted snapshot fields", async () => {
+  const fields = { ...addFields, previewToken: "add-snapshot", confirmed: "yes" }
+  const noConfirm = await submit("apply", { ...fields, confirmed: "" }, deny)
+  assert.equal(noConfirm.value.status, 400)
+  assert.equal(tagCalls(noConfirm.calls).length, 0)
+  const result = await submit("apply", fields, () => ({
+    result: { operation_id: 32, count: 2 }
+  }))
+  assert.equal(result.value.saved, true)
+  assert.deepEqual(tagCalls(result.calls)[0].params, {
+    tag: "published",
+    existing_tag: "draft",
+    category: "writing",
+    title_contains: "100%_ Ready",
+    preview_token: "add-snapshot",
+    ip_address: "203.0.113.9"
+  })
+  const refused = await submit("apply", fields, deny)
+  assert.equal(refused.value.status, 403)
+})
+
+test("bulk-add preview displays title-only AND criteria and recorded operation can be undone", () => {
+  const addOperation = {
+    ...operation,
+    kind: "add",
+    source_tag: null,
+    target_tag: "published",
+    filters: { existing_tag: "draft", category: "writing", title_contains: "100%_ Ready" }
+  }
+  const body = render(TagAdmin, {
+    props: {
+      data: { access: "admin", operations: [addOperation] },
+      form: { preview: addPreview }
+    }
+  }).body
+  assert.match(body, /Confirm add tag/)
+  assert.match(body, /Add.*published/s)
+  assert.match(body, /100%_ Ready/)
+  assert.match(body, /all.*filters/i)
+  assert.match(body, /Undo this operation/)
+  assert.doesNotMatch(body, /null →/)
 })
