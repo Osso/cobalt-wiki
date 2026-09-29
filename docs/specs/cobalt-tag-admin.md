@@ -19,7 +19,7 @@ Site admins manage tags across currently live pages from a confirmed site-wide p
 ## How it works
 
 - Existing [page revisions](cobalt-page-metadata.md) and [site member authorization](cobalt-member-admin.md) define revision and actor behavior.
-- The [Site Manager](cobalt-site-manager.md) is the entry point; it links this local-only feature.
+- The [Site Manager](cobalt-site-manager.md) is the entry point.
 
 ## Implementation inventory
 
@@ -46,10 +46,14 @@ Local `deploy.sh` installed backend `c9820eb69`; running and built artifact SHA-
 - Frontend typecheck: 0 errors/warnings; scoped action tests: 7/7; scoped lint, formatting, and styles pass. Final browser fixture lint/format receipt: `/tmp/cobalt-tag-final-browser-style.log`.
 - Readability audit found no complexity violations. The straight-line apply/undo orchestration remains together to keep preflight-before-write ordering visible; line-count-only extraction suggestions were not adopted.
 
+## Production rollout
+
+Verified 2026-09-29 UTC: `install/dev-deploy.sh all` deployed `f77f6976e79a` (rename/merge/delete). Deepwell's installed SHA-256 matches the deploy artifact (`758f2d51…86f8675`); all 570 Framerail build files match. Services are active, post-start logs contain no startup/migration/tag errors, and anonymous preview/history are denied with 3106. Root, roster and the tag-admin sign-in screen return 200 with no browser errors. No production tag changes or authenticated admin operations were exercised. Receipt: `/tmp/cobalt-tag-production-verification.json`. No Sentry integration is configured; existing unrelated build warnings remain recorded there.
+
 ## Known gaps (current cycle)
 
-None for local acceptance. Production rollout is outside this implementation's verified scope.
+Bulk-add is under development; it is not included in the production revision above.
 
 ## Out of scope
 
-- Bulk add, automatic tagging rules, and deploying or running site-wide tag mutations against real content.
+- Automatic tagging rules and real-content site-wide mutations. Bulk-add production rollout requires separate authorization.

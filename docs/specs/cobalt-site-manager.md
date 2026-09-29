@@ -25,7 +25,7 @@ The imported Admin menu's `/_admin` entry must reach the native site administrat
 
 ## Known gaps (current cycle)
 
-- [ ] Public status is unchanged: tag management is locally deployed only; no public deployment or site-wide mutation proof exists. This screen links native site information, member administration, and tag management, not the complete legacy Site Manager suite.
+- [ ] This is not the complete legacy Site Manager suite. Tag rename/merge/delete rollout is recorded in the [tag-management production proof](cobalt-tag-admin.md#production-rollout); bulk-add remains under development.
 - [ ] Membership application review belongs in Site members, not this entry screen. Its locally integrated queue and verification status are documented in the [membership applications](cobalt-member-applications.md) spec.
 
 ## Out of scope
