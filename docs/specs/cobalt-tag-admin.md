@@ -71,6 +71,8 @@ After listing batching (`7f781806e`, same setup): 1,000-page apply 38 s, undo 39
 
 After bar deferral (`b60b8f48d`, same setup, job workers running): 1,000-page apply 3.7 s, undo 3.6 s (≈3.7 ms/page); the ≈1,000 queued bar rerenders drained in ≈60 s on three workers, and every fixture's latest revision had a rerendered bar and its original tags afterwards. Real page bodies render inline and were not measured; 5,925 one-line pages would take ≈22 s.
 
+Real pages (local `_completed`, 5,931 pages, `b60b8f48d`): undo took 449 s (≈76 ms/page, dominated by real body renders) once the queue was idle. The first undo, run while ≈5,900 queued bar rerenders were rendering on three workers, failed on one 22 KB page at the 2 s `render-timeout-ms` and rolled back entirely; the retry restored every page's exact tags. At ≈76 ms/page, operations up to roughly 1,300 real pages fit the ≈100 s Cloudflare limit.
+
 ## Out of scope
 
 - Automatic tagging rules and real-content site-wide mutations.
