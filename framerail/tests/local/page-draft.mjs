@@ -151,7 +151,7 @@ async function openEditor(page, slug) {
 async function chooseSavedDraft(page, label) {
   const dialog = page.getByRole("dialog", { name: "Saved draft" })
   await expect(dialog).toBeVisible()
-  await expect(page.locator('#editor [type="submit"]')).toBeDisabled()
+  await expect(page.locator('.editor-action-bar [type="submit"]')).toBeDisabled()
   await dialog.getByRole("button", { name: label, exact: true }).click()
   await expect(dialog).toHaveCount(0)
 }
@@ -168,7 +168,7 @@ async function publish(page) {
     (response) =>
       response.request().method() === "POST" && response.url().includes("?/edit")
   )
-  await page.locator('#editor [type="submit"]').click()
+  await page.locator('.editor-action-bar [type="submit"]').click()
   assert.equal((await responsePromise).status(), 200, "publish action HTTP status")
   await expect(page.locator("#editor")).toHaveCount(0)
 }
@@ -176,7 +176,7 @@ async function publish(page) {
 /** @param {import("@playwright/test").Page} page @param {string} label */
 async function cancelWithChoice(page, label) {
   await page
-    .locator("#editor")
+    .locator(".editor-action-bar")
     .getByRole("button", { name: "Cancel", exact: true })
     .click()
   const dialog = page.getByRole("dialog", { name: "Keep saved draft" })

@@ -151,7 +151,7 @@ async function createViaEditor(page, fixture) {
     (response) =>
       response.request().method() === "POST" && response.url().includes("?/edit")
   )
-  await editor.locator('[type="submit"]').click()
+  await editor.page().locator('.editor-action-bar [type="submit"]').click()
   assert.equal((await savedResponse).status(), 200, "authenticated create must succeed")
   await expect(editor).toHaveCount(0)
 }

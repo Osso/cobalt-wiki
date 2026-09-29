@@ -9,8 +9,7 @@
   import { toast } from "$lib/component/scripts/toasts"
   import { superForm } from "sveltekit-superforms"
   import { untrack } from "svelte"
-  import EditorPreview from "$lib/component/EditorPreview.svelte"
-  import EditorDraft from "$lib/component/EditorDraft.svelte"
+  import EditorActions from "$lib/component/EditorActions.svelte"
   import type { PageDraft, PageDraftRequest } from "$lib/server/deepwell/page-draft"
   import WikitextToolbar from "$lib/component/WikitextToolbar.svelte"
   import { lookupEditorPages } from "$lib/editor-lookup"
@@ -46,16 +45,9 @@
       ? { title, form_updates: content.formUpdates }
       : { title, wikitext: content.wikitext ?? "" }
   }
-  let draftControls = $state<{
-    cancel: (proceed: () => void) => void
-    canPublish: () => boolean
-  }>()
+  let actions = $state<EditorActions>()
   let showRestoreAction = $state<boolean>(false)
   let deletedPages = $state<PageDeletedGet[]>([])
-
-  function cancelCreate() {
-    draftControls?.cancel(leaveCreate)
-  }
 
   function restoreDraft(saved: PageDraft) {
     $editForm.title = saved.title
@@ -76,7 +68,7 @@
     {
       dataType: "json",
       onSubmit: async ({ jsonData, cancel }) => {
-        if (!draftControls?.canPublish()) {
+        if (!actions?.canPublish()) {
           cancel()
           return
         }
@@ -258,52 +250,19 @@
         />
         Do Not Notify Watchers
       </label>
-      {#if layout === Layout.WIKIDOT}
-        <div class="buttons" class:alignleft={createForm !== null}>
-          <input
-            class="btn btn-danger"
-            onclick={cancelCreate}
-            type="button"
-            value={errorData.internationalization?.cancel}
-          />
-          <input
-            class="btn btn-primary"
-            disabled={!draftControls?.canPublish()}
-            type="submit"
-            value={errorData.internationalization?.save}
-          />
-        </div>
-      {:else}
-        <div class="action-row editor-actions">
-          <button
-            class="action-button editor-button button-cancel clickable"
-            onclick={cancelCreate}
-            type="button"
-          >
-            {errorData.internationalization?.cancel}
-          </button>
-          <button
-            class="action-button editor-button button-save clickable"
-            disabled={!draftControls?.canPublish()}
-            type="submit"
-          >
-            {errorData.internationalization?.save}
-          </button>
-        </div>
-      {/if}
     </form>
-    <EditorPreview
-      getPayload={() => ({
+    <EditorActions
+      bind:this={actions}
+      cancelLabel={errorData.internationalization?.cancel}
+      getDraftPayload={draftPayload}
+      getPreviewPayload={() => ({
         ...draftPayload(),
         alt_title: $editForm.altTitle || null,
         tags: ($editForm.tags ?? "").split(/\s+/).filter(Boolean)
       })}
-    />
-    <EditorDraft
-      bind:this={draftControls}
-      getPayload={draftPayload}
-      loadOnMount
+      onCancel={leaveCreate}
       onRestore={restoreDraft}
+      saveLabel={errorData.internationalization?.save}
     />
   {:else}
     <div id="page-content">

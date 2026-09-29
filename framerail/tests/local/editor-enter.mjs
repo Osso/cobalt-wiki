@@ -121,7 +121,7 @@ async function login(context, fixture, password) {
 async function openEditor(page, slug) {
   await page.goto(`${origin}/${slug}/edit`, { waitUntil: "networkidle" })
   await expect(page.locator('#editor [name="title"]')).toBeVisible()
-  await expect(page.locator('#editor [type="submit"]')).toBeEnabled()
+  await expect(page.locator('.editor-action-bar [type="submit"]')).toBeEnabled()
   assert.equal(
     await page.getByRole("dialog", { name: "Saved draft" }).count(),
     0,
@@ -348,24 +348,43 @@ async function assertStructuredTitleGeometry(page) {
 
 /** @param {import("@playwright/test").Page} page */
 async function assertStructuredFooterGeometry(page) {
-  const editor = page.locator("#editor")
-  const table = editor.getByRole("table")
-  const cancel = editor.getByRole("button", { name: "Cancel", exact: true })
-  const save = editor.getByRole("button", { name: "Save", exact: true })
-  for (const control of [table, cancel, save]) await expect(control).toBeVisible()
+  const table = page.locator("#editor").getByRole("table")
+  const bar = page.locator(".editor-action-bar")
+  const names = ["Cancel", "Preview", "Save Draft", "Save"]
+  const buttons = names.map((name) => bar.getByRole("button", { name, exact: true }))
+  for (const control of [table, ...buttons]) await expect(control).toBeVisible()
   const tableBox = await table.boundingBox()
-  const cancelBox = await cancel.boundingBox()
-  const saveBox = await save.boundingBox()
-  assert.ok(tableBox && cancelBox && saveBox, "structured footer rectangles required")
+  const boxes = await Promise.all(buttons.map((button) => button.boundingBox()))
+  assert.ok(tableBox && boxes.every(Boolean), "structured footer rectangles required")
+  const [cancelBox, , , saveBox] = boxes
   const leftOffset = cancelBox.x - tableBox.x
   assert.ok(
     Math.abs(leftOffset - 2) <= 2,
     `Cancel must sit 2 ± 2 px from form table left; got ${leftOffset}`
   )
-  const centerOffset = cancelBox.y + cancelBox.height / 2 - saveBox.y - saveBox.height / 2
-  assert.ok(
-    Math.abs(centerOffset) <= 2,
-    `Cancel and Save must share a line; center offset ${centerOffset} px`
+  const center = (box) => box.y + box.height / 2
+  for (const [index, box] of boxes.entries()) {
+    const offset = center(box) - center(saveBox)
+    assert.ok(
+      Math.abs(offset) <= 2,
+      `${names[index]} must share Save's line; got ${offset}`
+    )
+  }
+  const xs = boxes.map((box) => box.x)
+  assert.deepEqual(
+    [...xs].sort((a, b) => a - b),
+    xs,
+    `actions ordered ${names.join(", ")}`
+  )
+  const [previewFill, saveFill] = await Promise.all(
+    [buttons[1], buttons[3]].map((button) =>
+      button.evaluate((element) => getComputedStyle(element).backgroundColor)
+    )
+  )
+  assert.notEqual(
+    saveFill,
+    previewFill,
+    "Save is visually distinct from secondary actions"
   )
 }
 
@@ -518,7 +537,7 @@ async function assertSaveEnter(page, slug, editCount) {
       new URL(outgoing.url()).pathname === `/${slug}/edit` &&
       new URL(outgoing.url()).search === "?/edit"
   )
-  await editor.locator('[type="submit"]').focus()
+  await editor.page().locator('.editor-action-bar [type="submit"]').focus()
   await page.keyboard.press("Enter")
   await requestPromise
   await expect.poll(editCount).toBe(1)
@@ -535,7 +554,9 @@ async function assertSaveEnter(page, slug, editCount) {
  */
 async function assertCancelEnter(page, editCount) {
   const editor = page.locator("#editor")
-  const cancel = editor.getByRole("button", { name: "Cancel", exact: true })
+  const cancel = page
+    .locator(".editor-action-bar")
+    .getByRole("button", { name: "Cancel", exact: true })
   await expect(cancel).toBeVisible()
   await cancel.focus()
   await page.keyboard.press("Enter")

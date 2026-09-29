@@ -8,8 +8,7 @@
   import { untrack } from "svelte"
 
   import DataFormFields from "$lib/component/DataFormFields.svelte"
-  import EditorPreview from "$lib/component/EditorPreview.svelte"
-  import EditorDraft from "$lib/component/EditorDraft.svelte"
+  import EditorActions from "$lib/component/EditorActions.svelte"
   import type { PageDraft, PageDraftRequest } from "$lib/server/deepwell/page-draft"
   import WikitextToolbar from "$lib/component/WikitextToolbar.svelte"
   import { lookupEditorPages, lookupEditorAttachments } from "$lib/editor-lookup"
@@ -24,10 +23,7 @@
   const sourceForm = untrack(() => data.form)
   let draft = $state(sourceForm ? createDraft(sourceForm) : {})
   let sourceTextarea = $state<HTMLTextAreaElement>()
-  let draftControls = $state<{
-    cancel: (proceed: () => void) => void
-    canPublish: () => boolean
-  }>()
+  let actions = $state<EditorActions>()
   let restoredForm = $state<{ source: string; form: PageForm }>()
 
   function editorContent() {
@@ -67,10 +63,6 @@
     $form.wikitext = saved.wikitext
   }
 
-  function requestCancel() {
-    draftControls?.cancel(cancelEdit)
-  }
-
   function cancelEdit() {
     const options: string[] = Object.entries({
       norender: data.options.no_render,
@@ -89,7 +81,7 @@
     {
       dataType: "json",
       onSubmit: async ({ jsonData, cancel }) => {
-        if (!draftControls?.canPublish()) {
+        if (!actions?.canPublish()) {
           cancel()
           return
         }
@@ -209,62 +201,23 @@
     />
     Do Not Notify Watchers
   </label>
-  {#if pageLayoutState.current === Layout.WIKIDOT}
-    <div class="buttons alignleft">
-      <input
-        name="cancel"
-        class="btn btn-danger"
-        onclick={requestCancel}
-        type="button"
-        value={data.internationalization?.cancel}
-      />
-      <input
-        name="save"
-        class="btn btn-primary"
-        disabled={!draftControls?.canPublish()}
-        type="submit"
-        value={data.internationalization?.save}
-      />
-    </div>
-  {:else}
-    <div class="action-row editor-actions">
-      <button
-        class="action-button editor-button button-cancel clickable"
-        onclick={requestCancel}
-        type="button"
-      >
-        {data.internationalization?.cancel}
-      </button>
-      <button
-        class="action-button editor-button button-save clickable"
-        disabled={!draftControls?.canPublish()}
-        type="submit"
-      >
-        {data.internationalization?.save}
-      </button>
-    </div>
-  {/if}
 </form>
 
-<EditorPreview
-  getPayload={() => ({
+<EditorActions
+  bind:this={actions}
+  cancelLabel={data.internationalization?.cancel}
+  getDraftPayload={draftPayload}
+  getPreviewPayload={() => ({
     ...draftPayload(),
     alt_title: $form.altTitle || null,
     tags: ($form.tags ?? "").split(/\s+/).filter(Boolean)
   })}
-/>
-<EditorDraft
-  bind:this={draftControls}
-  getPayload={draftPayload}
-  loadOnMount
+  onCancel={cancelEdit}
   onRestore={restoreDraft}
+  saveLabel={data.internationalization?.save}
 />
 
 <style lang="scss">
-  .editor-actions {
-    padding: 0 0 2em;
-  }
-
   .editor {
     display: flex;
     flex-direction: column;

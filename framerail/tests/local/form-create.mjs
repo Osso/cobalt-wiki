@@ -79,7 +79,7 @@ test("NewPage creates a character through the category form", async () => {
       (response) =>
         response.request().method() === "POST" && response.url().includes("?/edit")
     )
-    await editor.locator('[type="submit"]').click()
+    await editor.page().locator('.editor-action-bar [type="submit"]').click()
     assert.equal((await saved).status(), 200, "create must succeed")
     await page.waitForURL(new RegExp(`/${slug}$`))
 

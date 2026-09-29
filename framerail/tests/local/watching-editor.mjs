@@ -121,7 +121,7 @@ async function assertEditorSendsWatcherChoice(page, slug, structured, blockedWri
   })
   await expect(checkbox).toHaveCount(1)
   await expect(checkbox).not.toBeChecked()
-  const submit = page.locator('#editor [type="submit"]')
+  const submit = page.locator('.editor-action-bar [type="submit"]')
   for (const suppress of [false, true]) {
     // Each aborted save opens the application's error dialog. A new document
     // isolates the next choice without dismissing or saving any draft.

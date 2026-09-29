@@ -58,7 +58,7 @@ async function saveEditor(page, slug) {
       response.url().includes(`/${slug}/edit`) &&
       response.url().includes("?/edit")
   )
-  await page.locator('#editor [type="submit"]').click()
+  await page.locator('.editor-action-bar [type="submit"]').click()
   assert.equal((await responsePromise).status(), 200, `${slug} save status`)
   await expect(page.locator("#editor")).toHaveCount(0)
 }

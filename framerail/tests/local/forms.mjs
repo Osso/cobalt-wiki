@@ -284,7 +284,7 @@ test("authenticated data-form edit persists typed values without dropping untouc
         (response) =>
           response.request().method() === "POST" && response.url().includes("?/edit")
       )
-      await editor.locator('[type="submit"]').click()
+      await editor.page().locator('.editor-action-bar [type="submit"]').click()
       assert.equal((await savedResponse).status(), 200, "authorized save must succeed")
       await expect(editor).toHaveCount(0)
       const saved = await readPage(context.request, fixture, sessionToken)

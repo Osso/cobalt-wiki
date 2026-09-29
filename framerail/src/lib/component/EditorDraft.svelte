@@ -150,14 +150,17 @@
 
 <button
   id="edit-save-draft-button"
+  class="editor-action"
   disabled={!loaded || pending || choice === "restore"}
   onclick={saveDraft}
   type="button"
 >
   {pending ? "Working…" : "Save Draft"}
 </button>
-{#if message}<p role="status">{message}</p>{/if}
-{#if errorMessage}<p role="alert">{errorMessage}</p>{/if}
+{#if message}<p class="editor-action-status" role="status">{message}</p>{/if}
+{#if errorMessage}<p class="editor-action-status error" role="alert">
+    {errorMessage}
+  </p>{/if}
 {#if choice === "restore" && draft}
   <dialog bind:this={prompt} aria-label="Saved draft" oncancel={() => (choice = null)}>
     <p>A saved draft exists. Choose which version to edit.</p>
