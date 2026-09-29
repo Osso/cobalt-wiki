@@ -61,6 +61,8 @@ Anonymous proof: a cookie-free `GET https://cobalt-company.sakuin.org/-/admin/ta
 
 Progress indicator, verified 2026-09-29 UTC: `install/dev-deploy.sh framerail` deployed `c8e9f6d74` (`/tmp/claude/tag-progress-prod-deploy.log`); `rsync -rnc` shows zero build differences and both services are active. Signed in as `cobalt-import` on `https://cobalt-company.sakuin.org/-/admin/tags`, a held delete preview of an unused random tag showed `Finding affected pages…`, a disabled submit, and ticking seconds, then `Preview: 0 pages` with no confirm button. No tag mutation was made.
 
+Listing batching and deferred bars, verified 2026-09-29 UTC: production Deepwell reports `603f7af7a` (active since 08:45 UTC, deployed by a concurrent session), which contains `7f781806e` and `b60b8f48d`. No production bulk tag operation was run to measure them.
+
 ## Known gaps (current cycle)
 
 Bulk-add is deployed, but no production add operation or authenticated admin workflow was exercised. No Sentry integration evidence exists.
