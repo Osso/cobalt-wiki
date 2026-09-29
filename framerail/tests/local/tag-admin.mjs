@@ -86,7 +86,7 @@ async function login(context, passwordPath) {
 /** @param {Actor} actor @param {number} index @returns {Promise<Fixture>} */
 async function createFixture(actor, index) {
   const slug = `local-tag-admin-proof:page-${index}-${nonce}`
-  const tags = index ? [source, target, kept] : [source, kept]
+  const tags = index ? [source, target, target, kept] : [source, kept]
   const created = await rpc(actor.request, actor.token, "page_import", {
     site_id: siteId,
     slug,
