@@ -29,6 +29,7 @@ Site admins manage tags across currently live pages from a confirmed site-wide p
 
 - `deepwell/src/services/site_tag_admin.rs`, `deepwell/src/endpoints/site_tag_admin.rs`, `deepwell/src/api.rs` — site-scoped operations and RPC registration.
 - `deepwell/src/services/page/service.rs`, `deepwell/src/services/import/service.rs` — ordinary and imported page changes serialize with bulk operations before reading revisions.
+- `deepwell/src/services/outdate.rs` (`outdate_listings_once`), `deepwell/src/services/context.rs` — bulk apply/add/undo collect each page's listing states and outdate listings with one site listing read after the edit loop.
 - `deepwell/migrations/20260928000000_site_tag_operation.sql`, `deepwell/migrations/20260929000000_site_tag_add.sql` — operation/page reversal records and typed add history.
 - `deepwell/src/error/error_type.rs` — dedicated conflict codes.
 - `framerail/src/routes/[x+2d]/admin/tags/+page.server.ts`, `framerail/src/routes/[x+2d]/admin/tags/+page.svelte` — form actions, confirmation UI, and operation history.
@@ -37,6 +38,7 @@ Site admins manage tags across currently live pages from a confirmed site-wide p
 ## Tests asserting this spec
 
 - `deepwell/tests/site_tag_admin.rs` — isolated real-DB authorization (including member and restricted-session denial), merge/deletion/add, AND filters with `_default` and literal title matching, preview and later-edit conflicts, draft preservation, locked apply/undo atomicity, and serialization with ordinary edits/imports. Current targeted suite: 13/13 at backend `f74ad6a6d`, test revision `1bebf777d` (`/tmp/cobalt-tag-add-green6.log`).
+- `deepwell/tests/page_listing_invalidation.rs` `site_tag_changes_rerender_every_listing_that_could_show_changed_pages` — bulk rename/add queue every listing that can show changed pages (including an edited page listing another edited page) and not unrelated listings; 1/1 before and after the batching change at `7f781806e` (`/tmp/claude/listing-batch-baseline.log`, `/tmp/claude/listing-batch-green-site_tag_changes.log`); `site_tag_admin` 13/13 at `7f781806e` (`/tmp/claude/site-tag-admin-green.log`).
 - `framerail/tests/tag-admin.test.ts` — 11/11 action/rendering tests for `d3a4ad897`; the four affected bulk-add cases passed again at `1dd3f7d4b`. They cover literal filter forwarding, required filter validation, confirmed snapshot forwarding, and add-history preview/undo (`/tmp/cobalt-tag-add-ui-green.log`, `/tmp/cobalt-tag-add-ui-correction-green.log`).
 - `framerail/tests/local/tag-admin.mjs` — local browser fixtures: 2/2 at backend `6ee6f7dc3` / frontend `4e31dc6b7` (`/tmp/claude/tag-progress-green.log`); the rename apply is held in the browser to assert the in-flight label, disabled confirm, and ticking elapsed time (fails against the prior `Working…` page: `/tmp/claude/tag-progress-red.log`); retained rename/delete/undo and bulk add verify AND selection, literal `%`/`_` title matching, source/category exclusions, already-tagged exclusion, history filters, undo, content preservation, and cleanup (`/tmp/cobalt-tag-add-browser-green.log`).
 
@@ -63,6 +65,8 @@ Progress indicator, verified 2026-09-29 UTC: `install/dev-deploy.sh framerail` d
 Bulk-add is deployed, but no production add operation or authenticated admin workflow was exercised. No Sentry integration evidence exists.
 
 Throughput (measured 2026-09-29, local replica data, prod-identical optimized backend `60d7abaf6`, 1,000 one-line fixture pages): apply 56–73 s and undo 60–74 s, ≈0.06–0.07 s/page, all in one request holding the site tag lock that ordinary edits and imports wait on. Per page: nav top bar re-render 39 ms (`nav:top` includes `:snippets:suo` showto), full-site `page_listing` scan in `outdate_listings` 26 ms (6,668 listings re-read and JSON-decoded per edit), other work ≈6 ms, fixture body render 0.7 ms (real bodies not measured). Implied: 5,925 pages ≈ 6–7 min, exceeding Cloudflare's usual 100 s origin timeout (inferred, not tested) and Node fetch's 300 s default between Framerail and Deepwell. Timing instrumentation patch: `/tmp/claude/tag-apply-profiling.patch` (not committed). The unrelated wildcard-language limitation is tracked in [Site Manager gaps](cobalt-site-manager.md#known-gaps-current-cycle).
+
+After listing batching (`7f781806e`, same setup): 1,000-page apply 38 s, undo 39 s (≈38 ms/page); 5,925 pages ≈ 3.8 min, still over both timeouts. The remainder is the per-page `nav:top` render: its two `ListPages` modules (`tag="guild-canon -_nav-omit"`, `tag="resource -_nav-omit"`) each load every live page of the site (`SiteListing::load`, 44 ms query on 7,120 pages), plus a `showto` include. Rendering the bar once per operation is unsafe: its listings depend on tags the operation itself changes, and navigation wikitext may read the rendered page's info.
 
 ## Out of scope
 
