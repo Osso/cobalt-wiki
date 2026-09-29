@@ -33,7 +33,23 @@ deploy_deepwell() {
 	ssh "$HOST" "mv $APP/deepwell/deepwell.new $APP/deepwell/deepwell && systemctl restart cobalt-wiki-deepwell"
 }
 
+# pnpm run through a symlinked node_modules can write package links whose
+# literal targets climb out of the tree; they resolve locally but not on the
+# host. Compare targets lexically, since resolving symlinks hides the escape.
+check_node_modules_links() {
+	local modules escaped
+	modules="$(realpath "$ROOT/framerail/node_modules")"
+	escaped="$(find "$modules/" -type l -printf '%h/%l\n' | xargs -r -d '\n' realpath -ms |
+		grep -v "^$modules/" || true)"
+	if [[ -n "$escaped" ]]; then
+		echo "node_modules links point outside $modules; reinstall from the real path:" >&2
+		head -5 <<<"$escaped" >&2
+		exit 1
+	fi
+}
+
 deploy_framerail() {
+	check_node_modules_links
 	(cd "$ROOT/framerail" && shell pnpm --config.verify-deps-before-run=false run build)
 	ssh "$HOST" "install -d -o cobalt-wiki -g cobalt-wiki -m 0700 $APP $APP/framerail"
 	# Dependencies change rarely; resend them only when the lockfile does.
