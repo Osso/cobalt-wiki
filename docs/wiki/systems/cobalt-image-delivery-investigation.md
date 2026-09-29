@@ -33,7 +33,7 @@ All **55 browser 502 URLs** have a corresponding tunnel-origin read failure in t
 Two capacity constraints are evidenced:
 
 - Nginx logged `256 worker_connections are not enough` during roster/class loading. Connections to upstreams consume this budget too; it is not simply a count of browser tabs.
-- Deepwell uses `jsonrpsee-server` 0.26.0 without overriding its **100-connection default**. That library returns HTTP 429 when no connection permit remains. WWS connects directly to Deepwell's loopback port. This is connection admission/backpressure, not an established per-second rate limit.
+- At incident time, Deepwell used `jsonrpsee-server` 0.26.0's default **100 active HTTP request permits**. The library acquires a permit per HTTP request and releases it after the response; idle HTTP keep-alives do not consume this budget. Exhaustion returns HTTP 429. WWS connects directly to Deepwell's loopback port. This is concurrent request admission, not a per-second rate limit.
 
 The exact low-level cause of each gateway EOF/reset remains unproven. In particular, the earlier Nginx alerts do not by themselves explain the later pet-icon burst. No new burst was generated to force the failure.
 
@@ -41,7 +41,11 @@ The exact low-level cause of each gateway EOF/reset remains unproven. In particu
 
 On 2026-09-29, Sakuin `61f8478` pinned Cobalt `603f7af7ad97` through `ops/deploy.sh`; readiness returned 200. `install/dev-deploy.sh deepwell` then completed with exit 0 for release `603f7af7ad97`. The host now uses `/nix/store/q15xqrdlkfm5fnwqd334arzhawbxqkca-nixos-system-sakuin-digital-ocean-26.05.20260606.9b69646`.
 
-Only the gateway unit changed substantively. Sync `PYTHONPATH` package changes only added unused `wikidot_avatars.py`; the existing importer is byte-identical, and no other service units changed. Production browser proof and independent verification remain pending. This rollout evidence does not attribute all historical image failures to capacity.
+Only the gateway unit changed substantively. Sync `PYTHONPATH` package changes only added unused `wikidot_avatars.py`; the existing importer is byte-identical, and no other service units changed. Independent verification remains pending. This rollout evidence does not attribute all historical image failures to capacity.
+
+Ordinary fresh-context browser loads at 08:47:16–08:47:25 UTC returned 200 for `/roster-by-race` and `/pet-icons`. Across 509 image requests (305 roster, 204 pet), there were no 5xx, transport failures, pending images, page errors or safety-budget stops. All 205 pet image elements decoded; the roster retained two existing missing-file 404s (`icon_emdee.jpg`, `icon_valentine.jpg`). The corresponding gateway/WWS/Deepwell log window contained no matched capacity/reset errors; the active tunnel unit logged no entries. This bounded sample is not a stress test or reliability guarantee.
+
+Live gateway configuration uses 1,024 slots and file-descriptor limits 2,048 soft / 524,288 hard. Deployed Deepwell SHA-256 matches the locally built release: `5b02c5d87897b7763393b58ed1cabf5651a674f0631b5bb2b37c5106128a7bc4`. [Capacity contract and local regressions](../../specs/cobalt-image-connections.md).
 
 ## Ruled-out and unproven explanations
 
@@ -75,5 +79,6 @@ Protected comparison directory:
 - `comparison-final.csv`, `comparison-final.json`, `final-summary.json` — per-file outcome and SHA-256 comparison; `decoded-image-dimensions.json` and `offline-image-decode.log` retain the additional offline decode check.
 - `cloudflared-incident.log`, `tunnel-file-correlation.json`, `incident-logs/` — filename/timestamp correlation and WWS/gateway evidence.
 - `deployed-wws-provenance.json`, `wws-build-source-path.txt`, `wws-runtime-sanitized.json` — running artifact, actual source and loopback endpoint.
+- `capacity-fix/` — local RED/GREEN receipts, rollout differences, and bounded post-deploy browser/network/server-log evidence.
 
 Independent comparison/incident audit: `run/final-verification.md` (PASS for the stated comparison and attribution limits). `decode-proof-path-clarification.md` corrects its optional addendum's path without changing the verified byte-comparison result.

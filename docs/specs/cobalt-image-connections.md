@@ -9,7 +9,7 @@ Ordinary image-heavy pages must fit the gateway and internal RPC admission budge
 - [x] Gateway forwarding still supplies the trusted site ID and removes client-supplied Authorization and user-ID headers.
 - [x] Deepwell admits 512 concurrent active HTTP RPC calls, rejects an additional active call with 429, and accepts calls again after capacity is released. Idle HTTP keep-alives do not consume this request-admission budget.
 - [x] Owning production configuration and app deployment apply these settings.
-- [ ] Ordinary roster and pet-icon browser checks show no connection-related image 5xx in the bounded post-deploy sample; independent final verification is also pending.
+- [x] Ordinary roster and pet-icon browser checks show no connection-related image 5xx in the bounded post-deploy sample (509 image requests; two unrelated existing 404s).
 
 ## How it works
 
@@ -32,7 +32,7 @@ Ordinary image-heavy pages must fit the gateway and internal RPC admission budge
 
 ## Known gaps (current cycle)
 
-- [ ] Complete bounded production browser proof and final independent verification. The owning host/app rollout is complete; only the gateway unit changed substantively. Sync `PYTHONPATH` package changes only added unused `wikidot_avatars.py`; the existing importer is byte-identical and no other service units changed.
+- [ ] Complete final independent verification. Host/app rollout and bounded browser proof are recorded in the [investigation](../wiki/systems/cobalt-image-delivery-investigation.md#capacity-rollout-status).
 - [ ] These finite budgets do not guarantee arbitrary concurrent traffic. The isolated reproduction establishes the connection-reclamation failure mechanism, not the exact state of every historical socket.
 
 ## Out of scope
