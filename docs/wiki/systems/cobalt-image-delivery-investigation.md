@@ -6,7 +6,7 @@ Follow-up to the [production crawl](cobalt-page-performance-crawl.md), limited t
 
 ## Were the original images missing?
 
-**All 56 original full-size files were retrieved successfully and are byte-for-byte identical to the replica copies.** SHA-256 was recomputed from downloaded bodies, not inferred from matching filenames or HTTP 200 alone. All replica responses were valid JPEGs. The original `icons` and `pet-icons` HTML referenced every affected filename.
+**All 56 original full-size files were retrieved successfully and are byte-for-byte identical to the replica copies.** SHA-256 was recomputed from downloaded bodies, not inferred from matching filenames or HTTP 200 alone. All saved replica bodies also decoded successfully offline as 144×144 JPEGs. The original `icons` and `pet-icons` HTML referenced every affected filename.
 
 Wikidot's pages display resized `thumbnail.jpg` URLs, whereas the underlying originals are separate `local--files` URLs. Both representations were checked:
 
@@ -66,6 +66,8 @@ Protected comparison directory:
 
 - `comparison.jsonl`, source/replica response headers and bodies — initial attempts, including source failures.
 - `source-browser-rechecks.json`, `source-original-recovery-results.json`, `recovered-source-*.body` — browser follow-ups and recovered original bytes.
-- `comparison-final.csv`, `comparison-final.json`, `final-summary.json` — per-file outcome and SHA-256 comparison.
+- `comparison-final.csv`, `comparison-final.json`, `final-summary.json` — per-file outcome and SHA-256 comparison; `decoded-image-dimensions.json` and `offline-image-decode.log` retain the additional offline decode check.
 - `cloudflared-incident.log`, `tunnel-file-correlation.json`, `incident-logs/` — filename/timestamp correlation and WWS/gateway evidence.
 - `deployed-wws-provenance.json`, `wws-build-source-path.txt`, `wws-runtime-sanitized.json` — running artifact, actual source and loopback endpoint.
+
+Independent comparison/incident audit: `run/final-verification.md` (PASS for the stated comparison and attribution limits). `decode-proof-path-clarification.md` corrects its optional addendum's path without changing the verified byte-comparison result.
