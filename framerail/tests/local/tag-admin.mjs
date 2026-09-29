@@ -329,14 +329,12 @@ async function createAddFixtures(actor, fixtures) {
 
 /** @param {BrowserPage} page @param {TagOperation} operation */
 async function undoAddition(page, operation) {
-  const article = page
-    .locator("article")
-    .filter({
-      has: page.getByRole("heading", {
-        name: `#${operation.operation_id}: Add ${target}`,
-        exact: true
-      })
+  const article = page.locator("article").filter({
+    has: page.getByRole("heading", {
+      name: `#${operation.operation_id}: Add ${target}`,
+      exact: true
     })
+  })
   await article.getByText("Undo this operation", { exact: true }).click()
   await article
     .getByRole("button", { name: `Confirm undo #${operation.operation_id}`, exact: true })

@@ -132,7 +132,9 @@ function readAddition(form: FormData): TagAddSelection {
   const existing_tag = formText(form, "existingTag").trim() || null
   const category = formText(form, "category").trim() || null
   const title_contains = formText(form, "titleContains").trim() || null
-  if (!isSingleTag(tag) || (existing_tag !== null && !isSingleTag(existing_tag))) {
+  const validTag = isSingleTag(tag)
+  const validExistingTag = existing_tag === null || isSingleTag(existing_tag)
+  if (!validTag || !validExistingTag) {
     throw new InvalidTagForm(
       "Enter one tag to add and, if filtering by tag, one existing tag. Tags cannot contain spaces."
     )

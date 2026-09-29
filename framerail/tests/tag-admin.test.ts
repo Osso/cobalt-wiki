@@ -267,12 +267,13 @@ test("bulk-add preview sends all filters literally and never mutates", async () 
 })
 
 test("bulk-add requires a tag and at least one filter, blank optional filters become null", async () => {
-  for (const fields of [
+  const invalidSelections: Record<string, string>[] = [
     { operation: "add", tag: "new" },
     { operation: "add", tag: "two tags", category: "writing" },
     { operation: "add", tag: "new", category: "   " },
     { operation: "add", tag: "new", existingTag: "two tags" }
-  ]) {
+  ]
+  for (const fields of invalidSelections) {
     const result = await submit("preview", fields, deny)
     assert.equal(result.value.status, 400)
     assert.equal(tagCalls(result.calls).length, 0)
