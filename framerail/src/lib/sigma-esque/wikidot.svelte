@@ -255,12 +255,17 @@
 
   // Replace the theme's 1em hanging indent with block links, so each row's
   // highlight spans the menu width and items get even padding.
+  // Size each menu to its longest item. Wikidot's base style.css fixes menu
+  // links at 10em (#top-bar li ul li a), which wraps longer labels.
   #header #top-bar li:not(li li) > ul {
+    width: max-content;
+    min-width: 100%;
     padding-block: 4px;
     background-color: $tab-fill;
   }
 
   #header #top-bar ul li ul li {
+    width: auto;
     padding: 0;
     text-indent: 0;
     background-color: transparent;
@@ -268,8 +273,10 @@
 
   #header #top-bar ul li ul a {
     display: block;
+    width: auto;
     padding: 5px 14px;
     color: #10254f;
+    white-space: nowrap;
     background-color: transparent;
   }
 
