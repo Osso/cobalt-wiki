@@ -204,13 +204,24 @@
     }
   }
 
+  // Line up with #main-content, which the site theme insets 10px per side;
+  // the theme's license-area min-width would push it back to 1000px.
+  #container #footer,
+  #container #license-area {
+    min-width: 0;
+    margin-inline: 10px;
+  }
+
+  // The site theme's gray top/bottom rules fade out at the rounded corners.
   #container #footer {
     padding: 0.5em 1em;
+    border: 0;
     border-radius: 6px 6px 0 0;
   }
 
   #container #license-area {
     padding: 0.4em 1em 0.6em;
+    border-top: 1px solid rgb(255 255 255 / 12%);
     border-radius: 0 0 6px 6px;
   }
 
