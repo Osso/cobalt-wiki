@@ -56,6 +56,8 @@ Verified 2026-09-29 UTC: `install/dev-deploy.sh all` deployed `ac963e66eb46b1530
 
 Anonymous proof: a cookie-free `GET https://cobalt-company.sakuin.org/-/admin/tags` returned 200, while cookie-free JSON-RPC `site_tag_add_preview` and `site_tag_add_apply` both returned `PermissionDenied` 3106. No authenticated tag mutation or authenticated admin workflow was exercised. No Sentry integration is configured, so no Sentry-clean claim is made. Receipt: `/tmp/cobalt-tag-add-production-verification.json`; deploy log: `/tmp/cobalt-tag-add-production-deploy.log`.
 
+Progress indicator, verified 2026-09-29 UTC: `install/dev-deploy.sh framerail` deployed `c8e9f6d74` (`/tmp/claude/tag-progress-prod-deploy.log`); `rsync -rnc` shows zero build differences and both services are active. Signed in as `cobalt-import` on `https://cobalt-company.sakuin.org/-/admin/tags`, a held delete preview of an unused random tag showed `Finding affected pages…`, a disabled submit, and ticking seconds, then `Preview: 0 pages` with no confirm button. No tag mutation was made.
+
 ## Known gaps (current cycle)
 
 Bulk-add is deployed, but no production add operation or authenticated admin workflow was exercised. No Sentry integration evidence exists. The unrelated wildcard-language limitation is tracked in [Site Manager gaps](cobalt-site-manager.md#known-gaps-current-cycle).
