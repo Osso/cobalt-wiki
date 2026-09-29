@@ -4,6 +4,8 @@ verified: 2026-09-29 UTC
 
 Production `cobalt-company.sakuin.org`. Read-only investigation, ordinary anonymous page visits, no image/CDN/gateway changes or broad rerender sweep. Small samples from one desktop Chromium instance, not percentiles or a load test. The measurements below predate the selected [compiled-render identity](../../specs/cobalt-render-identity.md) rollout unless noted.
 
+The later [site-wide crawl](cobalt-page-performance-crawl.md) covers every live-page URL and a broader browser sample; the measurements below remain the earlier baseline.
+
 ## Observations
 
 | Layer | Measured result | Interpretation |
