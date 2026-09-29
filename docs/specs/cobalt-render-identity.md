@@ -23,6 +23,7 @@ Stored HTML is reused while its rendering-input identity remains current. `deepw
 - `deepwell/src/services/render/service.rs` — required `DEEPWELL_RENDER_ID` as `render-inputs-v1:<hash>`, without a commit-based alternate path.
 - `install/dev-deploy.sh` — Git revision remains a deployment label, not a renderer identity override.
 - `install/nixos/packages.nix` — keep locales beside the backend in package source so the same build script sees both.
+- `install/{local,dev,prod}/deepwell/Dockerfile`, `install/local/docker-compose.dev.yaml` — provide the same sibling locale input and mounted helper in container builds; generated dependency copies live under `.cargo/vendor`, outside authored render inputs.
 
 ## Tests asserting this spec
 

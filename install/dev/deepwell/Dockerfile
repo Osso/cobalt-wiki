@@ -14,13 +14,14 @@ RUN cargo install sqlx-cli --no-default-features --features rustls,postgres
 # Copy source
 RUN mkdir /src
 COPY ./deepwell /src/deepwell
+COPY ./locales /src/locales
 WORKDIR /src/deepwell
 
 # Adjust seeder files for dev
 RUN patch /src/deepwell/seeder/sites.json /src/deepwell/seeder/sites.dev.patch
 
 # Cache rust dependencies
-RUN mkdir .cargo && cargo vendor > .cargo/config.toml
+RUN mkdir .cargo && cargo vendor .cargo/vendor > .cargo/config.toml
 
 # Build deepwell server
 RUN cargo build --release

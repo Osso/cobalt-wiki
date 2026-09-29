@@ -11,6 +11,10 @@ services:
         target: /src/deepwell/build.rs
         read_only: true
       - type: bind
+        source: ../../deepwell/render_identity.rs
+        target: /src/deepwell/render_identity.rs
+        read_only: true
+      - type: bind
         source: ../../deepwell/Cargo.toml
         target: /src/deepwell/Cargo.toml
         read_only: true
@@ -31,7 +35,11 @@ services:
       - type: bind
         source: ../../install/local/deepwell/config.toml
         target: /etc/deepwell.toml
-      # Translation data
+      # Translation data: identical inputs for builds and runtime localization.
+      - type: bind
+        source: ../../locales
+        target: /src/locales
+        read_only: true
       - type: bind
         source: ../../locales
         target: /opt/locales

@@ -11,10 +11,11 @@ RUN apt install -y build-essential libmagic-dev pkg-config
 # Copy source
 RUN mkdir /src
 COPY ./deepwell /src/deepwell
+COPY ./locales /src/locales
 WORKDIR /src/deepwell
 
 # Cache rust dependencies
-RUN mkdir .cargo && cargo vendor > .cargo/config.toml
+RUN mkdir .cargo && cargo vendor .cargo/vendor > .cargo/config.toml
 
 # Build deepwell server
 RUN cargo build --release
