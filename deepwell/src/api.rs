@@ -362,6 +362,8 @@ async fn build_module(app_state: ServerState) -> Result<RpcModule<ServerState>> 
     register!("member_admin_remove", member_admin_remove);
     register!("member_admin_invite", member_admin_invite);
 
+    register!("site_tag_add_preview", site_tag_add_preview);
+    register!("site_tag_add_apply", site_tag_add_apply);
     register!("site_tag_preview", site_tag_preview);
     register!("site_tag_apply", site_tag_apply);
     register!("site_tag_history", site_tag_history);

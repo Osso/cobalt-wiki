@@ -522,6 +522,22 @@ async fn non_admin_cannot_preview_apply_read_history_or_undo() {
         assert_contains_error!(
             run_endpoint_err!(
                 runner,
+                site_tag_add_preview,
+                json!({"tag":"new","existing_tag":"source","category":null,"title_contains":null})
+            ),
+            ErrorType::PermissionDenied
+        );
+        assert_contains_error!(
+            run_endpoint_err!(
+                runner,
+                site_tag_add_apply,
+                json!({"tag":"new","existing_tag":"source","category":null,"title_contains":null,"preview_token":"a","ip_address":common::IP_ADDRESS})
+            ),
+            ErrorType::PermissionDenied
+        );
+        assert_contains_error!(
+            run_endpoint_err!(
+                runner,
                 site_tag_preview,
                 json!({"source_tag":"source","target_tag":null})
             ),
@@ -546,6 +562,241 @@ async fn non_admin_cannot_preview_apply_read_history_or_undo() {
                 json!({"operation_id":1,"ip_address":common::IP_ADDRESS})
             ),
             ErrorType::PermissionDenied
+        );
+    }
+}
+
+#[tokio::test]
+async fn add_filters_and_literal_title_match_only_live_untagged_pages() {
+    let mut runner = TestRunner::setup().await;
+    let site = site_id(&runner).await;
+    let selected = page(&runner, site, "add-one", &["source", "other"]).await;
+    let already = page(&runner, site, "add-two", &["source", "new"]).await;
+    let other_category = page(&runner, site, "other:add-three", &["source"]).await;
+    let no_source = page(&runner, site, "add-four", &["other"]).await;
+    let initial_revision =
+        PageService::get(runner.context(), site, Reference::Id(selected))
+            .await
+            .unwrap()
+            .latest_revision_id
+            .unwrap();
+    runner.set_request_context(RequestContext {
+        site_id: Some(site),
+        user_id: Some(ADMIN_USER_ID),
+        page_reference: Some(Reference::Id(selected)),
+        ..Default::default()
+    });
+    run_endpoint!(
+        runner,
+        page_draft_save,
+        json!({
+            "title":"Private draft", "wikitext":"Unpublished revision", "last_revision_id":initial_revision
+        })
+    );
+    act_as(&mut runner, site, Some(ADMIN_USER_ID));
+    let preview = run_endpoint!(
+        runner,
+        site_tag_add_preview,
+        json!({"tag":" NEW ","existing_tag":null,"category":"_default","title_contains":"ADD-"})
+    );
+    assert_eq!(preview.count, 2);
+    assert_eq!(
+        preview.pages.iter().map(|p| p.page_id).collect::<Vec<_>>(),
+        vec![selected, no_source]
+    );
+    // Every filter combines with AND, and already-tagged pages are omitted.
+    let preview = run_endpoint!(
+        runner,
+        site_tag_add_preview,
+        json!({"tag":"new","existing_tag":"source","category":"_default","title_contains":"ADD-"})
+    );
+    assert_eq!(
+        preview.pages.iter().map(|p| p.page_id).collect::<Vec<_>>(),
+        vec![selected]
+    );
+    let applied = run_endpoint!(
+        runner,
+        site_tag_add_apply,
+        json!({"tag":"new","existing_tag":"source","category":"_default","title_contains":"ADD-","preview_token":preview.preview_token,"ip_address":common::IP_ADDRESS})
+    );
+    assert_eq!(applied.count, 1);
+    assert_eq!(
+        tags(&runner, site, selected).await,
+        ["source", "other", "new"]
+    );
+    assert_eq!(tags(&runner, site, already).await, ["source", "new"]);
+    assert_eq!(tags(&runner, site, other_category).await, ["source"]);
+    let history = run_endpoint!(runner, site_tag_history);
+    let operation = serde_json::to_value(&history[0]).unwrap();
+    assert_eq!(operation["kind"], "add");
+    assert!(operation["source_tag"].is_null());
+    assert_eq!(operation["target_tag"], "new");
+    assert_eq!(
+        operation["filters"],
+        json!({"existing_tag":"source","category":"_default","title_contains":"ADD-"})
+    );
+    run_endpoint!(
+        runner,
+        site_tag_undo,
+        json!({"operation_id":applied.operation_id,"ip_address":common::IP_ADDRESS})
+    );
+    assert_eq!(tags(&runner, site, selected).await, ["source", "other"]);
+    runner.set_request_context(RequestContext {
+        site_id: Some(site),
+        user_id: Some(ADMIN_USER_ID),
+        page_reference: Some(Reference::Id(selected)),
+        ..Default::default()
+    });
+    assert_eq!(
+        run_endpoint!(runner, page_draft_get)
+            .draft
+            .unwrap()
+            .wikitext,
+        "Unpublished revision"
+    );
+    let revision = PageRevisionService::get_latest(runner.context(), site, selected)
+        .await
+        .unwrap();
+    assert_eq!(revision.title, "add-one");
+    assert_eq!(
+        run_endpoint!(
+            runner,
+            page_get,
+            json!({"site_id":site,"page":selected,"details":{"wikitext":true}})
+        )
+        .unwrap()
+        .wikitext
+        .as_deref(),
+        Some("Body")
+    );
+}
+
+#[tokio::test]
+async fn add_title_is_case_insensitive_literal_and_never_searches_body() {
+    let mut runner = TestRunner::setup().await;
+    let site = site_id(&runner).await;
+    let literal = page(&runner, site, "title-100%-_x", &[]).await;
+    let wildcard = page(&runner, site, "title-100qqq-x", &[]).await;
+    let body_only = page(&runner, site, "source-only", &[]).await;
+    act_as(&mut runner, site, Some(ADMIN_USER_ID));
+    let preview = run_endpoint!(
+        runner,
+        site_tag_add_preview,
+        json!({"tag":"new","existing_tag":null,"category":null,"title_contains":"100%-_X"})
+    );
+    assert_eq!(
+        preview.pages.iter().map(|p| p.page_id).collect::<Vec<_>>(),
+        vec![literal]
+    );
+    assert_ne!(literal, wildcard);
+    assert_ne!(literal, body_only);
+    let empty = run_endpoint!(
+        runner,
+        site_tag_add_preview,
+        json!({"tag":"new","existing_tag":null,"category":null,"title_contains":"Body"})
+    );
+    assert!(empty.pages.is_empty()); // Body is source text, not the page title.
+}
+
+#[tokio::test]
+async fn add_stale_selection_and_revision_cannot_partially_apply() {
+    let mut runner = TestRunner::setup().await;
+    let site = site_id(&runner).await;
+    let first = page(&runner, site, "stale-one", &["source"]).await;
+    act_as(&mut runner, site, Some(ADMIN_USER_ID));
+    let selection = json!({"tag":"new","existing_tag":"source","category":null,"title_contains":null});
+    let preview = run_endpoint!(runner, site_tag_add_preview, selection.clone());
+    let second = page(&runner, site, "stale-two", &["source"]).await;
+    assert_contains_error!(
+        run_endpoint_err!(
+            runner,
+            site_tag_add_apply,
+            json!({"tag":"new","existing_tag":"source","category":null,"title_contains":null,"preview_token":preview.preview_token,"ip_address":common::IP_ADDRESS})
+        ),
+        ErrorType::TagPreviewStale
+    );
+    assert_eq!(tags(&runner, site, first).await, ["source"]);
+    let preview = run_endpoint!(runner, site_tag_add_preview, selection);
+    let revision = PageService::get(runner.context(), site, Reference::Id(first))
+        .await
+        .unwrap()
+        .latest_revision_id
+        .unwrap();
+    runner.set_request_context(RequestContext {
+        site_id: Some(site),
+        user_id: Some(ADMIN_USER_ID),
+        page_reference: Some(Reference::Id(first)),
+        ..Default::default()
+    });
+    run_endpoint!(
+        runner,
+        page_edit,
+        json!({"site_id":site,"page":first,"user_id":ADMIN_USER_ID,"last_revision_id":revision,"revision_comments":"later","tags":["source","other"],"preserve_draft":true,"ip_address":common::IP_ADDRESS})
+    );
+    act_as(&mut runner, site, Some(ADMIN_USER_ID));
+    assert_contains_error!(
+        run_endpoint_err!(
+            runner,
+            site_tag_add_apply,
+            json!({"tag":"new","existing_tag":"source","category":null,"title_contains":null,"preview_token":preview.preview_token,"ip_address":common::IP_ADDRESS})
+        ),
+        ErrorType::TagPreviewStale
+    );
+    assert_eq!(tags(&runner, site, second).await, ["source"]);
+    assert!(run_endpoint!(runner, site_tag_history).is_empty());
+}
+
+#[tokio::test]
+async fn add_locked_page_and_changed_filters_deny_whole_apply() {
+    let mut runner = TestRunner::setup().await;
+    let site = site_id(&runner).await;
+    let first = page(&runner, site, "add-lock-one", &["source"]).await;
+    let second = page(&runner, site, "add-lock-two", &["source"]).await;
+    act_as(&mut runner, site, Some(ADMIN_USER_ID));
+    let preview = run_endpoint!(
+        runner,
+        site_tag_add_preview,
+        json!({"tag":"new","existing_tag":"source","category":null,"title_contains":null})
+    );
+    assert_contains_error!(
+        run_endpoint_err!(
+            runner,
+            site_tag_add_apply,
+            json!({"tag":"new","existing_tag":"source","category":"_default","title_contains":null,"preview_token":preview.preview_token,"ip_address":common::IP_ADDRESS})
+        ),
+        ErrorType::TagPreviewStale
+    );
+    run_endpoint!(
+        runner,
+        page_lock_create,
+        json!({"page":second,"lock_type":"permission-only","expires_at":null,"reason":null,"override_existing":false,"ip_address":common::IP_ADDRESS})
+    );
+    assert_contains_error!(
+        run_endpoint_err!(
+            runner,
+            site_tag_add_apply,
+            json!({"tag":"new","existing_tag":"source","category":null,"title_contains":null,"preview_token":preview.preview_token,"ip_address":common::IP_ADDRESS})
+        ),
+        ErrorType::TagPageNotEditable
+    );
+    assert_eq!(tags(&runner, site, first).await, ["source"]);
+    assert_eq!(tags(&runner, site, second).await, ["source"]);
+    assert!(run_endpoint!(runner, site_tag_history).is_empty());
+}
+
+#[tokio::test]
+async fn add_requires_filter_and_valid_tag() {
+    let mut runner = TestRunner::setup().await;
+    let site = site_id(&runner).await;
+    act_as(&mut runner, site, Some(ADMIN_USER_ID));
+    for input in [
+        json!({"tag":"new","existing_tag":null,"category":null,"title_contains":"  "}),
+        json!({"tag":"bad tag","existing_tag":"source","category":null,"title_contains":null}),
+        json!({"tag":"new","existing_tag":"bad tag","category":null,"title_contains":null}),
+    ] {
+        assert_contains_error!(
+            run_endpoint_err!(runner, site_tag_add_preview, input),
+            ErrorType::BadRequest
         );
     }
 }

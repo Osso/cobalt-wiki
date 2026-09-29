@@ -23,6 +23,39 @@ pub struct ApplyTags {
     pub ip_address: IpAddr,
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+pub struct AddFilters {
+    pub existing_tag: Option<String>,
+    pub category: Option<String>,
+    pub title_contains: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AddTagSelection {
+    pub tag: String,
+    #[serde(flatten)]
+    pub filters: AddFilters,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ApplyAddTag {
+    pub tag: String,
+    #[serde(flatten)]
+    pub filters: AddFilters,
+    pub preview_token: String,
+    pub ip_address: IpAddr,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AddTagPreview {
+    pub tag: String,
+    #[serde(flatten)]
+    pub filters: AddFilters,
+    pub preview_token: String,
+    pub count: usize,
+    pub pages: Vec<AffectedPage>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct UndoTags {
     pub operation_id: i64,
@@ -54,8 +87,10 @@ pub struct TagChangeResult {
 #[derive(Debug, Clone, Serialize)]
 pub struct TagOperation {
     pub operation_id: i64,
-    pub source_tag: String,
+    pub kind: String,
+    pub source_tag: Option<String>,
     pub target_tag: Option<String>,
+    pub filters: Option<AddFilters>,
     pub actor_user_id: i64,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
@@ -83,6 +118,60 @@ struct RecordedPage {
 pub struct SiteTagAdminService;
 
 impl SiteTagAdminService {
+    pub async fn add_preview(
+        ctx: &ServiceContext<'_>,
+        selection: AddTagSelection,
+    ) -> Result<AddTagPreview> {
+        let (site_id, _) = require_admin(ctx).await?;
+        let selection = normalize_add_selection(selection)?;
+        let pages = add_pages(ctx, site_id, &selection).await?;
+        Ok(build_add_preview(site_id, selection, &pages))
+    }
+
+    pub async fn add_apply(
+        ctx: &ServiceContext<'_>,
+        input: ApplyAddTag,
+    ) -> Result<TagChangeResult> {
+        let (site_id, user_id) = require_admin(ctx).await?;
+        let selection = normalize_add_selection(AddTagSelection {
+            tag: input.tag,
+            filters: input.filters,
+        })?;
+        lock_site_tags(ctx, site_id).await?;
+        let pages = add_pages(ctx, site_id, &selection).await?;
+        let preview = build_add_preview(site_id, selection, &pages);
+        if preview.preview_token != input.preview_token || pages.is_empty() {
+            bail!(Error::new(
+                "affected pages differ from preview",
+                ErrorType::TagPreviewStale
+            ));
+        }
+        for tagged in &pages {
+            require_editable(ctx, site_id, user_id, tagged.page.page_id).await?;
+        }
+        let operation_id = insert_add_operation(ctx, site_id, user_id, &preview).await?;
+        for tagged in &pages {
+            let mut after = tagged.tags.clone();
+            after.push(preview.tag.clone());
+            let revision_id = edit_tags(
+                ctx,
+                site_id,
+                user_id,
+                tagged.page.page_id,
+                tagged.revision_id,
+                after.clone(),
+                input.ip_address,
+                "Site tag add",
+            )
+            .await?;
+            insert_record(ctx, operation_id, tagged, &after, revision_id).await?;
+        }
+        Ok(TagChangeResult {
+            operation_id,
+            count: pages.len(),
+        })
+    }
+
     pub async fn preview(
         ctx: &ServiceContext<'_>,
         names: TagNames,
@@ -147,7 +236,7 @@ impl SiteTagAdminService {
     pub async fn history(ctx: &ServiceContext<'_>) -> Result<Vec<TagOperation>> {
         let (site_id, _) = require_admin(ctx).await?;
         let rows = ctx.transaction().query_all_raw(statement(
-            "SELECT operation_id, source_tag, target_tag, actor_user_id, created_at, reversed_at IS NOT NULL AS reversed FROM site_tag_operation WHERE site_id = $1 ORDER BY operation_id DESC",
+            "SELECT operation_id, kind, source_tag, target_tag, filters, actor_user_id, created_at, reversed_at IS NOT NULL AS reversed FROM site_tag_operation WHERE site_id = $1 ORDER BY operation_id DESC",
             [site_id.into()],
         )).await.or_raise(query_error)?;
         let mut operations = Vec::with_capacity(rows.len());
@@ -156,8 +245,13 @@ impl SiteTagAdminService {
             let pages = recorded_pages(ctx, operation_id).await?;
             operations.push(TagOperation {
                 operation_id,
+                kind: get(&row, "kind")?,
                 source_tag: get(&row, "source_tag")?,
                 target_tag: get(&row, "target_tag")?,
+                filters: get::<Option<serde_json::Value>>(&row, "filters")?
+                    .map(serde_json::from_value)
+                    .transpose()
+                    .or_raise(query_error)?,
                 actor_user_id: get(&row, "actor_user_id")?,
                 created_at: get(&row, "created_at")?,
                 count: pages.len(),
@@ -268,6 +362,80 @@ fn normalize_names(mut names: TagNames) -> Result<TagNames> {
     Ok(names)
 }
 
+fn normalize_add_selection(mut selection: AddTagSelection) -> Result<AddTagSelection> {
+    selection.tag = selection.tag.trim().to_lowercase();
+    selection.filters.existing_tag = selection
+        .filters
+        .existing_tag
+        .map(|s| s.trim().to_lowercase());
+    selection.filters.category =
+        selection.filters.category.map(|s| s.trim().to_lowercase());
+    selection.filters.title_contains = selection
+        .filters
+        .title_contains
+        .map(|s| s.trim().to_owned());
+    selection.filters.title_contains =
+        selection.filters.title_contains.filter(|s| !s.is_empty());
+    let valid_tag = |tag: &str| !tag.is_empty() && !tag.chars().any(char::is_whitespace);
+    let filters = &selection.filters;
+    if !valid_tag(&selection.tag)
+        || filters
+            .existing_tag
+            .as_deref()
+            .is_some_and(|s| !valid_tag(s))
+        || filters.category.as_deref().is_some_and(|s| !valid_tag(s))
+        || filters.existing_tag.is_none()
+            && filters.category.is_none()
+            && filters.title_contains.is_none()
+    {
+        bail!(Error::new(
+            "invalid tag or empty add filter",
+            ErrorType::BadRequest
+        ));
+    }
+    Ok(selection)
+}
+
+fn build_add_preview(
+    site_id: i64,
+    selection: AddTagSelection,
+    tagged: &[TaggedPage],
+) -> AddTagPreview {
+    let mut digest = Sha256::new();
+    digest.update(
+        serde_json::to_vec(&(
+            "add",
+            site_id,
+            &selection.tag,
+            &selection.filters,
+            tagged
+                .iter()
+                .map(|p| (&p.page, p.revision_id, &p.tags))
+                .collect::<Vec<_>>(),
+        ))
+        .expect("serializable add preview"),
+    );
+    AddTagPreview {
+        tag: selection.tag,
+        filters: selection.filters,
+        preview_token: hex::encode(digest.finalize()),
+        count: tagged.len(),
+        pages: tagged.iter().map(|p| p.page.clone()).collect(),
+    }
+}
+
+async fn add_pages(
+    ctx: &ServiceContext<'_>,
+    site_id: i64,
+    selection: &AddTagSelection,
+) -> Result<Vec<TaggedPage>> {
+    let rows = ctx.transaction().query_all_raw(statement(
+        "SELECT p.page_id, p.slug, r.title, r.revision_id, r.tags FROM page p JOIN page_revision r ON r.revision_id = p.latest_revision_id JOIN page_category c ON c.category_id = p.page_category_id WHERE p.site_id = $1 AND p.deleted_at IS NULL AND NOT ($2 = ANY(r.tags)) AND ($3::text IS NULL OR $3 = ANY(r.tags)) AND ($4::text IS NULL OR c.slug = $4) AND ($5::text IS NULL OR strpos(lower(r.title), lower($5)) > 0) ORDER BY p.page_id",
+        [site_id.into(), selection.tag.clone().into(), selection.filters.existing_tag.clone().into(), selection.filters.category.clone().into(), selection.filters.title_contains.clone().into()],
+    )).await.or_raise(query_error)?;
+    read_tagged_pages(&rows)
+}
+
 fn replace_tag(tags: &[String], source: &str, target: Option<&str>) -> Vec<String> {
     let target_present =
         target.is_some_and(|target| tags.iter().any(|tag| tag == target));
@@ -325,6 +493,10 @@ async fn tagged_pages(
         "SELECT p.page_id, p.slug, r.title, r.revision_id, r.tags FROM page p JOIN page_revision r ON r.revision_id = p.latest_revision_id WHERE p.site_id = $1 AND p.deleted_at IS NULL AND $2 = ANY(r.tags) ORDER BY p.page_id",
         [site_id.into(), source.into()],
     )).await.or_raise(query_error)?;
+    read_tagged_pages(&rows)
+}
+
+fn read_tagged_pages(rows: &[sea_orm::QueryResult]) -> Result<Vec<TaggedPage>> {
     rows.iter()
         .map(|row| {
             Ok(TaggedPage {
@@ -422,8 +594,23 @@ async fn insert_operation(
     _ip: IpAddr,
 ) -> Result<i64> {
     let row = ctx.transaction().query_one_raw(statement(
-        "INSERT INTO site_tag_operation (site_id, actor_user_id, source_tag, target_tag) VALUES ($1, $2, $3, $4) RETURNING operation_id",
+        "INSERT INTO site_tag_operation (site_id, actor_user_id, source_tag, target_tag, kind) VALUES ($1, $2, $3, $4, CASE WHEN $4::text IS NULL THEN 'delete' ELSE 'rename' END) RETURNING operation_id",
         [site_id.into(), user_id.into(), preview.source_tag.clone().into(), preview.target_tag.clone().into()],
+    )).await.or_raise(query_error)?.ok_or_raise(|| Error::new("tag operation insert returned no row", ErrorType::DatabaseQuery))?;
+    get(&row, "operation_id")
+}
+
+async fn insert_add_operation(
+    ctx: &ServiceContext<'_>,
+    site_id: i64,
+    user_id: i64,
+    preview: &AddTagPreview,
+) -> Result<i64> {
+    let filters =
+        serde_json::to_value(&preview.filters).expect("serializable add filters");
+    let row = ctx.transaction().query_one_raw(statement(
+        "INSERT INTO site_tag_operation (site_id, actor_user_id, kind, target_tag, filters) VALUES ($1, $2, 'add', $3, $4) RETURNING operation_id",
+        [site_id.into(), user_id.into(), preview.tag.clone().into(), filters.into()],
     )).await.or_raise(query_error)?.ok_or_raise(|| Error::new("tag operation insert returned no row", ErrorType::DatabaseQuery))?;
     get(&row, "operation_id")
 }
