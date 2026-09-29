@@ -2,7 +2,7 @@
 
 verified: 2026-09-29 UTC
 
-Production `cobalt-company.sakuin.org`, app release `ac963e66eb46`; see [tag rollout](../../specs/cobalt-tag-admin.md#production-rollout). Read-only investigation, ordinary anonymous page visits, no optimization changes or broad rerender sweep. Small samples from one desktop Chromium instance, not percentiles or a load test.
+Production `cobalt-company.sakuin.org`. Read-only investigation, ordinary anonymous page visits, no image/CDN/gateway changes or broad rerender sweep. Small samples from one desktop Chromium instance, not percentiles or a load test. The measurements below predate the selected [compiled-render identity](../../specs/cobalt-render-identity.md) rollout unless noted.
 
 ## Observations
 
@@ -26,14 +26,14 @@ Production `cobalt-company.sakuin.org`, app release `ac963e66eb46`; see [tag rol
 - Direct origin test with the current portrait ETag returned **200 plus all 12,943 bytes**, not 304, in 83 ms. The retained curl trace includes the outgoing `If-None-Match` and identical response ETag. WWS currently fetches current metadata/authorization, then the object; its file handler does not short-circuit matching `If-None-Match`. Edge/browser revalidation savings therefore do not prove the origin avoided its body work.
 - Missing `icon_emdee.jpg` and `icon_valentine.jpg` account for the three image 404 requests. They are separate content/resource issues, not an established explanation for the general delay.
 
-## Optimization choices — not implemented
+## Optimization status
 
-1. **Reduce initial image fan-out.** Defer below-fold portraits and prioritize the above-fold logo. Targets hundreds of eager requests, initial bytes, and gateway pressure; preserve roster content and scrolling behavior.
-2. **Make unchanged-image revalidation cheap.** After current authorization and metadata checks, honor matching ETags without reading/streaming S3 bodies. Preserve [replacement/access freshness](../../specs/cobalt-media-routing.md); do not replace it with a long stale TTL.
-3. **Address gateway connection capacity.** Raise/tune the observed 256-connection ceiling within host resource limits. Reduces the known saturation risk but does not eliminate image bandwidth or per-image origin work.
-4. **Avoid unnecessary cold rerenders.** Current app deployment uses the whole Git commit in renderer identity, so non-rendering changes can invalidate stored HTML. Use a correctly scoped identity or bounded critical-page warming, with explicit freshness coverage. Targets the observed first-view penalty, not every warm image load.
+1. **Reduce initial image fan-out — not implemented.** Defer below-fold portraits and prioritize the above-fold logo. Targets hundreds of eager requests, initial bytes, and gateway pressure; preserve roster content and scrolling behavior.
+2. **Make unchanged-image revalidation cheap — not implemented.** After current authorization and metadata checks, honor matching ETags without reading/streaming S3 bodies. Preserve [replacement/access freshness](../../specs/cobalt-media-routing.md); do not replace it with a long stale TTL.
+3. **Address gateway connection capacity — not implemented.** Raise/tune the observed 256-connection ceiling within host resource limits. Reduces the known saturation risk but does not eliminate image bandwidth or per-image origin work.
+4. **Avoid unnecessary cold rerenders — implemented, bounded.** [Compiled-render identity](../../specs/cobalt-render-identity.md) replaced the deployment-commit key for selected non-rendering documentation, frontend, test-tree, and build-artifact changes. Backend runtime code, including API changes, remains conservatively invalidating; existing content/template/include/listing invalidation remains required. The initial production canary rendered in 527 ms and its next host-local view took 13 ms; after the docs-only redeploy, the host-local response was 23 ms and revision, `updated_at`, generator, and body hash were unchanged. See the [production rendering status](cobalt-replica-status.md#production-rendering-2026-09-23).
 
-No speedup guarantee is inferred from these few measurements. User chooses optimization scope before implementation.
+No speedup guarantee is inferred from these few measurements. Historical baseline measurements remain evidence of the former commit-key behavior; only item 4 was selected.
 
 ## Source and proof
 

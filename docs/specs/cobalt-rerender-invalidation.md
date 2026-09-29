@@ -8,14 +8,14 @@ When a page changes, Deepwell queues `rerender_page` jobs (Valkey rsmq queue `rs
 - [x] A queued page that is itself a navigation page also queues a navigation rerender of every page using that bar, at the same moment (bars are compiled into each page and are not recorded as dependencies).
 - [x] Dependent jobs are `standalone` rerenders and queue nothing further; one change produces at most one job per affected page and type.
 - [x] A job for a page and type that is already pending is not queued again. The marker (`job:rerender-pending:<page_id>:<type>`, 1 h expiry) is cleared when a worker starts the job, so a later change queues the page again.
-- [x] A rerender caused by a renderer build change queues no dependents: a `full` rerender outdates dependents only when the page's stored output came from the current build and the new output differs (its source changed without an edit). A `full` rerender with unchanged output queues nothing.
-- [x] `standalone` and view-time rerenders (stale `compiled_generator`) queue nothing.
+- [x] A rerender caused by a [compiled-render identity](cobalt-render-identity.md) change queues no dependents: a `full` rerender outdates dependents only when the page's stored output came from the current identity and the new output differs (its source changed without an edit). A `full` rerender with unchanged output queues nothing.
+- [x] `standalone` and view-time rerenders (stale `compiled_generator` compared with the current render identity) queue nothing.
 - [x] Bars render the navigation page's latest revision: its live page's `latest_revision_id`, not a revision matched by slug. A wikitext edit of a navigation page queues a navigation rerender of every page using it.
 - [x] Rerender jobs carry no depth and nothing skips them by depth or update time. Jobs queued with the former `depth` field still run, and configs with the former `ftml.rerender-skip` keys still load.
 
 ## How it works
 
-- [Queue recovery](../wiki/systems/cobalt-queue-recovery.md), [replica status](../wiki/systems/cobalt-replica-status.md).
+- [Queue recovery](../wiki/systems/cobalt-queue-recovery.md), [compiled-render identity](cobalt-render-identity.md), [replica status](../wiki/systems/cobalt-replica-status.md).
 
 ## Implementation inventory
 
