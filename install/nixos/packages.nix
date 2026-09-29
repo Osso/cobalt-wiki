@@ -76,6 +76,7 @@ let
         ];
       };
       sourceRoot = "source/deepwell";
+      cargoVendorDir = craneLib.vendorCargoDeps { src = root + /deepwell; };
       # Only manifests feed the dependency build, so source edits keep its cache.
       cargoArtifacts = craneLib.buildDepsOnly (
         deepwellArgs
