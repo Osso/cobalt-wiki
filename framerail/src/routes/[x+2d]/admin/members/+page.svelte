@@ -44,139 +44,155 @@
   }
 </script>
 
-<h1>Site members</h1>
+<div class="members-page">
+  <h1>Site members</h1>
 
-{#if data.access === "signed-out"}
-  <p>You need to <a href={loginUrl}>sign in</a> as an administrator of this site.</p>
-{:else if data.access === "denied"}
-  <p class="members-result error" role="status">
-    Only administrators of this site can see and manage its members.
-  </p>
-{:else}
-  {#if form?.message}
-    <p class={["members-result", form.saved ? "saved" : "error"]} role="status">
-      {form.message}
+  {#if data.access === "signed-out"}
+    <p>You need to <a href={loginUrl}>sign in</a> as an administrator of this site.</p>
+  {:else if data.access === "denied"}
+    <p class="members-result error" role="status">
+      Only administrators of this site can see and manage its members.
     </p>
-  {/if}
+  {:else}
+    {#if form?.message}
+      <p class={["members-result", form.saved ? "saved" : "error"]} role="status">
+        {form.message}
+      </p>
+    {/if}
 
-  <section aria-labelledby="applications-heading">
-    <h2 id="applications-heading">Membership applications</h2>
-    {#each data.applications as application (application.user_id)}
-      <article class="membership-application">
-        <h3 class="user-link">
-          <UserAvatar
-            name={application.user_name}
-            size={24}
-            userId={application.user_id}
-          />
-          {application.user_name}
-        </h3>
-        <p>Applied {joinDate(application.created_at)}</p>
-        <p class="application-message">{application.message}</p>
-        <form action="?/application" method="POST" use:enhance>
-          <input name="userId" type="hidden" value={application.user_id} />
-          <button name="decision" type="submit" value="approve">Approve</button>
-          <button name="decision" type="submit" value="reject">Reject</button>
-        </form>
-      </article>
-    {:else}
-      <p>No pending applications.</p>
-    {/each}
-  </section>
+    <section aria-labelledby="applications-heading">
+      <h2 id="applications-heading">Membership applications</h2>
+      {#each data.applications as application (application.user_id)}
+        <article class="membership-application">
+          <h3 class="user-link">
+            <UserAvatar
+              name={application.user_name}
+              size={24}
+              userId={application.user_id}
+            />
+            {application.user_name}
+          </h3>
+          <p>Applied {joinDate(application.created_at)}</p>
+          <p class="application-message">{application.message}</p>
+          <form action="?/application" method="POST" use:enhance>
+            <input name="userId" type="hidden" value={application.user_id} />
+            <button name="decision" type="submit" value="approve">Approve</button>
+            <button name="decision" type="submit" value="reject">Reject</button>
+          </form>
+        </article>
+      {:else}
+        <p>No pending applications.</p>
+      {/each}
+    </section>
 
-  <div class="members-tabs" role="tablist">
-    {#each TABS as { id, label } (id)}
-      <button
-        class:selected={tab === id}
-        aria-selected={tab === id}
-        onclick={() => (tab = id)}
-        role="tab"
-        type="button">{label}</button
-      >
-    {/each}
-  </div>
+    <div class="members-tabs" role="tablist">
+      {#each TABS as { id, label } (id)}
+        <button
+          class:selected={tab === id}
+          aria-selected={tab === id}
+          onclick={() => (tab = id)}
+          role="tab"
+          type="button">{label}</button
+        >
+      {/each}
+    </div>
 
-  <div class="members-table-wrap">
-    <table class="members-table">
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Email</th>
-          <th>Role</th>
-          <th>Member since</th>
-          <th>Options</th>
-        </tr>
-      </thead>
-      <tbody>
-        {#each shown as member (member.user_id)}
+    <div class="members-table-wrap">
+      <table class="members-table">
+        <thead>
           <tr>
-            <td>
-              <a class="user-link" href={resolve("/-/user/[slug]", { slug: member.slug })}
-                ><UserAvatar name={member.name} size={20} userId={member.user_id} />
-                {member.name}</a
-              >
-            </td>
-            <td class="members-email">
-              {member.email.endsWith(".invalid") ? "(not set)" : member.email}
-            </td>
-            <td>{ROLE_NAMES[member.role]}</td>
-            <td>{joinDate(member.joined_at)}</td>
-            <td>
-              {#if changeable(member)}
-                <form class="members-role" action="?/role" method="POST" use:enhance>
-                  <input name="userId" type="hidden" value={member.user_id} />
-                  <input name="name" type="hidden" value={member.name} />
-                  <select
-                    name="role"
-                    aria-label="Role of {member.name}"
-                    value={member.role}
-                  >
-                    <option value="member">Member</option>
-                    <option value="moderator">Moderator</option>
-                    <option value="admin">Administrator</option>
-                  </select>
-                  <button type="submit">Change</button>
-                </form>
-                <details class="members-remove">
-                  <summary>Remove</summary>
-                  <form action="?/remove" method="POST" use:enhance>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Member since</th>
+            <th>Options</th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each shown as member (member.user_id)}
+            <tr>
+              <td>
+                <a
+                  class="user-link"
+                  href={resolve("/-/user/[slug]", { slug: member.slug })}
+                  ><UserAvatar name={member.name} size={20} userId={member.user_id} />
+                  {member.name}</a
+                >
+              </td>
+              <td class="members-email">
+                {member.email.endsWith(".invalid") ? "(not set)" : member.email}
+              </td>
+              <td>{ROLE_NAMES[member.role]}</td>
+              <td>{joinDate(member.joined_at)}</td>
+              <td>
+                {#if changeable(member)}
+                  <form class="members-role" action="?/role" method="POST" use:enhance>
                     <input name="userId" type="hidden" value={member.user_id} />
                     <input name="name" type="hidden" value={member.name} />
-                    <button type="submit">Remove {member.name} from the site</button>
+                    <select
+                      name="role"
+                      aria-label="Role of {member.name}"
+                      value={member.role}
+                    >
+                      <option value="member">Member</option>
+                      <option value="moderator">Moderator</option>
+                      <option value="admin">Administrator</option>
+                    </select>
+                    <button type="submit">Change</button>
                   </form>
-                </details>
-              {:else if member.user_id === data.viewerId}
-                <span class="members-none">You</span>
-              {/if}
-            </td>
-          </tr>
-        {:else}
-          <tr><td colspan="5">No members in this list.</td></tr>
-        {/each}
-      </tbody>
-    </table>
-  </div>
+                  <details class="members-remove">
+                    <summary>Remove</summary>
+                    <form action="?/remove" method="POST" use:enhance>
+                      <input name="userId" type="hidden" value={member.user_id} />
+                      <input name="name" type="hidden" value={member.name} />
+                      <button type="submit">Remove {member.name} from the site</button>
+                    </form>
+                  </details>
+                {:else if member.user_id === data.viewerId}
+                  <span class="members-none">You</span>
+                {/if}
+              </td>
+            </tr>
+          {:else}
+            <tr><td colspan="5">No members in this list.</td></tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
 
-  <form class="members-invite" action="?/invite" method="POST" use:enhance>
-    <h2>Invite a member</h2>
-    <p>
-      An address with no account gets a new account under the name below and an email with
-      a link to choose a password. An existing account joins without an email.
-    </p>
-    <label>
-      Email address
-      <input name="email" class="text" autocomplete="off" required type="email" />
-    </label>
-    <label>
-      Name for a new account
-      <input name="name" class="text" autocomplete="off" type="text" />
-    </label>
-    <button type="submit">Invite</button>
-  </form>
-{/if}
+    <form class="members-invite" action="?/invite" method="POST" use:enhance>
+      <h2>Invite a member</h2>
+      <p>
+        An address with no account gets a new account under the name below and an email
+        with a link to choose a password. An existing account joins without an email.
+      </p>
+      <label>
+        Email address
+        <input name="email" class="text" autocomplete="off" required type="email" />
+      </label>
+      <label>
+        Name for a new account
+        <input name="name" class="text" autocomplete="off" type="text" />
+      </label>
+      <button type="submit">Invite</button>
+    </form>
+  {/if}
+</div>
 
 <style lang="scss">
   @use "../../../../lib/css/account-form" as *;
+
+  .members-page {
+    padding: 1rem;
+
+    > h1 {
+      margin: 0 0 1.5rem;
+    }
+
+    section > h2 {
+      margin: 0 0 0.75rem;
+    }
+  }
 
   .membership-application {
     padding: 0.75em 0;
