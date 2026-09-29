@@ -93,6 +93,13 @@ async fn idle_http_keepalives_do_not_consume_rpc_capacity() {
         assert!(bytes > 0);
         idle.push(socket);
     }
+    for socket in &idle {
+        let mut probe = [0; 1];
+        assert!(
+            matches!(socket.try_read(&mut probe), Err(error) if error.kind() == std::io::ErrorKind::WouldBlock),
+            "idle HTTP connection must remain open with no pending response"
+        );
+    }
     let endpoint = format!("http://{address}");
     let client = ReqwestClient::new();
     assert_eq!(
