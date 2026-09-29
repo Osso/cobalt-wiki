@@ -23,7 +23,7 @@ Production `cobalt-company.sakuin.org`, app release `ac963e66eb46`; see [tag rol
 - Cold transfer: background 419 KB, logo 67 KB; larger portraits around 35–36 KB. Images account for roughly 96% of transferred bytes.
 - Cold logo request: low priority, starts 379 ms, headers at 2,212 ms, ends 2,257 ms; logo LCP 2,264 ms. Network queueing and origin latency are not individually attributed by this sample.
 - Repeat portrait responses have `Cache-Control: public, no-cache`, ETag and `CF-Cache-Status: EXPIRED`.
-- Direct origin test with the current portrait ETag returned **200 plus all 12,943 bytes**, not 304, in 84 ms. WWS currently fetches current metadata/authorization, then the object; its file handler does not short-circuit matching `If-None-Match`. Edge/browser revalidation savings therefore do not prove the origin avoided its body work.
+- Direct origin test with the current portrait ETag returned **200 plus all 12,943 bytes**, not 304, in 83 ms. The retained curl trace includes the outgoing `If-None-Match` and identical response ETag. WWS currently fetches current metadata/authorization, then the object; its file handler does not short-circuit matching `If-None-Match`. Edge/browser revalidation savings therefore do not prove the origin avoided its body work.
 - Missing `icon_emdee.jpg` and `icon_valentine.jpg` account for the three image 404 requests. They are separate content/resource issues, not an established explanation for the general delay.
 
 ## Optimization choices — not implemented
@@ -44,4 +44,4 @@ No speedup guarantee is inferred from these few measurements. User chooses optim
 - `/tmp/cobalt-roster-inventory-before.csv`, `/tmp/cobalt-profile-roster-by-race-live.json` — before/after renderer identity. `compiled_at` was not updated by rerender; do not use its old timestamp to date the current build.
 - `/tmp/cobalt-roster-browser-timings.json` — first postdeploy navigation sequence; its Resource Timing buffer hit 250 entries, so it is not the complete asset inventory.
 - `/tmp/cobalt-roster-full-waterfall.json` — separate warm-backend/cold-browser then repeat samples, expanded Resource Timing buffer and CDP status/byte details.
-- `/tmp/cobalt-roster-host-rpc-timings.json`, `/tmp/cobalt-roster-host-http-timings.json`, `/tmp/cobalt-roster-sql-profile.txt`, `/tmp/cobalt-roster-gateway-log.txt`, `/tmp/cobalt-roster-origin-conditional.txt` — direct layer measurements and gateway alert.
+- `/tmp/cobalt-roster-host-rpc-timings.json`, `/tmp/cobalt-roster-host-http-timings.json`, `/tmp/cobalt-roster-sql-profile.txt`, `/tmp/cobalt-roster-gateway-log.txt`, `/tmp/cobalt-roster-origin-conditional-verified.txt` — direct layer measurements and gateway alert.
