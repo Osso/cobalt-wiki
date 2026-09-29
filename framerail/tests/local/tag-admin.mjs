@@ -141,7 +141,7 @@ async function assertFixtureState(actor, fixtures, state) {
     if (state === "merged") expected = [target, kept].sort()
     if (state === "deleted") expected = fixture.tags.filter((tag) => tag !== source)
     assert.deepEqual([...stored.page_revision.tags].sort(), expected)
-    assert.equal(
+    assert.deepEqual(
       stored.page_revision.wikitext_hash,
       fixture.before.page_revision.wikitext_hash
     )
