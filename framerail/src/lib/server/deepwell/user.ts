@@ -29,13 +29,16 @@ export async function userView(
 }
 
 /* ----- User Edit ----- */
+/** The avatar file could not be stored; the user's avatar is unchanged. */
+export class AvatarUploadError extends Error {}
+
 interface UserEditParams {
   name?: Optional<string>
   email?: Optional<string>
   emailVerified?: Optional<boolean>
   password?: Optional<string>
   locales?: Optional<string[]>
-  avatar?: Optional<File>
+  avatar?: Optional<File> | null
   realName?: Optional<Nullable<string>>
   gender?: Optional<Nullable<string>>
   birthday?: Optional<Nullable<string>>
@@ -97,9 +100,10 @@ export async function userEdit(
   }
   if (params.avatar instanceof File && params.avatar.type.startsWith("image/")) {
     const presign = await startBlobUpload(userId, params.avatar.size)
-    await uploadToPresignUrl(presign.presign_url, params.avatar)
+    const upload = await uploadToPresignUrl(presign.presign_url, params.avatar)
+    if (!upload.ok) throw new AvatarUploadError(`Avatar upload failed (${upload.status})`)
     data.avatar_uploaded_blob_id = presign.pending_blob_id
-  } else if (params.avatar !== undefined && params.avatar === null) data.avatar = null
+  } else if (params.avatar === null) data.avatar_uploaded_blob_id = null
 
   return client.request("user_edit", {
     user: userId,

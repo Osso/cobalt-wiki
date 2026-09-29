@@ -4,7 +4,7 @@ import { requireDeepwellError } from "$lib/deepwell-errors"
 import { authLogin } from "$lib/server/auth/login"
 import { authLogout } from "$lib/server/auth/logout"
 import { translate } from "$lib/server/deepwell/translate"
-import { userEdit, userView } from "$lib/server/deepwell/user"
+import { AvatarUploadError, userEdit, userView } from "$lib/server/deepwell/user"
 import {
   watchingPreferencesGet,
   watchingPreferencesSet,
@@ -33,7 +33,7 @@ const PROFILE_FIELDS = [
   "biography"
 ] as const
 
-type Section = "profile" | "email" | "password"
+type Section = "profile" | "avatar" | "email" | "password"
 type AccountEdits = Parameters<typeof userEdit>[2]
 
 export async function loadSettingsPage(
@@ -61,7 +61,15 @@ export async function loadSettingsPage(
   return {
     compiled_top_bar_html: chrome.compiled_top_bar_html,
     internationalization,
-    account: user ? { name: user.name, slug: user.slug, email: user.email } : null,
+    account: user
+      ? {
+          userId: user.user_id,
+          name: user.name,
+          slug: user.slug,
+          email: user.email,
+          avatarHash: user.avatar_s3_hash ?? null
+        }
+      : null,
     profile: user ? userProfileFields(user) : null,
     watchingPreferences,
     watchingSubscriptions: watchingSubscriptionsList
@@ -77,6 +85,18 @@ export async function settingsProfileAction(event: RequestEvent) {
     ])
   )
   return saveSettings(event, "profile", null, edits)
+}
+
+export async function settingsAvatarAction(event: RequestEvent) {
+  const form = await event.request.formData()
+  if (form.get("remove") !== null) {
+    return saveSettings(event, "avatar", null, { avatar: null })
+  }
+  const avatar = form.get("avatar")
+  if (!(avatar instanceof File) || !avatar.size || !avatar.type.startsWith("image/")) {
+    return fail(400, { section: "avatar", message: "Choose an image file." })
+  }
+  return saveSettings(event, "avatar", null, { avatar })
 }
 
 export async function settingsEmailAction(event: RequestEvent) {
@@ -148,6 +168,9 @@ async function saveSettings(
     await userEdit(user.user_id, ipAddress, edits)
     return { section, saved: true, message: "Your settings were saved." }
   } catch (caught) {
+    if (caught instanceof AvatarUploadError) {
+      return fail(500, { section, message: caught.message })
+    }
     const error = requireDeepwellError(caught)
     const message =
       error.code === INVALID_AUTHENTICATION

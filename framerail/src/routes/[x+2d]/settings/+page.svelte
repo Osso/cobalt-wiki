@@ -1,10 +1,34 @@
 <script lang="ts">
   import { enhance } from "$app/forms"
   import { resolve } from "$app/paths"
+  import { squareAvatar, AVATAR_SIZE } from "$lib/avatar-resize"
+  import UserAvatar from "$lib/component/UserAvatar.svelte"
 
   import type { PageProps } from "./$types"
 
   let { data, form }: PageProps = $props()
+
+  let preview = $state<string | null>(null)
+  let avatarError = $state("")
+
+  async function chooseAvatar(event: Event) {
+    const input = event.currentTarget as HTMLInputElement
+    const file = input.files?.[0]
+    if (preview) URL.revokeObjectURL(preview)
+    preview = null
+    avatarError = ""
+    if (!file) return
+    try {
+      const resized = await squareAvatar(file)
+      const files = new DataTransfer()
+      files.items.add(resized)
+      input.files = files.files
+      preview = URL.createObjectURL(resized)
+    } catch {
+      input.value = ""
+      avatarError = "That file could not be read as an image."
+    }
+  }
 
   const loginUrl = `${resolve("/-/login", {})}?origUrl=${encodeURIComponent("/-/settings")}`
 </script>
@@ -79,6 +103,54 @@
     {/if}
     <p><a href={resolve("/-/activity", {})}>My Activity</a></p>
   {/if}
+
+  <form
+    class="settings-form"
+    action="?/avatar"
+    enctype="multipart/form-data"
+    method="POST"
+    use:enhance={() =>
+      async ({ update }) => {
+        await update()
+        if (preview) URL.revokeObjectURL(preview)
+        preview = null
+      }}
+  >
+    <h2>Avatar</h2>
+    {@render result("avatar")}
+    {#if avatarError}<p class="settings-result error" role="alert">{avatarError}</p>{/if}
+    <div class="avatar-row">
+      {#if preview}
+        <img class="avatar-preview" alt="New avatar preview" src={preview} />
+      {:else}
+        <UserAvatar
+          name={data.account.name}
+          avatarHash={data.account.avatarHash}
+          size={72}
+          userId={data.account.userId}
+        />
+      {/if}
+      <div class="avatar-controls">
+        <label>
+          Image
+          <input name="avatar" accept="image/*" onchange={chooseAvatar} type="file" />
+        </label>
+        <p class="avatar-hint">
+          Cropped to a square and resized to {AVATAR_SIZE}×{AVATAR_SIZE} before upload.
+        </p>
+        <div class="avatar-buttons">
+          <button class="btn btn-primary" disabled={!preview} type="submit">
+            Upload avatar
+          </button>
+          {#if data.account.avatarHash?.length}
+            <button name="remove" class="btn" type="submit" value="1"
+              >Remove avatar</button
+            >
+          {/if}
+        </div>
+      </div>
+    </div>
+  </form>
 
   <form class="settings-form" action="?/profile" method="POST" use:enhance>
     <h2>Profile</h2>
@@ -210,6 +282,43 @@
     }
 
     @include account-form-controls(".text");
+  }
+
+  .avatar-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1em;
+    align-items: flex-start;
+  }
+
+  .avatar-preview {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+  }
+
+  .avatar-controls {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 0.5em;
+    min-width: 14em;
+  }
+
+  .avatar-hint {
+    margin: 0;
+    font-size: 0.85em;
+    color: #555;
+  }
+
+  .avatar-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em;
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
   }
 
   .settings-result {

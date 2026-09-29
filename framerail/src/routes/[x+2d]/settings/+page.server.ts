@@ -1,5 +1,6 @@
 import {
   loadSettingsPage,
+  settingsAvatarAction,
   settingsEmailAction,
   settingsPasswordAction,
   settingsProfileAction,
@@ -13,6 +14,7 @@ export async function load({ request, cookies, parent }) {
 
 export const actions = {
   profile: settingsProfileAction,
+  avatar: settingsAvatarAction,
   email: settingsEmailAction,
   password: settingsPasswordAction,
   watching: settingsWatchingAction,

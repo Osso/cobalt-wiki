@@ -29,7 +29,8 @@ const alice = {
   biography: "Curious.",
   website: "https://alice.example",
   user_page: null,
-  locales: ["en"]
+  locales: ["en"],
+  avatar_s3_hash: null as number[] | null
 }
 
 type Rpc = { method: string; params: unknown; id: string | number }
@@ -146,9 +147,11 @@ test("logged-out visitors get a sign-in link back to settings and no forms", asy
 test("signed-in loader returns the session user's account and profile values", async () => {
   const { value: data } = await loadSettings(alice)
   assert.deepEqual(data.account, {
+    userId: 42,
     name: "Alice",
     slug: "alice",
-    email: "alice@example.com"
+    email: "alice@example.com",
+    avatarHash: null
   })
   assert.equal(data.profile?.realName, "Alice Liddell")
   assert.equal(data.profile?.birthday, "1990-05-04")
@@ -365,4 +368,138 @@ test("backend errors on save are shown in the failed section", async () => {
     body,
     /class="settings-result error[^"]*"[^>]*>\s*Website failed the filter/
   )
+})
+
+const PNG_BYTES = new Uint8Array([
+  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3
+])
+
+type AvatarCalls = { rpcs: Rpc[]; puts: { url: string; bytes: number[] }[] }
+
+/**
+ * Posts a multipart avatar form. RPCs go to `responder`; the presigned
+ * upload PUT is recorded and answered with `putStatus`.
+ */
+async function submitAvatar(
+  fields: Record<string, string | File>,
+  responder: (rpc: Rpc) => unknown,
+  putStatus = 200
+): Promise<{ value: SaveResult; calls: AvatarCalls }> {
+  const previousFetch = globalThis.fetch
+  const calls: AvatarCalls = { rpcs: [], puts: [] }
+  globalThis.fetch = async (input, init) => {
+    if (init?.method === "PUT") {
+      const body = init.body as Blob
+      calls.puts.push({
+        url: String(input),
+        bytes: [...new Uint8Array(await body.arrayBuffer())]
+      })
+      return new Response(null, { status: putStatus })
+    }
+    const rpc = JSON.parse(String(init?.body)) as Rpc
+    calls.rpcs.push(rpc)
+    return new Response(
+      JSON.stringify({ jsonrpc: "2.0", id: rpc.id, ...(responder(rpc) as object) })
+    )
+  }
+  const body = new FormData()
+  for (const [key, value] of Object.entries(fields)) body.set(key, value)
+  try {
+    const value = await (actions.avatar as (event: unknown) => Promise<SaveResult>)({
+      request: new Request("http://local.test/-/settings", {
+        method: "POST",
+        headers: { ...SITE_HEADERS, "User-Agent": "test-agent" },
+        body
+      }),
+      cookies: { get: () => "session-secret" },
+      getClientAddress: () => "203.0.113.9"
+    })
+    return { value, calls }
+  } finally {
+    globalThis.fetch = previousFetch
+  }
+}
+
+const presignResponder = accountResponder((rpc) =>
+  rpc.method === "blob_upload"
+    ? {
+        result: {
+          pending_blob_id: "pending-7",
+          presign_url: "https://files.example/upload?sig=abc"
+        }
+      }
+    : undefined
+)
+
+test("avatar upload stores the image as the session user's avatar", async () => {
+  const file = new File([PNG_BYTES], "me.webp", { type: "image/webp" })
+  const { value, calls } = await submitAvatar(
+    { avatar: file, user: "7" },
+    presignResponder
+  )
+
+  assert.deepEqual(value, {
+    section: "avatar",
+    saved: true,
+    message: "Your settings were saved."
+  })
+  assert.deepEqual(
+    calls.rpcs.map((call) => call.method),
+    ["user_view", "blob_upload", "user_edit"]
+  )
+  assert.deepEqual(calls.rpcs[1].params, { user_id: 42, blob_size: PNG_BYTES.length })
+  assert.deepEqual(calls.puts, [
+    { url: "https://files.example/upload?sig=abc", bytes: [...PNG_BYTES] }
+  ])
+  assert.deepEqual(calls.rpcs[2].params, {
+    user: 42,
+    ip_address: "203.0.113.9",
+    avatar_uploaded_blob_id: "pending-7"
+  })
+})
+
+test("avatar removal clears the stored avatar", async () => {
+  const { value, calls } = await submitAvatar({ remove: "1" }, accountResponder())
+
+  assert.equal(value.saved, true)
+  assert.deepEqual(calls.rpcs[1].params, {
+    user: 42,
+    ip_address: "203.0.113.9",
+    avatar_uploaded_blob_id: null
+  })
+})
+
+test("avatar upload rejects non-images before any backend call", async () => {
+  const file = new File(["hello"], "notes.txt", { type: "text/plain" })
+  const { value, calls } = await submitAvatar({ avatar: file }, presignResponder)
+
+  assert.equal(value.status, 400)
+  assert.deepEqual(value.data, { section: "avatar", message: "Choose an image file." })
+  assert.deepEqual(calls.rpcs, [])
+  assert.deepEqual(calls.puts, [])
+})
+
+test("a failed avatar upload does not change the avatar", async () => {
+  const file = new File([PNG_BYTES], "me.webp", { type: "image/webp" })
+  const { value, calls } = await submitAvatar({ avatar: file }, presignResponder, 403)
+
+  assert.equal(value.status, 500)
+  assert.equal(value.data?.section, "avatar")
+  assert.match(value.data?.message ?? "", /upload failed \(403\)/i)
+  assert.deepEqual(
+    calls.rpcs.map((call) => call.method),
+    ["user_view", "blob_upload"]
+  )
+})
+
+test("settings page shows the current avatar with upload and remove controls", async () => {
+  const { value: data } = await loadSettings({ ...alice, avatar_s3_hash: [171, 205] })
+  assert.equal(data.account?.userId, 42)
+  assert.deepEqual(data.account?.avatarHash, [171, 205])
+
+  const { body } = render(SettingsPage, { props: { data, form: null } })
+  assert.match(body, /action="\?\/avatar"[^>]*enctype="multipart\/form-data"/)
+  assert.match(body, /src="\/-\/avatar\/42\?v=abcd"/)
+  assert.match(body, /name="avatar"[^>]*accept="image\/\*"/)
+  assert.match(body, /name="remove"/)
 })
