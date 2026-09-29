@@ -8,8 +8,8 @@ Stored HTML is reused while its rendering-input identity remains current. `deepw
 - [x] Documentation, frontend, tests and build-output changes do not change the identity.
 - [x] Backend Rust, vendored dependencies, manifests/lockfile, default configuration, embedded templates and locale changes change the identity. The hash is deliberately conservative: unrelated backend API code can still invalidate HTML; it does not attempt semantic dependency analysis.
 - [x] Adding/removing input files changes identity; missing required inputs fail with the affected path. File symlinks hash their contents, including the tracked `misc/config.toml` link.
-- [ ] A current page reuses its stored HTML; a mismatched page rerenders before returning content and stores the current identity.
-- [ ] Production app and Nix packaging consume the same identity mechanism, not a repository commit or a store-path hash. FTML's commit-bearing version string must not reintroduce unrelated Git metadata into the key.
+- [x] A current page reuses its stored HTML; a mismatched page rerenders before returning content and stores the current identity.
+- [x] Production app and Nix packaging consume the same identity mechanism, not a repository commit or a store-path hash. FTML's commit-bearing version string must not reintroduce unrelated Git metadata into the key.
 
 ## How it works
 
@@ -27,11 +27,16 @@ Stored HTML is reused while its rendering-input identity remains current. `deepw
 ## Tests asserting this spec
 
 - `deepwell/tests/render_identity.rs` — concrete input-copy/mutation, metadata, symlink and missing-input behavior (8/8 at `302c8b907`).
-- `deepwell/tests/page_lazy_rerender.rs` — current HTML reuse and stale-build rerender behavior against the database.
+- `deepwell/tests/page_lazy_rerender.rs` — current HTML reuse and stale-build rerender behavior against the database (2/2, `/tmp/cobalt-render-identity-page-tests.log`).
+- Full Nix package build passed at `60d7abaf6`: `/nix/store/da6ag74zdv7m3pvsg92s3ygi763rfzr2-cobalt-deepwell-2026.8.20`; receipt `/tmp/cobalt-render-identity-nix-build2.log`.
+
+## Initial deployment proof
+
+Local and production backend deployment passed at `60d7abaf6`. The race-roster's first ordinary view transitioned its legacy key to `render-inputs-v1:5eb243ea930e3b22a5bed3d752a78f342a1bbbcb84caa16e7c43cdbb1a2b814f` in 527 ms; the next host-local RPC took 13 ms. Revision `3000002431` and body hash remained unchanged. Receipts: `/tmp/cobalt-render-identity-before-transition.csv`, `/tmp/cobalt-render-identity-before-doc-deploy.csv`, `/tmp/cobalt-render-identity-transition-{0,1}.log`.
 
 ## Known gaps (current cycle)
 
-- [ ] Complete build-path, database integration, deployment and independent checks.
+- [ ] Complete the docs-only redeployment/cache-retention proof and final independent checks.
 - [ ] The initial transition from legacy commit-based keys requires one normal lazy rerender per viewed page. It does not perform a site-wide sweep.
 
 ## Out of scope
