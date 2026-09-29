@@ -149,7 +149,13 @@ test("authors with a local account link to their user page; others stay plain te
       ]
     }
   })
-  assert.match(body, /<a href="\/-\/user\/ozmaasimov"[^>]*>OzmaAsimov<\/a>/)
+  const html = body.replace(/<!--[^>]*-->/g, "")
+  assert.match(
+    html,
+    /<a[^>]*href="\/-\/user\/ozmaasimov"[^>]*><span[^>]*user-avatar[^>]*><img[^>]*src="\/-\/avatar\/7444794"[^>]*\/?><\/span>\s*OzmaAsimov<\/a>/
+  )
+
   assert.match(body, />Former Member</)
   assert.doesNotMatch(body, /<a[^>]*>Former Member<\/a>/)
+  assert.equal(body.match(/user-avatar/g)?.length, 1, "only local accounts get an avatar")
 })

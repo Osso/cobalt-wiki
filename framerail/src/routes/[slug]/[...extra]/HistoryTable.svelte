@@ -1,4 +1,5 @@
 <script lang="ts">
+  import UserAvatar from "$lib/component/UserAvatar.svelte"
   import { resolve } from "$app/paths"
   import type { HistoryList, HistoryRow } from "$lib/server/load/history"
 
@@ -134,8 +135,11 @@
               >
             </td>
             <td class="author">
-              {#if author && row.author_slug}<a
-                  href={resolve("/-/user/[slug]", { slug: row.author_slug })}>{author}</a
+              {#if author && row.author_slug && row.author_id !== null}<a
+                  class="user-link"
+                  href={resolve("/-/user/[slug]", { slug: row.author_slug })}
+                  ><UserAvatar name={author} size={18} userId={row.author_id} />
+                  {author}</a
                 >{:else if author}{author}{:else}<span class="muted">Unknown</span>{/if}
             </td>
             <td class="date">

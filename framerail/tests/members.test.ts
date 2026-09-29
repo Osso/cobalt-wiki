@@ -177,7 +177,10 @@ test("admins see pending membership messages with approve and reject actions", a
   assert.deepEqual(data.applications, [application])
   const body = renderPage(data)
   assert.match(body, /Membership applications/)
-  assert.match(body, /New Reader/)
+  assert.match(
+    body.replace(/<!--[^>]*-->/g, ""),
+    /<h3[^>]*>\s*<span[^>]*user-avatar[^>]*><img[^>]*src="\/-\/avatar\/90"[^>]*\/?><\/span>\s*New Reader<\/h3>/
+  )
   assert.match(body, /&lt;script(?:>|&gt;)/)
   assert.doesNotMatch(body, /<script>alert/)
   assert.match(body, /Approve/)
@@ -270,7 +273,10 @@ test("admins see every member with email, role, join date and options", async ()
     .slice(1)
   assert.equal(rows.length, 4)
   const [root, self, moderator, member] = rows
-  assert.match(root, /OzmaAsimov<\/a>/)
+  assert.match(
+    root.replace(/<!--[^>]*-->/g, ""),
+    /<a[^>]*><span[^>]*user-avatar[^>]*><img[^>]*src="\/-\/avatar\/\d+"[^>]*\/?><\/span>\s*OzmaAsimov<\/a>/
+  )
   assert.match(root, /\(not set\)/)
   assert.match(root, /Site owner/)
   assert.match(root, /3 Nov 2020/)

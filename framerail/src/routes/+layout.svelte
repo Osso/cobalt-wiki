@@ -21,6 +21,7 @@
   import { clickSiteChanges, enhanceSiteChangeDates } from "$lib/site-changes"
   import "$lib/css/site-changes.scss"
   import "$lib/css/editor.scss"
+  import "$lib/css/user-link.scss"
   import { clickCollapsible } from "$lib/collapsible"
   import { clickTabview, keydownTabview } from "$lib/tabview"
 

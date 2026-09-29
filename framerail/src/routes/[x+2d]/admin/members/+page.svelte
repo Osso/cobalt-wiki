@@ -1,4 +1,5 @@
 <script lang="ts">
+  import UserAvatar from "$lib/component/UserAvatar.svelte"
   import { enhance } from "$app/forms"
   import { resolve } from "$app/paths"
 
@@ -62,7 +63,14 @@
     <h2 id="applications-heading">Membership applications</h2>
     {#each data.applications as application (application.user_id)}
       <article class="membership-application">
-        <h3>{application.user_name}</h3>
+        <h3 class="user-link">
+          <UserAvatar
+            name={application.user_name}
+            size={24}
+            userId={application.user_id}
+          />
+          {application.user_name}
+        </h3>
         <p>Applied {joinDate(application.created_at)}</p>
         <p class="application-message">{application.message}</p>
         <form action="?/application" method="POST" use:enhance>
@@ -103,7 +111,10 @@
         {#each shown as member (member.user_id)}
           <tr>
             <td>
-              <a href={resolve("/-/user/[slug]", { slug: member.slug })}>{member.name}</a>
+              <a class="user-link" href={resolve("/-/user/[slug]", { slug: member.slug })}
+                ><UserAvatar name={member.name} size={20} userId={member.user_id} />
+                {member.name}</a
+              >
             </td>
             <td class="members-email">
               {member.email.endsWith(".invalid") ? "(not set)" : member.email}
