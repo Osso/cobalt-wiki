@@ -204,6 +204,22 @@
     }
   }
 
+  // Round page chrome like the footer. The panel's top-left stays square
+  // because the first nav tab sits on it; the tab link carries the tab's
+  // top-right corner so its hover color follows the curve.
+  #container #main-content {
+    border-radius: 0 6px 6px;
+  }
+
+  #top-bar > ul > li,
+  #top-bar > ul > li > strong > a {
+    border-top-right-radius: 6px;
+  }
+
+  #top-bar > ul > li {
+    border-top-left-radius: 6px;
+  }
+
   // Line up with #main-content, which the site theme insets 10px per side;
   // the theme's license-area min-width would push it back to 1000px.
   #container #footer,
