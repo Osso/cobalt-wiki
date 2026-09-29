@@ -7,6 +7,7 @@ Members have a round avatar: their uploaded image, or their initials. Imported m
 - [x] An avatar is served at `/-/avatar/<user_id>` on the site's domain by WWS (the gateway routes `/-/avatar/` there); a user without one gets 404. The stored blob is `user.avatar_s3_hash`, set through `user_edit`'s `avatar_uploaded_blob_id` (the upload's own user only; Deepwell's `maximum-avatar-size-kb`, 250 KiB). `null` removes it.
 - [x] `UserAvatar` shows the image, or up to two initials on the accent gradient. Callers with the hash pass it (no request when empty; the first 6 bytes version the URL so a change is never served stale). Lists that only know the ID request the image and show initials on 404.
 - [x] Header, signed in: one button with the avatar, name and chevron opens the account menu (My account, Site members for site admins, Sign out). The name's dark panel starts at the avatar's vertical midline and is exactly the avatar's height (30 px). Signed out is unchanged.
+- [x] My account is split into sidebar categories (Profile, Email, Password, and Watching when available), one shown at a time; the URL hash (`#email`) selects and keeps the category across reloads, and a save result opens its form's category (Avatar belongs to Profile), including on the server-rendered page.
 - [x] My account has an Avatar form: current avatar, image picker, preview, Upload and (when set) Remove. The browser crops the chosen image to a centered square and encodes it as 256×256 WebP before upload, so phone photos fit the 250 KiB limit. Non-images are refused before any backend call; a failed storage upload leaves the avatar unchanged and says so in the Avatar section.
 - [x] Avatars precede user names in the page history table (rows with a local account only; `Wikidot ID …` placeholders and Unknown stay plain), the members list and membership applications.
 - [x] The import tool gives a member their Wikidot avatar only when their Wikidot profile (`user:info/<slug>`) reports their Cobalt user ID: locally created accounts also have positive IDs, which can belong to unrelated Wikidot users. It skips members who already have an avatar, Wikidot's `default_avatar`, non-images and files over 250 KiB, and uploads as the member. Dry run by default; `--apply` writes at most one member per `--interval` seconds (default 1). Reruns change nothing.
@@ -32,7 +33,7 @@ Production, verified 2026-09-29 UTC: `--apply` imported booriley22, etone, invis
 
 ## Tests asserting this spec
 
-- `framerail/tests/settings.test.ts`: upload (blob, PUT, `user_edit`), removal (`avatar_uploaded_blob_id: null`), non-image refusal, failed PUT, form render; 17/17 at `a17317801`.
+- `framerail/tests/settings.test.ts`: upload (blob, PUT, `user_edit`), removal (`avatar_uploaded_blob_id: null`), non-image refusal, failed PUT, form render, sidebar categories and save-result category; 19/19.
 - `framerail/tests/history-table.test.ts`, `framerail/tests/members.test.ts`: avatar markup before local names only; 17/17 at `49e0faec0`.
 - `framerail/tests/local/avatar.mjs`: real browser upload of a 1200×800 PNG, resized WebP under 250 KiB, header image, served 256×256, removal to initials and 404; 1/1 locally.
 - `framerail/tests/local/login.mjs`: header menu opens and contains My account; 1/1 locally.

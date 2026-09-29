@@ -503,3 +503,53 @@ test("settings page shows the current avatar with upload and remove controls", a
   assert.match(body, /name="avatar"[^>]*accept="image\/\*"/)
   assert.match(body, /name="remove"/)
 })
+
+/** The ids of the category sections, split into shown and hidden. */
+function categorySections(body: string) {
+  const sections = [...body.matchAll(/<section id="(\w+)"[^>]*>/g)]
+  return {
+    shown: sections.filter(([tag]) => !/\shidden/.test(tag)).map(([, id]) => id),
+    hidden: sections.filter(([tag]) => /\shidden/.test(tag)).map(([, id]) => id)
+  }
+}
+
+test("settings open on Profile with a sidebar of every category", async () => {
+  const { value: data } = await loadSettings(alice)
+  const { body } = render(SettingsPage, { props: { data, form: null } })
+
+  const nav = body.slice(body.indexOf('<nav class="settings-nav'), body.indexOf("</nav>"))
+  assert.deepEqual(
+    [...nav.matchAll(/href="#(\w+)"[^>]*>([^<]+)</g)].map(
+      ([, id, label]) => `${id}:${label}`
+    ),
+    ["profile:Profile", "email:Email", "password:Password", "watching:Watching"]
+  )
+  assert.match(
+    nav,
+    /aria-current="page"[^>]*href="#profile"|href="#profile"[^>]*aria-current="page"/
+  )
+  assert.deepEqual(categorySections(body), {
+    shown: ["profile"],
+    hidden: ["email", "password", "watching"]
+  })
+})
+
+test("a save result opens the category of the submitted form", async () => {
+  const { value: data } = await loadSettings(alice)
+  const emailSaved = {
+    section: "email",
+    saved: true,
+    message: "Your settings were saved."
+  }
+  const email = render(SettingsPage, { props: { data, form: emailSaved } }).body
+  assert.deepEqual(categorySections(email).shown, ["email"])
+  assert.match(email, /<section id="email"[^>]*>[\s\S]*Your settings were saved\./)
+
+  const avatarSaved = {
+    section: "avatar",
+    saved: true,
+    message: "Your settings were saved."
+  }
+  const avatar = render(SettingsPage, { props: { data, form: avatarSaved } }).body
+  assert.deepEqual(categorySections(avatar).shown, ["profile"])
+})
