@@ -24,6 +24,7 @@ use crate::error::prelude::*;
 use crate::locales::Localizations;
 use crate::models::session::Model as SessionModel;
 use crate::services::blob::MimeAnalyzer;
+use crate::services::outdate::ListingChange;
 use crate::services::permission::{CheckPermissionContext, PermissionService};
 use crate::types::{Permission, Reference};
 use redis::aio::MultiplexedConnection as RedisMultiplexedConnection;
@@ -31,7 +32,7 @@ use rsmq_async::Rsmq;
 use s3::bucket::Bucket;
 use sea_orm::DatabaseTransaction;
 use std::collections::HashSet;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tokio::sync::OnceCell;
 
 /// Per-request context derived from HTTP headers by the middleware layer.
@@ -85,6 +86,7 @@ pub struct ServiceContext<'txn> {
     transaction: &'txn DatabaseTransaction,
     request_ctx: RequestContext,
     user_permissions: OnceCell<HashSet<Permission<'static>>>,
+    deferred_listings: Mutex<Option<Vec<ListingChange>>>,
 }
 
 impl<'txn> ServiceContext<'txn> {
@@ -98,6 +100,7 @@ impl<'txn> ServiceContext<'txn> {
             transaction,
             request_ctx: RequestContext::default(),
             user_permissions: OnceCell::new(),
+            deferred_listings: Mutex::new(None),
         }
     }
 
@@ -116,6 +119,31 @@ impl<'txn> ServiceContext<'txn> {
 
         // Clear cached permissions since the user context has changed.
         self.user_permissions = OnceCell::new();
+    }
+
+    /// Starts collecting listing changes instead of outdating each one.
+    pub fn defer_listings(&self) {
+        *self.deferred_listings.lock().unwrap() = Some(Vec::new());
+    }
+
+    /// Stops collecting listing changes, returning those collected.
+    pub fn take_deferred_listings(&self) -> Vec<ListingChange> {
+        self.deferred_listings
+            .lock()
+            .unwrap()
+            .take()
+            .unwrap_or_default()
+    }
+
+    /// Collects `change` if deferral is active, otherwise returns it.
+    pub fn try_defer_listing(&self, change: ListingChange) -> Option<ListingChange> {
+        match self.deferred_listings.lock().unwrap().as_mut() {
+            Some(changes) => {
+                changes.push(change);
+                None
+            }
+            None => Some(change),
+        }
     }
 
     // Getters

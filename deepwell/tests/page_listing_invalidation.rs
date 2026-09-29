@@ -298,3 +298,117 @@ async fn page_changes_rerender_listings_that_could_show_them() {
         "{queued:?}"
     );
 }
+
+#[tokio::test]
+#[ignore = "requires a dedicated empty Redis database; run explicitly with --ignored"]
+async fn site_tag_changes_rerender_every_listing_that_could_show_changed_pages() {
+    let queue = redis::Client::open(std::env::var("REDIS_URL").unwrap()).unwrap();
+    let mut connection = queue.get_multiplexed_async_connection().await.unwrap();
+    Rsmq::new_with_connection(connection.clone(), false, Some("rsmq"))
+        .await
+        .unwrap()
+        .create_queue(
+            JOB_QUEUE_NAME,
+            JOB_QUEUE_PROCESS_TIME,
+            JOB_QUEUE_DELAY,
+            JOB_QUEUE_MAXIMUM_SIZE,
+        )
+        .await
+        .expect("use a fresh dedicated Redis database");
+    let mut runner = TestRunner::setup_with_idle_job_workers().await;
+    let site_id = run_endpoint!(runner, site_get, json!({"site": "test"}))
+        .unwrap()
+        .site
+        .site_id;
+    let listing = |tag: &str| {
+        format!(
+            "[[module ListPages category=\"*\" tags=\"{tag}\"]]\n* %%title%%\n[[/module]]"
+        )
+    };
+
+    // An edited page whose own listing shows another edited page must still be
+    // rerendered, whichever of the two is edited first.
+    let lister = create_page(
+        &mut runner,
+        site_id,
+        "bulk-lister",
+        &listing("bulk-new"),
+        &["bulk-old"],
+    )
+    .await;
+    create_page(&mut runner, site_id, "bulk-plain", "Plain", &["bulk-old"]).await;
+    let shows_old =
+        create_page(&mut runner, site_id, "shows-old", &listing("bulk-old"), &[]).await;
+    let shows_new =
+        create_page(&mut runner, site_id, "shows-new", &listing("bulk-new"), &[]).await;
+    let shows_added = create_page(
+        &mut runner,
+        site_id,
+        "shows-added",
+        &listing("bulk-added"),
+        &[],
+    )
+    .await;
+    let unrelated = create_page(
+        &mut runner,
+        site_id,
+        "shows-other",
+        &listing("bulk-other"),
+        &[],
+    )
+    .await;
+    let queued = queued_rerenders(&mut connection).await;
+    for page in [lister, shows_old, shows_new, shows_added, unrelated] {
+        assert!(
+            !queued.contains(&page),
+            "fixture setup queued {page}: {queued:?}"
+        );
+    }
+
+    runner.set_request_context(RequestContext {
+        session: None,
+        user_id: Some(ADMIN_USER_ID),
+        site_id: Some(site_id),
+        page_reference: None,
+    });
+    let preview = run_endpoint!(
+        runner,
+        site_tag_preview,
+        json!({"source_tag": "bulk-old", "target_tag": "bulk-new"})
+    );
+    assert_eq!(preview.count, 2);
+    run_endpoint!(
+        runner,
+        site_tag_apply,
+        json!({
+            "source_tag": "bulk-old", "target_tag": "bulk-new",
+            "preview_token": preview.preview_token, "ip_address": common::IP_ADDRESS
+        })
+    );
+    let queued = queued_rerenders(&mut connection).await;
+    for page in [lister, shows_old, shows_new] {
+        assert!(
+            queued.contains(&page),
+            "rename must queue {page}: {queued:?}"
+        );
+    }
+    assert!(!queued.contains(&shows_added), "{queued:?}");
+    assert!(!queued.contains(&unrelated), "{queued:?}");
+
+    let selection = json!({
+        "tag": "bulk-added", "existing_tag": "bulk-new", "category": null,
+        "title_contains": null
+    });
+    let preview = run_endpoint!(runner, site_tag_add_preview, selection.clone());
+    assert_eq!(preview.count, 2);
+    let mut apply = selection;
+    apply["preview_token"] = json!(preview.preview_token);
+    apply["ip_address"] = json!(common::IP_ADDRESS);
+    run_endpoint!(runner, site_tag_add_apply, apply);
+    let queued = queued_rerenders(&mut connection).await;
+    assert!(
+        queued.contains(&shows_added),
+        "add must queue its listing: {queued:?}"
+    );
+    assert!(!queued.contains(&unrelated), "{queued:?}");
+}

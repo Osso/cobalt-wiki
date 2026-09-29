@@ -39,12 +39,13 @@ struct StoredListing {
     selection: serde_json::Value,
 }
 
-/// Listing pages of the site that could show any of `subjects` (a changed
-/// page before and after the change).
+/// Listing pages of the site that could show any changed page. Each change is
+/// a page ID with its states before and after; a listing page is not affected
+/// by its own change, since rendering it read that change already.
 pub async fn affected_pages(
     ctx: &ServiceContext<'_>,
     site_id: i64,
-    subjects: &[ListingSubject<'_>],
+    changes: &[(i64, Vec<ListingSubject<'_>>)],
 ) -> Result<Vec<i64>> {
     let make_error =
         || Error::new("failed to read page listings", ErrorType::PageOutdater);
@@ -60,9 +61,15 @@ pub async fn affected_pages(
     .or_raise(make_error)?;
     let mut pages = Vec::new();
     for StoredListing { page_id, selection } in listings {
+        if pages.contains(&page_id) {
+            continue;
+        }
         let filter: ListingFilter =
             serde_json::from_value(selection).or_raise(make_error)?;
-        if !pages.contains(&page_id) && subjects.iter().any(|page| filter.matches(page)) {
+        let shows_change = changes.iter().any(|(changed, subjects)| {
+            *changed != page_id && subjects.iter().any(|page| filter.matches(page))
+        });
+        if shows_change {
             pages.push(page_id);
         }
     }

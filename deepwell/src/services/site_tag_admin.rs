@@ -2,7 +2,9 @@
 
 use super::prelude::*;
 use crate::services::page::{EditPage, EditPageBody};
-use crate::services::{MemberAdminService, PageRevisionService, PageService};
+use crate::services::{
+    MemberAdminService, OutdateService, PageRevisionService, PageService,
+};
 use sea_orm::{DatabaseBackend, Statement};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -150,22 +152,26 @@ impl SiteTagAdminService {
             require_editable(ctx, site_id, user_id, tagged.page.page_id).await?;
         }
         let operation_id = insert_add_operation(ctx, site_id, user_id, &preview).await?;
-        for tagged in &pages {
-            let mut after = tagged.tags.clone();
-            after.push(preview.tag.clone());
-            let revision_id = edit_tags(
-                ctx,
-                site_id,
-                user_id,
-                tagged.page.page_id,
-                tagged.revision_id,
-                after.clone(),
-                input.ip_address,
-                "Site tag add",
-            )
-            .await?;
-            insert_record(ctx, operation_id, tagged, &after, revision_id).await?;
-        }
+        OutdateService::outdate_listings_once(ctx, site_id, async {
+            for tagged in &pages {
+                let mut after = tagged.tags.clone();
+                after.push(preview.tag.clone());
+                let revision_id = edit_tags(
+                    ctx,
+                    site_id,
+                    user_id,
+                    tagged.page.page_id,
+                    tagged.revision_id,
+                    after.clone(),
+                    input.ip_address,
+                    "Site tag add",
+                )
+                .await?;
+                insert_record(ctx, operation_id, tagged, &after, revision_id).await?;
+            }
+            Ok(())
+        })
+        .await?;
         Ok(TagChangeResult {
             operation_id,
             count: pages.len(),
@@ -213,20 +219,24 @@ impl SiteTagAdminService {
         }
         let operation_id =
             insert_operation(ctx, site_id, user_id, &preview, input.ip_address).await?;
-        for (tagged, after) in pages.iter().zip(changed) {
-            let revision_id = edit_tags(
-                ctx,
-                site_id,
-                user_id,
-                tagged.page.page_id,
-                tagged.revision_id,
-                after.clone(),
-                input.ip_address,
-                "Site tag change",
-            )
-            .await?;
-            insert_record(ctx, operation_id, tagged, &after, revision_id).await?;
-        }
+        OutdateService::outdate_listings_once(ctx, site_id, async {
+            for (tagged, after) in pages.iter().zip(changed) {
+                let revision_id = edit_tags(
+                    ctx,
+                    site_id,
+                    user_id,
+                    tagged.page.page_id,
+                    tagged.revision_id,
+                    after.clone(),
+                    input.ip_address,
+                    "Site tag change",
+                )
+                .await?;
+                insert_record(ctx, operation_id, tagged, &after, revision_id).await?;
+            }
+            Ok(())
+        })
+        .await?;
         Ok(TagChangeResult {
             operation_id,
             count: pages.len(),
@@ -301,19 +311,23 @@ impl SiteTagAdminService {
             }
             require_editable(ctx, site_id, user_id, record.page.page_id).await?;
         }
-        for record in &records {
-            edit_tags(
-                ctx,
-                site_id,
-                user_id,
-                record.page.page_id,
-                record.resulting_revision_id,
-                record.before_tags.clone(),
-                input.ip_address,
-                "Undo site tag change",
-            )
-            .await?;
-        }
+        OutdateService::outdate_listings_once(ctx, site_id, async {
+            for record in &records {
+                edit_tags(
+                    ctx,
+                    site_id,
+                    user_id,
+                    record.page.page_id,
+                    record.resulting_revision_id,
+                    record.before_tags.clone(),
+                    input.ip_address,
+                    "Undo site tag change",
+                )
+                .await?;
+            }
+            Ok(())
+        })
+        .await?;
         ctx.transaction().execute_raw(statement(
             "UPDATE site_tag_operation SET reversed_at = now() WHERE site_id = $1 AND operation_id = $2",
             [site_id.into(), input.operation_id.into()],

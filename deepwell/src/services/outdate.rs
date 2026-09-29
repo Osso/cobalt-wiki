@@ -30,6 +30,13 @@ use ref_map::*;
 use sea_orm::FromQueryResult;
 use std::collections::{BTreeSet, HashSet};
 
+/// A page's listing-visible states (`(slug, tags)`) before and after a change.
+#[derive(Debug)]
+pub struct ListingChange {
+    page_id: i64,
+    states: Vec<(String, Vec<String>)>,
+}
+
 #[derive(Debug)]
 pub struct OutdateService;
 
@@ -204,37 +211,78 @@ impl OutdateService {
     }
 
     /// Rerender the listing pages that could show `page_id` in any of the given
-    /// states (`(slug, tags)` before and after a change).
+    /// states (`(slug, tags)` before and after a change). Inside
+    /// `outdate_listings_once()` the change is collected instead.
     pub async fn outdate_listings(
         ctx: &ServiceContext<'_>,
         site_id: i64,
         page_id: i64,
         states: &[(&str, &[String])],
     ) -> Result<()> {
+        let change = ListingChange {
+            page_id,
+            states: states
+                .iter()
+                .map(|&(slug, tags)| (slug.to_owned(), tags.to_vec()))
+                .collect(),
+        };
+        match ctx.try_defer_listing(change) {
+            Some(change) => Self::outdate_listing_changes(ctx, site_id, &[change]).await,
+            None => Ok(()),
+        }
+    }
+
+    /// Runs `body`, then rerenders the listing pages its page changes affect with
+    /// one read of the site's listings instead of one per changed page.
+    pub async fn outdate_listings_once<T>(
+        ctx: &ServiceContext<'_>,
+        site_id: i64,
+        body: impl Future<Output = Result<T>>,
+    ) -> Result<T> {
+        ctx.defer_listings();
+        let result = body.await;
+        let changes = ctx.take_deferred_listings();
+        let output = result?;
+        Self::outdate_listing_changes(ctx, site_id, &changes).await?;
+        Ok(output)
+    }
+
+    async fn outdate_listing_changes(
+        ctx: &ServiceContext<'_>,
+        site_id: i64,
+        changes: &[ListingChange],
+    ) -> Result<()> {
         let make_error = || {
             Error::new(
                 format!(
-                    "failed to run outdater for listings of page ID {page_id} on site ID {site_id}"
+                    "failed to run outdater for listings of {} pages on site ID {site_id}",
+                    changes.len(),
                 ),
                 ErrorType::PageOutdater,
             )
         };
-        let subjects: Vec<_> = states
+        let subjects: Vec<_> = changes
             .iter()
-            .map(|&(slug, tags)| {
-                let (category, name) = split_category_name(slug);
-                ListingSubject {
-                    category,
-                    name,
-                    tags,
-                }
+            .map(|change| {
+                let states = change
+                    .states
+                    .iter()
+                    .map(|(slug, tags)| {
+                        let (category, name) = split_category_name(slug);
+                        ListingSubject {
+                            category,
+                            name,
+                            tags,
+                        }
+                    })
+                    .collect();
+                (change.page_id, states)
             })
             .collect();
         let ids = listing_pages_affected_by(ctx, site_id, &subjects)
             .await
             .or_raise(make_error)?
             .into_iter()
-            .filter(|&id| id != page_id)
             .collect();
         Self::outdate_pages(ctx, site_id, ids)
             .await
