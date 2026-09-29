@@ -30,10 +30,11 @@ Ordinary image-heavy pages must fit the gateway and internal RPC admission budge
 - Gateway GREEN at 1,024 slots: both cases pass, all 350/80 active responses and 64/180 reused idle clients succeed; no recycling or transport errors. `/tmp/cobalt-gateway-capacity-{red2,green}.log`.
 - RPC RED with the library default: requests rejected before the held-call target. GREEN at 512: the limit remains enforced, recovers after release, and 512 idle HTTP keep-alives still permit a new RPC. `/tmp/cobalt-rpc-capacity-proof.md`.
 
-## Known gaps (current cycle)
+## Verification and limits
 
-- [ ] Complete final independent verification. Host/app rollout and bounded browser proof are recorded in the [investigation](../wiki/systems/cobalt-image-delivery-investigation.md#capacity-rollout-status).
-- [ ] These finite budgets do not guarantee arbitrary concurrent traffic. The isolated reproduction establishes the connection-reclamation failure mechanism, not the exact state of every historical socket.
+- Independent gate passed on unchanged `603f7af7a` code: `cargo fmt --check`, `cargo check --lib` (zero warnings/errors), production/test wiring and existing behavioral-receipt audit. Receipt: `capacity-fix/verification/report.md` beneath the investigation's protected evidence directory.
+- Host/app rollout and bounded browser proof are recorded in the [investigation](../wiki/systems/cobalt-image-delivery-investigation.md#capacity-rollout-status).
+- These finite budgets do not guarantee arbitrary concurrent traffic. The isolated reproduction establishes the connection-reclamation failure mechanism, not the exact state of every historical socket.
 
 ## Out of scope
 
