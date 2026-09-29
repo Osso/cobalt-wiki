@@ -60,7 +60,9 @@ Progress indicator, verified 2026-09-29 UTC: `install/dev-deploy.sh framerail` d
 
 ## Known gaps (current cycle)
 
-Bulk-add is deployed, but no production add operation or authenticated admin workflow was exercised. No Sentry integration evidence exists. The unrelated wildcard-language limitation is tracked in [Site Manager gaps](cobalt-site-manager.md#known-gaps-current-cycle).
+Bulk-add is deployed, but no production add operation or authenticated admin workflow was exercised. No Sentry integration evidence exists.
+
+Throughput (measured 2026-09-29, local replica data, prod-identical optimized backend `60d7abaf6`, 1,000 one-line fixture pages): apply 56–73 s and undo 60–74 s, ≈0.06–0.07 s/page, all in one request holding the site tag lock that ordinary edits and imports wait on. Per page: nav top bar re-render 39 ms (`nav:top` includes `:snippets:suo` showto), full-site `page_listing` scan in `outdate_listings` 26 ms (6,668 listings re-read and JSON-decoded per edit), other work ≈6 ms, fixture body render 0.7 ms (real bodies not measured). Implied: 5,925 pages ≈ 6–7 min, exceeding Cloudflare's usual 100 s origin timeout (inferred, not tested) and Node fetch's 300 s default between Framerail and Deepwell. Timing instrumentation patch: `/tmp/claude/tag-apply-profiling.patch` (not committed). The unrelated wildcard-language limitation is tracked in [Site Manager gaps](cobalt-site-manager.md#known-gaps-current-cycle).
 
 ## Out of scope
 
