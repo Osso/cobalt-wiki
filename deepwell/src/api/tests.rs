@@ -82,7 +82,7 @@ async fn idle_http_keepalives_do_not_consume_rpc_capacity() {
     module.register_method("ping", |_, _, _| "pong").unwrap();
     let handle = server.start(module);
     let mut idle = Vec::new();
-    for _ in 0..120 {
+    for _ in 0..512 {
         let mut socket = tokio::net::TcpStream::connect(address).await.unwrap();
         socket
             .write_all(b"GET / HTTP/1.1\r\nHost: localhost\r\n\r\n")
@@ -106,7 +106,7 @@ async fn idle_http_keepalives_do_not_consume_rpc_capacity() {
         request_rpc(&client, &endpoint, "ping", json!([])).await["result"],
         "pong"
     );
-    assert_eq!(idle.len(), 120);
+    assert_eq!(idle.len(), 512);
     handle.stop().unwrap();
     handle.stopped().await;
 }
