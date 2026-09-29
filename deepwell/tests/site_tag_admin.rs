@@ -4,6 +4,7 @@ mod common;
 use common::TestRunner;
 use deepwell::constants::ADMIN_USER_ID;
 use deepwell::error::prelude::*;
+use deepwell::models::session::Model as SessionModel;
 use deepwell::services::import::{ImportPage, ImportPageRevision, ImportService};
 use deepwell::services::page::{EditPage, EditPageBody};
 use deepwell::services::{
@@ -13,6 +14,7 @@ use deepwell::types::{Maybe, PageRevisionType, Reference};
 use sea_orm::{ConnectionTrait, DatabaseBackend, Statement, TransactionTrait};
 use serde_json::json;
 use std::time::Duration;
+use time::macros::datetime;
 
 async fn site_id(runner: &TestRunner) -> i64 {
     run_endpoint!(runner, site_get, json!({"site": "test"}))
@@ -66,6 +68,25 @@ async fn admin_preview_merge_and_undo_preserve_other_tags() {
     .await;
     let second = page(&runner, site, "tag-second", &["source", "other"]).await;
     let unaffected = page(&runner, site, "tag-unaffected", &["other"]).await;
+    let initial_revision = PageService::get(runner.context(), site, Reference::Id(first))
+        .await
+        .unwrap()
+        .latest_revision_id
+        .unwrap();
+    runner.set_request_context(RequestContext {
+        site_id: Some(site),
+        user_id: Some(ADMIN_USER_ID),
+        page_reference: Some(Reference::Id(first)),
+        ..Default::default()
+    });
+    run_endpoint!(
+        runner,
+        page_draft_save,
+        json!({
+            "title":"Private draft", "wikitext":"Unpublished revision",
+            "last_revision_id": initial_revision
+        })
+    );
     act_as(&mut runner, site, Some(ADMIN_USER_ID));
     let preview = run_endpoint!(
         runner,
@@ -91,6 +112,20 @@ async fn admin_preview_merge_and_undo_preserve_other_tags() {
     );
     assert_eq!(tags(&runner, site, second).await, ["target", "other"]);
     assert_eq!(tags(&runner, site, unaffected).await, ["other"]);
+    runner.set_request_context(RequestContext {
+        site_id: Some(site),
+        user_id: Some(ADMIN_USER_ID),
+        page_reference: Some(Reference::Id(first)),
+        ..Default::default()
+    });
+    assert_eq!(
+        run_endpoint!(runner, page_draft_get)
+            .draft
+            .unwrap()
+            .wikitext,
+        "Unpublished revision"
+    );
+    act_as(&mut runner, site, Some(ADMIN_USER_ID));
     let history = run_endpoint!(runner, site_tag_history);
     assert_eq!(history[0].operation_id, applied.operation_id);
     assert!(!history[0].reversed);
@@ -104,6 +139,19 @@ async fn admin_preview_merge_and_undo_preserve_other_tags() {
         ["source", "other", "other", "target"]
     );
     assert_eq!(tags(&runner, site, second).await, ["source", "other"]);
+    runner.set_request_context(RequestContext {
+        site_id: Some(site),
+        user_id: Some(ADMIN_USER_ID),
+        page_reference: Some(Reference::Id(first)),
+        ..Default::default()
+    });
+    assert_eq!(
+        run_endpoint!(runner, page_draft_get)
+            .draft
+            .unwrap()
+            .wikitext,
+        "Unpublished revision"
+    );
     assert!(run_endpoint!(runner, site_tag_history)[0].reversed);
 }
 
@@ -201,6 +249,47 @@ async fn locked_page_prevents_partial_apply() {
     assert_eq!(tags(&runner, site, first).await, ["source"]);
     assert_eq!(tags(&runner, site, second).await, ["source"]);
     assert!(run_endpoint!(runner, site_tag_history).is_empty());
+}
+
+#[tokio::test]
+async fn locked_page_prevents_partial_undo() {
+    let mut runner = TestRunner::setup().await;
+    let site = site_id(&runner).await;
+    let first = page(&runner, site, "tag-undo-locked-a", &["source"]).await;
+    let second = page(&runner, site, "tag-undo-locked-b", &["source"]).await;
+    act_as(&mut runner, site, Some(ADMIN_USER_ID));
+    let preview = run_endpoint!(
+        runner,
+        site_tag_preview,
+        json!({"source_tag":"source","target_tag":"new"})
+    );
+    let applied = run_endpoint!(
+        runner,
+        site_tag_apply,
+        json!({
+            "source_tag":"source", "target_tag":"new", "preview_token":preview.preview_token,
+            "ip_address":common::IP_ADDRESS
+        })
+    );
+    run_endpoint!(
+        runner,
+        page_lock_create,
+        json!({
+            "page":second, "lock_type":"permission-only", "expires_at":null,
+            "reason":null, "override_existing":false, "ip_address":common::IP_ADDRESS
+        })
+    );
+    let err = run_endpoint_err!(
+        runner,
+        site_tag_undo,
+        json!({
+            "operation_id":applied.operation_id, "ip_address":common::IP_ADDRESS
+        })
+    );
+    assert_contains_error!(err, ErrorType::TagPageNotEditable);
+    assert_eq!(tags(&runner, site, first).await, ["new"]);
+    assert_eq!(tags(&runner, site, second).await, ["new"]);
+    assert!(!run_endpoint!(runner, site_tag_history)[0].reversed);
 }
 
 #[tokio::test]
@@ -369,33 +458,94 @@ async fn non_admin_cannot_preview_apply_read_history_or_undo() {
     let mut runner = TestRunner::setup().await;
     let site = site_id(&runner).await;
     page(&runner, site, "tag-private", &["source"]).await;
-    act_as(&mut runner, site, None);
-    assert_contains_error!(
-        run_endpoint_err!(
-            runner,
-            site_tag_preview,
-            json!({"source_tag":"source","target_tag":null})
-        ),
-        ErrorType::PermissionDenied
+    let member = run_endpoint!(
+        runner,
+        user_create,
+        json!({
+            "user_type":"regular", "name":"TagReader", "email":"tagreader@example.com",
+            "locales":["en"], "password":"secret", "bypass_filter":true,
+            "bypass_email_verification":true, "ip_address":common::IP_ADDRESS
+        })
+    )
+    .user_id;
+    run_endpoint!(
+        runner,
+        membership_set,
+        json!({
+            "site_id":site, "user_id":member,
+            "metadata":{"accepted":{"cause":"accepted","user_id":ADMIN_USER_ID}},
+            "created_by":ADMIN_USER_ID, "joined_at":"2021-04-29T14:55:00Z",
+            "ip_address":common::IP_ADDRESS
+        })
     );
-    assert_contains_error!(
-        run_endpoint_err!(runner, site_tag_history),
-        ErrorType::PermissionDenied
+    let member_role = run_endpoint!(runner, list_site_roles, json!({"site_id":site}))
+        .into_iter()
+        .find(|role| role.name == "member")
+        .unwrap()
+        .role_id;
+    run_endpoint!(
+        runner,
+        grant_role_to_user,
+        json!({
+            "user_id":member,"role_id":member_role,"site_id":site,
+            "assigning_user_id":ADMIN_USER_ID,"expires_at":null,
+            "ip_address":common::IP_ADDRESS
+        })
     );
-    assert_contains_error!(
-        run_endpoint_err!(
-            runner,
-            site_tag_apply,
-            json!({"source_tag":"source","target_tag":null,"preview_token":"a","ip_address":common::IP_ADDRESS})
-        ),
-        ErrorType::PermissionDenied
-    );
-    assert_contains_error!(
-        run_endpoint_err!(
-            runner,
-            site_tag_undo,
-            json!({"operation_id":1,"ip_address":common::IP_ADDRESS})
-        ),
-        ErrorType::PermissionDenied
-    );
+    let callers = [
+        RequestContext {
+            site_id: Some(site),
+            ..Default::default()
+        },
+        RequestContext {
+            site_id: Some(site),
+            user_id: Some(member),
+            ..Default::default()
+        },
+        RequestContext {
+            site_id: Some(site),
+            user_id: Some(ADMIN_USER_ID),
+            session: Some(SessionModel {
+                session_token: "restricted-tag-test".into(),
+                user_id: ADMIN_USER_ID,
+                created_at: datetime!(2026-09-24 00:00 UTC),
+                expires_at: datetime!(2099-01-01 00:00 UTC),
+                ip_address: common::IP_ADDRESS.to_string(),
+                user_agent: "test".into(),
+                restricted: true,
+            }),
+            ..Default::default()
+        },
+    ];
+    for caller in callers {
+        runner.set_request_context(caller);
+        assert_contains_error!(
+            run_endpoint_err!(
+                runner,
+                site_tag_preview,
+                json!({"source_tag":"source","target_tag":null})
+            ),
+            ErrorType::PermissionDenied
+        );
+        assert_contains_error!(
+            run_endpoint_err!(runner, site_tag_history),
+            ErrorType::PermissionDenied
+        );
+        assert_contains_error!(
+            run_endpoint_err!(
+                runner,
+                site_tag_apply,
+                json!({"source_tag":"source","target_tag":null,"preview_token":"a","ip_address":common::IP_ADDRESS})
+            ),
+            ErrorType::PermissionDenied
+        );
+        assert_contains_error!(
+            run_endpoint_err!(
+                runner,
+                site_tag_undo,
+                json!({"operation_id":1,"ip_address":common::IP_ADDRESS})
+            ),
+            ErrorType::PermissionDenied
+        );
+    }
 }
