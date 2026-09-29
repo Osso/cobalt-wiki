@@ -36,7 +36,7 @@ Site admins manage tags across currently live pages from a confirmed site-wide p
 ## Tests asserting this spec
 
 - `deepwell/tests/site_tag_admin.rs` — isolated real-DB authorization (including member and restricted-session denial), merge/deletion/add, AND filters with `_default` and literal title matching, preview and later-edit conflicts, draft preservation, locked apply/undo atomicity, and serialization with ordinary edits/imports. Current targeted suite: 13/13 at backend `f74ad6a6d`, test revision `1bebf777d` (`/tmp/cobalt-tag-add-green6.log`).
-- `framerail/tests/tag-admin.test.ts` — 11/11 action/rendering tests at frontend `1dd3f7d4b`; the four bulk-add cases cover literal filter forwarding, required filter validation, confirmed snapshot forwarding, and add-history preview/undo (`/tmp/cobalt-tag-add-ui-green.log`).
+- `framerail/tests/tag-admin.test.ts` — 11/11 action/rendering tests for `d3a4ad897`; the four affected bulk-add cases passed again at `1dd3f7d4b`. They cover literal filter forwarding, required filter validation, confirmed snapshot forwarding, and add-history preview/undo (`/tmp/cobalt-tag-add-ui-green.log`, `/tmp/cobalt-tag-add-ui-correction-green.log`).
 - `framerail/tests/local/tag-admin.mjs` — local browser fixtures: 2/2 at backend `f74ad6a6d` / frontend `1dd3f7d4b`; retained rename/delete/undo and bulk add verify AND selection, literal `%`/`_` title matching, source/category exclusions, already-tagged exclusion, history filters, undo, content preservation, and cleanup (`/tmp/cobalt-tag-add-browser-green.log`).
 
 ## Local rollout proof
@@ -55,7 +55,7 @@ Verified 2026-09-29 UTC: `install/dev-deploy.sh all` deployed `f77f6976e79a` (re
 
 ## Known gaps (current cycle)
 
-Bulk-add is locally complete and verified, but intentionally not deployed to production. The production revision above remains rename/merge/delete only. No production add operation, authenticated admin workflow, or Sentry integration evidence exists; no Sentry-clean claim is made.
+Bulk-add is locally complete and verified, but intentionally not deployed to production. The production revision above remains rename/merge/delete only. No production add operation, authenticated admin workflow, or Sentry integration evidence exists; no Sentry-clean claim is made. The unrelated wildcard-language limitation is tracked in [Site Manager gaps](cobalt-site-manager.md#known-gaps-current-cycle).
 
 ## Out of scope
 
