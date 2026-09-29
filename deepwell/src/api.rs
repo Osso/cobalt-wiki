@@ -40,7 +40,7 @@ use crate::services::job::JobWorker;
 use crate::services::{RequestContext, ServiceContext, SessionService};
 use crate::utils::debug_pointer;
 use crate::{database, info, redis as redis_db};
-use jsonrpsee::server::{RpcModule, Server, ServerBuilder, ServerHandle};
+use jsonrpsee::server::{RpcModule, Server, ServerBuilder, ServerConfig, ServerHandle};
 use redis::aio::MultiplexedConnection as RedisMultiplexedConnection;
 use reqwest::Client as ReqwestClient;
 use rsmq_async::Rsmq;
@@ -190,9 +190,10 @@ pub async fn build_server_state(
     Ok(state)
 }
 
-fn rpc_server_builder() -> ServerBuilder {
+fn rpc_server_builder()
+-> ServerBuilder<tower::layer::util::Identity, tower::layer::util::Identity> {
     // WWS allows 256 in-flight RPCs; leave room for other backend clients.
-    Server::builder().max_connections(512)
+    Server::builder().set_config(ServerConfig::builder().max_connections(512).build())
 }
 
 pub async fn build_server(app_state: ServerState) -> Result<ServerHandle> {
