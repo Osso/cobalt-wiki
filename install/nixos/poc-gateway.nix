@@ -13,7 +13,8 @@ let
     worker_processes 1;
     pid /run/cobalt-wiki-gateway/nginx.pid;
     error_log stderr;
-    events { worker_connections 256; }
+    # A roster has about 400 requests; each proxy uses client and upstream slots.
+    events { worker_connections 1024; }
     http {
       access_log off;
       client_body_temp_path /run/cobalt-wiki-gateway/client;
@@ -82,6 +83,8 @@ in
         RuntimeDirectory = "cobalt-wiki-gateway";
         RuntimeDirectoryMode = "0700";
         UMask = "0077";
+        # Leave room for the 1024 connection slots plus logs and temporary files.
+        LimitNOFILE = "2048:524288";
         NoNewPrivileges = true;
         PrivateTmp = true;
         ExecStart = "${pkgs.nginx}/bin/nginx -p /run/cobalt-wiki-gateway/ -c ${nginxConfig}";
