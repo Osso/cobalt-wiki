@@ -216,17 +216,18 @@
 
   // Round page chrome like the footer. The panel's top-left stays square
   // because the first nav tab sits on it; the tab link carries the tab's
-  // top-right corner so its hover color follows the curve.
+  // top-right corner so its hover color follows the curve. Some tabs sit in
+  // an extra div from the nav source, so match top-level items by nesting.
   #container #main-content {
     border-radius: 0 6px 6px;
   }
 
-  #top-bar > ul > li,
-  #top-bar > ul > li > strong > a {
+  #top-bar li:not(li li),
+  #top-bar li:not(li li) > strong > a {
     border-top-right-radius: 3px;
   }
 
-  #top-bar > ul > li {
+  #top-bar li:not(li li) {
     border-top-left-radius: 3px;
   }
 
