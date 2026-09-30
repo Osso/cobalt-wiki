@@ -17,6 +17,18 @@ Pass the private account preference through the existing server-rendered layout.
 
 For invalid form values, refuse the save and show an Appearance error. Backend validation must also reject unsupported values. Saving unrelated settings must not reset the preference.
 
-Backend integration, verification, deployment, and Luridel's post-deploy selection remain main's work; this design does not establish their completion.
+## Deployment and verification
+
+verified: 2026-09-30
+
+- [x] Runtime/backend source `fdb02cd205250c0a3c2ac0eada2b9919d194e28d` deployed through `install/dev-deploy.sh`; exit 0, receipt `/tmp/cobalt-color-profiles-deploy.log`. Followup `b0ff79792f0ce92b0298f07025a6b5ec4e2e2611` changes only the page-data declaration and test typing, not runtime behavior; it is the verified source revision, not a second deployment.
+- [x] Scoped gates pass: Svelte check 0 errors/0 warnings, ESLint/Prettier/Stylelint, Rust format/check. Initial declaration/test typing failures were repaired by the followup. Evidence: `/tmp/cobalt-color-verifier-report.md` and `/tmp/cobalt-color-verifier-proof.json`. Existing 10 ESLint `no-explicit-any` warnings, update-service complexity debt, and build notices remain; no adjacent cleanup claimed.
+- [x] Saved regression proofs: frontend 27/27 in `/tmp/cobalt-color-profiles-green-final.log`; typed component 1/1 in `/tmp/cobalt-color-profiles-style-typed-green.log` supersedes its original component result, not an additional test. Durable DB/input 2/2 in `/tmp/cobalt-color-profile-green.log` uses real committed transactions; serialization 1/1 in `/tmp/cobalt-color-profile-serialization.log`. Declaration/test-only followup and this docs update do not invalidate unchanged runtime/backend proof.
+- [x] Authenticated local full-stack acceptance passes in `/tmp/cobalt-color-profiles-authenticated-smoke-diagnostic.log`: UI save/reload, browser-navigation raw SSR, second browser/account login retaining Classic, correct Classic/Current computed colors, and equal geometry. `/tmp/cobalt-profile-local-smoke.mjs` is a one-off acceptance artifact, not tracked regression coverage. The separate APIRequestContext raw HTTP probe omitted Secure cookies on loopback and saw anonymous Current; instrumentation confirmed browser navigation saw saved Classic. This was a probe issue, not a source failure.
+- [x] Authorized production change saved exact `luridel`, user ID `121356`, from Current to Classic. Fresh `user_get` confirms Classic; unrelated private fields match baseline SHA256 `8915c3e7cdf475daec70653a3f7607160b93b7ba949949fbde7c2e1277b7abaa`. Receipt: `/tmp/cobalt-color-profiles-luridel-after.json`.
+
+Production smoke `/tmp/cobalt-color-profiles-live-smoke.log` proves anonymous roster HTTP 200, first-render Current, existing Current background, and darker labels. Its Classic DOM-attribute probe checks the deployed CSS rule only: no production impersonation or authenticated Luridel page inspection is claimed. Local acceptance does not establish whole-replica readiness.
+
+Temporary local test account removal is recorded in `/tmp/cobalt-color-profiles-test-cleanup.log`; temporary test service units were stopped. No production fixture account was created. These receipts establish the bounded deployment/account action, not broader theme or TOC parity.
 
 Requirements and proof inventory live in the [feature spec](../specs/cobalt-color-profiles.md). No light/dark, System option, browser-local preference, or TOC repair is part of this profile change.
