@@ -4,7 +4,8 @@ Cobalt members choose Classic or Current navigation colors in My account → App
 
 ## What it must do
 
-- [ ] Existing and new accounts start with Current, preserving the existing appearance; anonymous visitors also see Current.
+- [ ] Existing and new accounts start with Current; anonymous visitors also see Current. Existing backgrounds remain unchanged, with the explicitly requested darker labels below.
+- [ ] Signed-in members can find the selector in My account → Appearance (`/-/settings#appearance`), choose Current or Classic under Tab colors, and submit Save appearance. The saved choice is displayed when reopening settings.
 - [ ] Classic uses cyan navigation tabs (`#a8d7ea`), pale cyan hover (`#d6f3ff`), and black labels (`#000`). Dropdowns use the same palette.
 - [ ] Current keeps tab fill `#bcc9f2` and hover `#e0e6fb`; labels use slightly darker navy `#0b1a38` instead of `#10254f`.
 - [ ] Saving Classic or Current persists across page reloads and devices signed into that account; unrelated account edits preserve the choice.
