@@ -2,7 +2,7 @@
 // for information about these interfaces
 // and what to do when importing types
 
-import type { Layout } from "$lib/types"
+import type { ColorProfile, Layout } from "$lib/types"
 import type { PageViewDataBase } from "$lib/server/deepwell/views"
 import type { createPageErrorForms } from "$lib/server/load/page"
 import type { Locales } from "./types"
@@ -60,6 +60,7 @@ declare global {
           email_validation_info: any | null
           email_validation_at: any | null
           locales: string[]
+          color_profile: ColorProfile
           avatar_s3_hash: number[]
           real_name: string | null
           gender: string | null

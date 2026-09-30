@@ -22,6 +22,8 @@ test("account color profiles change tab colors without changing geometry", async
     generate: "server",
     filename: "wikidot.svelte"
   })
+  assert.ok(compiled.css, "navigation CSS must compile")
+  const css = compiled.css.code
   const fixture = new URL(`./.color-profiles-${process.pid}.mjs`, import.meta.url)
   await writeFile(fixture, compiled.js.code)
   const browser = await chromium.launch({
@@ -32,27 +34,31 @@ test("account color profiles change tab colors without changing geometry", async
     const { default: Component } = await import(fixture.href)
     const page = await browser.newPage()
     const geometry = []
-    for (const [colorProfile, colors] of [
-      [
-        "classic",
-        { fill: "rgb(168, 215, 234)", hover: "rgb(214, 243, 255)", text: "rgb(0, 0, 0)" }
-      ],
-      [
-        "current",
-        {
+    for (const { colorProfile, colors } of [
+      {
+        colorProfile: "classic",
+        colors: {
+          fill: "rgb(168, 215, 234)",
+          hover: "rgb(214, 243, 255)",
+          text: "rgb(0, 0, 0)"
+        }
+      },
+      {
+        colorProfile: "current",
+        colors: {
           fill: "rgb(188, 201, 242)",
           hover: "rgb(224, 230, 251)",
           text: "rgb(11, 26, 56)"
         }
-      ],
-      [
-        undefined,
-        {
+      },
+      {
+        colorProfile: undefined,
+        colors: {
           fill: "rgb(188, 201, 242)",
           hover: "rgb(224, 230, 251)",
           text: "rgb(11, 26, 56)"
         }
-      ]
+      }
     ]) {
       const { body } = render(Component, {
         props: {
@@ -60,7 +66,7 @@ test("account color profiles change tab colors without changing geometry", async
           topBar: createRawSnippet(() => ({ render: () => navigation }))
         }
       })
-      await page.setContent(`<style>${compiled.css.code}</style>${body}`)
+      await page.setContent(`<style>${css}</style>${body}`)
       await page.mouse.move(800, 600)
       const tab = page.locator("#top-bar > ul > li")
       const label = tab.locator(":scope > strong > a")
