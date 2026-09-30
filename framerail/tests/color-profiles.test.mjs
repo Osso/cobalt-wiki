@@ -9,6 +9,8 @@ import { render } from "svelte/server"
 
 const navigation =
   '<ul><li><strong><a href="/roster">Roster</a></strong><ul><li><a href="/roster-by-player">By player</a></li></ul></li></ul>'
+const content =
+  '<div id="page-content"><h1>Roster by Player</h1><p>Alli, Luridel, Ozma</p></div>'
 
 test("account color profiles change tab colors without changing geometry", async () => {
   const source = await readFile(
@@ -34,6 +36,7 @@ test("account color profiles change tab colors without changing geometry", async
     const { default: Component } = await import(fixture.href)
     const page = await browser.newPage()
     const geometry = []
+    const renderedPages = []
     for (const { colorProfile, colors } of [
       {
         colorProfile: "classic",
@@ -63,9 +66,12 @@ test("account color profiles change tab colors without changing geometry", async
       const { body } = render(Component, {
         props: {
           colorProfile,
-          topBar: createRawSnippet(() => ({ render: () => navigation }))
+          topBar: createRawSnippet(() => ({ render: () => navigation })),
+          content: createRawSnippet(() => ({ render: () => content }))
         }
       })
+      assert.ok(body.includes(content), "page content must render intact")
+      renderedPages.push(body.replace(/ data-color-profile="(?:classic|current)"/, ""))
       await page.setContent(`<style>${css}</style>${body}`)
       await page.mouse.move(800, 600)
       const tab = page.locator("#top-bar > ul > li")
@@ -113,6 +119,12 @@ test("account color profiles change tab colors without changing geometry", async
     }
     assert.deepEqual(geometry[0], geometry[1])
     assert.deepEqual(geometry[1], geometry[2])
+    assert.equal(
+      renderedPages[0],
+      renderedPages[1],
+      "navigation and page content remain identical"
+    )
+    assert.equal(renderedPages[1], renderedPages[2], "anonymous content matches Current")
   } finally {
     await browser.close()
     await unlink(fixture)

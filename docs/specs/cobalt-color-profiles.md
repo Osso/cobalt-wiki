@@ -13,7 +13,7 @@ verified: 2026-09-30
 - [x] Saving Classic or Current persists across page reloads and devices signed into that account; unrelated account edits preserve the choice.
 - [x] Appearance saves use the signed-in account, ignoring submitted account IDs. Signed-out saves and unsupported values are rejected without changing preferences.
 - [x] The selected colors apply to the first rendered page and update after saving; tab width, height, padding, and corner radii remain unchanged.
-- [ ] Navigation content and page content remain unchanged (not directly asserted by the saved behavior proofs).
+- [x] Navigation content and page content remain unchanged; the rendered fixture is identical across profiles apart from the selected profile attribute.
 - [x] Appearance remains private account data, not another member's public profile data.
 
 ## How it works
@@ -36,16 +36,16 @@ verified: 2026-09-30
 - `deepwell/tests/user_color_profile.rs` — defaults, edit/readback across transactions, invalid values, unrelated edits, other accounts unchanged.
 - `framerail/tests/settings.test.ts` — saved choice display, authenticated save, invalid input, anonymous rejection.
 - `framerail/tests/user-data.test.ts` — private preference handoff.
-- `framerail/tests/color-profiles.test.mjs` — rendered tab/dropdown/hover colors, anonymous Current default, and unchanged tab dimensions/padding/radii.
+- `framerail/tests/color-profiles.test.mjs` — rendered tab/dropdown/hover colors, anonymous Current default, unchanged tab dimensions/padding/radii, and identical navigation/page content.
 - `deepwell/src/services/user/structs.rs` (`user_serialization`) — native Current/Classic serialized values and unchanged Wikidot fixture shape.
 
-Tracked regression results: frontend 27/27 (23 settings, 3 sanitizer, 1 component), durable database/input 2/2, serialization 1/1. The typed component rerun passed 1/1 and replaces the original component proof; it is not a 28th frontend test.
+Tracked regression results: frontend 27/27 (23 settings, 3 sanitizer, 1 component), durable database/input 2/2, serialization 1/1. The final component rerun passed 1/1 including content-preservation assertions (`/tmp/cobalt-color-profiles-content-preservation-green.log`); it replaces the earlier component proof and is not a 28th frontend test.
 
 One-off authenticated local full-stack acceptance (`/tmp/cobalt-profile-local-smoke.mjs`, output `/tmp/cobalt-color-profiles-authenticated-smoke-diagnostic.log`) additionally proves UI save/reload, raw browser-navigation SSR, a second browser/login retaining Classic, both computed palettes, and equal geometry. It is not a tracked automated regression. Exact artifacts, source/deployed revisions, and production limits are recorded in the [deployment receipt](../plans/2026-09-30-cobalt-color-profiles.md#deployment-and-verification).
 
 ## Known gaps (current cycle)
 
-- [ ] Direct behavioral assertions for unchanged navigation/page content remain absent; the deployed change is colors-only. Durable persistence, local authenticated rendering, deployment, and Luridel's saved selection are evidenced in the [deployment receipt](../plans/2026-09-30-cobalt-color-profiles.md#deployment-and-verification).
+No remaining gap in this bounded profile change. Durable persistence, local authenticated rendering, deployment, and Luridel's saved selection are evidenced in the [deployment receipt](../plans/2026-09-30-cobalt-color-profiles.md#deployment-and-verification). Production authenticated Luridel rendering was not directly observed.
 
 ## Out of scope
 
