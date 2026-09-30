@@ -90,7 +90,7 @@
           {@render result("appearance")}
           <label>
             Tab colors
-            <select name="colorProfile" value={data.account.colorProfile}>
+            <select name="colorProfile" class="text" value={data.account.colorProfile}>
               <option value="current">Current</option>
               <option value="classic">Classic — cyan with black text</option>
             </select>

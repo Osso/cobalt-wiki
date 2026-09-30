@@ -1,5 +1,10 @@
 import assert from "node:assert/strict"
+import { readFile } from "node:fs/promises"
 import { after, test } from "node:test"
+import { fileURLToPath } from "node:url"
+import { chromium } from "@playwright/test"
+import { compile, preprocess } from "svelte/compiler"
+import { sveltePreprocess } from "svelte-preprocess"
 import { createSsrServer } from "./ssr-server.ts"
 
 import type { loadSettingsPage } from "../src/lib/server/load/settings.ts"
@@ -639,5 +644,53 @@ test("email and password forms name the account so password managers leave New e
       formHtml.indexOf('name="username"') < formHtml.indexOf('type="password"'),
       `${action} username comes before the password`
     )
+  }
+})
+
+test("appearance select uses the same field styling as the text inputs", async () => {
+  const { value: data } = await loadSettings(alice)
+  const { body } = render(SettingsPage, {
+    props: { data, form: { section: "appearance", saved: true } }
+  })
+  const scope = body.match(/class="settings-form ([\w-]+)"/)?.[1]
+  assert.ok(scope, "settings form carries its scoped CSS class")
+  const file = fileURLToPath(
+    new URL("../src/routes/[x+2d]/settings/+page.svelte", import.meta.url)
+  )
+  const prepared = await preprocess(await readFile(file, "utf8"), sveltePreprocess(), {
+    filename: file
+  })
+  const { css } = compile(prepared.code, { filename: file, cssHash: () => scope })
+  assert.ok(css, "settings CSS must compile")
+
+  const browser = await chromium.launch({
+    executablePath: "/usr/bin/chromium",
+    headless: true
+  })
+  try {
+    const page = await browser.newPage()
+    await page.setContent(`<style>${css.code}</style>${body}`)
+    const fieldStyle = (selector: string) =>
+      page.locator(selector).evaluate((element) => {
+        const style = getComputedStyle(element)
+        return {
+          fontFamily: style.fontFamily,
+          fontSize: style.fontSize,
+          padding: style.padding,
+          border: style.border,
+          borderRadius: style.borderRadius,
+          width: element.getBoundingClientRect().width
+        }
+      })
+    // The Profile panel is hidden; show it so the input has a measurable width.
+    await page.locator("#profile").evaluate((element) => {
+      element.hidden = false
+    })
+    assert.deepEqual(
+      await fieldStyle('select[name="colorProfile"]'),
+      await fieldStyle('input[name="realName"]')
+    )
+  } finally {
+    await browser.close()
   }
 })
