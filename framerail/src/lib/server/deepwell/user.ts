@@ -1,7 +1,7 @@
 import { client } from "$lib/server/deepwell"
 import { startBlobUpload, uploadToPresignUrl } from "./file"
 
-import type { Nullable, Optional, UserModel, UserType } from "$lib/types"
+import type { ColorProfile, Nullable, Optional, UserModel, UserType } from "$lib/types"
 
 /* ----- User View ----- */
 interface UserViewFound {
@@ -38,6 +38,7 @@ interface UserEditParams {
   emailVerified?: Optional<boolean>
   password?: Optional<string>
   locales?: Optional<string[]>
+  colorProfile?: ColorProfile
   avatar?: Optional<File> | null
   realName?: Optional<Nullable<string>>
   gender?: Optional<Nullable<string>>
@@ -98,6 +99,7 @@ export async function userEdit(
   ) {
     data.locales = params.locales
   }
+  if (params.colorProfile !== undefined) data.color_profile = params.colorProfile
   if (params.avatar instanceof File && params.avatar.type.startsWith("image/")) {
     const presign = await startBlobUpload(userId, params.avatar.size)
     const upload = await uploadToPresignUrl(presign.presign_url, params.avatar)

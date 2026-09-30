@@ -30,7 +30,8 @@ const alice = {
   website: "https://alice.example",
   user_page: null,
   locales: ["en"],
-  avatar_s3_hash: null as number[] | null
+  avatar_s3_hash: null as number[] | null,
+  color_profile: "current" as "classic" | "current"
 }
 
 type Rpc = { method: string; params: unknown; id: string | number }
@@ -151,7 +152,8 @@ test("signed-in loader returns the session user's account and profile values", a
     name: "Alice",
     slug: "alice",
     email: "alice@example.com",
-    avatarHash: null
+    avatarHash: null,
+    colorProfile: "current"
   })
   assert.equal(data.profile?.realName, "Alice Liddell")
   assert.equal(data.profile?.birthday, "1990-05-04")
@@ -161,6 +163,68 @@ test("signed-in loader returns the session user's account and profile values", a
   assert.match(body, /href="\/-\/user\/alice"/)
   assert.match(body, /name="realName"[^>]*value="Alice Liddell"/)
   assert.match(body, /action="\?\/password"/)
+})
+
+test("appearance settings display the saved account profile", async () => {
+  for (const color_profile of ["classic", "current"] as const) {
+    const { value: data } = await loadSettings({ ...alice, color_profile })
+    assert.equal(data.account?.colorProfile, color_profile)
+    const { body } = render(SettingsPage, {
+      props: { data, form: { section: "appearance", saved: true } }
+    })
+    assert.deepEqual(categorySections(body).shown, ["appearance"])
+    assert.match(body, /action="\?\/appearance"/)
+    assert.match(body, new RegExp(`<option[^>]*value="${color_profile}"[^>]*selected`))
+  }
+})
+
+test("appearance save changes only the authenticated account and reloads its choice", async () => {
+  let savedUser = { ...alice }
+  const responder = (rpc: Rpc) => {
+    if (rpc.method === "user_view") {
+      return { result: { type: "user_found", data: { user: savedUser } } }
+    }
+    if (rpc.method === "user_edit") {
+      const params = rpc.params as { user: number; color_profile: "classic" | "current" }
+      assert.equal(params.user, alice.user_id, "ignore submitted account identity")
+      savedUser = { ...savedUser, color_profile: params.color_profile }
+      return { result: savedUser }
+    }
+    return chromeResponder(rpc)
+  }
+  for (const colorProfile of ["classic", "current"] as const) {
+    const { value } = await submit(
+      "appearance",
+      { colorProfile, user: "7", email: "other@example.com" },
+      responder
+    )
+    assert.equal(value.saved, true)
+    assert.equal(savedUser.color_profile, colorProfile)
+    assert.equal(savedUser.email, alice.email)
+    const { value: data } = await loadSettings(savedUser)
+    assert.equal(data.account?.colorProfile, colorProfile)
+  }
+})
+
+test("appearance rejects unsupported colors and signed-out saves", async () => {
+  for (const colorProfile of ["", "dark", "cyan", "CLASSIC"]) {
+    const { value, calls } = await submit(
+      "appearance",
+      { colorProfile },
+      accountResponder()
+    )
+    assert.equal(value.status, 400)
+    assert.equal(value.data?.section, "appearance")
+    assert.equal(calls.length, 0)
+  }
+  const { value, calls } = await submit(
+    "appearance",
+    { colorProfile: "classic" },
+    accountResponder(),
+    null
+  )
+  assert.equal(value.status, 401)
+  assert.equal(calls.length, 0)
 })
 
 test("profile save edits only the session user's profile fields", async () => {
@@ -522,7 +586,13 @@ test("settings open on Profile with a sidebar of every category", async () => {
     [...nav.matchAll(/href="#(\w+)"[^>]*>([^<]+)</g)].map(
       ([, id, label]) => `${id}:${label}`
     ),
-    ["profile:Profile", "email:Email", "password:Password", "watching:Watching"]
+    [
+      "profile:Profile",
+      "appearance:Appearance",
+      "email:Email",
+      "password:Password",
+      "watching:Watching"
+    ]
   )
   assert.match(
     nav,
@@ -530,7 +600,7 @@ test("settings open on Profile with a sidebar of every category", async () => {
   )
   assert.deepEqual(categorySections(body), {
     shown: ["profile"],
-    hidden: ["email", "password", "watching"]
+    hidden: ["appearance", "email", "password", "watching"]
   })
 })
 

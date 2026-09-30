@@ -38,6 +38,8 @@ export interface SessionModel {
   restricted: boolean
 }
 
+export type ColorProfile = "classic" | "current"
+
 // deepwell src/models/user.rs
 export interface UserModel {
   user_id: number
@@ -59,6 +61,7 @@ export interface UserModel {
   multi_factor_secret: Nullable<string>
   multi_factor_recovery_codes: Nullable<string[]>
   locales: string[]
+  color_profile: ColorProfile
   avatar_s3_hash: Nullable<number[]>
   real_name: Nullable<string>
   gender: Nullable<string>

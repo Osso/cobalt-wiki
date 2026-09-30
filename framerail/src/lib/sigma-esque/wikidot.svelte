@@ -1,8 +1,16 @@
 <script lang="ts">
-  let { header, topBar, sideBarHtml, content, footer, license } = $props()
+  let {
+    header,
+    topBar,
+    sideBarHtml,
+    content,
+    footer,
+    license,
+    colorProfile = "current"
+  } = $props()
 </script>
 
-<div id="skrollr-body">
+<div id="skrollr-body" data-color-profile={colorProfile}>
   <!-- svelte-ignore a11y_consider_explicit_label -->
   <a id="page-top"></a>
   <div id="container-wrap-wrap">
@@ -109,8 +117,18 @@
   $chrome-panel: rgb(8 12 36 / 72%);
   $chrome-text: #e6eaff;
   $chrome-link: #9fd4ff;
-  $tab-fill: #bcc9f2;
-  $tab-hover: #e0e6fb;
+
+  #skrollr-body {
+    --tab-fill: #bcc9f2;
+    --tab-hover: #e0e6fb;
+    --tab-text: #0b1a38;
+  }
+
+  #skrollr-body[data-color-profile="classic"] {
+    --tab-fill: #a8d7ea;
+    --tab-hover: #d6f3ff;
+    --tab-text: #000;
+  }
 
   #header #login-status {
     padding: 0.25em 0.75em;
@@ -274,15 +292,14 @@
   #header #top-bar li:not(li li) {
     position: relative;
     padding-block: 2px;
-    background-color: $tab-fill;
+    background-color: var(--tab-fill);
     border-top-left-radius: 3px;
   }
 
-  // The theme's pure-black bold labels clash with the navy chrome. The
-  // #header prefix outranks the theme's equal-specificity #top-bar rules.
+  // The #header prefix outranks the theme's equal-specificity #top-bar rules.
   #header #top-bar li:not(li li) > strong > a {
     font-weight: 600;
-    color: #10254f;
+    color: var(--tab-text);
   }
 
   // The theme leaves each dropdown at its static position, 1em inside the
@@ -303,7 +320,7 @@
     width: max-content;
     min-width: 100%;
     padding-block: 4px;
-    background-color: $tab-fill;
+    background-color: var(--tab-fill);
   }
 
   #header #top-bar ul li ul li {
@@ -317,7 +334,7 @@
     display: block;
     width: auto;
     padding: 5px 14px;
-    color: #10254f;
+    color: var(--tab-text);
     white-space: nowrap;
     background-color: transparent;
   }
@@ -325,7 +342,7 @@
   // Highlight the whole tab, not just its label past the theme's 1em indent.
   #header #top-bar li:not(li li):hover,
   #header #top-bar ul li ul a:hover {
-    background-color: $tab-hover;
+    background-color: var(--tab-hover);
   }
 
   #header #top-bar li:not(li li) > strong > a:hover {

@@ -35,6 +35,7 @@
   const CATEGORY_OF: Record<string, string> = { avatar: "profile" }
   const categories = $derived([
     { id: "profile", label: "Profile" },
+    { id: "appearance", label: "Appearance" },
     { id: "email", label: "Email" },
     { id: "password", label: "Password" },
     ...(data.watchingPreferences ? [{ id: "watching", label: "Watching" }] : [])
@@ -83,6 +84,21 @@
       {/each}
     </nav>
     <div class="settings-panels">
+      <section id="appearance" aria-label="Appearance" hidden={active !== "appearance"}>
+        <form class="settings-form" action="?/appearance" method="POST" use:enhance>
+          <h2>Appearance</h2>
+          {@render result("appearance")}
+          <label>
+            Tab colors
+            <select name="colorProfile" value={data.account.colorProfile}>
+              <option value="current">Current</option>
+              <option value="classic">Classic — cyan with black text</option>
+            </select>
+          </label>
+          <p>Saved to your account and used across devices. Layout stays the same.</p>
+          <button class="btn btn-primary" type="submit">Save appearance</button>
+        </form>
+      </section>
       <section id="profile" aria-label="Profile" hidden={active !== "profile"}>
         <dl class="settings-account">
           <dt>Name</dt>

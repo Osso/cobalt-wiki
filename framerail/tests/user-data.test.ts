@@ -31,6 +31,7 @@ const user: UserModel = {
   multi_factor_secret: "mfa-secret",
   multi_factor_recovery_codes: ["recovery-secret"],
   locales: ["en", "fr"],
+  color_profile: "classic",
   avatar_s3_hash: null,
   real_name: "Ada Example",
   gender: null,
@@ -78,6 +79,7 @@ test("self sanitization retains account fields but never credential fields", () 
   assert.equal(sanitized.email, "ada@example.test")
   assert.deepEqual(sanitized.locales, ["en", "fr"])
   assert.equal(sanitized.real_name, "Ada Example")
+  assert.equal(sanitized.color_profile, "classic")
   for (const key of [
     "password",
     "multi_factor_secret",

@@ -33,7 +33,7 @@ const PROFILE_FIELDS = [
   "biography"
 ] as const
 
-type Section = "profile" | "avatar" | "email" | "password"
+type Section = "profile" | "appearance" | "avatar" | "email" | "password"
 type AccountEdits = Parameters<typeof userEdit>[2]
 
 export async function loadSettingsPage(
@@ -67,7 +67,8 @@ export async function loadSettingsPage(
           name: user.name,
           slug: user.slug,
           email: user.email,
-          avatarHash: user.avatar_s3_hash ?? null
+          avatarHash: user.avatar_s3_hash ?? null,
+          colorProfile: user.color_profile
         }
       : null,
     profile: user ? userProfileFields(user) : null,
@@ -85,6 +86,15 @@ export async function settingsProfileAction(event: RequestEvent) {
     ])
   )
   return saveSettings(event, "profile", null, edits)
+}
+
+export async function settingsAppearanceAction(event: RequestEvent) {
+  const form = await event.request.formData()
+  const colorProfile = formText(form, "colorProfile")
+  if (colorProfile !== "classic" && colorProfile !== "current") {
+    return fail(400, { section: "appearance", message: "Choose Classic or Current." })
+  }
+  return saveSettings(event, "appearance", null, { colorProfile })
 }
 
 export async function settingsAvatarAction(event: RequestEvent) {

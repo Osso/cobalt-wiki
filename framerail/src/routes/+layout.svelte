@@ -139,6 +139,7 @@
     rel="stylesheet"
   />
   <Wikidot
+    colorProfile={page.data.user_session?.user.color_profile}
     sideBarHtml={page.data?.compiled_side_bar_html ?? page.error?.compiled_side_bar_html}
   >
     {#snippet header()}

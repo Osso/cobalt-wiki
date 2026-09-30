@@ -25,6 +25,7 @@ export type OwnUserData = PublicUserData &
     | "email_validation_info"
     | "email_validation_at"
     | "locales"
+    | "color_profile"
     | "real_name"
     | "gender"
     | "birthday"
@@ -63,6 +64,7 @@ export function sanitizeUserData(
     email_validation_info: user.email_validation_info,
     email_validation_at: user.email_validation_at,
     locales: user.locales,
+    color_profile: user.color_profile,
     real_name: user.real_name,
     gender: user.gender,
     birthday: user.birthday,
