@@ -487,6 +487,7 @@ impl UserService {
                 email_verified: Maybe::Unset,
                 password: Maybe::Unset,
                 locales: Maybe::Unset,
+                color_profile: Maybe::Unset,
 
                 // set manually, down below
                 avatar_uploaded_blob_id: Maybe::Unset,
@@ -710,6 +711,7 @@ impl UserService {
 
             add_changed_field!(email);
             add_changed_field!(locales);
+            add_changed_field!(move color_profile);
             add_changed_field!(ref real_name);
             add_changed_field!(ref gender);
             add_changed_field!(move birthday);
@@ -821,6 +823,10 @@ impl UserService {
         if let Maybe::Set(locales) = input.locales {
             Self::validate_locales(user.user_type, &locales)?;
             model.locales = Set(locales);
+        }
+
+        if let Maybe::Set(color_profile) = input.color_profile {
+            model.color_profile = Set(color_profile);
         }
 
         if let Maybe::Set(real_name) = input.real_name {

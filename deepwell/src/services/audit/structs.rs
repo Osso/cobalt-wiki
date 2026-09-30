@@ -22,7 +22,7 @@ use super::prelude::*;
 use crate::license::License;
 use crate::services::authorization_token::AuthorizedObject;
 use crate::services::filter::FilterSummary;
-use crate::types::{PageLockType, Permission};
+use crate::types::{ColorProfile, PageLockType, Permission};
 use ftml::layout::Layout;
 use sea_orm::prelude::TimeDateTimeWithTimeZone;
 use std::borrow::Cow;
@@ -856,6 +856,8 @@ pub struct UserFields<'a> {
     pub password: Maybe<bool>,
     #[serde(skip_serializing_if = "Maybe::is_unset")]
     pub locales: Maybe<&'a [String]>,
+    #[serde(skip_serializing_if = "Maybe::is_unset")]
+    pub color_profile: Maybe<ColorProfile>,
     // NOTE: This is simply whether an avatar is set or not, not its value.
     #[serde(skip_serializing_if = "Maybe::is_unset")]
     pub avatar: Maybe<bool>,

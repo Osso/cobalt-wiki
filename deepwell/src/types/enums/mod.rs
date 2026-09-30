@@ -24,6 +24,7 @@
 mod macros;
 
 mod alias_type;
+mod color_profile;
 mod connection_type;
 mod file_revision;
 mod license;
@@ -36,6 +37,7 @@ mod text_block_type;
 mod user_type;
 
 pub use self::alias_type::AliasType;
+pub use self::color_profile::ColorProfile;
 pub use self::connection_type::ConnectionType;
 pub use self::file_revision::{FileRevisionChange, FileRevisionType};
 pub use self::license::License;

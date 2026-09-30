@@ -22,7 +22,7 @@ use super::prelude::*;
 use crate::models::alias::Model as AliasModel;
 use crate::models::user::Model as WikijumpUserModel;
 use crate::models::wikidot_user::Model as WikidotUserModel;
-use crate::types::{Bytes, UserType};
+use crate::types::{Bytes, ColorProfile, UserType};
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 use std::net::IpAddr;
@@ -225,6 +225,7 @@ pub struct UpdateUserBody {
     pub email_verified: Maybe<bool>,
     pub password: Maybe<String>,
     pub locales: Maybe<Vec<String>>,
+    pub color_profile: Maybe<ColorProfile>,
     pub avatar_uploaded_blob_id: Maybe<Option<String>>,
     pub real_name: Maybe<Option<String>>,
     pub gender: Maybe<Option<String>>,
@@ -407,6 +408,7 @@ fn user_serialization() {
             multi_factor_secret: None,
             multi_factor_recovery_codes: None,
             locales: vec![str!("en")],
+            color_profile: ColorProfile::Current,
             avatar_s3_hash: None,
             real_name: None,
             gender: None,
@@ -438,6 +440,7 @@ fn user_serialization() {
   "locales": [
     "en"
   ],
+  "color_profile": "current",
   "avatar_s3_hash": null,
   "real_name": null,
   "gender": null,
@@ -469,6 +472,7 @@ fn user_serialization() {
             multi_factor_secret: None,
             multi_factor_recovery_codes: None,
             locales: vec![str!("en")],
+            color_profile: ColorProfile::Current,
             avatar_s3_hash: None,
             real_name: None,
             gender: None,
@@ -500,6 +504,7 @@ fn user_serialization() {
   "locales": [
     "en"
   ],
+  "color_profile": "current",
   "avatar_s3_hash": null,
   "real_name": null,
   "gender": null,
@@ -536,6 +541,7 @@ fn user_serialization() {
                 str!("d"),
             ]),
             locales: vec![str!("fr"), str!("de")],
+            color_profile: ColorProfile::Classic,
             avatar_s3_hash: Some(vec![0; 4]), // actually 64 long
             real_name: Some(str!("Bot McMuffin")),
             gender: Some(str!("sans genre")),
@@ -573,6 +579,7 @@ fn user_serialization() {
     "fr",
     "de"
   ],
+  "color_profile": "classic",
   "avatar_s3_hash": [
     0,
     0,
