@@ -31,4 +31,4 @@ Production smoke `/tmp/cobalt-color-profiles-live-smoke.log` proves anonymous ro
 
 Temporary local test account removal is recorded in `/tmp/cobalt-color-profiles-test-cleanup.log`; temporary test service units were stopped. No production fixture account was created. These receipts establish the bounded deployment/account action, not broader theme or TOC parity.
 
-Requirements and proof inventory live in the [feature spec](../specs/cobalt-color-profiles.md). No light/dark, System option, browser-local preference, or TOC repair is part of this profile change.
+Requirements and proof inventory live in the [feature spec](../specs/cobalt-color-profiles.md). No light/dark, System option, or browser-local preference is part of this profile change. TOC styling parity was an original-goal requirement left unchanged by the profile implementation, not optional work or an excused omission. Repair `e39d9f311` and its test-backed contract are tracked in the [TOC spec](../specs/cobalt-toc.md); live appearance, scroll/anchor, and preference-preservation acceptance remain pending.

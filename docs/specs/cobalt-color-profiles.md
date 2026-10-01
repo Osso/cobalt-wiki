@@ -50,4 +50,6 @@ No remaining gap in this bounded profile change. Durable persistence, local auth
 ## Out of scope
 
 - Light/dark/system themes, custom palettes, and layout profiles: not requested.
-- TOC styling parity and content-tab colors: separate from header navigation profiles.
+- Content-tab colors: separate from header navigation profiles.
+
+TOC styling parity was part of the original goal and remained unchanged by the profile implementation. Its required repair and pending live proof are tracked in the [TOC contract](cobalt-toc.md), not waived by profile scope.

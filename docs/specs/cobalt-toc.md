@@ -4,9 +4,10 @@ Wikidot-layout pages style the FTML-generated table of contents using the source
 
 ## What it must do
 
-- [ ] Render an opaque `#f7f7f7` panel with a one-pixel dashed gray border, table display, `0 0.5em` padding, and `1em auto 1em 0` margin, matching the original Wikidot base stylesheet.
-- [ ] Center the bold title with original `0 2em` padding and `0.2em 0` margin; retain `0.5em 0` list margin and two-pixel action-bar padding.
-- [ ] Preserve the roster's floating wrapper while scrolling, its 19 ordered player links, and navigation to the matching heading anchors.
+- [x] Render an opaque `#f7f7f7` panel with a one-pixel dashed gray border, table display, `0 0.5em` padding, and `1em` top margin, matching the original Wikidot base stylesheet.
+- [x] Center the bold title with original `0 2em` padding and `0.2em 0` margin; retain `0.5em 0` list margin and two-pixel action-bar padding.
+- [x] Preserve the generated roster fixture's floating wrapper while scrolling and its 19 ordered player links; activating Luridel navigates to its matching `#toc10` heading.
+- [ ] Preserve the complete original panel margin `1em auto 1em 0` and every link's matching heading target.
 - [ ] Leave Classic/Current tab palettes, account selections, page content, and layout outside the TOC unchanged.
 
 ## How it works
@@ -24,9 +25,11 @@ Wikidot-layout pages style the FTML-generated table of contents using the source
 - `framerail/tests/fixtures/roster-toc.html` — actual FTML TOC captured from the deployed roster, with its original floating wrapper and heading targets.
 - `framerail/tests/color-profiles.test.mjs` — existing palette and content-preservation regression, rerun because the shared layout CSS changed.
 
+Saved regression proof: `/tmp/cobalt-toc-style-green.log` reports 2/2 passing (TOC fixture and existing profile/content regression) for stylesheet repair `e39d9f311`. The checked bullets above describe computed CSS and fixture behavior, not live-site acceptance.
+
 ## Known gaps (current cycle)
 
-- [ ] Deploy corrected Framerail and confirm real roster appearance/anchor behavior.
+- [ ] Confirm deployed roster appearance, scrolling, and anchor navigation from main's live artifacts; confirm account preference preservation. Framerail deployment through `install/dev-deploy.sh framerail` exited 0 (`/tmp/cobalt-toc-framerail-deploy.log`); live acceptance and scoped verifier results remain pending.
 
 ## Out of scope
 
