@@ -29,9 +29,11 @@ Saved regression proof: `/tmp/cobalt-toc-style-green.log` reports 2/2 passing (T
 
 ## Known gaps (current cycle)
 
-- [ ] Confirm deployed roster appearance, scrolling, and anchor navigation from main's live artifacts; confirm account preference preservation. Framerail deployment through `install/dev-deploy.sh framerail` exited 0 (`/tmp/cobalt-toc-framerail-deploy.log`); live acceptance and scoped verifier results remain pending.
+- [ ] Confirm account preference preservation and scoped verifier results.
+
+Framerail repair `e39d9f311` deployed through `install/dev-deploy.sh framerail`, exit 0 (`/tmp/cobalt-toc-framerail-deploy.log`). Production acceptance passes in `/tmp/cobalt-toc-live-proof.log`: roster HTTP 200; panel/title/list/action-bar computed styles match source; 19 links; unchanged TOC markup and heading HTML; stable fixed box after scrolling; actual Luridel anchor click. Screenshot: `/tmp/cobalt-toc-live-fixed.png`. This closes deployed roster style/scroll/representative-anchor acceptance, not every-link coverage or full pixel parity.
 
 ## Out of scope
 
 - New layouts, dark mode, account/data mutations, and changes to the TOC generator.
-- FTML's existing unlabeled fold-control stub: this repair maps missing visual rules; it does not implement new fold/unfold controls.
+- FTML's existing unlabeled fold-control stub: this repair maps missing visual rules; it does not implement new fold/unfold controls or reproduce the source's extra table wrappers/Fold row. No full pixel parity or whole-replica readiness is claimed.
