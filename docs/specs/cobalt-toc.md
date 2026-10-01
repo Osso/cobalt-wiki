@@ -4,10 +4,11 @@ Wikidot-layout pages style the FTML-generated table of contents using the source
 
 ## What it must do
 
-- [x] Render an opaque `#f7f7f7` panel with a one-pixel dashed gray border, table display, `0 0.5em` padding, and `1em` top margin, matching the original Wikidot base stylesheet.
+- [x] Render an opaque `#f7f7f7` panel with a one-pixel dashed gray border, table display, `0 0.5em` padding, and original `1em` vertical margins, matching the original Wikidot base stylesheet.
 - [x] Center the bold title with original `0 2em` padding and `0.2em 0` margin; retain `0.5em 0` list margin and two-pixel action-bar padding.
+- [ ] Present plain roster links without list markers or extra list margins, indented one em, matching Wikidot's indented link blocks.
 - [x] Preserve the generated roster fixture's floating wrapper while scrolling and its 19 ordered player links; activating Luridel navigates to its matching `#toc10` heading.
-- [ ] Preserve the complete original panel margin `1em auto 1em 0` and every link's matching heading target.
+- [ ] Preserve every roster link's matching heading target.
 - [ ] Leave Classic/Current tab palettes, account selections, page content, and layout outside the TOC unchanged.
 
 ## How it works

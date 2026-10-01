@@ -82,6 +82,9 @@ test("generated roster TOC inherits Wikidot panel styling and keeps floating lin
       const titleStyle = getComputedStyle(title)
       const listStyle = getComputedStyle(list)
       const actionStyle = getComputedStyle(action)
+      const links = list.querySelector("ul")
+      if (!links) throw new Error("generated TOC list missing")
+      const linksStyle = getComputedStyle(links)
       return {
         display: panelStyle.display,
         background: panelStyle.backgroundColor,
@@ -89,12 +92,15 @@ test("generated roster TOC inherits Wikidot panel styling and keeps floating lin
         borderStyle: panelStyle.borderTopStyle,
         borderWidth: panelStyle.borderTopWidth,
         padding: panelStyle.padding,
-        marginTop: panelStyle.marginTop,
+        margin: panelStyle.margin,
         titleWeight: titleStyle.fontWeight,
         titleAlignment: titleStyle.textAlign,
         titlePadding: titleStyle.padding,
         titleMargin: titleStyle.margin,
         listMargin: listStyle.margin,
+        listMarkers: linksStyle.listStyleType,
+        listIndent: linksStyle.paddingLeft,
+        linksMargin: linksStyle.margin,
         actionPadding: actionStyle.padding
       }
     })
@@ -105,12 +111,15 @@ test("generated roster TOC inherits Wikidot panel styling and keeps floating lin
       borderStyle: "dashed",
       borderWidth: "1px",
       padding: "0px 6.4px",
-      marginTop: "12.8px",
+      margin: "12.8px 0px",
       titleWeight: "700",
       titleAlignment: "center",
       titlePadding: "0px 25.6px",
       titleMargin: "2.56px 0px",
       listMargin: "6.4px 0px",
+      listMarkers: "none",
+      listIndent: "12.8px",
+      linksMargin: "0px",
       actionPadding: "2px"
     })
     const before = await panel.boundingBox()

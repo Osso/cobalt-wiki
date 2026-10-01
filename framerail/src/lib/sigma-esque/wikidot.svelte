@@ -373,15 +373,15 @@
   // Wikidot's base TOC selectors use #toc; FTML renders #wj-toc.
   #wj-toc {
     display: table;
-    margin: 1em auto 1em 0;
     padding: 0 0.5em;
+    margin: 1em auto 1em 0;
     background-color: #f7f7f7;
     border: 1px dashed gray;
   }
 
   #wj-toc .title {
-    margin: 0.2em 0;
     padding: 0 2em;
+    margin: 0.2em 0;
     font-weight: bold;
     text-align: center;
   }
@@ -392,6 +392,13 @@
 
   #wj-toc-list {
     margin: 0.5em 0;
+  }
+
+  // FTML uses nested lists instead of Wikidot's indented div links.
+  #wj-toc-list ul {
+    padding: 0 0 0 1em;
+    margin: 0;
+    list-style: none;
   }
 
   // Map Wikidot's base YUI tab skin to FTML's compiled tab markup.

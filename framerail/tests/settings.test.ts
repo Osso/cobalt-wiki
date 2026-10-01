@@ -684,7 +684,7 @@ test("appearance select uses the same field styling as the text inputs", async (
       })
     // The Profile panel is hidden; show it so the input has a measurable width.
     await page.locator("#profile").evaluate((element) => {
-      element.hidden = false
+      element.removeAttribute("hidden")
     })
     assert.deepEqual(
       await fieldStyle('select[name="colorProfile"]'),

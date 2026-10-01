@@ -16,7 +16,7 @@ UI where existing themes should be adapted to:
 
 ## FTML table-of-contents compatibility
 
-The original base stylesheet targets `#toc`, while FTML generates `#wj-toc`; those unmatched selectors left the generated panel unstyled (`/tmp/cobalt-toc-matched-rules.json`). Legacy/Wikidot layout maps exactly the four original panel, title, action-bar, and list rules to FTML's `wj-` IDs. This restores the opaque light panel, dashed border, and source spacing without changing floating wrappers or heading links. See the [Cobalt TOC contract](specs/cobalt-toc.md).
+The original base stylesheet targets `#toc`, while FTML generates `#wj-toc`; those unmatched selectors left the generated panel unstyled (`/tmp/cobalt-toc-matched-rules.json`). Legacy/Wikidot layout maps the original panel, title, action-bar, and list rules to FTML's `wj-` IDs. It also removes list markers and indents FTML's nested lists by one em per level to match Wikidot's link blocks. This restores the opaque light panel, dashed border, and source spacing without changing floating wrappers or heading links. See the [Cobalt TOC contract](specs/cobalt-toc.md).
 
 ## FTML tabview compatibility
 
