@@ -14,6 +14,10 @@ UI where existing themes should be adapted to:
   * Page editor
   * Page options
 
+## FTML table-of-contents compatibility
+
+Legacy/Wikidot layout maps the original `#toc` panel, title, action-bar, and list styling to FTML's `#wj-toc` IDs. This restores the opaque light panel, dashed border, and source spacing without changing floating wrappers or heading links. See the [Cobalt TOC contract](specs/cobalt-toc.md).
+
 ## FTML tabview compatibility
 
 In legacy/Wikidot layout, compiled `wj-tabs` markup receives the source theme's YUI-style tab presentation: distinct bordered, padded controls; a source-blue selected control; wrapped long labels; and bordered, padded panels. This is a layout/theme compatibility concern only and does not alter page content.

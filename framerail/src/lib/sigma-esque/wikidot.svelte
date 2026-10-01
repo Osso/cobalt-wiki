@@ -370,6 +370,30 @@
     border-radius: 0 0 6px 6px;
   }
 
+  // Wikidot's base TOC selectors use #toc; FTML renders #wj-toc.
+  #wj-toc {
+    display: table;
+    margin: 1em auto 1em 0;
+    padding: 0 0.5em;
+    background-color: #f7f7f7;
+    border: 1px dashed gray;
+  }
+
+  #wj-toc .title {
+    margin: 0.2em 0;
+    padding: 0 2em;
+    font-weight: bold;
+    text-align: center;
+  }
+
+  #wj-toc #wj-toc-action-bar {
+    padding: 2px;
+  }
+
+  #wj-toc-list {
+    margin: 0.5em 0;
+  }
+
   // Map Wikidot's base YUI tab skin to FTML's compiled tab markup.
   // Source: common--theme/base/css/style.css (Yahoo! 2007, BSD licensed).
   .wj-tabs {
