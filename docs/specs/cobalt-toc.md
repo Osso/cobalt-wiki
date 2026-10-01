@@ -32,7 +32,7 @@ Framerail deployed through `install/dev-deploy.sh framerail`, exit 0, at that re
 
 Account receipt `/tmp/cobalt-toc-preference-preservation.json` confirms `luridel` (`121356`) remains Classic with unrelated fields unchanged. That read is stamped `e39d9f311`; final CSS/test-only changes leave the account backend untouched, so it remains applicable, not a new final-revision account read.
 
-Independent agent 12's final four scoped gates pass at `2c514d943`: Svelte check 0 errors/0 warnings, Stylelint 0 diagnostics, ESLint and Prettier exit 0. Exact receipts: `/tmp/cobalt-toc-final-verify-svelte-check.log`, `/tmp/cobalt-toc-final-verify-eslint.log`, `/tmp/cobalt-toc-final-verify-prettier.log`, `/tmp/cobalt-toc-final-verify-stylelint.log`. Summary report remains pending; saved command logs establish these bounded gates. Existing deploy build notices and Nix cache notices are not claimed resolved.
+Independent agent 12's final four scoped gates pass at `2c514d943`: Svelte check 0 errors/0 warnings, Stylelint 0 diagnostics, ESLint and Prettier exit 0. Exact receipts: `/tmp/cobalt-toc-final-verify-svelte-check.log`, `/tmp/cobalt-toc-final-verify-eslint.log`, `/tmp/cobalt-toc-final-verify-prettier.log`, `/tmp/cobalt-toc-final-verify-stylelint.log`. Consolidated report: `/tmp/cobalt-toc-verifier-report.md`; revision/hash ledger: `/tmp/cobalt-toc-final-verifier-proof.json`. Existing deploy build notices and Nix cache notices are not claimed resolved.
 
 ## Known gaps (current cycle)
 
