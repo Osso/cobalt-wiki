@@ -1381,7 +1381,7 @@ export async function pageDeletedGetAction({ request, locals }: RequestEvent) {
     return { res }
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(500, {
+    return fail(error.code === 3106 ? 403 : 500, {
       message: error.message,
       code: error.code,
       data: error.data

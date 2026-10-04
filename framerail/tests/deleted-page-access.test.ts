@@ -8,7 +8,12 @@ const { actions } = await vite.ssrLoadModule(
   "/src/routes/[slug]/[...extra]/+page.server.ts"
 )
 
-async function deletedLookup(siteId = 11, slug = "restore:deleted", route = slug) {
+async function deletedLookup(
+  siteId = 11,
+  slug = "restore:deleted",
+  route = slug,
+  denied = false
+) {
   const previousFetch = globalThis.fetch
   globalThis.fetch = async (_input, init) => {
     const rpc = JSON.parse(String(init?.body))
@@ -26,21 +31,29 @@ async function deletedLookup(siteId = 11, slug = "restore:deleted", route = slug
       JSON.stringify({
         jsonrpc: "2.0",
         id: rpc.id,
-        ...(authorized
+        ...(denied
           ? {
-              result: [
-                {
-                  page_id: 101,
-                  title: "Deleted secret title",
-                  ingress: {
-                    site: headers.get("X-Deepwell-Site-Id"),
-                    page: headers.get("X-Deepwell-Page"),
-                    session: headers.get("X-Deepwell-Session-Token")
-                  }
-                }
-              ]
+              error: {
+                code: 3106,
+                message: "Permission denied",
+                data: { reason: "page edit denied" }
+              }
             }
-          : { error: { code: 3106, message: "Permission denied" } })
+          : authorized
+            ? {
+                result: [
+                  {
+                    page_id: 101,
+                    title: "Deleted secret title",
+                    ingress: {
+                      site: headers.get("X-Deepwell-Site-Id"),
+                      page: headers.get("X-Deepwell-Page"),
+                      session: headers.get("X-Deepwell-Session-Token")
+                    }
+                  }
+                ]
+              }
+            : { error: { code: 3106, message: "Permission denied" } })
       })
     )
   }
@@ -84,6 +97,18 @@ for (const [siteId, slug] of [
     assert.ok(!JSON.stringify(response).includes("Deleted secret title"))
   })
 }
+test("deletedGet returns forbidden and preserves backend denial without metadata", async () => {
+  const response = await deletedLookup(11, "restore:deleted", "restore:deleted", true)
+  assert.equal(response.status, 403)
+  assert.deepEqual(response.data, {
+    code: 3106,
+    message: "Permission denied",
+    data: { reason: "page edit denied" }
+  })
+  assert.ok(!JSON.stringify(response).includes("Deleted secret title"))
+  assert.ok(!("res" in response.data))
+})
+
 test("root deletedGet uses configured default page from hooks context", async () => {
   const response = await deletedLookup(11, "restore:deleted", "")
   assert.equal(response.res[0].page_id, 101)
