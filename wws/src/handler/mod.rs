@@ -30,6 +30,9 @@ mod well_known;
 #[cfg(test)]
 mod file_access_tests;
 
+#[cfg(test)]
+mod text_block_tests;
+
 pub use self::avatar::*;
 pub use self::basic_error::*;
 pub use self::file::*;
