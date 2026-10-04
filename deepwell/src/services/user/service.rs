@@ -29,7 +29,7 @@ use crate::services::audit::{AuditEvent, AuditService, ObjectScope};
 use crate::services::blob::{BlobService, FinalizeBlobUploadOutput};
 use crate::services::email::{EmailClassification, EmailService, EmailValidationOutput};
 use crate::services::filter::{FilterClass, FilterType};
-use crate::services::{AliasService, FilterService, PasswordService};
+use crate::services::{AliasService, FilterService, PasswordService, SessionService};
 use crate::types::{AliasType, UserType};
 use crate::utils::regex_replace_in_place;
 use redis::AsyncCommands;
@@ -1213,6 +1213,9 @@ impl UserService {
 
         // Update and return
         let user = model.update(txn).await.or_raise(make_error)?;
+        SessionService::invalidate_all(ctx, user.user_id)
+            .await
+            .or_raise(make_error)?;
         Ok(user)
     }
 

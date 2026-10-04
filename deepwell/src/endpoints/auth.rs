@@ -132,6 +132,17 @@ pub async fn auth_session_renew(
 ) -> Result<String> {
     let input: RenewSession = parse_one!(params);
 
+    // Only MFA verification may turn a pending session into a full one.
+    let session = SessionService::get(ctx, &input.old_session_token)
+        .await
+        .or_raise(|| Error::new("failed to renew session data", ErrorType::Request))?;
+    if session.restricted {
+        bail!(Error::new(
+            "cannot renew an MFA-pending session",
+            ErrorType::InvalidSessionToken,
+        ));
+    }
+
     SessionService::renew(ctx, input)
         .await
         .or_raise(|| Error::new("failed to renew session data", ErrorType::Request))

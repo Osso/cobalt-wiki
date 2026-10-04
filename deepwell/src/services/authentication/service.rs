@@ -131,6 +131,7 @@ impl AuthenticationService {
                     .add(user::Column::Slug.eq(name_or_email))
                     .add(user::Column::Email.eq(name_or_email)),
             )
+            .filter(user::Column::DeletedAt.is_null())
             .one(txn)
             .await
             .or_raise(|| {
