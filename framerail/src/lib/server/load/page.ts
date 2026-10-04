@@ -42,6 +42,7 @@ import {
 import { translate } from "$lib/server/deepwell/translate"
 import { pageView } from "$lib/server/deepwell/views"
 import { loadSiteInfo } from "$lib/server/load/site-info"
+import { authorizePageRead } from "$lib/server/load/page-read"
 import { DeleteOptions, Layout, PageLockType } from "$lib/types"
 import { requireDeepwellError } from "$lib/deepwell-errors"
 import { applyTagChanges } from "$lib/tag-buttons"
@@ -597,13 +598,15 @@ const pageEditSchema = pipe(
 )
 
 /* ----- Page File ----- */
-export async function pageFileListAction({ request }: RequestEvent) {
+export async function pageFileListAction(event: RequestEvent) {
+  const { request } = event
   try {
     const requestData: { siteId: number; pageId: number; deleted: Optional<boolean> } =
       await request.json()
 
     const { siteId, pageId, deleted } = requestData
 
+    await authorizePageRead(event, { siteId, pageId })
     const res = await pageFileList(siteId, pageId, deleted)
     return { res }
   } catch (e) {
@@ -915,7 +918,8 @@ export async function pageFileRollbackAction({
 }
 
 /* ----- Page History ----- */
-export async function pageHistoryAction({ request }: RequestEvent) {
+export async function pageHistoryAction(event: RequestEvent) {
+  const { request } = event
   try {
     const requestData: {
       siteId: number
@@ -926,6 +930,7 @@ export async function pageHistoryAction({ request }: RequestEvent) {
 
     const { siteId, pageId, revisionNumber, limit } = requestData
 
+    await authorizePageRead(event, { siteId, pageId })
     const res = await pageHistory(siteId, pageId, revisionNumber, limit)
     return { res }
   } catch (e) {
@@ -1028,7 +1033,8 @@ export async function importedRevisionAction(event: RequestEvent) {
 }
 
 /* ----- Page Revision ----- */
-export async function pageRevisionAction({ request }: RequestEvent) {
+export async function pageRevisionAction(event: RequestEvent) {
+  const { request } = event
   try {
     const requestData: {
       siteId: number
@@ -1040,6 +1046,7 @@ export async function pageRevisionAction({ request }: RequestEvent) {
 
     const { siteId, pageId, revisionNumber, compiledHtml, wikitext } = requestData
 
+    await authorizePageRead(event, { siteId, pageId })
     const res = await pageRevision(
       siteId,
       pageId,
@@ -1239,7 +1246,8 @@ const pageParentSchema = object({
 })
 
 /* ----- Page Parent Get ----- */
-export async function pageParentGetAction({ request }: RequestEvent) {
+export async function pageParentGetAction(event: RequestEvent) {
+  const { request } = event
   try {
     const requestData: {
       siteId: number
@@ -1247,6 +1255,7 @@ export async function pageParentGetAction({ request }: RequestEvent) {
       slug: string
     } = await request.json()
     const { siteId, pageId, slug } = requestData
+    await authorizePageRead(event, { siteId, pageId })
     const res = await pageParentGet(siteId, pageId, slug)
     return { res }
   } catch (e) {
@@ -1260,13 +1269,15 @@ export async function pageParentGetAction({ request }: RequestEvent) {
 }
 
 /* ----- Page Vote Get ----- */
-export async function pageVoteGetAction({ request }: RequestEvent) {
+export async function pageVoteGetAction(event: RequestEvent) {
+  const { request } = event
   try {
     const requestData: {
       siteId: number
       pageId: number
     } = await request.json()
     const { siteId, pageId } = requestData
+    await authorizePageRead(event, { siteId, pageId })
     const res = await pageVoteList(siteId, pageId)
     return { res }
   } catch (e) {
@@ -1327,7 +1338,8 @@ export async function pageVoteCancelAction({ request, cookies }: RequestEvent) {
 }
 
 /* ----- Page Score ----- */
-export async function pageScoreAction({ request, params }: RequestEvent) {
+export async function pageScoreAction(event: RequestEvent) {
+  const { request, params } = event
   const { slug } = params
 
   try {
@@ -1336,6 +1348,7 @@ export async function pageScoreAction({ request, params }: RequestEvent) {
       pageId: number
     } = await request.json()
     const { siteId, pageId } = requestData
+    await authorizePageRead(event, { siteId, pageId })
     const res = await pageScore(siteId, pageId, slug)
     return { res }
   } catch (e) {
@@ -1525,9 +1538,11 @@ export async function pageLockRemoveAction({
 }
 
 /* ----- Page Lock History ----- */
-export async function pageLockHistoryAction({ request, locals }: RequestEvent) {
+export async function pageLockHistoryAction(event: RequestEvent) {
+  const { request, locals } = event
   try {
     const { pageId }: { pageId: number } = await request.json()
+    await authorizePageRead(event, { pageId })
     const res = await pageLockHistory(pageId, getRequestContext(locals))
     return { res }
   } catch (e) {
