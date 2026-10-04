@@ -17,6 +17,7 @@ for (const fixturePath of fixturePaths) {
     const fixture = JSON.parse(await readFile(fixturePath, "utf8"))
     assert.ok(fixture.path, "captured WWS route path required")
     const documentPath = fixture.path
+    /** @type {{ origin?: string; cookie?: string }[]} */
     const apiRequests = []
     const server = createServer((request, response) => {
       if (request.url === documentPath) {
@@ -37,21 +38,30 @@ for (const fixturePath of fixturePaths) {
         })
         response.end(`<!doctype html><div id="secret">parent-secret</div>
 <script>window.addEventListener('message', event => {
-  window.proof = { ...event.data, origin: event.origin }
+  document.body.dataset.proof = JSON.stringify({ ...event.data, origin: event.origin })
 })</script><iframe src="${documentPath}"></iframe>`)
       }
     })
-    await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve))
+    await new Promise((resolve) =>
+      server.listen(0, "127.0.0.1", () => resolve(undefined))
+    )
     let browser
     try {
       browser = await chromium.launch({
         executablePath: process.env.CHROMIUM_PATH || "/usr/bin/chromium",
         headless: true
       })
+      const address = server.address()
+      assert.ok(address && typeof address === "object", "TCP listener is bound")
+      const origin = `http://127.0.0.1:${address.port}`
       const page = await browser.newPage()
-      await page.goto(`http://127.0.0.1:${server.address().port}/`)
-      await page.waitForFunction(() => window.proof !== undefined)
-      const proof = await page.evaluate(() => window.proof)
+      await page.goto(`${origin}/`)
+      await page.waitForFunction(() => document.body.dataset.proof !== undefined)
+      const proof = await page.evaluate(() => {
+        const payload = document.body.dataset.proof
+        if (!payload) throw new Error("Missing document-isolation proof")
+        return JSON.parse(payload)
+      })
       console.log(JSON.stringify({ proof, apiRequests }))
       assert.equal(proof.scripts, true)
       assert.equal(proof.parent, "SecurityError")
@@ -67,12 +77,13 @@ for (const fixturePath of fixturePaths) {
         "default same-origin credentials exclude opaque origin"
       )
       // Direct navigation also receives document isolation, not an iframe attribute.
-      await page.goto(`http://127.0.0.1:${server.address().port}${documentPath}`)
+      await page.goto(`${origin}${documentPath}`)
       const directCookie = await page.evaluate(() => {
         try {
           return document.cookie
         } catch (error) {
-          return error.name
+          if (error instanceof Error) return error.name
+          throw error
         }
       })
       assert.equal(directCookie, "SecurityError")
@@ -81,7 +92,7 @@ for (const fixturePath of fixturePaths) {
     } finally {
       if (browser) await browser.close()
       await new Promise((resolve, reject) =>
-        server.close((error) => (error ? reject(error) : resolve()))
+        server.close((error) => (error ? reject(error) : resolve(undefined)))
       )
     }
   })
