@@ -1,5 +1,5 @@
 import defaults from "$lib/defaults"
-import { requireDeepwellError } from "$lib/deepwell-errors"
+import { deepwellErrorStatus, requireDeepwellError } from "$lib/deepwell-errors"
 
 import { authGetSession } from "$lib/server/auth/getSession"
 import { translate } from "$lib/server/deepwell/translate"
@@ -167,7 +167,7 @@ export async function userEditAction({
     return withFiles({ form, res: sanitizeUserData(res, false) })
   } catch (caught) {
     const error = requireDeepwellError(caught)
-    return fail(500, {
+    return fail(deepwellErrorStatus(error.code), {
       form,
       message: error.message,
       code: error.code,

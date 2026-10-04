@@ -57,3 +57,28 @@ for (const [code, status] of [
     }
   })
 }
+
+test("page lock removal maps a permission denial to HTTP 403", async () => {
+  const previousFetch = globalThis.fetch
+  globalThis.fetch = async (_input, init) => {
+    const rpc = JSON.parse(String(init?.body))
+    const error = { code: 3106, message: "Permission denied", data: null }
+    return new Response(JSON.stringify({ jsonrpc: "2.0", id: rpc.id, error }))
+  }
+  try {
+    const response = await actions.lockRemove({
+      request: new Request("http://local.test/page", {
+        method: "POST",
+        body: JSON.stringify({ pageId: 101 })
+      }),
+      getClientAddress: () => "127.0.0.1",
+      locals: {
+        requestContext: { siteId: 11, page: "page", sessionToken: "member-session" }
+      }
+    })
+    assert.equal(response.status, 403)
+    assert.equal(response.data.code, 3106)
+  } finally {
+    globalThis.fetch = previousFetch
+  }
+})

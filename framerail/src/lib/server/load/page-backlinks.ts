@@ -1,7 +1,7 @@
 import { fail } from "@sveltejs/kit"
 import { client } from "$lib/server/deepwell"
 import { pageView } from "$lib/server/deepwell/views"
-import { requireDeepwellError } from "$lib/deepwell-errors"
+import { deepwellErrorStatus, requireDeepwellError } from "$lib/deepwell-errors"
 import { loadSiteInfo } from "./site-info"
 import { getRequestContext } from "./request-ctx"
 
@@ -38,6 +38,7 @@ export async function pageBacklinksAction(event: RequestEvent) {
     )
     return { res }
   } catch (cause) {
-    return fail(500, requireDeepwellError(cause))
+    const failure = requireDeepwellError(cause)
+    return fail(deepwellErrorStatus(failure.code), failure)
   }
 }

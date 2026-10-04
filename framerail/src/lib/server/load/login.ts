@@ -1,5 +1,5 @@
 import defaults from "$lib/defaults"
-import { requireDeepwellError } from "$lib/deepwell-errors"
+import { deepwellErrorStatus, requireDeepwellError } from "$lib/deepwell-errors"
 
 import { authLogin } from "$lib/server/auth/login"
 import { setSessionCookie } from "$lib/server/auth/sessionCookie"
@@ -93,7 +93,7 @@ export async function loginAction({ request, getClientAddress, cookies }: Reques
     return { form, session_token: res.session_token, isLoggedIn: true }
   } catch (caught) {
     const error = requireDeepwellError(caught)
-    return fail(500, {
+    return fail(deepwellErrorStatus(error.code), {
       form,
       message: error?.message,
       code: error?.code,

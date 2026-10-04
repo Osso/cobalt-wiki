@@ -1,5 +1,5 @@
 import defaults from "$lib/defaults"
-import { requireDeepwellError } from "$lib/deepwell-errors"
+import { deepwellErrorStatus, requireDeepwellError } from "$lib/deepwell-errors"
 
 import { translate } from "$lib/server/deepwell/translate"
 import { userCreate } from "$lib/server/deepwell/user"
@@ -103,7 +103,7 @@ export async function registerAction({ request, getClientAddress }: RequestEvent
     return { form, res, isRegistered: true }
   } catch (caught) {
     const error = requireDeepwellError(caught)
-    return fail(500, {
+    return fail(deepwellErrorStatus(error.code), {
       form,
       message: error?.message,
       code: error?.code,

@@ -152,6 +152,6 @@ test("Deepwell's refusal of the edit is shown, not swallowed", async () => {
       }
     })
   )
-  assert.equal(value.status, 500)
+  assert.equal(value.status, 400)
   assert.equal(value.data?.message, "user does not have permission to edit this page")
 })

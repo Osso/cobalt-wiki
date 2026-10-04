@@ -4,9 +4,9 @@ import { JSONRPCClient, JSONRPCErrorException } from "json-rpc-2.0"
 import { createJiti } from "jiti"
 import { fail } from "@sveltejs/kit"
 
-const { requireDeepwellError, errorDetails } = await createJiti(import.meta.url).import<
-  typeof import("../src/lib/deepwell-errors")
->("../src/lib/deepwell-errors")
+const { deepwellErrorStatus, requireDeepwellError, errorDetails } = await createJiti(
+  import.meta.url
+).import<typeof import("../src/lib/deepwell-errors")>("../src/lib/deepwell-errors")
 
 test("actual RPC rejection retains the validation message, code and payload", async () => {
   const client = new JSONRPCClient(async (request) => {
@@ -82,5 +82,22 @@ test("popup displays only string details or a string call trace", () => {
   assert.equal(errorDetails({ call_trace: "page_edit" }), "page_edit")
   for (const data of [null, 3, [], {}, { call_trace: 3 }]) {
     assert.equal(errorDetails(data), undefined)
+  }
+})
+
+test("Deepwell error codes map to HTTP statuses by documented range", () => {
+  const cases: [number, number][] = [
+    [2001, 404], // not found
+    [2100, 409], // already exists
+    [3000, 401], // invalid authentication
+    [3106, 403], // permission denied
+    [4000, 400], // bad request
+    [6100, 400], // relation conflict
+    [1200, 500], // server-side operation
+    [-32000, 500], // JSON-RPC server error
+    [0, 500]
+  ]
+  for (const [code, status] of cases) {
+    assert.equal(deepwellErrorStatus(code), status, `code ${code}`)
   }
 })

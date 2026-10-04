@@ -44,7 +44,7 @@ import { pageView } from "$lib/server/deepwell/views"
 import { loadSiteInfo } from "$lib/server/load/site-info"
 import { authorizePageRead } from "$lib/server/load/page-read"
 import { DeleteOptions, Layout, PageLockType } from "$lib/types"
-import { requireDeepwellError } from "$lib/deepwell-errors"
+import { deepwellErrorStatus, requireDeepwellError } from "$lib/deepwell-errors"
 import { applyTagChanges } from "$lib/tag-buttons"
 import { error, redirect } from "@sveltejs/kit"
 import { fail, superValidate, withFiles } from "sveltekit-superforms"
@@ -435,7 +435,7 @@ export async function pageDeleteAction({
     }
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(error.code === 3106 ? 403 : 500, {
+    return fail(deepwellErrorStatus(error.code), {
       form,
       message: error.message,
       code: error.code,
@@ -465,7 +465,7 @@ export async function pageEditPermissionAction({ locals }: RequestEvent) {
     return { res }
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(500, {
+    return fail(deepwellErrorStatus(error.code), {
       message: error.message,
       code: error.code,
       data: error.data
@@ -528,7 +528,7 @@ export async function pageEditAction({
     return { form, res }
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(error.code === 3106 ? 403 : 500, {
+    return fail(deepwellErrorStatus(error.code), {
       form,
       message: error.message,
       code: error.code,
@@ -573,7 +573,11 @@ export async function pageSetTagsAction({
     return { tags }
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(500, { message: error.message, code: error.code, data: error.data })
+    return fail(deepwellErrorStatus(error.code), {
+      message: error.message,
+      code: error.code,
+      data: error.data
+    })
   }
 }
 
@@ -611,7 +615,7 @@ export async function pageFileListAction(event: RequestEvent) {
     return { res }
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(500, {
+    return fail(deepwellErrorStatus(error.code), {
       message: error.message,
       code: error.code,
       data: error.data
@@ -651,7 +655,7 @@ export async function pageFileUploadAction({
     return withFiles({ form, res })
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(error.code === 3106 ? 403 : 500, {
+    return fail(deepwellErrorStatus(error.code), {
       form,
       message: error.message,
       code: error.code,
@@ -695,7 +699,7 @@ export async function pageFileDeleteAction({ request, cookies, locals }: Request
     return { res }
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(error.code === 3106 ? 403 : 500, {
+    return fail(deepwellErrorStatus(error.code), {
       message: error.message,
       code: error.code,
       data: error.data
@@ -736,7 +740,7 @@ export async function pageFileEditAction({
     return withFiles({ form, res })
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(error.code === 3106 ? 403 : 500, {
+    return fail(deepwellErrorStatus(error.code), {
       form,
       message: error.message,
       code: error.code,
@@ -781,7 +785,7 @@ export async function pageFileMoveAction({ request, cookies, locals }: RequestEv
     return { form, res }
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(error.code === 3106 ? 403 : 500, {
+    return fail(deepwellErrorStatus(error.code), {
       form,
       message: error.message,
       code: error.code,
@@ -824,7 +828,7 @@ export async function pageFileRestoreAction({ request, cookies, locals }: Reques
     return { form, res }
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(error.code === 3106 ? 403 : 500, {
+    return fail(deepwellErrorStatus(error.code), {
       form,
       message: error.message,
       code: error.code,
@@ -865,7 +869,7 @@ export async function pageFileHistoryAction({ request, locals }: RequestEvent) {
     return { res }
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(error.code === 3106 ? 403 : 500, {
+    return fail(deepwellErrorStatus(error.code), {
       message: error.message,
       code: error.code,
       data: error.data
@@ -909,7 +913,7 @@ export async function pageFileRollbackAction({
     return { res }
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(error.code === 3106 ? 403 : 500, {
+    return fail(deepwellErrorStatus(error.code), {
       message: error.message,
       code: error.code,
       data: error.data
@@ -935,7 +939,7 @@ export async function pageHistoryAction(event: RequestEvent) {
     return { res }
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(500, {
+    return fail(deepwellErrorStatus(error.code), {
       message: error.message,
       code: error.code,
       data: error.data
@@ -996,7 +1000,7 @@ export async function importedHistoryAction(event: RequestEvent) {
     return { res }
   } catch (cause) {
     const failure = requireDeepwellError(cause)
-    return fail(500, failure)
+    return fail(deepwellErrorStatus(failure.code), failure)
   }
 }
 
@@ -1028,7 +1032,7 @@ export async function importedRevisionAction(event: RequestEvent) {
     return { res }
   } catch (cause) {
     const failure = requireDeepwellError(cause)
-    return fail(500, failure)
+    return fail(deepwellErrorStatus(failure.code), failure)
   }
 }
 
@@ -1057,7 +1061,7 @@ export async function pageRevisionAction(event: RequestEvent) {
     return { res }
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(500, {
+    return fail(deepwellErrorStatus(error.code), {
       message: error.message,
       code: error.code,
       data: error.data
@@ -1103,7 +1107,7 @@ export async function pageRollbackAction({
     return { res }
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(error.code === 3106 ? 403 : 500, {
+    return fail(deepwellErrorStatus(error.code), {
       message: error.message,
       code: error.code,
       data: error.data
@@ -1141,7 +1145,7 @@ export async function layoutAction({
     return { form }
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(error.code === 3106 ? 403 : 500, {
+    return fail(deepwellErrorStatus(error.code), {
       form,
       message: error.message,
       code: error.code,
@@ -1190,7 +1194,7 @@ export async function pageMoveAction({
     return { form, res }
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(error.code === 3106 ? 403 : 500, {
+    return fail(deepwellErrorStatus(error.code), {
       form,
       message: error.message,
       code: error.code,
@@ -1229,7 +1233,7 @@ export async function pageParentSetAction({ request, cookies, locals }: RequestE
     return { form, res }
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(error.code === 3106 ? 403 : 500, {
+    return fail(deepwellErrorStatus(error.code), {
       form,
       message: error.message,
       code: error.code,
@@ -1260,7 +1264,7 @@ export async function pageParentGetAction(event: RequestEvent) {
     return { res }
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(500, {
+    return fail(deepwellErrorStatus(error.code), {
       message: error.message,
       code: error.code,
       data: error.data
@@ -1282,7 +1286,7 @@ export async function pageVoteGetAction(event: RequestEvent) {
     return { res }
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(500, {
+    return fail(deepwellErrorStatus(error.code), {
       message: error.message,
       code: error.code,
       data: error.data
@@ -1308,7 +1312,7 @@ export async function pageVoteCastAction(event: RequestEvent) {
     return { res }
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(500, {
+    return fail(deepwellErrorStatus(error.code), {
       message: error.message,
       code: error.code,
       data: error.data
@@ -1333,7 +1337,7 @@ export async function pageVoteCancelAction(event: RequestEvent) {
     return { res }
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(500, {
+    return fail(deepwellErrorStatus(error.code), {
       message: error.message,
       code: error.code,
       data: error.data
@@ -1357,7 +1361,7 @@ export async function pageScoreAction(event: RequestEvent) {
     return { res }
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(500, {
+    return fail(deepwellErrorStatus(error.code), {
       message: error.message,
       code: error.code,
       data: error.data
@@ -1383,7 +1387,7 @@ export async function pageDeletedGetAction({ request, locals }: RequestEvent) {
     return { res }
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(error.code === 3106 ? 403 : 500, {
+    return fail(deepwellErrorStatus(error.code), {
       message: error.message,
       code: error.code,
       data: error.data
@@ -1420,7 +1424,7 @@ export async function pageRestoreAction({
     return { form, res }
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(error.code === 3106 ? 403 : 500, {
+    return fail(deepwellErrorStatus(error.code), {
       form,
       message: error.message,
       code: error.code,
@@ -1508,7 +1512,7 @@ export async function pageLockCreateAction({
     return { form }
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(500, {
+    return fail(deepwellErrorStatus(error.code), {
       form,
       message: error.message,
       code: error.code,
@@ -1539,7 +1543,7 @@ export async function pageLockRemoveAction({
     return {}
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(500, {
+    return fail(deepwellErrorStatus(error.code), {
       message: error.message,
       code: error.code,
       data: error.data
@@ -1557,7 +1561,7 @@ export async function pageLockHistoryAction(event: RequestEvent) {
     return { res }
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(500, {
+    return fail(deepwellErrorStatus(error.code), {
       message: error.message,
       code: error.code,
       data: error.data

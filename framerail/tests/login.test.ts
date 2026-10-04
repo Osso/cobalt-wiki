@@ -112,13 +112,13 @@ for (const rememberMe of [true, false]) {
   })
 }
 
-test("wrong credentials preserve the existing failure and write no cookies", async () => {
+test("wrong credentials fail as unauthorized and write no cookies", async () => {
   const { response, writes } = await signIn(
     { error: { code: 3000, message: "Invalid username, password, or TOTP code" } },
     true,
     "wrong password"
   )
-  assert.equal(response.status, 500)
+  assert.equal(response.status, 401)
   assert.equal(response.data.code, 3000)
   assert.equal(response.data.message, "Invalid username, password, or TOTP code")
   assert.equal(response.data.form.valid, true)
