@@ -33,6 +33,8 @@ FTML must render same-site attachment references through the deployed site's pro
 
 ## Tests asserting this spec
 
+[Security audit (2026-10-04)](../wiki/systems/cobalt-security-audit.md) records HTML isolation RED/GREEN, undeployed status, and separate unconfirmed uploaded-HTML risk.
+
 - `deepwell/tests/page_media_urls.rs`: native rendering of local, explicit same-site, external and cross-site image references, including bare category-page media and the live `character:melancholy` ImageBox path.
 - `deepwell/tests/page_gallery.rs` and FTML `render::html::element::gallery` tests: gallery markup, sizes, order and image filtering.
 - `framerail/tests/local/gallery.mjs`: actual Badges thumbnail click, original image, Next/Previous, Close/Escape, keyboard reopening, last-image boundary, unchanged URL/source/revision and zero write requests.
