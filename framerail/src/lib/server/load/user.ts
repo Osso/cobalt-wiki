@@ -130,6 +130,12 @@ export async function userEditAction({
 
   const sessionToken = cookies.get("wikijump_token")
   const session = await authGetSession(sessionToken)
+  if (!session) {
+    return fail(401, { form })
+  }
+  if (session.restricted) {
+    return fail(403, { form })
+  }
 
   const ipAddress = getClientAddress()
 
@@ -148,7 +154,7 @@ export async function userEditAction({
       locales
     } = form.data
 
-    const res = await userEdit(session?.user_id, ipAddress, {
+    const res = await userEdit(session.user_id, ipAddress, {
       name,
       email,
       locales: locales
