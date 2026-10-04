@@ -27,6 +27,8 @@
 //! not any of the implementations themselves. Those should be in the `methods` module.
 
 #[cfg(test)]
+mod message_access_tests;
+#[cfg(test)]
 mod tests;
 
 use crate::config::{Config, Secrets};
