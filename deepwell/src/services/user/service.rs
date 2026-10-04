@@ -967,6 +967,16 @@ impl UserService {
             .await
             .or_raise(make_error)?
         {
+            if alias.target_id != user.user_id {
+                bail!(Error::new(
+                    format!(
+                        "failed to rename user ID {}, '{}' is a past name of user ID {}",
+                        user.user_id, new_slug, alias.target_id,
+                    ),
+                    ErrorType::UserExists,
+                ));
+            }
+
             debug!("User slug is a past alias, rename is free");
 
             // Swap user alias for old slug
