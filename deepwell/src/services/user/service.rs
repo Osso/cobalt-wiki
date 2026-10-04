@@ -35,6 +35,7 @@ use crate::utils::regex_replace_in_place;
 use redis::AsyncCommands;
 use regex::Regex;
 use sea_orm::ActiveValue;
+use sea_orm::{DatabaseBackend, Statement};
 use sea_query::OnConflict;
 use serde_json::Value as JsonValue;
 use std::borrow::Cow;
@@ -1151,25 +1152,30 @@ impl UserService {
         let txn = ctx.transaction();
         info!("Removing recovery code from user ID {}", user.user_id);
 
-        // Only update if there are recovery codes set for the user
-        if let Some(current_codes) = &user.multi_factor_recovery_codes {
-            // Clone list, but without the removed code
-            let updated_codes = current_codes
-                .iter()
-                .filter(|code| code.as_str() != recovery_code)
-                .map(String::from)
-                .collect::<Vec<_>>();
-
-            // Update with the new list
-            let model = user::ActiveModel {
-                user_id: Set(user.user_id),
-                multi_factor_recovery_codes: Set(Some(updated_codes)),
-                updated_at: Set(Some(now())),
-                ..Default::default()
-            };
-            model.update(txn).await.or_raise(|| {
+        // Remove the code from the stored list, not from the caller's snapshot:
+        // a concurrent login spending the same code then matches no row.
+        let result = txn
+            .execute_raw(Statement::from_sql_and_values(
+                DatabaseBackend::Postgres,
+                r#"UPDATE "user"
+                SET multi_factor_recovery_codes = array_remove(multi_factor_recovery_codes, $2),
+                    updated_at = now()
+                WHERE user_id = $1 AND $2 = ANY(multi_factor_recovery_codes)"#,
+                [user.user_id.into(), recovery_code.into()],
+            ))
+            .await
+            .or_raise(|| {
                 Error::new("failed to remove a user recovery code", ErrorType::UserMfa)
             })?;
+
+        if result.rows_affected() != 1 {
+            bail!(Error::new(
+                format!(
+                    "recovery code for user ID {} was already used",
+                    user.user_id
+                ),
+                ErrorType::InvalidAuthentication,
+            ));
         }
 
         Ok(())

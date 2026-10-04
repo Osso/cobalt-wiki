@@ -373,6 +373,135 @@ async fn security_authorization_token_has_only_one_concurrent_consumer() {
         .unwrap();
 }
 
+#[tokio::test]
+async fn security_recovery_code_has_only_one_concurrent_use() {
+    use crate::models::user::{Entity as User, Model as UserModel};
+    use crate::services::{MfaService, PasswordService};
+    use sea_orm::{ConnectionTrait, DatabaseBackend, EntityTrait, Statement};
+    const USER_ID: i64 = -9000044;
+    const CODE: &str = "security-recovery-race";
+    let mut config = Config::integration_testing();
+    config.job_min_poll_delay = Duration::from_secs(3600);
+    config.job_max_poll_delay = Duration::from_secs(3600);
+    let state = build_server_state(config, Secrets::load()).await.unwrap();
+    let code_hash = PasswordService::new_hash(CODE).unwrap();
+    let other_hash = PasswordService::new_hash("security-other-code").unwrap();
+    // An interrupted earlier run may have left the fixture behind.
+    delete_user_fixture(&state, USER_ID).await;
+    for (sql, values) in [
+        (
+            "INSERT INTO known_user (user_id) VALUES ($1)",
+            vec![USER_ID.into()],
+        ),
+        (
+            "INSERT INTO \"user\" (user_id, name, slug, email, password, name_changes_left, locales, multi_factor_secret, multi_factor_recovery_codes) VALUES ($1, 'Security Recovery Race', 'security-recovery-race', 'race@example.invalid', 'unused', 2, ARRAY['en'], 'JBSWY3DPEHPK3PXP', ARRAY[$2, $3])",
+            vec![
+                USER_ID.into(),
+                code_hash.clone().into(),
+                other_hash.clone().into(),
+            ],
+        ),
+    ] {
+        state
+            .database
+            .execute_raw(Statement::from_sql_and_values(
+                DatabaseBackend::Postgres,
+                sql,
+                values,
+            ))
+            .await
+            .unwrap();
+    }
+    // Both logins loaded the user, with the code still unused, before either spends it.
+    let user: UserModel = User::find_by_id(USER_ID)
+        .one(&state.database)
+        .await
+        .unwrap()
+        .unwrap();
+    let blocker = state.database.begin().await.unwrap();
+    blocker
+        .query_one_raw(Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            "SELECT user_id FROM \"user\" WHERE user_id = $1 FOR UPDATE",
+            [USER_ID.into()],
+        ))
+        .await
+        .unwrap()
+        .expect("user row locked");
+    let spend = |name: &'static str| {
+        let state = Arc::clone(&state);
+        let user = user.clone();
+        tokio::spawn(async move {
+            let txn = state.database.begin().await.unwrap();
+            txn.execute_unprepared(&format!("SET LOCAL application_name = '{name}'"))
+                .await
+                .unwrap();
+            let ctx = ServiceContext::new(&state, &txn);
+            let result = MfaService::verify_recovery(&ctx, &user, CODE).await;
+            match result {
+                Ok(()) => {
+                    txn.commit().await.unwrap();
+                    Ok(())
+                }
+                Err(error) => {
+                    txn.rollback().await.unwrap();
+                    Err(error.error_type.clone())
+                }
+            }
+        })
+    };
+    let first = spend("security-recovery-first");
+    let second = spend("security-recovery-second");
+    tokio::time::timeout(Duration::from_secs(30), async {
+        loop {
+            let row = state.database.query_one_raw(Statement::from_string(
+                DatabaseBackend::Postgres,
+                "SELECT count(*)::bigint AS waiting FROM pg_stat_activity WHERE application_name IN ('security-recovery-first', 'security-recovery-second') AND wait_event_type = 'Lock'",
+            )).await.unwrap().unwrap();
+            if row.try_get::<i64>("", "waiting").unwrap() == 2 { break; }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    }).await.expect("both logins must reach the blocked code removal");
+    blocker.commit().await.unwrap();
+    let results = [first.await.unwrap(), second.await.unwrap()];
+    assert_eq!(
+        results.iter().filter(|result| result.is_ok()).count(),
+        1,
+        "one recovery code cannot complete two logins"
+    );
+    assert!(results.contains(&Err(crate::error::ErrorType::InvalidAuthentication)));
+    let remaining = User::find_by_id(USER_ID)
+        .one(&state.database)
+        .await
+        .unwrap()
+        .unwrap()
+        .multi_factor_recovery_codes;
+    assert_eq!(
+        remaining,
+        Some(vec![other_hash]),
+        "only the spent code is removed"
+    );
+    delete_user_fixture(&state, USER_ID).await;
+}
+
+async fn delete_user_fixture(state: &ServerState, user_id: i64) {
+    use sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
+    for sql in [
+        "DELETE FROM \"user\" WHERE user_id = $1",
+        "DELETE FROM known_user WHERE user_id = $1",
+    ] {
+        state
+            .database
+            .execute_raw(Statement::from_sql_and_values(
+                DatabaseBackend::Postgres,
+                sql,
+                [user_id.into()],
+            ))
+            .await
+            .unwrap();
+    }
+}
+
 fn spawn_token_consumer(
     state: ServerState,
     token: String,
