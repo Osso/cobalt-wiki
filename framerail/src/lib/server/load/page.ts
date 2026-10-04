@@ -528,7 +528,7 @@ export async function pageEditAction({
     return { form, res }
   } catch (e) {
     const error = requireDeepwellError(e)
-    return fail(500, {
+    return fail(error.code === 3106 ? 403 : 500, {
       form,
       message: error.message,
       code: error.code,

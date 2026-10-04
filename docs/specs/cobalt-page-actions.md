@@ -22,6 +22,8 @@ Bottom-page controls follow supplied Tags/History screenshots and retained Wikid
 - [x] Require `Page/Edit` for every file mutation: upload, rename/edit, byte replacement, revision-history read, rollback, move, delete, and restore; `fileMove` requires it on both source and destination pages. No distinct File grant exists or is required. `deepwell/tests/file_permission.rs` passes 3/3 after `e974e6f84` initializes the rollback creation revision at `0` (`/tmp/claude/cobalt-move-file-targeted.log`).
 - [x] For each selected Move dependency, require `Page/Edit` on both source and destination categories and on every selected dependency. Skip active native locks; preserve selected unauthorized, locked, unselected, and otherwise ineligible dependencies; report remaining link and include leftovers separately. Duplicate selected sources produce one normal actor-attributed automatic revision. The Move writes its revision directly and does not consume drafts. `deepwell/tests/page_move_dependencies.rs` passes 4/4 in the same targeted run.
 
+- [x] Page edit reports backend `PermissionDenied` (`3106`) as HTTP 403, preserving its error payload; other backend errors remain HTTP 500. `framerail/tests/page-edit-denial.test.ts` exercises the actual SSR action with both responses.
+
 ### Block
 
 - [x] An active Wikidot lock denies protected mutations unless the actual site role is moderator, administrator, or root. Native `PermissionOnly` and `AuthorOr` lock behavior remain unchanged; no nonexistent global supermoderator representation is claimed.
