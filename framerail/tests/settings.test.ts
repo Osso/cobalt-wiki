@@ -282,7 +282,8 @@ test("profile save without a session is refused before any backend call", async 
   assert.equal(calls.length, 0)
 })
 
-test("password change checks the current password, then sets the new one", async () => {
+test("password change checks the current password, sets the new one and signs out other sessions", async () => {
+  const sessions = new Set(["session-secret", "stolen-elsewhere"])
   const { value, calls } = await submit(
     "password",
     {
@@ -295,13 +296,23 @@ test("password change checks the current password, then sets the new one", async
         return { result: { session_token: "check-token", needs_mfa: false } }
       }
       if (rpc.method === "logout") return { result: null }
+      if (rpc.method === "session_invalidate_others") {
+        const { session_token, user_id } = rpc.params as {
+          session_token: string
+          user_id: number
+        }
+        assert.equal(user_id, alice.user_id)
+        for (const token of sessions) if (token !== session_token) sessions.delete(token)
+        return { result: 1 }
+      }
     })
   )
 
   assert.equal(value.saved, true)
+  assert.deepEqual([...sessions], ["session-secret"])
   assert.deepEqual(
     calls.map((call) => call.method),
-    ["user_view", "login", "logout", "user_edit"]
+    ["user_view", "login", "logout", "user_edit", "session_invalidate_others"]
   )
   assert.deepEqual(calls[1].params, {
     name_or_email: "alice",

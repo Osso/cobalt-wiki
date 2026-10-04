@@ -2,7 +2,7 @@ import defaults from "$lib/defaults"
 import { requireDeepwellError } from "$lib/deepwell-errors"
 
 import { authLogin } from "$lib/server/auth/login"
-import { authLogout } from "$lib/server/auth/logout"
+import { authInvalidateOtherSessions, authLogout } from "$lib/server/auth/logout"
 import { translate } from "$lib/server/deepwell/translate"
 import { AvatarUploadError, userEdit, userView } from "$lib/server/deepwell/user"
 import {
@@ -176,6 +176,10 @@ async function saveSettings(
     }
 
     await userEdit(user.user_id, ipAddress, edits)
+    if (edits.password !== undefined) {
+      // Whoever knew the old password must not stay signed in elsewhere.
+      await authInvalidateOtherSessions(sessionToken, user.user_id)
+    }
     return { section, saved: true, message: "Your settings were saved." }
   } catch (caught) {
     if (caught instanceof AvatarUploadError) {
