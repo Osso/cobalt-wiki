@@ -48,16 +48,23 @@ The audit above was produced by GPT-6.1-sol. A second, independent pass re-revie
 | `2e5416146` | `session_renew` upgraded MFA-pending sessions; deleted users could log in and kept sessions. | `deepwell/tests/auth_lifecycle.rs` |
 | `5a59d5489` | Form actions returned 500 for permission, auth, conflict and input errors. One code-range mapping. | 23 affected action test files: 214/215, the failure is pre-existing (below). |
 | `c9929adeb` | Native history "before" paging returned the oldest revisions; unknown hidden-field names were stored and panicked reads; revision update ignored site/page and swallowed its error. | `deepwell/tests/page_revision_range.rs` |
+| `4b66ececc` | Two concurrent MFA logins could spend one recovery code (list rewritten from a stale snapshot). Atomic conditional removal. | `api::tests::security_recovery_code_has_only_one_concurrent_use`; security tests 3/3 |
+| `0958737da` | File history "before" paging had the same oldest-first bug. | `deepwell/tests/file_revision_range.rs` |
+| `81c148b48` | File revision edits changed any revision ID regardless of file/page/site. Page ownership test now uses a real second page and fails with the check removed. | `file_revision_range.rs`, `page_revision_range.rs` |
 
 Final gates on the changed code: `cargo fmt --check` (deepwell, wws, ftml), `cargo check --all-targets` 0 warnings (deepwell, wws), svelte-check 0/0, scoped ESLint/Prettier pass.
+
+Independent verifier: PASS for `32f6f1824`–`c9929adeb` (targeted reruns; no regression found). Its findings led to `0958737da` and `81c148b48`. `file_revision_permission` tests need S3 and were not run here. Status-code change: login wrong password is now 401, conflicts 409, input errors 400.
 
 **Re-review of Sol's repairs:** sound, except the vote boundary above. The WWS-wide `sandbox` CSP may stop Chromium from displaying PDFs (not tested). The deleted-page lookup denies the whole lookup when any one deleted copy is locked.
 
 **Open, not fixed:**
-- Recovery codes can be reused under concurrent logins, and TOTP codes can be replayed within the skew window. MFA has no frontend; the TOTP fix needs a stored last-used step.
+- TOTP codes can be replayed within the skew window; the fix needs a stored last-used time step (schema change). MFA has no frontend.
+- Revision rows already stored with unknown hidden-field names still panic on read; writes now reject them.
+- The settings password change ends other sessions in a second call after saving; if that call fails, the password is changed but other sessions remain.
 - Email is not unique (no constraint; update path unchecked; case handling differs between login and reset). Fixing it needs a data audit and a migration decision.
 - Re-uploading a hard-deleted blob stores the S3 object again before the blacklist check; the avatar cache is not cleared on hard delete. Needs S3 to test.
-- File restore skips the name-conflict check and drops the rename/move. Concurrent same-name uploads create duplicates. WWS caches slug→page ID with no TTL.
+- File restore skips the name-conflict check and drops the rename/move (fix needs S3-backed file fixtures to test). Concurrent same-name uploads create duplicates. WWS caches slug→page ID with no TTL.
 - The gateway does not clear client `X-Wikijump-*` internal headers. The effect is limited to the requester's own response, and error output is now escaped.
 - Pre-existing test failure: `framerail/tests/page-block.test.ts` "starts disabled" expects attribute order that Svelte does not produce.
 - Upstream `install/dev` Docker stack publishes Postgres, Valkey (no auth) and Deepwell on all interfaces; this does not affect the NixOS deployment.
