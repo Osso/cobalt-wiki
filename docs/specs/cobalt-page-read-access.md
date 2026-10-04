@@ -6,7 +6,7 @@ Framerail's legacy page-pane actions in `src/lib/server/load/page.ts` expose met
 
 - [x] File listing, native history/revision, parent list, vote list, score and lock history require the same current Page/View access as the routed page: denied pages return 403, missing pages 404, without returning private read data.
 - [x] Submitted page IDs must match the authorized route; submitted site IDs, where used, must match trusted ingress context. Authorized pane reads remain available.
-- [ ] Root-route reads resolve the configured default page, preserving normal loader routing semantics.
+- [x] Root-route reads resolve the configured default page, preserving normal loader routing semantics.
 
 ## Deleted-page restore lookup
 
@@ -26,7 +26,7 @@ Framerail's legacy page-pane actions in `src/lib/server/load/page.ts` expose met
 
 ## Tests asserting this spec
 
-- `framerail/tests/page-read-authorization.test.ts` — actual Vite SSR actions with RPC fixtures; 34 targeted cases cover denied/missing/authorized pages and foreign target IDs. Lock history has no site selector and uses trusted request context.
+- `framerail/tests/page-read-authorization.test.ts` — actual Vite SSR actions with RPC fixtures; 48 targeted cases cover denied/missing/authorized pages, foreign target IDs, configured root pages and route extras. Lock history has no site selector and uses trusted request context.
 
 ## Known gaps (current cycle)
 
