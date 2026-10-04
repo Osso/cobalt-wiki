@@ -197,6 +197,12 @@ async fn mfa_pending_session_has_no_viewer_or_request_actor_until_verified() {
         "{pending_view}"
     );
 
+    let txn = state.database.begin().await.unwrap();
+    let ctx = ServiceContext::new(&state, &txn);
+    SessionService::get_user(&ctx, pending, true)
+        .await
+        .unwrap_or_else(|error| panic!("pending MFA user lookup failed: {error:?}"));
+    txn.rollback().await.unwrap();
     let verified = request_rpc(
         &client,
         &endpoint,
