@@ -54,6 +54,38 @@ Repair references supplied to this documentation audit: restricted/shared guard 
 
 No exhaustive authorization review, every-RPC tests, security certification, deployment, production mutation, delegation or test execution. Registration and wrapper completeness are separate from enforcement and behavioral completeness.
 
+## Public Framerail entry matrix
+
+Source inventory, October 4, 2026: all route server files scanned; no `+server` HTTP handlers present. Paths below are relative to `framerail/src`: route patterns map to `routes/<pattern>/+page.server.ts`; `/-/` is source `[x+2d]/`, `/_admin` is `[x+5f]admin`. `L` = `lib/server/load/`, `D` = `lib/server/deepwell/`, `A` = `lib/server/auth/`; module names include `.ts`. Every row is **SOURCE inspection**, not behavioral security certification. Actions include read-like POST exports, not only writes.
+
+| Public route pattern | Exact action names → handlers | Primary handler / server wrapper paths |
+|---|---|---|
+| `/-/login` | `default` → `loginAction` | `L/login` → `A/login`, `A/sessionCookie` |
+| `/-/register` | `default` → `registerAction` | `L/register` → `D/user` |
+| `/-/forgot-password` | `default` → `forgotPasswordAction` | `L/password` → `D/password` |
+| `/-/set-password/[token]` | `default` → `setPasswordAction` | `L/password` → `D/password` |
+| `/-/logout` | `logout` → `logoutAction` | `L/logout` → `A/logout`, `A/sessionCookie`; GET `load` → `loadLogoutPage` renders only, does not log out |
+| `/-/user` | `userEdit` → `userEditAction` | `L/user` → `D/user`, `A/getSession` |
+| `/-/settings` | `profile` → `settingsProfileAction`; `appearance` → `settingsAppearanceAction`; `avatar` → `settingsAvatarAction`; `email` → `settingsEmailAction`; `password` → `settingsPasswordAction`; `watching` → `settingsWatchingAction`; `unwatch` → `setSubscriptionAction` | `L/settings` → `D/user`, `D/watching`, `A/login`, `A/logout`; `unwatch`: `L/watching` → `D/watching` |
+| `/-/admin` | `default` → `adminAction` | `L/admin` → `D/admin`, `A/getSession` |
+| `/-/admin/members` | `application` → `memberApplicationDecisionAction`; `role` → `memberRoleAction`; `remove` → `memberRemoveAction`; `invite` → `memberInviteAction` | `L/members` → `D/applications`, `D/members` |
+| `/-/admin/tags` | `preview` → `tagPreviewAction`; `apply` → `tagApplyAction`; `undo` → `tagUndoAction` | `L/tag-admin` → `D/tag-admin` |
+| `/-/join` | `default` → `applyForMembership` | `L/join` → `D/applications` |
+| `/` and `/[slug]/[...extra]`: page writes / permission | `delete` → `pageDeleteAction`; `edit` → `pageEditAction`; `editPermission` → `pageEditPermissionAction`; `setTags` → `pageSetTagsAction`; `rollback` → `pageRollbackAction`; `layout` → `layoutAction`; `move` → `pageMoveAction`; `deletedGet` → `pageDeletedGetAction`; `restore` → `pageRestoreAction` | `L/page` → `D/page`, `D/views`, `A/getSession` |
+| Same two page routes: files | `fileList` → `pageFileListAction`; `fileUpload` → `pageFileUploadAction`; `fileDelete` → `pageFileDeleteAction`; `fileEdit` → `pageFileEditAction`; `fileMove` → `pageFileMoveAction`; `fileRestore` → `pageFileRestoreAction`; `fileHistory` → `pageFileHistoryAction`; `fileRollback` → `pageFileRollbackAction` | `L/page` → `D/pageFile` |
+| Same two page routes: history | `history` → `pageHistoryAction`; `importedHistory` → `importedHistoryAction`; `importedRevision` → `importedRevisionAction`; `revision` → `pageRevisionAction`; `historyList` → `historyListAction`; `historyRevision` → `historyRevisionAction`; `historyCompare` → `historyCompareAction` | First four: `L/page` → `D/page`; last three: `L/history` → direct `D/index` client requests, `D/views` |
+| Same two page routes: block / lock / parent / votes | `blockGet` → `pageBlockGetAction`; `blockSet` → `pageBlockSetAction`; `lockCreate` → `pageLockCreateAction`; `lockHistory` → `pageLockHistoryAction`; `lockRemove` → `pageLockRemoveAction`; `parentSet` → `pageParentSetAction`; `parentGet` → `pageParentGetAction`; `voteGet` → `pageVoteGetAction`; `voteCast` → `pageVoteCastAction`; `voteCancel` → `pageVoteCancelAction`; `score` → `pageScoreAction` | `L/page` → `D/page`; selected reads also use `L/page-read` |
+| Same two page routes: editor / drafts / backlinks / watching | `preview` → `pagePreviewAction`; `editorPages` → `editorPagesAction`; `editorAttachments` → `editorAttachmentsAction`; `draftGet` → `pageDraftGetAction`; `draftSave` → `pageDraftSaveAction`; `draftDelete` → `pageDraftDeleteAction`; `backlinks` → `pageBacklinksAction`; `watching` → `setSubscriptionAction` | `L/page-preview` → `D/page-preview`; `L/editor-lookup` → direct `D/index` client; `L/page-draft` → `D/page-draft`; `L/page-backlinks` → direct client, `D/views`; `L/watching` → `D/watching` |
+| `/-/watching-unsubscribe` | No actions; GET `load` → `watchingUnsubscribe(token)` mutates subscription when token supplied | Route file → `D/watching` |
+| `/`, `/[slug]/[...extra]` GET loads | `load` → `loadPage`, `loadPageWatching`; root re-exports the entire catchall `actions` object above | `L/page`, `L/watching`; no separate root action names |
+| `/-/user/[slug]`, `/-/activity` | No actions; `load` → `loadUser`; activity `load` → `loadChange` / `loadActivity` | `L/user` → `D/user`; activity route → `D/watching` |
+| `/about`, `/printer--friendly/[...path]`, `/search:site`, `/_admin` | No actions; `load` → `loadInfo`, `loadPage`, `pageSearch`, redirect to `/-/admin`, respectively | `L/info` → `D/index`; `L/page`; `D/search`; redirect only |
+| Shared layout | `routes/+layout.server.ts`: `load` → `loadPreload`; not an action or separate endpoint | `L/preload` → `D/views`; shared preload/session work |
+
+**Disposition / current local proof:** supplied frontend revision `23e89d483` has independent checks with 0 errors/warnings and 72 SSR cases (67 + 5 deleted-page cases). This is bounded local evidence, not every action lifecycle or authorization proof; no production deployment. Backend revision `b3ec1b489` acceptance remains pending. The existing 182 exact RPC pairs were reconciled at `23e89d483` in `/tmp/cobalt-security-api-inventory-reconciliation.json`; their rows and proof columns below are unchanged.
+
+Current source distinctions: settings uses `user_view` data already filtering MFA fields; no new frontend MFA feature claimed. Public vote actors derive from session, not body `userId`. `deletedGet` has the `routes/+error.svelte` caller; current deleted lookup uses the `restorePage` / edit gate, not a pending old missing guard. Trusted server RPC wrappers without route callers are **not public entry exports**; their separate inventory remains below. Accounting is complete at these entry names, not universal behavioral certification.
+
 ## All 182 registrations and exact source caller witnesses
 
 Each row defaults to **I**. Group-level **E** applies only to controls named above; it is not an entire-row authorization verdict. A server entry witness can be a load/hook rather than a user-selectable action. Repeated paths are intentional primary evidence per entry.
