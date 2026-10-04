@@ -26,6 +26,14 @@ struct Fixture {
     slug: String,
 }
 
+#[derive(Clone, Copy)]
+struct LookupIdentity<'a> {
+    header_site: i64,
+    header_slug: &'a str,
+    body_site: i64,
+    body_slug: &'a str,
+}
+
 #[derive(Debug, PartialEq, Eq)]
 struct DeletedRecordsSnapshot {
     pages: Vec<page::Model>,
@@ -183,23 +191,16 @@ impl Fixture {
         DeletedRecordsSnapshot { pages, revisions }
     }
 
-    async fn lookup(
-        &self,
-        token: Option<&str>,
-        header_site: i64,
-        header_slug: &str,
-        site_id: i64,
-        slug: &str,
-    ) -> Value {
+    async fn lookup(&self, token: Option<&str>, identity: LookupIdentity<'_>) -> Value {
         let before = self.load_deleted_records_snapshot().await;
         let mut request = ReqwestClient::new()
             .post(&self.endpoint)
-            .header("X-Deepwell-Site-Id", header_site.to_string())
-            .header("X-Deepwell-Page", header_slug);
+            .header("X-Deepwell-Site-Id", identity.header_site.to_string())
+            .header("X-Deepwell-Page", identity.header_slug);
         if let Some(token) = token {
             request = request.header("X-Deepwell-Session-Token", token);
         }
-        let response = request.json(&json!({"jsonrpc":"2.0","id":1,"method":"page_get_deleted","params":{"site_id":site_id,"slug":slug}}))
+        let response = request.json(&json!({"jsonrpc":"2.0","id":1,"method":"page_get_deleted","params":{"site_id":identity.body_site,"slug":identity.body_slug}}))
             .send().await.unwrap().error_for_status().unwrap().json().await.unwrap();
         let after = self.load_deleted_records_snapshot().await;
         assert_eq!(
@@ -209,17 +210,8 @@ impl Fixture {
         response
     }
 
-    async fn denied(
-        &self,
-        token: Option<&str>,
-        header_site: i64,
-        header_slug: &str,
-        site_id: i64,
-        slug: &str,
-    ) {
-        let response = self
-            .lookup(token, header_site, header_slug, site_id, slug)
-            .await;
+    async fn denied(&self, token: Option<&str>, identity: LookupIdentity<'_>) {
+        let response = self.lookup(token, identity).await;
         assert_eq!(response["error"]["code"], 3106, "{response}");
         assert!(response.get("result").is_none(), "{response}");
         assert!(
@@ -247,12 +239,18 @@ async fn deleted_page_lookup_uses_restore_permissions_and_trusted_http_identity(
     let site = fixture.site_id;
     let slug = &fixture.slug;
     let editor = Some(fixture.editor.as_str());
+    let identity = LookupIdentity {
+        header_site: site,
+        header_slug: slug,
+        body_site: site,
+        body_slug: slug,
+    };
     for token in [
         None,
         Some(fixture.restricted.as_str()),
         Some(fixture.outsider.as_str()),
     ] {
-        fixture.denied(token, site, slug, site, slug).await;
+        fixture.denied(token, identity).await;
     }
     // The body target is editable; a different trusted route cannot select it.
     let other_page = fixture.add_deleted(fixture.category_id).await;
@@ -267,13 +265,36 @@ async fn deleted_page_lookup_uses_restore_permissions_and_trusted_http_identity(
     txn.commit().await.unwrap();
     assert!(
         fixture
-            .lookup(editor, site, &other_slug, site, &other_slug)
+            .lookup(
+                editor,
+                LookupIdentity {
+                    header_slug: &other_slug,
+                    body_slug: &other_slug,
+                    ..identity
+                },
+            )
             .await["result"]
             .is_array()
     );
-    fixture.denied(editor, foreign_site, slug, site, slug).await;
-    fixture.denied(editor, site, &other_slug, site, slug).await;
-    let response = fixture.lookup(editor, site, slug, site, slug).await;
+    fixture
+        .denied(
+            editor,
+            LookupIdentity {
+                header_site: foreign_site,
+                ..identity
+            },
+        )
+        .await;
+    fixture
+        .denied(
+            editor,
+            LookupIdentity {
+                header_slug: &other_slug,
+                ..identity
+            },
+        )
+        .await;
+    let response = fixture.lookup(editor, identity).await;
     let records = response["result"]
         .as_array()
         .unwrap_or_else(|| panic!("{response}"));
@@ -289,14 +310,21 @@ async fn deleted_page_lookup_uses_restore_permissions_and_trusted_http_identity(
     }
     assert_eq!(
         fixture
-            .lookup(editor, site, "missing", site, "missing")
+            .lookup(
+                editor,
+                LookupIdentity {
+                    header_slug: "missing",
+                    body_slug: "missing",
+                    ..identity
+                },
+            )
             .await["result"],
         json!([])
     );
     fixture.state.database.execute_unprepared(&format!(
         "INSERT INTO page_lock (lock_type,page_id,user_id,reason) VALUES ('wikidot',{first},{},'Restore lock')", fixture.editor_id
     )).await.unwrap();
-    fixture.denied(editor, site, slug, site, slug).await;
+    fixture.denied(editor, identity).await;
     fixture
         .state
         .database
@@ -308,7 +336,7 @@ async fn deleted_page_lookup_uses_restore_permissions_and_trusted_http_identity(
     let protected = insert_id(&txn, &format!("INSERT INTO page_category (site_id,slug) VALUES ({site},'protected') RETURNING category_id"), "category_id").await;
     txn.commit().await.unwrap();
     fixture.add_deleted(protected).await;
-    fixture.denied(editor, site, slug, site, slug).await;
+    fixture.denied(editor, identity).await;
     fixture.handle.stop().unwrap();
     fixture.handle.stopped().await;
 }

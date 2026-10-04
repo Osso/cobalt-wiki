@@ -168,44 +168,17 @@ pub async fn page_get_deleted(
     params: Params<'static>,
 ) -> Result<Vec<GetDeletedPageOutput>> {
     let GetPageSlug { site_id, slug } = parse!(params, Page);
-    let request = ctx.request();
-    let user_id = match (&request.site_id, &request.user_id, &request.page_reference) {
-        (Some(request_site), Some(user_id), Some(Reference::Slug(request_slug)))
-            if *request_site == site_id && request_slug.as_ref() == slug =>
-        {
-            *user_id
-        }
-        _ => bail!(Error::new(
-            "deleted page lookup denied",
-            ErrorType::PermissionDenied
-        )),
-    };
-    let slug2 = slug.clone();
-
     let make_error = || {
         Error::new(
             format!(
                 "failed to get deleted page slug '{}' in site ID {}",
-                slug2, site_id
+                slug, site_id
             ),
             ErrorType::Page,
         )
     };
 
-    info!("Getting deleted page {slug} in site ID {site_id}");
-    let pages = PageService::get_deleted_by_slug(ctx, site_id, &slug)
-        .await
-        .or_raise(make_error)?;
-    for page in &pages {
-        PageService::require_page_edit(
-            ctx,
-            site_id,
-            user_id,
-            page.page_id,
-            page.page_category_id,
-        )
-        .await?;
-    }
+    let pages = load_editable_deleted_pages(ctx, site_id, &slug).await?;
     let get_deleted_page = pages
         .into_iter()
         .map(|page| build_page_deleted_output(ctx, page));
@@ -218,6 +191,45 @@ pub async fn page_get_deleted(
         .collect();
 
     Ok(result)
+}
+
+async fn load_editable_deleted_pages(
+    ctx: &ServiceContext<'_>,
+    site_id: i64,
+    slug: &str,
+) -> Result<Vec<PageModel>> {
+    let request = ctx.request();
+    let user_id = match (&request.site_id, &request.user_id, &request.page_reference) {
+        (Some(request_site), Some(user_id), Some(Reference::Slug(request_slug)))
+            if *request_site == site_id && request_slug.as_ref() == slug =>
+        {
+            *user_id
+        }
+        _ => bail!(Error::new(
+            "deleted page lookup denied",
+            ErrorType::PermissionDenied
+        )),
+    };
+    info!("Getting deleted page {slug} in site ID {site_id}");
+    let pages = PageService::get_deleted_by_slug(ctx, site_id, slug)
+        .await
+        .or_raise(|| {
+            Error::new(
+                format!("failed to get deleted page slug '{slug}' in site ID {site_id}"),
+                ErrorType::Page,
+            )
+        })?;
+    for page in &pages {
+        PageService::require_page_edit(
+            ctx,
+            site_id,
+            user_id,
+            page.page_id,
+            page.page_category_id,
+        )
+        .await?;
+    }
+    Ok(pages)
 }
 
 pub async fn page_get_score(
