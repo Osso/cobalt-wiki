@@ -1,6 +1,6 @@
 # Cobalt security/bug audit — 2026-10-04
 
-Recorded: 2026-10-04. Verified code through `dd931fa3d` and local proof ledgers. Bounded source audit and local regression evidence, not exhaustive security assurance. **No production deployment of these changes.** Existing deployment claims in other docs concern earlier work.
+Recorded: 2026-10-04. Initial repair acceptance through `dd931fa3d`; follow-up repairs and their revision-scoped proof below. Bounded source audit and local regression evidence, not exhaustive security assurance. **No production deployment of these changes.** Read-only runtime inspection found active services at deployed Deepwell commit `fdb02cd205250c0a3c2ac0eada2b9919d194e28d`, not these repairs.
 
 ## Coverage and outcomes
 
@@ -14,6 +14,23 @@ Recorded: 2026-10-04. Verified code through `dd931fa3d` and local proof ledgers.
 | Auth / frontend sign-in | Pending MFA previously returned false success. SSR action now returns explicit 403 with existing form/message, no token/success and no cookie writes. | `bb9192fb0`; actual SSR-action regression GREEN 5/5. Frontend MFA form remains absent; explicit denial is not a bypass. |
 | Render / files / media | WWS-wide `Content-Security-Policy: sandbox allow-scripts`, without `allow-same-origin`, isolates documents at router boundary. Supersedes HTML-block-only `4d47d4202` / proof `96efbdcc5`. | `67b401cc0`; actual file/HTML RED exploits then 10 router + 2 Chromium GREEN. PNG fixture correction `1f3551a2b`, spec reconciliation `853a1c119`. See [media contract](../../specs/cobalt-media-routing.md). |
 | Persistence / import / API permissions | Reviewed imported-history duplicate handling, filter semantics, historical context, trusted import/rerender RPC reachability and sampled mutation permission boundaries. | Rejected candidates below; no new import fix or import regression proof, no source-site writes, no every-route safety claim. |
+
+## Broader API and public-action accounting
+
+The [registered API inventory](cobalt-security-api-inventory.md) enumerates all 182 RPC names/handlers and separates public actions from server wrappers, trusted importer/maintenance callers and internal/unimplemented functions. Registration and caller inventory are complete; method-level authorization, validation and runtime coverage are not exhaustive.
+
+| Boundary | Inspected behavior / disposition | Proof level |
+|---|---|---|
+| Shared action identity | Raw `session_get` exposed a pending user's ID to vote actions. `78f4b8511` rejects pending sessions before returning an action actor; profile denial remains 403. | Stateful actual SSR vote-action RED/GREEN; current four cases also preserve another user's vote despite forged body IDs (`0972b7f02`). Profile 4/4 retained. No deployed vote mutation attempted. |
+| Site administration POST | Load-only permission check did not protect POST. `e8f5131da` checks existing Site/Edit policy and trusted routed site before updates. | Actual SSR POST fixture RED then 5/5 GREEN: member, guest, pending, administrator and foreign target. Not actual database/deployed action proof. [Contract](../../specs/cobalt-site-manager.md). |
+| Public page-pane reads | Seven legacy actions forwarded raw site/page IDs without the page loader's visibility gate. `7d182daf5` authorizes the exact routed page before reading. | Actual SSR actions/RPC fixtures: 48/48 at `aaded66ca`, including default-page and route-extra semantics. Not database or deployed private-page acceptance. [Contract](../../specs/cobalt-page-read-access.md). |
+| Message reply/forward | Inverted recipient predicate rejected recipients and accepted outsiders. `25c536514` repairs it. | Actual registered HTTP RPC/PostgreSQL: 12/12, sender, regular/CC/BCC recipients, outsiders and missing records; denied requests preserve full fixture-owned drafts. Independent backend format/check/readability acceptance retained. [Contract](../../specs/cobalt-message-access.md). |
+| Edit error response | Permission error 3106 was reported as 500. `4ffdeaa30` returns 403, retaining other backend errors as 500. | Actual SSR action RED then 2/2 GREEN. Error/status proof only. [Contract](../../specs/cobalt-page-actions.md). |
+| Deleted-page lookup | Restore UI really calls `deletedGet`; it must not be removed as unused. `0561568b5` binds request site/slug and reuses actual restore Page/Edit/category/lock checks before returning any candidate metadata. | Registered HTTP/PostgreSQL one comprehensive case and SSR 5/5 GREEN, including 3106→403 status follow-up `5f545f8a0`; final acceptance pending. [Contract](../../specs/cobalt-page-read-access.md#deleted-page-restore-lookup). |
+| Gateway/header trust | nginx overwrites ingress site context; Framerail constructs internal RPC context from that site, route and session cookie rather than forwarding client internal headers. | Source trace plus observed loopback listeners: Deepwell 2747, Framerail 3393, WWS 3466, nginx 3088. Direct local callers remain trusted; no external header-forgery experiment. |
+| Public user responses | Other-user profiles omit email and self-only fields; own preload/profile/edit responses omit password/MFA secrets; settings discards raw successful edit records. | Source-level field/caller trace. Raw loopback user RPCs still return full models; no public Framerail `user_get` caller found. |
+
+Frontend follow-up type/lint/readability acceptance and deleted-lookup backend acceptance remain pending. Earlier unrelated backend/WWS/login evidence is retained, not rerun merely because inventories expanded.
 
 ## Local proof
 
@@ -40,11 +57,15 @@ Evidence: `/tmp/cobalt-security-active-file-proof-ledger.md`, `/tmp/cobalt-secur
 - Imported-history same-request duplicates already undergo validation; not an accepted defect.
 - OR history filters are intentional; not a filter bug.
 - Historical rendering with current context is intentional; not an accepted context leak.
-- Trusted loopback import/rerender RPCs are not public exploits absent demonstrated Framerail/gateway exposure. Trust boundary remains relevant; no universal RPC safety claim.
+- Trusted loopback import/rerender, blob upload/cancel, generic role/domain/user and direct getter RPCs are caller-trusting internal interfaces, not public exploits merely because they accept payload actor IDs. Actual listeners are loopback-bound; public wrappers/actions must supply and constrain authority. No universal RPC safety claim.
+- Settings' lack of a local pending-session check is not a bypass: its own `user_view` lookup already excludes restricted viewers, while watching derives the backend filtered actor.
+- A normal voter cannot select another actor through inspected public actions: they ignore body user IDs and use the cookie session's ID. Stateful SSR cast/cancel fixtures preserve the other user's vote. Direct trusted RPC actor substitution is a different boundary.
+- Parent names, voter identities and historical file metadata on a visible page do not establish a new confidentiality policy. File-info hidden-comment omission is explicitly presentation-only in its existing contract; no speculative API redaction added.
+- Authorization-token single-consumption proof covers the verifier, not a claim that ordinary registration/site creation consumes a token. Only bot creation was found to call it in production code; public regular registration is intentionally present.
 
 ## Remaining gaps / proof limits
 
 - **Renderer HTML stub:** `example.com` output remains an unsupported functional feature, not fixed by WWS isolation.
-- **Frontend MFA form:** absent; pending sign-in now fails explicitly with 403 rather than false success. Backend MFA completion proof does not establish an end-to-end frontend MFA flow.
+- **Frontend MFA form:** absent, with no frontend setup/enable/verify route or existing supported completion contract found. Pending sign-in fails explicitly with 403 instead of false success. Backend MFA completion does not establish an end-to-end frontend flow; adding one would be a separate feature, not this audit's repair.
 - **Environment diagnostics:** Vite's optional pnpm-version probe still emits `pnpm: command not found`; required type/lint gates pass. Earlier unrelated route-prefix startup diagnostics remain in retained SSR logs. No warning suppression or package installation.
 - **Production / destination isolation:** no production rollout or deployed acceptance proof. S3 destination policy unchanged; upload admission unexamined. HTTP-only avatar/SVG and bounded Chromium fixtures do not establish exhaustive document or application safety.
