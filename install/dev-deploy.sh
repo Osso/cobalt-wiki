@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Fast development deploy of Deepwell and/or Framerail to the Cobalt replica.
+# Application-only deploy of Deepwell, Framerail and WWS to the Cobalt replica.
 # Requires services.cobaltWiki.appDirectory on the host. Builds in the flake's
 # deploy shell (same glibc/libmagic store paths as the deployed packages),
 # rsyncs only what changed and restarts the service.
 #
-#   install/dev-deploy.sh [deepwell|framerail|all]     (COBALT_HOST, default sakuin)
+#   install/dev-deploy.sh [deepwell|framerail|wws|all] (COBALT_HOST, default sakuin)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -65,15 +65,38 @@ deploy_framerail() {
 	ssh "$HOST" "systemctl restart cobalt-wiki-framerail"
 }
 
+build_and_copy_wws() {
+	WWS_PACKAGE="$(nix build "$ROOT#wws" --no-link --print-out-paths)"
+	nix copy --to "ssh://$HOST" "$WWS_PACKAGE"
+}
+
+activate_wws() {
+	local package="$1"
+	local dropin=/etc/systemd/system/cobalt-wiki-wws.service.d/release.conf
+	# Pin only the executable; the NixOS unit retains all other service policy.
+	printf '[Service]\nExecStart=\nExecStart=%s/bin/wws\n' "$package" |
+		ssh "$HOST" "install -d -m 0755 ${dropin%/*} && tee $dropin >/dev/null && systemctl daemon-reload && systemctl restart cobalt-wiki-wws"
+}
+
 case "$WHAT" in
 deepwell) deploy_deepwell ;;
 framerail) deploy_framerail ;;
-all) deploy_deepwell && deploy_framerail ;;
-*) echo "usage: $0 [deepwell|framerail|all]" >&2 && exit 2 ;;
+wws)
+	build_and_copy_wws
+	activate_wws "$WWS_PACKAGE"
+	;;
+all)
+	build_and_copy_wws
+	deploy_deepwell
+	deploy_framerail
+	activate_wws "$WWS_PACKAGE"
+	;;
+*) echo "usage: $0 [deepwell|framerail|wws|all]" >&2 && exit 2 ;;
 esac
 
-# Smoke check: both services active and a page renders through Deepwell.
-ssh "$HOST" 'systemctl is-active cobalt-wiki-deepwell cobalt-wiki-framerail >/dev/null &&
+# Reconnect the dependent gateway, then check all application services.
+ssh "$HOST" 'systemctl restart cobalt-wiki-gateway &&
+	systemctl is-active cobalt-wiki-deepwell cobalt-wiki-framerail cobalt-wiki-wws cobalt-wiki-gateway >/dev/null &&
 	curl -sf -o /dev/null -H "Content-Type: application/json" http://127.0.0.1:2747/jsonrpc \
 	-d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"page_view\",\"params\":{\"site_id\":6000000,\"session_token\":null,\"locales\":[\"en\"],\"route\":{\"slug\":\"roster\",\"extra\":\"\"}}}"' &&
 	echo "Deployed $WHAT ($(release_id))."
