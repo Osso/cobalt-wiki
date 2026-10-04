@@ -109,7 +109,6 @@ export async function adminAction({ request, getClientAddress, cookies }: Reques
   const sessionToken = cookies.get("wikijump_token")
   const ipAddress = getClientAddress()
   const session = await authGetSession(sessionToken)
-  if (!session) return fail(401, { form })
   const { siteId } = loadSiteInfo(request.headers)
   if (form.data.siteId !== siteId) return fail(403, { form })
 

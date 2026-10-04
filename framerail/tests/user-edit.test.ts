@@ -75,7 +75,7 @@ async function editProfile(session: Session | null, token = "session-secret") {
           typeof error !== "object" ||
           error === null ||
           !("status" in error) ||
-          error.status !== 403
+          (error.status !== 401 && error.status !== 403)
         ) {
           throw error
         }

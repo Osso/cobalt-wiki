@@ -8,7 +8,12 @@ const { actions } = await vite.ssrLoadModule(
   "/src/routes/[slug]/[...extra]/+page.server.ts"
 )
 
-async function submitVote(action: "voteCast" | "voteCancel", restricted: boolean) {
+type Authentication = "pending" | "authenticated" | "expired" | "missing-cookie"
+
+async function submitVote(
+  action: "voteCast" | "voteCancel",
+  authentication: Authentication
+) {
   const votes = new Map([
     ["42:101", 1],
     ["99:101", 1]
@@ -18,7 +23,25 @@ async function submitVote(action: "voteCast" | "voteCancel", restricted: boolean
     const rpc = JSON.parse(String(init?.body))
     let result
     if (rpc.method === "session_get") {
-      result = { user_id: 42, session_token: "pending-token", restricted }
+      result =
+        authentication === "expired" || authentication === "missing-cookie"
+          ? null
+          : {
+              user_id: 42,
+              session_token: "session-token",
+              restricted: authentication === "pending"
+            }
+    } else if (
+      (rpc.method === "vote_set" || rpc.method === "vote_remove") &&
+      rpc.params.user_id === undefined
+    ) {
+      return new Response(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: rpc.id,
+          error: { code: -32602, message: "Invalid params" }
+        })
+      )
     } else if (rpc.method === "vote_set") {
       votes.set(`${rpc.params.user_id}:${rpc.params.page_id}`, rpc.params.value)
       result = { user_id: rpc.params.user_id, page_id: rpc.params.page_id }
@@ -45,14 +68,16 @@ async function submitVote(action: "voteCast" | "voteCancel", restricted: boolean
             userId: 99
           })
         }),
-        cookies: { get: () => "pending-token" }
+        cookies: {
+          get: () => (authentication === "missing-cookie" ? undefined : "session-token")
+        }
       })
     } catch (error) {
       if (
         typeof error !== "object" ||
         error === null ||
         !("status" in error) ||
-        error.status !== 403
+        (error.status !== 401 && error.status !== 403)
       ) {
         throw error
       }
@@ -65,8 +90,18 @@ async function submitVote(action: "voteCast" | "voteCancel", restricted: boolean
 }
 
 for (const action of ["voteCast", "voteCancel"] as const) {
+  for (const authentication of ["expired", "missing-cookie"] as const) {
+    test(`${authentication} authentication cannot ${action} and returns 401`, async () => {
+      const { response, votes } = await submitVote(action, authentication)
+      assert.deepEqual(votes, [
+        ["42:101", 1],
+        ["99:101", 1]
+      ])
+      assert.equal(response.status, 401)
+    })
+  }
   test(`pending MFA cannot ${action} through the public page action`, async () => {
-    const { response, votes } = await submitVote(action, true)
+    const { response, votes } = await submitVote(action, "pending")
     assert.deepEqual(votes, [
       ["42:101", 1],
       ["99:101", 1]
@@ -74,7 +109,7 @@ for (const action of ["voteCast", "voteCancel"] as const) {
     assert.equal(response.status, 403)
   })
   test(`authenticated ${action} ignores forged body identity and preserves another user's vote`, async () => {
-    const { response, votes } = await submitVote(action, false)
+    const { response, votes } = await submitVote(action, "authenticated")
     assert.ok(response.res)
     assert.deepEqual(
       votes,

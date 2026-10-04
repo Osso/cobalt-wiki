@@ -56,7 +56,7 @@ async function editSite(actor: Actor, targetSite = 11) {
         typeof error !== "object" ||
         error === null ||
         !("status" in error) ||
-        error.status !== 403
+        (error.status !== 401 && error.status !== 403)
       ) {
         throw error
       }

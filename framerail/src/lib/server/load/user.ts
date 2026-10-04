@@ -130,9 +130,6 @@ export async function userEditAction({
 
   const sessionToken = cookies.get("wikijump_token")
   const session = await authGetSession(sessionToken)
-  if (!session) {
-    return fail(401, { form })
-  }
   const ipAddress = getClientAddress()
 
   try {

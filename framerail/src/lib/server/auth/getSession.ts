@@ -9,9 +9,10 @@ export async function authGetSession(sessionToken: string | undefined): Promise<
   ip_address: string
   user_agent: string
   restricted: boolean
-} | null> {
+}> {
   const session = await client.request("session_get", [sessionToken ?? ""])
-  if (session?.restricted) {
+  if (!session) error(401, "You are not signed in.")
+  if (session.restricted) {
     error(403, "Complete multi-factor authentication before performing this action.")
   }
   return session
