@@ -42,6 +42,53 @@ function respondToFixtureRequest(fixture, apiRequests, request, response) {
 })</script><iframe src="${fixture.path}"></iframe>`)
 }
 
+/**
+ * @param {import("@playwright/test").Page} page
+ * @param {string} origin
+ * @param {ApiRequests} apiRequests
+ */
+async function assertIframeIsolation(page, origin, apiRequests) {
+  await page.goto(`${origin}/`)
+  await page.waitForFunction(() => document.body.dataset.proof !== undefined)
+  const proof = await page.evaluate(() => {
+    const payload = document.body.dataset.proof
+    if (!payload) throw new Error("Missing document-isolation proof")
+    return JSON.parse(payload)
+  })
+  console.log(JSON.stringify({ proof, apiRequests }))
+  assert.equal(proof.scripts, true)
+  assert.equal(proof.parent, "SecurityError")
+  assert.equal(proof.cookie, "SecurityError")
+  assert.equal(proof.api, "TypeError")
+  assert.equal(proof.credentialedApi, "TypeError")
+  assert.equal(proof.origin, "null")
+  assert.equal(apiRequests.length, 2, "sandbox does not prohibit outgoing requests")
+  assert.equal(apiRequests[0].origin, "null")
+  assert.equal(
+    apiRequests[0].cookie,
+    undefined,
+    "default same-origin credentials exclude opaque origin"
+  )
+}
+
+/**
+ * @param {import("@playwright/test").Page} page
+ * @param {string} url
+ */
+async function assertDirectDocumentIsolation(page, url) {
+  // Direct navigation must be isolated without an iframe sandbox attribute.
+  await page.goto(url)
+  const directCookie = await page.evaluate(() => {
+    try {
+      return document.cookie
+    } catch (error) {
+      if (error instanceof Error) return error.name
+      throw error
+    }
+  })
+  assert.equal(directCookie, "SecurityError")
+}
+
 // Input is captured from the actual WWS router + HTTP Deepwell/S3 fixture.
 // No hand-written CSP or iframe sandbox attribute can mask a route regression.
 assert.ok(
@@ -73,38 +120,8 @@ for (const fixturePath of fixturePaths) {
       assert.ok(address && typeof address === "object", "TCP listener is bound")
       const origin = `http://127.0.0.1:${address.port}`
       const page = await browser.newPage()
-      await page.goto(`${origin}/`)
-      await page.waitForFunction(() => document.body.dataset.proof !== undefined)
-      const proof = await page.evaluate(() => {
-        const payload = document.body.dataset.proof
-        if (!payload) throw new Error("Missing document-isolation proof")
-        return JSON.parse(payload)
-      })
-      console.log(JSON.stringify({ proof, apiRequests }))
-      assert.equal(proof.scripts, true)
-      assert.equal(proof.parent, "SecurityError")
-      assert.equal(proof.cookie, "SecurityError")
-      assert.equal(proof.api, "TypeError")
-      assert.equal(proof.credentialedApi, "TypeError")
-      assert.equal(proof.origin, "null")
-      assert.equal(apiRequests.length, 2, "sandbox does not prohibit outgoing requests")
-      assert.equal(apiRequests[0].origin, "null")
-      assert.equal(
-        apiRequests[0].cookie,
-        undefined,
-        "default same-origin credentials exclude opaque origin"
-      )
-      // Direct navigation also receives document isolation, not an iframe attribute.
-      await page.goto(`${origin}${documentPath}`)
-      const directCookie = await page.evaluate(() => {
-        try {
-          return document.cookie
-        } catch (error) {
-          if (error instanceof Error) return error.name
-          throw error
-        }
-      })
-      assert.equal(directCookie, "SecurityError")
+      await assertIframeIsolation(page, origin, apiRequests)
+      await assertDirectDocumentIsolation(page, `${origin}${documentPath}`)
       // credentials:include is not claimed to be blocked; API authorization/CSRF
       // protection remains the API's responsibility, even when CORS denies reads.
     } finally {
