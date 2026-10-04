@@ -887,7 +887,7 @@ impl ViewService {
                 .await
                 .or_raise(make_error)?,
         };
-        let Some(session) = session else {
+        let Some(session) = session.filter(|session| !session.restricted) else {
             return Ok(None);
         };
         let user = UserService::get_real(ctx, Reference::Id(session.user_id))

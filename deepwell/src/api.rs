@@ -558,8 +558,10 @@ async fn build_request(
                 .or_raise(make_error)?
             {
                 Some(session) => {
-                    let user_id = session.user_id;
-                    (Some(session), Some(user_id))
+                    // MFA-pending sessions remain available to authentication RPCs,
+                    // but cannot act as an authenticated wiki user.
+                    let user_id = (!session.restricted).then_some(session.user_id);
+                    (Some(session), user_id)
                 }
                 None => (None, None),
             }
