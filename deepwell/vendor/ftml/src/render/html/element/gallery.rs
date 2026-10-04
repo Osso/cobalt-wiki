@@ -20,6 +20,7 @@
 
 use super::prelude::*;
 use crate::tree::FileSource;
+use crate::url::is_url;
 use std::borrow::Cow;
 
 /// Wikidot's gallery markup, without its lightbox script. A `: file` list
@@ -59,9 +60,10 @@ pub fn render_gallery(
     ctx.push_raw_str("</div>");
 }
 
-/// A list line names a file of this page, `page/file`, or a URL.
+/// A list line names a file of this page, `page/file`, or a URL with a safe
+/// scheme, as image sources do.
 fn file_source<'a>(page: &'a str, source: &'a str) -> FileSource<'a> {
-    if source.contains("://") {
+    if is_url(source) {
         return FileSource::Url(Cow::Borrowed(source));
     }
     match source.trim_start_matches('/').split_once('/') {
@@ -198,6 +200,19 @@ mod tests {
              <td><a href=\"/-/file/icons/pet-icon_elekk-brown.jpg\" class=\"with-lb\"><img src=\"/-/file/icons/pet-icon_elekk-brown.jpg\" alt=\"\" class=\"gallery-image-size-thumbnail\" style=\"width: 100px; height: 100px; object-fit: contain;\" /></a></td>\n\
              </tr>\n</table>\n</div>\n\
              </div><p>After</p>",
+        );
+    }
+
+    #[test]
+    fn listed_gallery_urls_only_allow_safe_schemes() {
+        let html = render(
+            "[[gallery]]\n: javascript://%0Aalert(document.domain)\n: https://example.com/a.png\n[[/gallery]]",
+            &[],
+        );
+        assert!(!html.contains("\"javascript:"), "{html}");
+        assert!(
+            html.contains("<a href=\"https://example.com/a.png\" class=\"with-lb\">"),
+            "{html}"
         );
     }
 
