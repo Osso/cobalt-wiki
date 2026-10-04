@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { after, test } from "node:test"
-import { createSsrServer } from "./ssr-server.ts"
+import { createSsrServer, invokeSsrAction } from "./ssr-server.ts"
 
 const { vite, close } = await createSsrServer()
 after(close)
@@ -22,6 +22,16 @@ const reads = [
 
 type Access = "viewer" | "denied" | "missing"
 
+function buildPageViewReply(access: Access) {
+  if (access === "viewer") {
+    return {
+      type: "found",
+      data: { page: { page_id: 101, site_id: 11, slug: "private" } }
+    }
+  }
+  return { type: access === "denied" ? "permissions" : "missing", data: {} }
+}
+
 async function readPage(
   action: string,
   method: string,
@@ -37,13 +47,7 @@ async function readPage(
     let result
     if (rpc.method === "page_view") {
       assert.deepEqual(rpc.params.route, root ? null : params)
-      result =
-        access === "viewer"
-          ? {
-              type: "found",
-              data: { page: { page_id: 101, site_id: 11, slug: "private" } }
-            }
-          : { type: access === "denied" ? "permissions" : "missing", data: {} }
+      result = buildPageViewReply(access)
     } else if (rpc.method === method) {
       result = { private_data: "Secret revision / file metadata / lock reason" }
     } else {
@@ -52,9 +56,9 @@ async function readPage(
     return new Response(JSON.stringify({ jsonrpc: "2.0", id: rpc.id, result }))
   }
   try {
-    try {
-      const selectedActions = root ? rootActions : actions
-      return await selectedActions[action]({
+    const selectedActions = root ? rootActions : actions
+    return await invokeSsrAction(() =>
+      selectedActions[action]({
         request: new Request("http://local.test/private", {
           method: "POST",
           headers: {
@@ -74,17 +78,7 @@ async function readPage(
         cookies: { get: () => (access === "viewer" ? "viewer-session" : undefined) },
         locals: { requestContext: { siteId: 11, page: "private" } }
       })
-    } catch (error) {
-      if (
-        typeof error !== "object" ||
-        error === null ||
-        !("status" in error) ||
-        (error.status !== 403 && error.status !== 404)
-      ) {
-        throw error
-      }
-      return { status: error.status }
-    }
+    )
   } finally {
     globalThis.fetch = previousFetch
   }

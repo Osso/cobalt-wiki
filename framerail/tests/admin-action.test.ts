@@ -1,12 +1,29 @@
 import assert from "node:assert/strict"
 import { after, test } from "node:test"
-import { createSsrServer } from "./ssr-server.ts"
+import { createSsrServer, invokeSsrAction } from "./ssr-server.ts"
 
 const { vite, close } = await createSsrServer()
 after(close)
 const { actions } = await vite.ssrLoadModule("/src/routes/[x+2d]/admin/+page.server.ts")
 
 type Actor = "member" | "admin" | "pending" | "guest"
+
+type Rpc = { method: string; params: { site: number; name: string } }
+
+function respondToAdminRpc(rpc: Rpc, actor: Actor, sites: Map<number, string>) {
+  if (rpc.method === "session_get") {
+    if (actor === "guest") return null
+    return { user_id: 42, restricted: actor === "pending" }
+  }
+  if (rpc.method === "admin_view") {
+    return { type: actor === "admin" ? "site_found" : "admin_permissions", data: {} }
+  }
+  if (rpc.method === "site_update") {
+    sites.set(rpc.params.site, rpc.params.name)
+    return { site_id: rpc.params.site, name: rpc.params.name }
+  }
+  throw new Error(`Unexpected RPC ${rpc.method}`)
+}
 
 async function editSite(actor: Actor, targetSite = 11) {
   const sites = new Map([
@@ -16,23 +33,12 @@ async function editSite(actor: Actor, targetSite = 11) {
   const previousFetch = globalThis.fetch
   globalThis.fetch = async (_input, init) => {
     const rpc = JSON.parse(String(init?.body))
-    let result
-    if (rpc.method === "session_get") {
-      result = actor === "guest" ? null : { user_id: 42, restricted: actor === "pending" }
-    } else if (rpc.method === "admin_view") {
-      result = { type: actor === "admin" ? "site_found" : "admin_permissions", data: {} }
-    } else if (rpc.method === "site_update") {
-      sites.set(rpc.params.site, rpc.params.name)
-      result = { site_id: rpc.params.site, name: rpc.params.name }
-    } else {
-      throw new Error(`Unexpected RPC ${rpc.method}`)
-    }
+    const result = respondToAdminRpc(rpc, actor, sites)
     return new Response(JSON.stringify({ jsonrpc: "2.0", id: rpc.id, result }))
   }
   try {
-    let response
-    try {
-      response = await actions.default({
+    const response = await invokeSsrAction(() =>
+      actions.default({
         request: new Request("http://local.test/-/admin", {
           method: "POST",
           headers: { "X-Wikijump-Site-Id": "11", "X-Wikijump-Site-Slug": "cobalt" },
@@ -51,17 +57,7 @@ async function editSite(actor: Actor, targetSite = 11) {
         cookies: { get: () => (actor === "guest" ? undefined : `${actor}-session`) },
         getClientAddress: () => "127.0.0.1"
       })
-    } catch (error) {
-      if (
-        typeof error !== "object" ||
-        error === null ||
-        !("status" in error) ||
-        (error.status !== 401 && error.status !== 403)
-      ) {
-        throw error
-      }
-      response = { status: error.status }
-    }
+    )
     return { response, sites: [...sites.entries()] }
   } finally {
     globalThis.fetch = previousFetch

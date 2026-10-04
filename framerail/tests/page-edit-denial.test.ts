@@ -8,6 +8,13 @@ const { actions } = await vite.ssrLoadModule(
   "/src/routes/[slug]/[...extra]/+page.server.ts"
 )
 
+function respondToEditRpc(method: string, code: number) {
+  if (method === "session_get") return { result: { user_id: 42, restricted: false } }
+  if (method === "page_edit")
+    return { error: { code, message: "Edit failed", data: null } }
+  throw new Error(`Unexpected RPC ${method}`)
+}
+
 for (const [code, status] of [
   [3106, 403],
   [1200, 500]
@@ -16,14 +23,7 @@ for (const [code, status] of [
     const previousFetch = globalThis.fetch
     globalThis.fetch = async (_input, init) => {
       const rpc = JSON.parse(String(init?.body))
-      const response =
-        rpc.method === "session_get"
-          ? { result: { user_id: 42, restricted: false } }
-          : rpc.method === "page_edit"
-            ? { error: { code, message: "Edit failed", data: null } }
-            : (() => {
-                throw new Error(`Unexpected RPC ${rpc.method}`)
-              })()
+      const response = respondToEditRpc(rpc.method, code)
       return new Response(JSON.stringify({ jsonrpc: "2.0", id: rpc.id, ...response }))
     }
     try {

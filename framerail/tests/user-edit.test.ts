@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { after, test } from "node:test"
-import { createSsrServer } from "./ssr-server.ts"
+import { createSsrServer, invokeSsrAction } from "./ssr-server.ts"
 
 const { vite, close } = await createSsrServer()
 after(close)
@@ -61,8 +61,8 @@ async function editProfile(session: Session | null, token = "session-secret") {
     return new Response(JSON.stringify({ jsonrpc: "2.0", id: rpc.id, result }))
   }
   try {
-    const response = await actions
-      .userEdit({
+    const response = await invokeSsrAction(() =>
+      actions.userEdit({
         request: new Request("http://local.test/-/user", {
           method: "POST",
           body: new URLSearchParams({ realName: "Alice Liddell" })
@@ -70,17 +70,7 @@ async function editProfile(session: Session | null, token = "session-secret") {
         cookies: { get: () => token || undefined },
         getClientAddress: () => "127.0.0.1"
       })
-      .catch((error: unknown) => {
-        if (
-          typeof error !== "object" ||
-          error === null ||
-          !("status" in error) ||
-          (error.status !== 401 && error.status !== 403)
-        ) {
-          throw error
-        }
-        return { status: error.status }
-      })
+    )
     return { response, user }
   } finally {
     globalThis.fetch = previousFetch

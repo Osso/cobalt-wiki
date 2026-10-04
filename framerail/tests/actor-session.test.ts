@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { after, test } from "node:test"
-import { createSsrServer } from "./ssr-server.ts"
+import { createSsrServer, invokeSsrAction } from "./ssr-server.ts"
 
 const { vite, close } = await createSsrServer()
 after(close)
@@ -9,6 +9,42 @@ const { actions } = await vite.ssrLoadModule(
 )
 
 type Authentication = "pending" | "authenticated" | "expired" | "missing-cookie"
+
+type VoteRpc = {
+  method: string
+  params: { user_id?: number; page_id: number; value: number }
+}
+
+function buildSessionReply(authentication: Authentication) {
+  if (authentication === "expired" || authentication === "missing-cookie") return null
+  return {
+    user_id: 42,
+    session_token: "session-token",
+    restricted: authentication === "pending"
+  }
+}
+
+function respondToVoteRpc(
+  rpc: VoteRpc,
+  authentication: Authentication,
+  votes: Map<string, number>
+) {
+  if (rpc.method === "session_get") return { result: buildSessionReply(authentication) }
+  const isVoteMutation = rpc.method === "vote_set" || rpc.method === "vote_remove"
+  if (isVoteMutation && rpc.params.user_id === undefined) {
+    return { error: { code: -32602, message: "Invalid params" } }
+  }
+  const voteKey = `${rpc.params.user_id}:${rpc.params.page_id}`
+  if (rpc.method === "vote_set") {
+    votes.set(voteKey, rpc.params.value)
+    return { result: { user_id: rpc.params.user_id, page_id: rpc.params.page_id } }
+  }
+  if (rpc.method === "vote_remove") {
+    votes.delete(voteKey)
+    return { result: { user_id: rpc.params.user_id, page_id: rpc.params.page_id } }
+  }
+  throw new Error(`Unexpected RPC ${rpc.method}`)
+}
 
 async function submitVote(
   action: "voteCast" | "voteCancel",
@@ -21,42 +57,12 @@ async function submitVote(
   const originalFetch = globalThis.fetch
   globalThis.fetch = async (_input, init) => {
     const rpc = JSON.parse(String(init?.body))
-    let result
-    if (rpc.method === "session_get") {
-      result =
-        authentication === "expired" || authentication === "missing-cookie"
-          ? null
-          : {
-              user_id: 42,
-              session_token: "session-token",
-              restricted: authentication === "pending"
-            }
-    } else if (
-      (rpc.method === "vote_set" || rpc.method === "vote_remove") &&
-      rpc.params.user_id === undefined
-    ) {
-      return new Response(
-        JSON.stringify({
-          jsonrpc: "2.0",
-          id: rpc.id,
-          error: { code: -32602, message: "Invalid params" }
-        })
-      )
-    } else if (rpc.method === "vote_set") {
-      votes.set(`${rpc.params.user_id}:${rpc.params.page_id}`, rpc.params.value)
-      result = { user_id: rpc.params.user_id, page_id: rpc.params.page_id }
-    } else if (rpc.method === "vote_remove") {
-      votes.delete(`${rpc.params.user_id}:${rpc.params.page_id}`)
-      result = { user_id: rpc.params.user_id, page_id: rpc.params.page_id }
-    } else {
-      throw new Error(`Unexpected RPC ${rpc.method}`)
-    }
-    return new Response(JSON.stringify({ jsonrpc: "2.0", id: rpc.id, result }))
+    const reply = respondToVoteRpc(rpc, authentication, votes)
+    return new Response(JSON.stringify({ jsonrpc: "2.0", id: rpc.id, ...reply }))
   }
   try {
-    let response
-    try {
-      response = await actions[action]({
+    const response = await invokeSsrAction(() =>
+      actions[action]({
         request: new Request("http://local.test/page", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -72,17 +78,7 @@ async function submitVote(
           get: () => (authentication === "missing-cookie" ? undefined : "session-token")
         }
       })
-    } catch (error) {
-      if (
-        typeof error !== "object" ||
-        error === null ||
-        !("status" in error) ||
-        (error.status !== 401 && error.status !== 403)
-      ) {
-        throw error
-      }
-      response = { status: error.status }
-    }
+    )
     return { response, votes: [...votes.entries()] }
   } finally {
     globalThis.fetch = originalFetch
