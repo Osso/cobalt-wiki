@@ -99,10 +99,28 @@ async fn hiding_rejects_unknown_fields_and_other_pages_revisions() {
         hide(page_id, revisions[1], &["comments", "bogus"]),
     );
     assert_contains_error!(error, ErrorType::BadRequest);
+    // A real second page: its own latest revision differs, so only the
+    // ownership check can refuse this.
+    runner.set_request_context(RequestContext {
+        session: None,
+        user_id: Some(ADMIN_USER_ID),
+        site_id: Some(site_id),
+        page_reference: Some(Reference::Slug("revision-range-other".into())),
+    });
+    let other_page = run_endpoint!(
+        runner,
+        page_create,
+        json!({
+            "site_id": site_id, "wikitext": "Other", "title": "Other", "alt_title": null,
+            "slug": "revision-range-other", "layout": null, "revision_comments": "Create",
+            "user_id": ADMIN_USER_ID, "ip_address": common::IP_ADDRESS,
+        }),
+    )
+    .page_id;
     let error = run_endpoint_err!(
         runner,
         page_revision_edit,
-        hide(page_id + 1_000_000, revisions[1], &["comments"]),
+        hide(other_page, revisions[1], &["comments"]),
     );
     assert_contains_error!(error, ErrorType::PageRevisionNotFound);
 

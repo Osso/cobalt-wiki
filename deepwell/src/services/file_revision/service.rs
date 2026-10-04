@@ -471,6 +471,24 @@ impl FileRevisionService {
         };
 
         let txn = ctx.transaction();
+
+        // Only a revision of this file may be changed.
+        let owned = FileRevision::find_by_id(revision_id)
+            .filter(file_revision::Column::FileId.eq(file_id))
+            .filter(file_revision::Column::PageId.eq(page_id))
+            .filter(file_revision::Column::SiteId.eq(site_id))
+            .one(txn)
+            .await
+            .or_raise(make_error)?;
+        if owned.is_none() {
+            bail!(Error::new(
+                format!(
+                    "file revision ID {revision_id} is not on file ID {file_id} in page ID {page_id}"
+                ),
+                ErrorType::FileRevisionNotFound,
+            ));
+        }
+
         let latest = Self::get_latest(ctx, site_id, page_id, file_id)
             .await
             .or_raise(make_error)?;
