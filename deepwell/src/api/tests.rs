@@ -116,6 +116,8 @@ async fn mfa_pending_session_has_no_viewer_or_request_actor_until_verified() {
     use crate::services::PasswordService;
     use sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
 
+    log::set_logger(&SECURITY_LOGS).expect("install credential-log capture");
+    log::set_max_level(log::LevelFilter::Info);
     const USER_ID: i64 = -9000042;
     const PASSWORD: &str = "security-fixture-password";
     const RECOVERY_CODE: &str = "security-recovery-code";
@@ -235,6 +237,24 @@ async fn mfa_pending_session_has_no_viewer_or_request_actor_until_verified() {
     assert_eq!(view["result"]["data"]["user"]["user_id"], USER_ID);
     let consumed = request_rpc(&client, &endpoint, "session_get", json!([pending])).await;
     assert_eq!(consumed["result"], Value::Null);
+    let authorization_token = consume_authorization_fixture(&state, USER_ID).await;
+    let messages = SECURITY_LOGS.0.lock().unwrap().clone();
+    assert!(
+        !messages.is_empty(),
+        "authentication diagnostics remain available"
+    );
+    for secret in [
+        pending,
+        token,
+        &authorization_token,
+        PASSWORD,
+        RECOVERY_CODE,
+    ] {
+        assert!(
+            messages.iter().all(|message| !message.contains(secret)),
+            "authentication logs exposed a fixture credential"
+        );
+    }
     handle.stop().unwrap();
     handle.stopped().await;
     state
@@ -264,6 +284,51 @@ async fn mfa_pending_session_has_no_viewer_or_request_actor_until_verified() {
         ))
         .await
         .unwrap();
+}
+
+async fn consume_authorization_fixture(state: &ServerState, user_id: i64) -> String {
+    use crate::services::authorization_token::{
+        AuthorizationTokenService, AuthorizedObject, CreateAuthorizationToken,
+    };
+    let txn = state.database.begin().await.unwrap();
+    let ctx = ServiceContext::new(state, &txn);
+    let ip_address = "127.0.0.1".parse().unwrap();
+    let token = AuthorizationTokenService::create(
+        &ctx,
+        CreateAuthorizationToken {
+            r#type: AuthorizedObject::User,
+            description: "security-log-fixture".into(),
+            creating_user_id: user_id,
+            ip_address,
+        },
+    )
+    .await
+    .unwrap();
+    AuthorizationTokenService::verify(&ctx, &token, AuthorizedObject::User, ip_address)
+        .await
+        .unwrap();
+    txn.commit().await.unwrap();
+    token
+}
+
+#[derive(Debug)]
+struct SecurityLogCapture(std::sync::Mutex<Vec<String>>);
+
+static SECURITY_LOGS: SecurityLogCapture =
+    SecurityLogCapture(std::sync::Mutex::new(Vec::new()));
+
+impl log::Log for SecurityLogCapture {
+    fn enabled(&self, metadata: &log::Metadata<'_>) -> bool {
+        metadata.level() <= log::Level::Info && metadata.target().starts_with("deepwell")
+    }
+
+    fn log(&self, record: &log::Record<'_>) {
+        if self.enabled(record.metadata()) {
+            self.0.lock().unwrap().push(record.args().to_string());
+        }
+    }
+
+    fn flush(&self) {}
 }
 
 fn register_test_actor(module: &mut RpcModule<ServerState>) {
