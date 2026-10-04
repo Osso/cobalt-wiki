@@ -8,6 +8,13 @@ Framerail's legacy page-pane actions in `src/lib/server/load/page.ts` expose met
 - [x] Submitted page IDs must match the authorized route; submitted site IDs, where used, must match trusted ingress context. Authorized pane reads remain available.
 - [ ] Root-route reads resolve the configured default page, preserving normal loader routing semantics.
 
+## Deleted-page restore lookup
+
+- [x] The public `deletedGet` action remains available to restore UI and binds submitted site/slug to trusted request context, including the configured root default page.
+- [x] `page_get_deleted` requires an authenticated, unrestricted request actor and matching request site/slug. Every candidate deleted record must pass the existing restore Page/Edit authorization using its actual category and current locks before metadata is returned; denials return 3106 without metadata.
+- [x] Authorized editors retain deleted-record metadata lookup without new Page/View or administrator requirements. Hidden-field policy and trusted direct getters are unchanged.
+- Proof: `deepwell/src/api/deleted_page_access_tests.rs` exercises registered HTTP JSONRPC with PostgreSQL; `framerail/tests/deleted-page-access.test.ts` exercises registered SSR actions with RPC fixtures.
+
 ## How it works
 
 - [Security audit](../wiki/systems/cobalt-security-audit.md)

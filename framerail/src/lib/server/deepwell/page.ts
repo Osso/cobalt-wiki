@@ -445,12 +445,17 @@ export interface PageDeletedGet {
 }
 export async function pageDeletedGet(
   siteId: number,
-  slug: string
+  slug: string,
+  requestContext: RequestContext
 ): Promise<PageDeletedGet[]> {
-  return client.request("page_get_deleted", {
-    site_id: siteId,
-    slug
-  })
+  return client.request(
+    "page_get_deleted",
+    {
+      site_id: siteId,
+      slug
+    },
+    requestContext
+  )
 }
 
 /* ----- Page Restore ----- */

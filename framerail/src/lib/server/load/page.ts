@@ -1362,14 +1362,22 @@ export async function pageScoreAction(event: RequestEvent) {
 }
 
 /* ----- Page Deleted Get ----- */
-export async function pageDeletedGetAction({ request }: RequestEvent) {
+export async function pageDeletedGetAction({ request, locals }: RequestEvent) {
   try {
     const requestData: {
       siteId: number
       slug: string
     } = await request.json()
     const { siteId, slug } = requestData
-    const res = await pageDeletedGet(siteId, slug)
+    const requestContext = getRequestContext(locals)
+    if (
+      !requestContext ||
+      siteId !== requestContext.siteId ||
+      slug !== requestContext.page
+    ) {
+      return fail(403, { message: "Permission denied", code: 3106 })
+    }
+    const res = await pageDeletedGet(siteId, slug, requestContext)
     return { res }
   } catch (e) {
     const error = requireDeepwellError(e)
