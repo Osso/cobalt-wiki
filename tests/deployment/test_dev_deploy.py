@@ -93,7 +93,8 @@ class DevelopmentDeployTest(unittest.TestCase):
         overrides = [event for event in events if "stdin" in event]
         self.assertEqual(len(overrides), 1)
         self.assertIn(
-            "cobalt-wiki-wws.service.d/release.conf", " ".join(overrides[0]["args"])
+            "systemd/system.control/cobalt-wiki-wws.service.d/release.conf",
+            " ".join(overrides[0]["args"]),
         )
         self.assertEqual(
             overrides[0]["stdin"].splitlines(),
@@ -102,6 +103,8 @@ class DevelopmentDeployTest(unittest.TestCase):
         remote_commands = "\n".join(
             " ".join(event["args"]) for event in events if event["command"] == "ssh"
         )
+        self.assertIn("/nix/var/nix/gcroots/cobalt-wiki-wws-release", remote_commands)
+        self.assertIn("ln -sfn /nix/store/fixture-wws", remote_commands)
         self.assertIn("systemctl daemon-reload", remote_commands)
         self.assertIn("systemctl restart cobalt-wiki-wws", remote_commands)
         self.assertIn("cobalt-wiki-gateway", remote_commands)

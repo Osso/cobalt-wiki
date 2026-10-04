@@ -12,8 +12,8 @@ Local preview deployment requires SQLx CLI on PATH (for example, `nix shell nixp
 
 - [x] `install/dev-deploy.sh wws` builds `.#wws`, copies its Nix closure to the selected host, and activates that package's executable. `all` includes WWS and builds/copies it before service mutations.
 - [x] A failed WWS build or closure copy stops before any service mutation.
-- [x] WWS activation changes only `ExecStart` through `/etc/systemd/system/cobalt-wiki-wws.service.d/release.conf`; its NixOS unit retains credentials, environment, user, dependencies, bindings and resource limits. The dependent Cobalt gateway is restarted after application activation.
-- The release drop-in is the app-only WWS package pin, not a second service definition. Each WWS rollout replaces that pin. Retire it only during an explicit host configuration rollout whose managed WWS package contains the intended fixes; remove the drop-in and reload/restart as part of that same reconciliation, never revert to an older package by removing it alone.
+- [x] WWS activation changes only `ExecStart` through `/etc/systemd/system.control/cobalt-wiki-wws.service.d/release.conf`; its NixOS unit retains credentials, environment, user, dependencies, bindings and resource limits. The copied package is retained by `/nix/var/nix/gcroots/cobalt-wiki-wws-release`. The dependent Cobalt gateway is restarted after application activation.
+- The release drop-in is the app-only WWS package pin, not a second service definition. Each WWS rollout replaces that pin. Retire it only during an explicit host configuration rollout whose managed WWS package contains the intended fixes; remove the drop-in and its GC root, then reload/restart as part of that same reconciliation, never revert to an older package by removing it alone.
 - `tests/deployment/test_dev_deploy.py`: four actual deploy-CLI cases with isolated command fixtures cover WWS/all activation, emitted systemd configuration, closure-copy ordering, and build/copy failures. This is orchestration proof, not production activation proof.
 
 ## What it must do

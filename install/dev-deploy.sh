@@ -72,10 +72,11 @@ build_and_copy_wws() {
 
 activate_wws() {
 	local package="$1"
-	local dropin=/etc/systemd/system/cobalt-wiki-wws.service.d/release.conf
+	local dropin=/etc/systemd/system.control/cobalt-wiki-wws.service.d/release.conf
+	local gcroot=/nix/var/nix/gcroots/cobalt-wiki-wws-release
 	# Pin only the executable; the NixOS unit retains all other service policy.
 	printf '[Service]\nExecStart=\nExecStart=%s/bin/wws\n' "$package" |
-		ssh "$HOST" "install -d -m 0755 ${dropin%/*} && tee $dropin >/dev/null && systemctl daemon-reload && systemctl restart cobalt-wiki-wws"
+		ssh "$HOST" "install -d -m 0755 ${dropin%/*} && ln -sfn $package $gcroot && tee $dropin >/dev/null && systemctl daemon-reload && systemctl restart cobalt-wiki-wws"
 }
 
 case "$WHAT" in
