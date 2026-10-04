@@ -10,7 +10,7 @@ use crate::models::site::Model as SiteModel;
 use crate::models::user::{self, Entity as User, Model as UserModel};
 use crate::services::email::{MailgunSender, OutgoingEmail};
 use crate::services::user::UpdateUserBody;
-use crate::services::{DomainService, SiteService, UserService};
+use crate::services::{DomainService, SessionService, SiteService, UserService};
 use crate::types::UserType;
 use crate::utils::assert_is_csprng;
 use data_encoding::BASE64URL_NOPAD;
@@ -206,6 +206,9 @@ impl PasswordTokenService {
             },
         )
         .await?;
+
+        // Whoever held the old password must not stay signed in.
+        SessionService::invalidate_all(ctx, row.user_id).await?;
         Ok(())
     }
 

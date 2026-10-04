@@ -6,11 +6,13 @@
 mod common;
 
 use common::{TestRunner, fake_mailgun, form_field, wait_for_requests};
+use deepwell::config::Config;
 use deepwell::error::exn_error_to_rpc_error;
 use deepwell::error::prelude::*;
 use deepwell::models::password_token;
-use deepwell::services::AuthenticationService;
 use deepwell::services::authentication::AuthenticateUser;
+use deepwell::services::session::CreateSession;
+use deepwell::services::{AuthenticationService, SessionService};
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use sea_query::Expr;
 use serde_json::json;
@@ -127,6 +129,49 @@ async fn link_sets_password_once_and_newest_link_replaces_older() {
         serde_json::to_value(after).unwrap(),
         json!({"password_chosen": true, "pending": null}),
     );
+}
+
+#[tokio::test]
+async fn redeeming_a_link_signs_out_every_session() {
+    let mut config = Config::integration_testing();
+    config.session_token_length = 64; // the session table requires > 48
+    let runner = TestRunner::setup_with_config(config).await;
+    let site_id = site_id(&runner).await;
+    let user_id = create_member(&runner, "PwLinkSessions", EMAIL).await;
+    let other_id =
+        create_member(&runner, "PwLinkBystander", "bystander@example.com").await;
+    let mut tokens = Vec::new();
+    for id in [user_id, user_id, other_id] {
+        tokens.push(
+            SessionService::create(
+                runner.context(),
+                CreateSession {
+                    user_id: id,
+                    ip_address: common::IP_ADDRESS,
+                    user_agent: "password-token-test".into(),
+                    restricted: false,
+                },
+            )
+            .await
+            .unwrap(),
+        );
+    }
+
+    let link = create_link(&runner, user_id, site_id).await;
+    run_endpoint!(
+        runner,
+        password_token_redeem,
+        json!({"token": link, "password": "chosen secret", "ip_address": common::IP_ADDRESS}),
+    );
+
+    let mut alive = Vec::new();
+    for token in &tokens {
+        let session = SessionService::get_optional(runner.context(), token)
+            .await
+            .unwrap();
+        alive.push(session.map(|session| session.user_id));
+    }
+    assert_eq!(alive, [None, None, Some(other_id)]);
 }
 
 #[tokio::test]

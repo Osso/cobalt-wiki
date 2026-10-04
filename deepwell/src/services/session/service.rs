@@ -382,6 +382,27 @@ impl SessionService {
         Ok(())
     }
 
+    /// Invalidates every session of this user, e.g. after a password reset.
+    ///
+    /// # Returns
+    /// The number of invalidated sessions.
+    pub async fn invalidate_all(ctx: &ServiceContext<'_>, user_id: i64) -> Result<u64> {
+        info!("Invalidating all sessions for user ID {user_id}");
+
+        let DeleteResult { rows_affected, .. } = Session::delete_many()
+            .filter(session::Column::UserId.eq(user_id))
+            .exec(ctx.transaction())
+            .await
+            .or_raise(|| {
+                Error::new(
+                    format!("failed to invalidate all sessions for user ID {user_id}"),
+                    ErrorType::Session,
+                )
+            })?;
+
+        Ok(rows_affected)
+    }
+
     /// Invalidates all others sessions _except_ the one listed.
     /// This enables a user to "log out all other sessions",
     /// a useful security feature. See [WJ-364].
