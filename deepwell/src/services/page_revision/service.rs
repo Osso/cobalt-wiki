@@ -35,6 +35,7 @@ use ftml::data::PageInfo;
 use ftml::layout::Layout;
 use ftml::settings::{WikitextMode, WikitextSettings};
 use ref_map::*;
+use sea_orm::Order;
 use std::borrow::Cow;
 use std::num::NonZeroI32;
 use std::sync::LazyLock;
@@ -1095,6 +1096,29 @@ impl PageRevisionService {
             )
         };
 
+        if let Some(field) = hidden
+            .iter()
+            .find(|field| !HIDDEN_REVISION_FIELDS.contains(&field.as_str()))
+        {
+            bail!(Error::new(
+                format!("unknown hidden revision field '{field}'"),
+                ErrorType::BadRequest,
+            ));
+        }
+
+        // Only a revision of this page may be changed.
+        let revision = Self::get_direct(ctx, revision_id)
+            .await
+            .or_raise(make_error)?;
+        if revision.site_id != site_id || revision.page_id != page_id {
+            bail!(Error::new(
+                format!(
+                    "page revision ID {revision_id} is not on page ID {page_id} in site ID {site_id}"
+                ),
+                ErrorType::PageRevisionNotFound,
+            ));
+        }
+
         // The wikitext changes to a page are visible even if that part
         // of the revision is hidden, so current revisions are not allowed
         // to have that field hidden. It should be reverted first, and then
@@ -1422,19 +1446,29 @@ impl PageRevisionService {
             }
         };
 
+        // Take the revisions nearest the starting number, returned oldest first.
+        let order = match revision_direction {
+            FetchDirection::Before => Order::Desc,
+            FetchDirection::After => Order::Asc,
+        };
+
         let txn = ctx.transaction();
-        let revisions = PageRevision::find()
+        let mut revisions = PageRevision::find()
             .filter(
                 Condition::all()
                     .add(page_revision::Column::SiteId.eq(site_id))
                     .add(page_revision::Column::PageId.eq(page_id))
                     .add(revision_condition),
             )
-            .order_by_asc(page_revision::Column::RevisionNumber)
+            .order_by(page_revision::Column::RevisionNumber, order)
             .limit(limit)
             .all(txn)
             .await
             .or_raise(make_error)?;
+
+        if let FetchDirection::Before = revision_direction {
+            revisions.reverse();
+        }
 
         Ok(revisions)
     }

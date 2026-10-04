@@ -103,6 +103,18 @@ pub struct GetPageRevisionDetails {
     pub details: PageDetails,
 }
 
+/// Revision fields that can be hidden; `filter_and_populate_revision` in
+/// `endpoints/page_revision.rs` strips each of them.
+pub const HIDDEN_REVISION_FIELDS: [&str; 7] = [
+    "wikitext",
+    "compiled",
+    "comments",
+    "title",
+    "alt_title",
+    "slug",
+    "tags",
+];
+
 #[derive(Deserialize, Debug, Clone)]
 pub struct UpdatePageRevision {
     pub site_id: i64,

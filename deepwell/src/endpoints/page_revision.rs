@@ -111,11 +111,12 @@ pub async fn page_revision_edit(
         || Error::new("failed to edit a page revision", ErrorType::PageRevision);
 
     let revision_id = input.revision_id;
-    let (_, revision) = join!(
-        PageRevisionService::update(ctx, input),
-        PageRevisionService::get_direct(ctx, revision_id),
-    );
-    let revision = raise_multiple!(revision; make_error);
+    PageRevisionService::update(ctx, input)
+        .await
+        .or_raise(make_error)?;
+    let revision = PageRevisionService::get_direct(ctx, revision_id)
+        .await
+        .or_raise(make_error)?;
 
     filter_and_populate_revision(ctx, revision, details)
         .await
