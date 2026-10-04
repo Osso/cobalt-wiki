@@ -1,6 +1,6 @@
 # Cobalt native package operation
 
-Contract: [native package spec](../../specs/cobalt-native-packages.md). This is package build guidance only. It does not configure a service, create a database or object store, expose a port, add a Cloudflare hostname, migrate data, or deploy to `cobalt-company.sakuin.org`.
+Contract: [native package spec](../../specs/cobalt-native-packages.md). Package builds alone do not configure services or deploy them. Application-only deployment follows the [native runtime contract](../../specs/cobalt-native-runtime.md).
 
 ## Build
 
@@ -33,8 +33,25 @@ The packages are pinned to the Sakuin host's nixpkgs revision. Do not use the up
 
 The Framerail launcher passes `HOST` and `PORT` from its runtime environment to the production adapter-node server. A future service definition must also provide its Deepwell backend settings; do not treat a package realization as a configured server.
 
-## Current proof boundary
+## Application-only deployment
+
+Run from the repository root against the existing configured native runtime:
+
+```text
+install/dev-deploy.sh all
+install/dev-deploy.sh wws
+```
+
+`COBALT_HOST` selects the SSH host (default `sakuin`). `all` deploys Deepwell, Framerail, and WWS; `deepwell` and `framerail` select individual applications. Deepwell and Framerail use `/var/lib/cobalt-wiki/app`. WWS builds `.#wws` and copies its Nix closure; `all` completes that preparation before mutating any service. Build or closure-copy failure stops deployment before service mutation.
+
+The script owns the persistent WWS release pin at `/etc/systemd/system/cobalt-wiki-wws.service.d/release.conf`. It overrides only `ExecStart`, preserving the full NixOS-managed unit's credentials, environment, user, dependencies, bindings, and resource limits. Each subsequent WWS deployment replaces this pin. The script reloads systemd, restarts WWS, and restarts/checks the dependent gateway and application services.
+
+This pin is the application release authority, not a competing service definition. Retire it only during an explicit NixOS host rollout whose managed WWS package contains the intended fixes, reconciling removal, reload, and restart in that rollout. Never remove it alone to reactivate an older insecure package. Application deployment does not update the host flake or perform a NixOS switch.
+
+These commands document script behavior at `9bd9a6a13`, not proof of production deployment. Deployment receipts remain in the [native runtime spec](../../specs/cobalt-native-runtime.md).
+
+## Historical package proof boundary
 
 At `f737c0c`, Deepwell, WWS, and Framerail realize successfully; exact outputs and command evidence are in `/tmp/claude/cobalt-native-package-build-fixed.log`. `aeb81fe` additionally pins Silo with an isolated Go 1.27.1 toolchain. Agent44 independently realized Silo at `/nix/store/am512fba05178mdfzlzsngd3anz7w1xb-silo-2026-09-16`.
 
-Package realization does not prove a binary starts or that Deepwell, WWS, Framerail, PostgreSQL, Valkey, Silo, the unchanged MinIO client, and routing work together. Runtime module evaluation passes and reports Silo `DEVELOPMENT.GOGET` on Go 1.27.1, but no services have run and no deployment occurred. Client compatibility/security and configured runtime/integration checks remain required before a service/deployment change.
+Package realization does not prove a binary starts or that Deepwell, WWS, Framerail, PostgreSQL, Valkey, Silo, the unchanged MinIO client, and routing work together. At that package-build checkpoint, runtime module evaluation passed and reported Silo `DEVELOPMENT.GOGET` on Go 1.27.1, but services and deployment were not yet proven. Client compatibility/security and configured runtime/integration checks remain required before a service/deployment change.
