@@ -21,20 +21,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use tokio::net::TcpListener;
 use tower::ServiceExt;
 
-const HTML: &str = r#"<!doctype html><script>
-(async () => {
-  const result = {scripts: true};
-  try { result.parent = parent.document.querySelector('#secret').textContent; }
-  catch (error) { result.parent = error.name; }
-  try { result.cookie = document.cookie; }
-  catch (error) { result.cookie = error.name; }
-  try { result.api = await (await fetch('/api/probe')).text(); }
-  catch (error) { result.api = error.name; }
-  try { result.credentialedApi = await (await fetch('/api/probe', {credentials: 'include'})).text(); }
-  catch (error) { result.credentialedApi = error.name; }
-  parent.postMessage(result, '*');
-})();
-</script>"#;
+const HTML: &str = include_str!("fixtures/active-document.html");
 const CODE: &str = "console.log('code remains text');";
 
 async fn fake_deepwell(body: String) -> impl IntoResponse {
@@ -145,7 +132,7 @@ async fn assert_html(response: Response<Body>, private: bool, export: bool) {
         .unwrap();
     assert_eq!(bytes, format!("{HTML}\n"));
     if export && let Ok(path) = std::env::var("WWS_HTML_FIXTURE") {
-        std::fs::write(path, json!({"headers": headers, "body": String::from_utf8(bytes.to_vec()).unwrap()}).to_string()).unwrap();
+        std::fs::write(path, json!({"path": "/-/html/public:html/1", "headers": headers, "body": String::from_utf8(bytes.to_vec()).unwrap()}).to_string()).unwrap();
     }
     assert_eq!(
         csp.as_ref().map(|v| v.to_str().unwrap()),
@@ -195,7 +182,7 @@ async fn restricted_html_checks_each_viewer_before_storage() {
 
 #[tokio::test]
 #[ignore = "needs isolated Redis at WWS_TEST_REDIS_URL"]
-async fn code_blocks_keep_content_and_private_cache_without_sandbox() {
+async fn code_blocks_keep_content_and_private_cache_with_document_isolation() {
     let (router, _) = fixture().await;
     for (slug, session, private) in [
         ("public:html", None, false),
@@ -205,7 +192,10 @@ async fn code_blocks_keep_content_and_private_cache_without_sandbox() {
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(response.headers()[CONTENT_TYPE], "text/plain");
         assert_eq!(response.headers()[ETAG], "\"fixture\"");
-        assert!(response.headers().get(CONTENT_SECURITY_POLICY).is_none());
+        assert_eq!(
+            response.headers()[CONTENT_SECURITY_POLICY],
+            "sandbox allow-scripts"
+        );
         if private {
             assert_eq!(response.headers()[CACHE_CONTROL], "private, no-store");
         } else {

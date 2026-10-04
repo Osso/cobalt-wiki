@@ -21,7 +21,9 @@
 use crate::handler::*;
 use crate::state::ServerState;
 use axum::Router;
-use axum::http::header::{ACCESS_CONTROL_ALLOW_ORIGIN, HeaderValue};
+use axum::http::header::{
+    ACCESS_CONTROL_ALLOW_ORIGIN, CONTENT_SECURITY_POLICY, HeaderValue,
+};
 use axum::routing::{any, get};
 use tower_http::compression::CompressionLayer;
 use tower_http::normalize_path::NormalizePathLayer;
@@ -86,6 +88,12 @@ pub fn build_router(state: ServerState) -> Router {
         // Middleware
         .layer(TraceLayer::new_for_http())
         .layer(NormalizePathLayer::trim_trailing_slash())
+        // WWS serves untrusted content, including metadata-selected HTML/SVG.
+        // Isolate every document response, also on direct navigation.
+        .layer(SetResponseHeaderLayer::overriding(
+            CONTENT_SECURITY_POLICY,
+            HeaderValue::from_static("sandbox allow-scripts"),
+        ))
         .layer(SetResponseHeaderLayer::if_not_present(
             ACCESS_CONTROL_ALLOW_ORIGIN,
             Some(HeaderValue::from_static("*")),

@@ -9,7 +9,8 @@ use crate::state::build_server_state;
 use axum::Router;
 use axum::body::Body;
 use axum::http::header::{
-    CACHE_CONTROL, CONTENT_DISPOSITION, CONTENT_TYPE, COOKIE, ETAG, LOCATION,
+    CACHE_CONTROL, CONTENT_DISPOSITION, CONTENT_SECURITY_POLICY, CONTENT_TYPE, COOKIE,
+    ETAG, LOCATION,
 };
 use axum::http::{Method, Request, Response, StatusCode};
 use axum::response::IntoResponse;
@@ -205,6 +206,214 @@ async fn start_replacement_sources()
     let rpc_url = start_http_fixture(rpc).await;
     let storage_url = start_http_fixture(storage).await;
     (rpc_url, storage_url, replaced)
+}
+
+const ACTIVE_HTML: &str = include_str!("fixtures/active-document.html");
+const ACTIVE_SVG: &str = r#"<svg xmlns="http://www.w3.org/2000/svg"><script>alert(document.cookie)</script></svg>"#;
+
+async fn active_content_router() -> Router {
+    let rpc = Router::new().route(
+        "/",
+        post(|body: String| async move {
+            let request: Value = serde_json::from_str(&body).unwrap();
+            let result = match request["method"].as_str().unwrap() {
+                "file_get" => {
+                    let (mime, bytes) =
+                        active_object(request["params"]["file"].as_str().unwrap());
+                    json!({"file_id": 1, "mime": mime, "size": bytes.len(),
+                    "s3_hash": request["params"]["file"]})
+                }
+                "user_get" => json!({"avatar_s3_hash": [171]}),
+                _ => return fake_deepwell(body).await.into_response(),
+            };
+            (
+                [(CONTENT_TYPE, "application/json")],
+                json!({"jsonrpc": "2.0", "id": request["id"], "result": result})
+                    .to_string(),
+            )
+                .into_response()
+        }),
+    );
+    let storage = Router::new().route(
+        "/wikijump-files/{key}",
+        axum::routing::get(
+            |axum::extract::Path(key): axum::extract::Path<String>| async move {
+                let (mime, bytes) = active_object(&key);
+                ([(CONTENT_TYPE, mime)], bytes)
+            },
+        ),
+    );
+    router_with_sources(
+        start_http_fixture(rpc).await,
+        start_http_fixture(storage).await,
+    )
+    .await
+}
+
+fn active_object(key: &str) -> (&'static str, &'static [u8]) {
+    match key {
+        "active.html" | "ab" => ("text/html", ACTIVE_HTML.as_bytes()),
+        "active.svg" => ("image/svg+xml", ACTIVE_SVG.as_bytes()),
+        "pixel.png" => ("image/png", include_bytes!("fixtures/pixel.png")),
+        "font.woff2" => ("font/woff2", b"wOF2"),
+        "notes.txt" => ("text/plain", b"ordinary text\n"),
+        _ => panic!("unexpected object {key}"),
+    }
+}
+
+#[tokio::test]
+#[ignore = "needs isolated Redis at WWS_TEST_REDIS_URL"]
+async fn public_active_file_document_is_sandboxed() {
+    let router = active_content_router().await;
+    let path = "/-/file/writing:2021-10-21-to-paint-a-picture:the-game/active.html";
+    let response = request(&router, Method::GET, unique_site_id(), path, None).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(header(&response, CONTENT_TYPE), "text/html");
+    assert_eq!(header(&response, CACHE_CONTROL), "public, no-cache");
+    assert_eq!(header(&response, ETAG), "\"active.html\"");
+    assert!(response.headers().get(CONTENT_DISPOSITION).is_none());
+    let headers: serde_json::Map<String, Value> = response
+        .headers()
+        .iter()
+        .map(|(key, value)| (key.to_string(), json!(value.to_str().unwrap())))
+        .collect();
+    let bytes = axum::body::to_bytes(response.into_body(), 8192)
+        .await
+        .unwrap();
+    assert_eq!(bytes, ACTIVE_HTML);
+    // Export before the isolation assertion so Chromium can reproduce the RED contract.
+    if let Ok(filename) = env::var("WWS_FILE_FIXTURE") {
+        std::fs::write(
+            filename,
+            json!({"path": path, "headers": headers,
+            "body": String::from_utf8(bytes.to_vec()).unwrap()})
+            .to_string(),
+        )
+        .unwrap();
+    }
+    assert_eq!(
+        headers.get("content-security-policy"),
+        Some(&json!("sandbox allow-scripts"))
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs isolated Redis at WWS_TEST_REDIS_URL"]
+async fn document_isolation_keeps_file_bytes_types_and_download_disposition() {
+    let router = active_content_router().await;
+    let site_id = unique_site_id();
+    for filename in [
+        "active.html",
+        "active.svg",
+        "pixel.png",
+        "font.woff2",
+        "notes.txt",
+    ] {
+        let (mime, bytes) = active_object(filename);
+        for route in ["file", "download"] {
+            let path = format!(
+                "/-/{route}/writing:2021-10-21-to-paint-a-picture:the-game/{filename}"
+            );
+            let response = request(&router, Method::GET, site_id, &path, None).await;
+            assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(header(&response, CONTENT_TYPE), mime);
+            assert_eq!(header(&response, CACHE_CONTROL), "public, no-cache");
+            assert_eq!(header(&response, ETAG), format!("\"{filename}\""));
+            if route == "download" {
+                assert_eq!(
+                    header(&response, CONTENT_DISPOSITION),
+                    format!("attachment; filename=\"{filename}\"")
+                );
+            } else {
+                assert!(response.headers().get(CONTENT_DISPOSITION).is_none());
+            }
+            assert_eq!(
+                header(&response, CONTENT_SECURITY_POLICY),
+                "sandbox allow-scripts"
+            );
+            assert_eq!(
+                axum::body::to_bytes(response.into_body(), 8192)
+                    .await
+                    .unwrap(),
+                bytes
+            );
+        }
+    }
+}
+
+#[tokio::test]
+#[ignore = "needs isolated Redis at WWS_TEST_REDIS_URL"]
+async fn active_private_file_keeps_denial_and_presigned_redirect() {
+    let router = active_content_router().await;
+    let site_id = unique_site_id();
+    let path = "/-/file/admin:css/active.html";
+    for session in [None, Some("wj:other")] {
+        let denied = request(&router, Method::GET, site_id, path, session).await;
+        assert_eq!(denied.status(), StatusCode::FORBIDDEN);
+        assert_eq!(header(&denied, CACHE_CONTROL), "private, no-store");
+        assert!(denied.headers().get(LOCATION).is_none());
+        assert_eq!(
+            axum::body::to_bytes(denied.into_body(), 8192)
+                .await
+                .unwrap(),
+            "Forbidden"
+        );
+    }
+    for route in ["file", "download"] {
+        let response = request(
+            &router,
+            Method::GET,
+            site_id,
+            &format!("/-/{route}/admin:css/active.html"),
+            Some(MEMBER_TOKEN),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::FOUND);
+        assert_eq!(header(&response, CACHE_CONTROL), "private, no-store");
+        let location = header(&response, LOCATION);
+        assert!(
+            location.contains("response-content-type=text%2Fhtml"),
+            "{location}"
+        );
+        let disposition = if route == "download" {
+            "attachment"
+        } else {
+            "inline"
+        };
+        assert!(location.contains(&format!("response-content-disposition={disposition}%3B%20filename%3D%22active.html%22")), "{location}");
+        assert!(location.contains("X-Amz-Expires=604800"), "{location}");
+        assert_eq!(
+            header(&response, CONTENT_SECURITY_POLICY),
+            "sandbox allow-scripts"
+        );
+    }
+}
+
+#[tokio::test]
+#[ignore = "needs isolated Redis at WWS_TEST_REDIS_URL"]
+async fn avatar_metadata_html_is_sandboxed_without_changing_bytes() {
+    let router = active_content_router().await;
+    let response = request(
+        &router,
+        Method::GET,
+        unique_site_id(),
+        "/-/avatar/876543210",
+        None,
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(header(&response, CONTENT_TYPE), "text/html");
+    assert_eq!(header(&response, ETAG), "\"ab\"");
+    assert_eq!(
+        header(&response, CONTENT_SECURITY_POLICY),
+        "sandbox allow-scripts"
+    );
+    assert_eq!(
+        axum::body::to_bytes(response.into_body(), 8192)
+            .await
+            .unwrap(),
+        ACTIVE_HTML
+    );
 }
 
 async fn start_http_fixture(app: Router) -> String {

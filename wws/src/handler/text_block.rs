@@ -211,11 +211,6 @@ async fn handle_text_block(
     // Text blocks keep their URL across page edits, so public ones are not
     // given a long cache lifetime; restricted ones are never stored.
     let mut builder = Response::builder();
-    if matches!(block_type, TextBlockType::Html) {
-        // Raw HTML may run scripts, but must not inherit the gateway's origin.
-        builder =
-            builder.header(header::CONTENT_SECURITY_POLICY, "sandbox allow-scripts");
-    }
     if visibility == PageVisibility::Restricted {
         builder = builder.header(header::CACHE_CONTROL, CACHE_PRIVATE);
     }

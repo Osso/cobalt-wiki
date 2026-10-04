@@ -1,0 +1,14 @@
+<!doctype html><script>
+(async () => {
+  const result = {scripts: true};
+  try { result.parent = parent.document.querySelector('#secret').textContent; }
+  catch (error) { result.parent = error.name; }
+  try { result.cookie = document.cookie; }
+  catch (error) { result.cookie = error.name; }
+  try { result.api = await (await fetch('/api/probe')).text(); }
+  catch (error) { result.api = error.name; }
+  try { result.credentialedApi = await (await fetch('/api/probe', {credentials: 'include'})).text(); }
+  catch (error) { result.credentialedApi = error.name; }
+  parent.postMessage(result, '*');
+})();
+</script>
