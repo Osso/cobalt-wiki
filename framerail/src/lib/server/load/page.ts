@@ -1370,11 +1370,9 @@ export async function pageDeletedGetAction({ request, locals }: RequestEvent) {
     } = await request.json()
     const { siteId, slug } = requestData
     const requestContext = getRequestContext(locals)
-    if (
-      !requestContext ||
-      siteId !== requestContext.siteId ||
-      slug !== requestContext.page
-    ) {
+    const matchesRoutedTarget =
+      requestContext && siteId === requestContext.siteId && slug === requestContext.page
+    if (!matchesRoutedTarget) {
       return fail(403, { message: "Permission denied", code: 3106 })
     }
     const res = await pageDeletedGet(siteId, slug, requestContext)
