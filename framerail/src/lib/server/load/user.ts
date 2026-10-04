@@ -133,10 +133,6 @@ export async function userEditAction({
   if (!session) {
     return fail(401, { form })
   }
-  if (session.restricted) {
-    return fail(403, { form })
-  }
-
   const ipAddress = getClientAddress()
 
   try {

@@ -1,4 +1,5 @@
 import { client } from "$lib/server/deepwell"
+import { error } from "@sveltejs/kit"
 
 export async function authGetSession(sessionToken: string | undefined): Promise<{
   session_token: string
@@ -8,6 +9,10 @@ export async function authGetSession(sessionToken: string | undefined): Promise<
   ip_address: string
   user_agent: string
   restricted: boolean
-}> {
-  return client.request("session_get", [sessionToken ?? ""])
+} | null> {
+  const session = await client.request("session_get", [sessionToken ?? ""])
+  if (session?.restricted) {
+    error(403, "Complete multi-factor authentication before performing this action.")
+  }
+  return session
 }
