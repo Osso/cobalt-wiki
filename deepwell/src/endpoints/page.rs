@@ -198,18 +198,7 @@ async fn load_editable_deleted_pages(
     site_id: i64,
     slug: &str,
 ) -> Result<Vec<PageModel>> {
-    let request = ctx.request();
-    let user_id = match (&request.site_id, &request.user_id, &request.page_reference) {
-        (Some(request_site), Some(user_id), Some(Reference::Slug(request_slug)))
-            if *request_site == site_id && request_slug.as_ref() == slug =>
-        {
-            *user_id
-        }
-        _ => bail!(Error::new(
-            "deleted page lookup denied",
-            ErrorType::PermissionDenied
-        )),
-    };
+    let user_id = require_deleted_lookup_actor(ctx, site_id, slug)?;
     info!("Getting deleted page {slug} in site ID {site_id}");
     let pages = PageService::get_deleted_by_slug(ctx, site_id, slug)
         .await
@@ -230,6 +219,25 @@ async fn load_editable_deleted_pages(
         .await?;
     }
     Ok(pages)
+}
+
+fn require_deleted_lookup_actor(
+    ctx: &ServiceContext<'_>,
+    site_id: i64,
+    slug: &str,
+) -> Result<i64> {
+    let request = ctx.request();
+    match (&request.site_id, &request.user_id, &request.page_reference) {
+        (Some(request_site), Some(user_id), Some(Reference::Slug(request_slug)))
+            if *request_site == site_id && request_slug.as_ref() == slug =>
+        {
+            Ok(*user_id)
+        }
+        _ => bail!(Error::new(
+            "deleted page lookup denied",
+            ErrorType::PermissionDenied
+        )),
+    }
 }
 
 pub async fn page_get_score(
