@@ -51,9 +51,9 @@ async fn fake_s3(
     let (content_type, body) = match key.as_str() {
         "101_html_1" | "202_html_1" => ("text/html", HTML),
         "101_code_1" | "202_code_1" => ("text/plain", CODE),
-        _ => panic!("unexpected S3 key {key}"),
+        _ => return StatusCode::NOT_FOUND.into_response(),
     };
-    ([(CONTENT_TYPE, content_type), (ETAG, "\"fixture\"")], body)
+    ([(CONTENT_TYPE, content_type), (ETAG, "\"fixture\"")], body).into_response()
 }
 
 async fn start_http(app: Router) -> String {
@@ -208,4 +208,13 @@ async fn code_blocks_keep_content_and_private_cache_with_document_isolation() {
             format!("{CODE}\n")
         );
     }
+}
+
+#[tokio::test]
+#[ignore = "needs isolated Redis at WWS_TEST_REDIS_URL"]
+async fn missing_block_in_storage_is_an_error_response_not_a_panic() {
+    let (router, reads) = fixture().await;
+    let response = request(&router, "/-/html/public:html/999", None).await;
+    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(reads.load(Ordering::SeqCst), 1);
 }

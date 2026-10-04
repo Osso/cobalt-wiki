@@ -416,6 +416,38 @@ async fn avatar_metadata_html_is_sandboxed_without_changing_bytes() {
     );
 }
 
+#[tokio::test]
+#[ignore = "needs isolated Redis at WWS_TEST_REDIS_URL"]
+async fn avatar_missing_from_storage_is_an_error_response_not_a_panic() {
+    let rpc = Router::new().route(
+        "/",
+        post(|body: String| async move {
+            let request: Value = serde_json::from_str(&body).unwrap();
+            let result = match request["method"].as_str().unwrap() {
+                "user_get" => json!({"avatar_s3_hash": [205]}),
+                "basic_error_blob_fetch" => {
+                    json!({"title": "Missing", "body": "<p>Missing</p>"})
+                }
+                method => panic!("unexpected DEEPWELL call {method}"),
+            };
+            (
+                [(CONTENT_TYPE, "application/json")],
+                json!({"jsonrpc": "2.0", "id": request["id"], "result": result})
+                    .to_string(),
+            )
+        }),
+    );
+    let storage = Router::new().fallback(|| async { StatusCode::NOT_FOUND });
+    let router = router_with_sources(
+        start_http_fixture(rpc).await,
+        start_http_fixture(storage).await,
+    )
+    .await;
+    let path = format!("/-/avatar/{}", unique_site_id());
+    let response = request(&router, Method::GET, unique_site_id(), &path, None).await;
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
 async fn start_http_fixture(app: Router) -> String {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}", listener.local_addr().unwrap());

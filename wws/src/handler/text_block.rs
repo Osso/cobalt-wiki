@@ -170,16 +170,13 @@ async fn handle_text_block(
     // at most as big as the biggest page's sources) then it's fine for
     // us to download the whole thing to memory instead of streaming it.
     let s3_response = match state.s3_tblocks_bucket.get_object(&s3_filename).await {
-        Ok(response) => {
-            assert_eq!(
-                response.status_code(),
-                StatusCode::OK,
-                "get_object() succeeded but did not reply 200",
-            );
+        Ok(response) if response.status_code() == StatusCode::OK => response,
+        result => {
+            let error = match result {
+                Ok(response) => format!("unexpected status {}", response.status_code()),
+                Err(error) => error.to_string(),
+            };
 
-            response
-        }
-        Err(error) => {
             // NOTE: If the error here is 404 we still return 500.
             //
             //       If we have a file record for a file, then the

@@ -38,15 +38,12 @@ async fn fetch_blob(
     s3_hash: &str,
 ) -> ResponseResult<(BlobData, Body)> {
     let (file_size, mime_type) = match state.s3_files_bucket.head_object(&s3_hash).await {
-        Ok((result, status_code)) => {
-            assert_eq!(
-                status_code,
-                StatusCode::OK,
-                "head_object() succeeded but did not reply 200",
-            );
-            (result.content_length, result.content_type)
-        }
-        Err(error) => {
+        Ok((result, 200)) => (result.content_length, result.content_type),
+        result => {
+            let error = match result {
+                Ok((_, status_code)) => format!("unexpected status {status_code}"),
+                Err(error) => error.to_string(),
+            };
             error!(s3_hash = s3_hash, "Cannot get blob metadata: {error}");
 
             let response = build_basic_error_response(
@@ -61,16 +58,16 @@ async fn fetch_blob(
     };
 
     let body = match state.s3_files_bucket.get_object_stream(s3_hash).await {
-        Ok(ResponseDataStream { bytes, status_code }) => {
-            assert_eq!(
-                status_code,
-                StatusCode::OK,
-                "get_object_stream() succeeded but did not reply 200",
-            );
-            Body::from_stream(bytes)
-        }
-        Err(error) => {
-            error!(s3_hash = s3_hash, "Cannot get blob data: {error}",);
+        Ok(ResponseDataStream {
+            bytes,
+            status_code: 200,
+        }) => Body::from_stream(bytes),
+        result => {
+            let error = match result {
+                Ok(stream) => format!("unexpected status {}", stream.status_code),
+                Err(error) => error.to_string(),
+            };
+            error!(s3_hash = s3_hash, "Cannot get blob data: {error}");
 
             let response = build_basic_error_response(
                 state,
