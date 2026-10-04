@@ -48,6 +48,23 @@ pub struct BasicErrorOutput {
 #[derive(Debug)]
 pub struct BasicErrorService;
 
+/// Every template argument is inserted into HTML, and some come straight
+/// from the request URL, so all of them are escaped as text.
+fn html_arg(value: &str) -> FluentValue<'static> {
+    let mut escaped = String::with_capacity(value.len());
+    for c in value.chars() {
+        match c {
+            '&' => escaped.push_str("&amp;"),
+            '<' => escaped.push_str("&lt;"),
+            '>' => escaped.push_str("&gt;"),
+            '"' => escaped.push_str("&quot;"),
+            '\'' => escaped.push_str("&#39;"),
+            _ => escaped.push(c),
+        }
+    }
+    FluentValue::String(escaped.into())
+}
+
 impl BasicErrorService {
     /// Error for when a canonical site does not exist.
     pub async fn missing_site_slug(
@@ -68,9 +85,9 @@ impl BasicErrorService {
         assert!(!locales.is_empty(), "No languages specified");
         let config = ctx.config();
         let mut args = FluentArgs::new();
-        args.set("main_domain", fluent_str!(config.main_domain_no_dot));
-        args.set("files_domain", fluent_str!(config.files_domain_no_dot));
-        args.set("slug", fluent_str!(site_slug));
+        args.set("main_domain", html_arg(&config.main_domain_no_dot));
+        args.set("files_domain", html_arg(&config.files_domain_no_dot));
+        args.set("slug", html_arg(&site_slug));
 
         let title = ctx
             .localization()
@@ -110,9 +127,9 @@ impl BasicErrorService {
         assert!(!locales.is_empty(), "No languages specified");
         let config = ctx.config();
         let mut args = FluentArgs::new();
-        args.set("main_domain", fluent_str!(config.main_domain_no_dot));
-        args.set("files_domain", fluent_str!(config.files_domain_no_dot));
-        args.set("custom_domain", fluent_str!(domain));
+        args.set("main_domain", html_arg(&config.main_domain_no_dot));
+        args.set("files_domain", html_arg(&config.files_domain_no_dot));
+        args.set("custom_domain", html_arg(&domain));
 
         let title = ctx
             .localization()
@@ -164,8 +181,8 @@ impl BasicErrorService {
             .or_raise(make_error)?;
 
         let domain = DomainService::preferred_domain(config, &site);
-        args.set("domain", fluent_str!(domain));
-        args.set("page_slug", fluent_str!(page_slug));
+        args.set("domain", html_arg(&domain));
+        args.set("page_slug", html_arg(&page_slug));
 
         let title = ctx
             .localization()
@@ -212,8 +229,8 @@ impl BasicErrorService {
             .await
             .or_raise(make_error)?;
         let domain = DomainService::preferred_domain(config, &site);
-        args.set("domain", fluent_str!(domain));
-        args.set("page_slug", fluent_str!(page_slug));
+        args.set("domain", html_arg(&domain));
+        args.set("page_slug", html_arg(&page_slug));
 
         let title = ctx
             .localization()
@@ -259,9 +276,9 @@ impl BasicErrorService {
             .await
             .or_raise(make_error)?;
         let domain = DomainService::preferred_domain(config, &site);
-        args.set("domain", fluent_str!(domain));
-        args.set("page_slug", fluent_str!(page_slug));
-        args.set("filename", fluent_str!(filename));
+        args.set("domain", html_arg(&domain));
+        args.set("page_slug", html_arg(&page_slug));
+        args.set("filename", html_arg(&filename));
 
         let title = ctx
             .localization()
@@ -307,9 +324,9 @@ impl BasicErrorService {
             .or_raise(make_error)?;
 
         let domain = DomainService::preferred_domain(config, &site);
-        args.set("domain", fluent_str!(domain));
-        args.set("page_slug", fluent_str!(page_slug));
-        args.set("filename", fluent_str!(filename));
+        args.set("domain", html_arg(&domain));
+        args.set("page_slug", html_arg(&page_slug));
+        args.set("filename", html_arg(&filename));
 
         let title = ctx
             .localization()
@@ -356,10 +373,10 @@ impl BasicErrorService {
             .await
             .or_raise(make_error)?;
         let domain = DomainService::preferred_domain(config, &site);
-        args.set("domain", fluent_str!(domain));
-        args.set("index", fluent_str!(index));
-        args.set("block_type", fluent_str!(block_type));
-        args.set("reason", fluent_str!(reason));
+        args.set("domain", html_arg(&domain));
+        args.set("index", html_arg(&index));
+        args.set("block_type", html_arg(&block_type));
+        args.set("reason", html_arg(&reason));
 
         let title = ctx
             .localization()
@@ -395,8 +412,8 @@ impl BasicErrorService {
         assert!(!locales.is_empty(), "No languages specified");
         let config = ctx.config();
         let mut args = FluentArgs::new();
-        args.set("main_domain", fluent_str!(config.main_domain_no_dot));
-        args.set("files_domain", fluent_str!(config.files_domain_no_dot));
+        args.set("main_domain", html_arg(&config.main_domain_no_dot));
+        args.set("files_domain", html_arg(&config.files_domain_no_dot));
 
         let title = ctx
             .localization()
@@ -435,7 +452,7 @@ impl BasicErrorService {
         assert!(!locales.is_empty(), "No languages specified");
         let mut args = FluentArgs::new();
 
-        args.set("s3_hash", fluent_str!(s3_hash));
+        args.set("s3_hash", html_arg(s3_hash));
 
         let title = ctx
             .localization()
@@ -476,7 +493,7 @@ impl BasicErrorService {
 
         let user = user_id.to_string();
 
-        args.set("user_id", fluent_str!(user));
+        args.set("user_id", html_arg(&user));
 
         let title = ctx
             .localization()
@@ -517,7 +534,7 @@ impl BasicErrorService {
 
         let user = user_id.to_string();
 
-        args.set("user_id", fluent_str!(user));
+        args.set("user_id", html_arg(&user));
 
         let title = ctx
             .localization()
