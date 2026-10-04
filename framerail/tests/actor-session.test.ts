@@ -9,7 +9,10 @@ const { actions } = await vite.ssrLoadModule(
 )
 
 async function submitVote(action: "voteCast" | "voteCancel", restricted: boolean) {
-  const votes = new Map([["42:101", 1]])
+  const votes = new Map([
+    ["42:101", 1],
+    ["99:101", 1]
+  ])
   const originalFetch = globalThis.fetch
   globalThis.fetch = async (_input, init) => {
     const rpc = JSON.parse(String(init?.body))
@@ -34,7 +37,13 @@ async function submitVote(action: "voteCast" | "voteCancel", restricted: boolean
         request: new Request("http://local.test/page", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ siteId: 1, pageId: 101, value: -1 })
+          body: JSON.stringify({
+            siteId: 1,
+            pageId: 101,
+            value: -1,
+            user_id: 99,
+            userId: 99
+          })
         }),
         cookies: { get: () => "pending-token" }
       })
@@ -58,12 +67,23 @@ async function submitVote(action: "voteCast" | "voteCancel", restricted: boolean
 for (const action of ["voteCast", "voteCancel"] as const) {
   test(`pending MFA cannot ${action} through the public page action`, async () => {
     const { response, votes } = await submitVote(action, true)
-    assert.deepEqual(votes, [["42:101", 1]])
+    assert.deepEqual(votes, [
+      ["42:101", 1],
+      ["99:101", 1]
+    ])
     assert.equal(response.status, 403)
   })
-  test(`completed authentication can ${action} through the public page action`, async () => {
+  test(`authenticated ${action} ignores forged body identity and preserves another user's vote`, async () => {
     const { response, votes } = await submitVote(action, false)
     assert.ok(response.res)
-    assert.deepEqual(votes, action === "voteCast" ? [["42:101", -1]] : [])
+    assert.deepEqual(
+      votes,
+      action === "voteCast"
+        ? [
+            ["42:101", -1],
+            ["99:101", 1]
+          ]
+        : [["99:101", 1]]
+    )
   })
 }
