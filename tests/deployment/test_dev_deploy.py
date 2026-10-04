@@ -1,13 +1,12 @@
 """Exercise the production deploy CLI with isolated external command fixtures."""
 
-import hashlib
 import json
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import tempfile
 import unittest
+from pathlib import Path
 
 
 COMMAND_FIXTURE = """#!/usr/bin/env python3
