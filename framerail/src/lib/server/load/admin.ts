@@ -109,15 +109,19 @@ export async function adminAction({ request, getClientAddress, cookies }: Reques
   const sessionToken = cookies.get("wikijump_token")
   const ipAddress = getClientAddress()
   const session = await authGetSession(sessionToken)
+  if (!session) return fail(401, { form })
+  const { siteId } = loadSiteInfo(request.headers)
+  if (form.data.siteId !== siteId) return fail(403, { form })
 
   try {
+    const access = await adminView(siteId, [defaults.fallbackLocale], sessionToken)
+    if (access.type !== "site_found") return fail(403, { form })
     if (form.data.action === "edit") {
-      const { name, slug, tagline, description, defaultPage, locale, layout, siteId } =
-        form.data
+      const { name, slug, tagline, description, defaultPage, locale, layout } = form.data
 
       const res = await siteUpdate(
         siteId,
-        session?.user_id,
+        session.user_id,
         ipAddress,
         name,
         slug,

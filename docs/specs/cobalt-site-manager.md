@@ -5,7 +5,7 @@ The imported Admin menu's `/_admin` entry must reach the native site administrat
 ## What it must do
 
 - [x] Route `/_admin` to `/-/admin` without querying a nonexistent wiki page.
-- [x] Keep the native administration permission check: an administrator can open the editor; anonymous users remain denied.
+- [x] Keep the native administration permission check on both loads and POST saves: an administrator can open and save the editor; anonymous users remain denied. POST requires an unrestricted session and Site/Edit permission for the trusted routed site, rejecting caller-selected foreign site IDs without changing either site.
 - [x] Present a Site Manager heading, existing site information and a Site members link, without dumping loader/session data into a debug textarea.
 - [x] Opening and cancelling the site-info editor must not save changes.
 
@@ -22,6 +22,8 @@ The imported Admin menu's `/_admin` entry must reach the native site administrat
 ## Tests asserting this spec
 
 - `framerail/tests/local/admin-pages.mjs` — real admin login, legacy entry navigation, editor open/cancel and anonymous denial, without submitting edits. Final independent browser evidence passed its Applications and Site Manager cases (2/2); shared proof is in the [ListPages repair proof](cobalt-list-pages.md#current-repair-proof).
+
+- `framerail/tests/admin-action.test.ts` — actual SSR POST with stateful RPC fixture: ordinary member, pending MFA and missing session preserve site state; administrator saves the routed site; forged foreign-site target is denied. This is local SSR-action proof, not deployed or real database mutation proof.
 
 ## Known gaps (current cycle)
 
