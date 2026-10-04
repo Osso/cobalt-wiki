@@ -78,6 +78,14 @@ export async function loginAction({ request, getClientAddress, cookies }: Reques
   try {
     const res = await authLogin(data.nameOrEmail, data.password, ipAddress, userAgent)
 
+    if (res.needs_mfa) {
+      return fail(403, {
+        form,
+        message:
+          "Multi-factor authentication (MFA) is required. This sign-in page cannot complete it."
+      })
+    }
+
     if (res.session_token) {
       setSessionCookie(cookies, res.session_token, data.rememberMe)
     }
