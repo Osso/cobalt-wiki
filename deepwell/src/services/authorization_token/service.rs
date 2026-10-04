@@ -155,10 +155,13 @@ impl AuthorizationTokenService {
             token_id,
         );
 
-        AuthorizationToken::delete_by_id(token_id)
+        let DeleteResult { rows_affected } = AuthorizationToken::delete_by_id(token_id)
             .exec(txn)
             .await
             .or_raise(make_error)?;
+        if rows_affected != 1 {
+            bail!(make_error());
+        }
 
         AuditService::log(
             ctx,

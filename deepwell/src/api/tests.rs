@@ -112,7 +112,7 @@ async fn idle_http_keepalives_do_not_consume_rpc_capacity() {
 }
 
 #[tokio::test]
-async fn mfa_pending_session_has_no_viewer_or_request_actor_until_verified() {
+async fn security_mfa_pending_session_has_no_viewer_or_request_actor_until_verified() {
     use crate::services::PasswordService;
     use sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
 
@@ -284,6 +284,128 @@ async fn mfa_pending_session_has_no_viewer_or_request_actor_until_verified() {
         ))
         .await
         .unwrap();
+}
+
+#[tokio::test]
+async fn security_authorization_token_has_only_one_concurrent_consumer() {
+    use crate::services::authorization_token::{
+        AuthorizationTokenService, AuthorizedObject, CreateAuthorizationToken,
+    };
+    use sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
+    const USER_ID: i64 = -9000043;
+    let mut config = Config::integration_testing();
+    config.job_min_poll_delay = Duration::from_secs(3600);
+    config.job_max_poll_delay = Duration::from_secs(3600);
+    let state = build_server_state(config, Secrets::load()).await.unwrap();
+    state
+        .database
+        .execute_raw(Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            "INSERT INTO known_user (user_id) VALUES ($1)",
+            [USER_ID.into()],
+        ))
+        .await
+        .unwrap();
+    let txn = state.database.begin().await.unwrap();
+    let ctx = ServiceContext::new(&state, &txn);
+    let token = AuthorizationTokenService::create(
+        &ctx,
+        CreateAuthorizationToken {
+            r#type: AuthorizedObject::User,
+            description: "concurrent-consumption-fixture".into(),
+            creating_user_id: USER_ID,
+            ip_address: "127.0.0.1".parse().unwrap(),
+        },
+    )
+    .await
+    .unwrap();
+    txn.commit().await.unwrap();
+    let blocker = state.database.begin().await.unwrap();
+    blocker
+        .query_one_raw(Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            "SELECT token_id FROM authorization_token WHERE token_value = $1 FOR UPDATE",
+            [token.clone().into()],
+        ))
+        .await
+        .unwrap()
+        .expect("token row locked");
+    let first =
+        spawn_token_consumer(Arc::clone(&state), token.clone(), "security-token-first");
+    let second =
+        spawn_token_consumer(Arc::clone(&state), token.clone(), "security-token-second");
+    tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            let row = state.database.query_one_raw(Statement::from_string(
+                DatabaseBackend::Postgres,
+                "SELECT count(*)::bigint AS waiting FROM pg_stat_activity WHERE application_name IN ('security-token-first', 'security-token-second') AND wait_event_type = 'Lock'",
+            )).await.unwrap().unwrap();
+            if row.try_get::<i64>("", "waiting").unwrap() == 2 { break; }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    }).await.expect("both verifiers must reach the blocked consumption boundary");
+    blocker.commit().await.unwrap();
+    let results = [first.await.unwrap(), second.await.unwrap()];
+    assert_eq!(
+        results.iter().filter(|result| result.is_ok()).count(),
+        1,
+        "a one-time token cannot authorize two operations"
+    );
+    let failure = results
+        .iter()
+        .find_map(|result| result.as_ref().err())
+        .unwrap();
+    assert_eq!(*failure, crate::error::ErrorType::InvalidAuthorizationToken);
+    let token_count = state.database.query_one_raw(Statement::from_sql_and_values(
+        DatabaseBackend::Postgres,
+        "SELECT count(*)::bigint AS remaining FROM authorization_token WHERE token_value = $1",
+        [token.into()],
+    )).await.unwrap().unwrap();
+    assert_eq!(token_count.try_get::<i64>("", "remaining").unwrap(), 0);
+    state
+        .database
+        .execute_raw(Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            "DELETE FROM known_user WHERE user_id = $1",
+            [USER_ID.into()],
+        ))
+        .await
+        .unwrap();
+}
+
+fn spawn_token_consumer(
+    state: ServerState,
+    token: String,
+    name: &'static str,
+) -> tokio::task::JoinHandle<std::result::Result<(), crate::error::ErrorType>> {
+    tokio::spawn(async move {
+        use crate::services::authorization_token::{
+            AuthorizationTokenService, AuthorizedObject,
+        };
+        use sea_orm::ConnectionTrait;
+        let txn = state.database.begin().await.unwrap();
+        txn.execute_unprepared(&format!("SET LOCAL application_name = '{name}'"))
+            .await
+            .unwrap();
+        let ctx = ServiceContext::new(&state, &txn);
+        let result = AuthorizationTokenService::verify(
+            &ctx,
+            &token,
+            AuthorizedObject::User,
+            "127.0.0.1".parse().unwrap(),
+        )
+        .await;
+        match result {
+            Ok(()) => {
+                txn.commit().await.unwrap();
+                Ok(())
+            }
+            Err(error) => {
+                txn.rollback().await.unwrap();
+                Err(error.error_type.clone())
+            }
+        }
+    })
 }
 
 async fn consume_authorization_fixture(state: &ServerState, user_id: i64) -> String {
