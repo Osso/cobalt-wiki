@@ -13,6 +13,7 @@ Framerail's legacy page-pane actions in `src/lib/server/load/page.ts` expose met
 - [x] The public `deletedGet` action remains available to restore UI and binds submitted site/slug to trusted request context, including the configured root default page.
 - [x] `page_get_deleted` requires an authenticated, unrestricted request actor and matching request site/slug. Every candidate deleted record must pass the existing restore Page/Edit authorization using its actual category and current locks before metadata is returned; denials return 3106 without metadata.
 - [x] Authorized editors retain deleted-record metadata lookup without new Page/View or administrator requirements. Hidden-field policy and trusted direct getters are unchanged.
+- [x] Each allowed or denied deleted-record lookup preserves every full Page and PageRevision model in the fixture site. Session renewal and unrelated database rows are outside that preservation proof.
 - Proof: `deepwell/src/api/deleted_page_access_tests.rs` exercises registered HTTP JSONRPC with PostgreSQL; `framerail/tests/deleted-page-access.test.ts` exercises registered SSR actions with RPC fixtures.
 
 ## How it works
@@ -31,7 +32,7 @@ Framerail's legacy page-pane actions in `src/lib/server/load/page.ts` expose met
 ## Known gaps (current cycle)
 
 - [ ] Evidence is SSR-action/RPC-fixture proof, not real database or deployed private-page acceptance.
-- [ ] Deleted-page lookup and per-record hidden fields have separate lifecycle contracts; active-page authorization does not settle those policies.
+- [ ] Per-record hidden fields have separate contracts; active-page authorization does not establish additional field-redaction policies.
 
 ## Out of scope
 
