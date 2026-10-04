@@ -10,8 +10,9 @@ const { actions } = await vite.ssrLoadModule(
 
 function respondToEditRpc(method: string, code: number) {
   if (method === "session_get") return { result: { user_id: 42, restricted: false } }
-  if (method === "page_edit")
+  if (method === "page_edit") {
     return { error: { code, message: "Edit failed", data: null } }
+  }
   throw new Error(`Unexpected RPC ${method}`)
 }
 

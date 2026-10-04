@@ -4,7 +4,7 @@ import { join } from "node:path"
 import { createServer } from "vite"
 
 // Vite may load a distinct HttpError class; normalize its public status contract.
-export async function invokeSsrAction<T>(invoke: () => Promise<T>) {
+export async function invokeSsrAction<T>(invoke: () => T) {
   try {
     return await invoke()
   } catch (cause) {
