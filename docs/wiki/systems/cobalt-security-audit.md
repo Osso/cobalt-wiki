@@ -32,6 +32,36 @@ The [registered API inventory](cobalt-security-api-inventory.md) enumerates all 
 
 Final follow-up acceptance: frontend `23e89d483` has 0 type errors/warnings, clean scoped lint/format and changed-function readability; backend `b3ec1b489` passes fresh format/check with zero warnings and resolves deleted-helper length/parameter findings. Current targeted SSR harness is 67/67 plus deleted 5/5; registered HTTP/PostgreSQL message 12/12 and deleted one comprehensive ten-lookup test pass. Unchanged auth 2/2, WWS and login evidence is retained, not rerun merely because inventories expanded. Initial 16 actor-type errors, later 14 harness-type errors and the curly warning were corrected, not suppressed; failed stages remain in the receipts. Final receipts: `/tmp/cobalt-security-followup-frontend-acceptance.md`, `/tmp/cobalt-security-final-backend-followup-acceptance.md`. All 182 registration/handler pairs match the tracked inventory without missing/extra entries or duplicate names (`/tmp/cobalt-security-api-inventory-reconciliation.json`). Owned temporary PostgreSQL/Redis stopped; process IDs absent afterward, logs/database artifacts retained (`/tmp/cobalt-security-followup-fixture-shutdown.json`). No push, deployment or production writes.
 
+## Independent follow-up audit (Opus 5.5) — 2026-10-04
+
+The audit above was produced by GPT-6.1-sol. A second, independent pass re-reviewed its repairs and covered the areas it left unexamined. Each fix below has a test that failed before the change; isolated PostgreSQL `cobalt_opus_test` (seeded, `files.json` emptied: no S3) and Redis. **Not deployed.**
+
+| Fix | Defect | Proof |
+|---|---|---|
+| `32f6f1824` | Any signed-in user could vote on any page (other sites, private) with any `i16` value; Sol's vote test passed without its fix. | `deepwell/tests/page_vote.rs`, `framerail/tests/actor-session.test.ts` 12/12 |
+| `1fe2fb050` | `[[gallery]]` list lines with `://` bypassed the URL scheme allow-list: stored `javascript:` link on the main origin. | ftml `gallery` tests 5/5. Existing compiled HTML changes only on rerender. |
+| `0da6a51fd` | `/-/user` changed email without the current password (settings requires it): stolen session → reset takeover. | `user-edit.test.ts` 5/5 |
+| `14cb27dfa` | Renaming onto another user's past name took it over without a rename token. | `deepwell/tests/user_rename.rs` |
+| `f1f8ab097`, `1e3444394` | Password reset and settings password change left other sessions valid. | `password_token.rs` 7/7, `settings.test.ts` 24/24 |
+| `93a8d30ab` | Basic error pages interpolated URL values (page slug, filename, block index, hash) into HTML unescaped. | `deepwell/tests/basic_error.rs` |
+| `16f522cfc` | WWS panicked on S3 non-200 (`/-/html/<page>/<missing index>`, missing avatar blob). | WWS handler tests 15/15 |
+| `2e5416146` | `session_renew` upgraded MFA-pending sessions; deleted users could log in and kept sessions. | `deepwell/tests/auth_lifecycle.rs` |
+| `5a59d5489` | Form actions returned 500 for permission, auth, conflict and input errors. One code-range mapping. | 23 affected action test files: 214/215, the failure is pre-existing (below). |
+| `c9929adeb` | Native history "before" paging returned the oldest revisions; unknown hidden-field names were stored and panicked reads; revision update ignored site/page and swallowed its error. | `deepwell/tests/page_revision_range.rs` |
+
+Final gates on the changed code: `cargo fmt --check` (deepwell, wws, ftml), `cargo check --all-targets` 0 warnings (deepwell, wws), svelte-check 0/0, scoped ESLint/Prettier pass.
+
+**Re-review of Sol's repairs:** sound, except the vote boundary above. The WWS-wide `sandbox` CSP may stop Chromium from displaying PDFs (not tested). The deleted-page lookup denies the whole lookup when any one deleted copy is locked.
+
+**Open, not fixed:**
+- Recovery codes can be reused under concurrent logins, and TOTP codes can be replayed within the skew window. MFA has no frontend; the TOTP fix needs a stored last-used step.
+- Email is not unique (no constraint; update path unchecked; case handling differs between login and reset). Fixing it needs a data audit and a migration decision.
+- Re-uploading a hard-deleted blob stores the S3 object again before the blacklist check; the avatar cache is not cleared on hard delete. Needs S3 to test.
+- File restore skips the name-conflict check and drops the rename/move. Concurrent same-name uploads create duplicates. WWS caches slug→page ID with no TTL.
+- The gateway does not clear client `X-Wikijump-*` internal headers. The effect is limited to the requester's own response, and error output is now escaped.
+- Pre-existing test failure: `framerail/tests/page-block.test.ts` "starts disabled" expects attribute order that Svelte does not produce.
+- Upstream `install/dev` Docker stack publishes Postgres, Valkey (no auth) and Deepwell on all interfaces; this does not affect the NixOS deployment.
+
 ## Local proof
 
 ### WWS document isolation
