@@ -209,7 +209,7 @@ async fn mfa_pending_session_has_no_viewer_or_request_actor_until_verified() {
     .await;
     let token = verified["result"]
         .as_str()
-        .expect("correct MFA must complete login");
+        .unwrap_or_else(|| panic!("correct MFA must complete login: {verified}"));
     let actor =
         request_with_session(&client, &endpoint, token, "security_test_actor", json!([]))
             .await;
