@@ -89,7 +89,6 @@ export async function loadUser(
       "avatar": {},
       "user-profile-info.name": {},
       "user-profile-info.real-name": {},
-      "user-profile-info.email": {},
       "user-profile-info.avatar": {},
       "user-profile-info.gender": {},
       "user-profile-info.birthday": {},
@@ -136,7 +135,6 @@ export async function userEditAction({
     const {
       name,
       realName,
-      email,
       avatar,
       gender,
       birthday,
@@ -149,7 +147,6 @@ export async function userEditAction({
 
     const res = await userEdit(session.user_id, ipAddress, {
       name,
-      email,
       locales: locales
         ?.replaceAll("_", "-")
         .replaceAll(",", " ")
@@ -182,7 +179,6 @@ export async function userEditAction({
 export const userEditSchema = object({
   name: optional(string()),
   realName: optional(string()),
-  email: optional(string()),
   avatar: optional(file()),
   gender: optional(string()),
   birthday: optional(string()),

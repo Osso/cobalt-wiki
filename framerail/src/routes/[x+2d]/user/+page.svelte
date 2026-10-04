@@ -22,7 +22,6 @@
   let lastSubmitted = $state<checkFormType>({
     name: untrack(() => data.user?.name ?? ""),
     realName: untrack(() => data.user?.real_name ?? ""),
-    email: untrack(() => data.user?.email ?? ""),
     gender: untrack(() => data.user?.gender ?? ""),
     birthday: untrack(() => data.user?.birthday ?? ""),
     location: untrack(() => data.user?.location ?? ""),
@@ -104,13 +103,6 @@
       class="user-attribute real-name"
       type="text"
       bind:value={$form.realName}
-    />
-    <label for="email">{data.internationalization?.["user-profile-info.email"]}</label>
-    <input
-      name="email"
-      class="user-attribute email"
-      type="text"
-      bind:value={$form.email}
     />
     <label for="avatar">{data.internationalization?.["user-profile-info.avatar"]}</label>
     <input

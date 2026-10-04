@@ -8,7 +8,7 @@ const { actions } = await vite.ssrLoadModule("/src/routes/[x+2d]/user/+page.serv
 
 type Rpc = {
   method: string
-  params: { real_name?: string }
+  params: { real_name?: string; email?: string }
   id: string | number
 }
 
@@ -44,7 +44,11 @@ const savedUser = {
   locales: ["en"]
 }
 
-async function editProfile(session: Session | null, token = "session-secret") {
+async function editProfile(
+  session: Session | null,
+  token = "session-secret",
+  fields: Record<string, string> = { realName: "Alice Liddell" }
+) {
   const user = structuredClone(savedUser)
   const previousFetch = globalThis.fetch
   globalThis.fetch = async (_input, init) => {
@@ -54,6 +58,7 @@ async function editProfile(session: Session | null, token = "session-secret") {
       result = session
     } else if (rpc.method === "user_edit") {
       if (rpc.params.real_name !== undefined) user.real_name = rpc.params.real_name
+      if (rpc.params.email !== undefined) user.email = rpc.params.email
       result = user
     } else {
       throw new Error(`unexpected RPC ${rpc.method}`)
@@ -65,7 +70,7 @@ async function editProfile(session: Session | null, token = "session-secret") {
       actions.userEdit({
         request: new Request("http://local.test/-/user", {
           method: "POST",
-          body: new URLSearchParams({ realName: "Alice Liddell" })
+          body: new URLSearchParams(fields)
         }),
         cookies: { get: () => token || undefined },
         getClientAddress: () => "127.0.0.1"
@@ -85,6 +90,14 @@ test("unrestricted profile edit saves changes without returning password or MFA 
   for (const secret of ["secret-hash", "JBSWY3DPEHPK3PXP", "recovery-1"]) {
     assert.ok(!returned.includes(secret), `leaked ${secret}: ${returned}`)
   }
+})
+
+test("profile edit cannot change email, which requires the current password in settings", async () => {
+  const { user } = await editProfile(unrestrictedSession, "session-secret", {
+    realName: "Alice Liddell",
+    email: "attacker@example.com"
+  })
+  assert.deepEqual(user, { ...savedUser, real_name: "Alice Liddell" })
 })
 
 test("restricted profile edit returns 403 without changing the saved user", async () => {
