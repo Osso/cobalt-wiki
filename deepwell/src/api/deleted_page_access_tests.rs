@@ -1,12 +1,16 @@
 use super::*;
 use crate::constants::SYSTEM_USER_ID;
+use crate::models::{page, page_revision};
 use crate::services::permission::PermissionService;
 use crate::services::role::{
     GrantUserRoleInput, InternalCreateRoleInput, RoleService, UpdateRolePermissionsInput,
 };
 use crate::services::session::CreateSession;
 use crate::types::{Action, Permission, Reference, Resource};
-use sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
+use sea_orm::{
+    ColumnTrait, ConnectionTrait, DatabaseBackend, EntityTrait, QueryFilter, QueryOrder,
+    Statement,
+};
 use serde_json::{Value, json};
 
 struct Fixture {
@@ -20,6 +24,12 @@ struct Fixture {
     restricted: String,
     outsider: String,
     slug: String,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct DeletedRecordsSnapshot {
+    pages: Vec<page::Model>,
+    revisions: Vec<page_revision::Model>,
 }
 
 impl Fixture {
@@ -157,6 +167,22 @@ impl Fixture {
         page_id
     }
 
+    async fn load_deleted_records_snapshot(&self) -> DeletedRecordsSnapshot {
+        let pages = page::Entity::find()
+            .filter(page::Column::SiteId.eq(self.site_id))
+            .order_by_asc(page::Column::PageId)
+            .all(&self.state.database)
+            .await
+            .unwrap();
+        let revisions = page_revision::Entity::find()
+            .filter(page_revision::Column::SiteId.eq(self.site_id))
+            .order_by_asc(page_revision::Column::RevisionId)
+            .all(&self.state.database)
+            .await
+            .unwrap();
+        DeletedRecordsSnapshot { pages, revisions }
+    }
+
     async fn lookup(
         &self,
         token: Option<&str>,
@@ -165,6 +191,7 @@ impl Fixture {
         site_id: i64,
         slug: &str,
     ) -> Value {
+        let before = self.load_deleted_records_snapshot().await;
         let mut request = ReqwestClient::new()
             .post(&self.endpoint)
             .header("X-Deepwell-Site-Id", header_site.to_string())
@@ -172,8 +199,14 @@ impl Fixture {
         if let Some(token) = token {
             request = request.header("X-Deepwell-Session-Token", token);
         }
-        request.json(&json!({"jsonrpc":"2.0","id":1,"method":"page_get_deleted","params":{"site_id":site_id,"slug":slug}}))
-            .send().await.unwrap().error_for_status().unwrap().json().await.unwrap()
+        let response = request.json(&json!({"jsonrpc":"2.0","id":1,"method":"page_get_deleted","params":{"site_id":site_id,"slug":slug}}))
+            .send().await.unwrap().error_for_status().unwrap().json().await.unwrap();
+        let after = self.load_deleted_records_snapshot().await;
+        assert_eq!(
+            before, after,
+            "lookup changed fixture-owned pages or revisions"
+        );
+        response
     }
 
     async fn denied(
