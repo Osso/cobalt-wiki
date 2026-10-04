@@ -198,6 +198,7 @@ impl SessionService {
 
         let txn = ctx.transaction();
         let user_opt = User::find()
+            .join(JoinType::Join, user::Relation::KnownUser.def())
             .join(JoinType::Join, known_user::Relation::Session.def())
             .filter(
                 Condition::all()
