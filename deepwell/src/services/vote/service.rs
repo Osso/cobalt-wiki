@@ -56,6 +56,14 @@ impl VoteService {
             )
         };
 
+        // Scores are Wikidot up/down sums, so a vote is -1, 0 or +1.
+        if !(-1..=1).contains(&value) {
+            bail!(Error::new(
+                format!("vote value {value} is not -1, 0 or 1"),
+                ErrorType::BadRequest,
+            ));
+        }
+
         // Get previous vote, if any
         let key = GetVote { page_id, user_id };
         if let Some(vote) = Self::get_optional(ctx, key).await.or_raise(make_error)? {

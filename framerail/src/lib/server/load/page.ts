@@ -1291,7 +1291,8 @@ export async function pageVoteGetAction(event: RequestEvent) {
 }
 
 /* ----- Page Vote Cast ----- */
-export async function pageVoteCastAction({ request, cookies }: RequestEvent) {
+export async function pageVoteCastAction(event: RequestEvent) {
+  const { request, cookies } = event
   const sessionToken = cookies.get("wikijump_token")
   const session = await authGetSession(sessionToken)
 
@@ -1302,6 +1303,7 @@ export async function pageVoteCastAction({ request, cookies }: RequestEvent) {
       value: number
     } = await request.json()
     const { siteId, pageId, value } = requestData
+    await authorizePageRead(event, { siteId, pageId })
     const res = await pageVoteCast(siteId, pageId, session?.user_id, value)
     return { res }
   } catch (e) {
@@ -1315,7 +1317,8 @@ export async function pageVoteCastAction({ request, cookies }: RequestEvent) {
 }
 
 /* ----- Page Vote Cancel ----- */
-export async function pageVoteCancelAction({ request, cookies }: RequestEvent) {
+export async function pageVoteCancelAction(event: RequestEvent) {
+  const { request, cookies } = event
   const sessionToken = cookies.get("wikijump_token")
   const session = await authGetSession(sessionToken)
 
@@ -1325,6 +1328,7 @@ export async function pageVoteCancelAction({ request, cookies }: RequestEvent) {
       pageId: number
     } = await request.json()
     const { siteId, pageId } = requestData
+    await authorizePageRead(event, { siteId, pageId })
     const res = await pageVoteRemove(siteId, pageId, session?.user_id)
     return { res }
   } catch (e) {

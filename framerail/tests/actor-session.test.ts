@@ -10,6 +10,8 @@ const { actions } = await vite.ssrLoadModule(
 
 type Authentication = "pending" | "authenticated" | "expired" | "missing-cookie"
 
+type RoutedPage = "viewable" | "denied"
+
 type VoteRpc = {
   method: string
   params: { user_id?: number; page_id: number; value: number }
@@ -24,12 +26,19 @@ function buildSessionReply(authentication: Authentication) {
   }
 }
 
+function buildPageViewReply(routedPage: RoutedPage) {
+  if (routedPage === "denied") return { type: "permissions", data: {} }
+  return { type: "found", data: { page: { page_id: 101, site_id: 1, slug: "page" } } }
+}
+
 function respondToVoteRpc(
   rpc: VoteRpc,
   authentication: Authentication,
+  routedPage: RoutedPage,
   votes: Map<string, number>
 ) {
   if (rpc.method === "session_get") return { result: buildSessionReply(authentication) }
+  if (rpc.method === "page_view") return { result: buildPageViewReply(routedPage) }
   const isVoteMutation = rpc.method === "vote_set" || rpc.method === "vote_remove"
   if (isVoteMutation && rpc.params.user_id === undefined) {
     return { error: { code: -32602, message: "Invalid params" } }
@@ -48,7 +57,8 @@ function respondToVoteRpc(
 
 async function submitVote(
   action: "voteCast" | "voteCancel",
-  authentication: Authentication
+  authentication: Authentication,
+  { pageId = 101, routedPage = "viewable" as RoutedPage } = {}
 ) {
   const votes = new Map([
     ["42:101", 1],
@@ -57,7 +67,7 @@ async function submitVote(
   const originalFetch = globalThis.fetch
   globalThis.fetch = async (_input, init) => {
     const rpc = JSON.parse(String(init?.body))
-    const reply = respondToVoteRpc(rpc, authentication, votes)
+    const reply = respondToVoteRpc(rpc, authentication, routedPage, votes)
     return new Response(JSON.stringify({ jsonrpc: "2.0", id: rpc.id, ...reply }))
   }
   try {
@@ -65,15 +75,20 @@ async function submitVote(
       actions[action]({
         request: new Request("http://local.test/page", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "X-Wikijump-Site-Id": "1",
+            "X-Wikijump-Site-Slug": "cobalt",
+            "Content-Type": "application/json"
+          },
           body: JSON.stringify({
             siteId: 1,
-            pageId: 101,
+            pageId,
             value: -1,
             user_id: 99,
             userId: 99
           })
         }),
+        params: { slug: "page", extra: "" },
         cookies: {
           get: () => (authentication === "missing-cookie" ? undefined : "session-token")
         }
@@ -116,5 +131,23 @@ for (const action of ["voteCast", "voteCancel"] as const) {
           ]
         : [["99:101", 1]]
     )
+  })
+  test(`authenticated ${action} cannot target a page other than the routed one`, async () => {
+    const { response, votes } = await submitVote(action, "authenticated", { pageId: 202 })
+    assert.deepEqual(votes, [
+      ["42:101", 1],
+      ["99:101", 1]
+    ])
+    assert.equal(response.status, 403)
+  })
+  test(`authenticated ${action} cannot vote on a page it cannot view`, async () => {
+    const { response, votes } = await submitVote(action, "authenticated", {
+      routedPage: "denied"
+    })
+    assert.deepEqual(votes, [
+      ["42:101", 1],
+      ["99:101", 1]
+    ])
+    assert.equal(response.status, 403)
   })
 }
