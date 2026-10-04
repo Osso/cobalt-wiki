@@ -28,6 +28,7 @@ use crate::services::blob::{EMPTY_BLOB_HASH, EMPTY_BLOB_MIME, FinalizeBlobUpload
 use crate::services::{BlobService, OutdateService, PageService};
 use crate::types::{Bytes, FetchDirection};
 use sea_orm::FromQueryResult;
+use sea_orm::Order;
 use sea_orm::prelude::*;
 use std::num::NonZeroI32;
 use std::sync::LazyLock;
@@ -691,18 +692,28 @@ impl FileRevisionService {
             }
         };
 
+        // Take the revisions nearest the starting number, returned oldest first.
+        let order = match revision_direction {
+            FetchDirection::Before => Order::Desc,
+            FetchDirection::After => Order::Asc,
+        };
+
         let txn = ctx.transaction();
-        let revisions = FileRevision::find()
+        let mut revisions = FileRevision::find()
             .filter(
                 Condition::all()
                     .add(file_revision::Column::FileId.eq(file_id))
                     .add(revision_condition),
             )
-            .order_by_asc(file_revision::Column::RevisionNumber)
+            .order_by(file_revision::Column::RevisionNumber, order)
             .limit(limit)
             .all(txn)
             .await
             .or_raise(make_error)?;
+
+        if let FetchDirection::Before = revision_direction {
+            revisions.reverse();
+        }
 
         Ok(revisions)
     }
