@@ -8,7 +8,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-
 COMMAND_FIXTURE = """#!/usr/bin/env python3
 import hashlib
 import json
