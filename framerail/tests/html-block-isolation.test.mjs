@@ -4,6 +4,44 @@ import { createServer } from "node:http"
 import { test } from "node:test"
 import { chromium } from "@playwright/test"
 
+/**
+ * @typedef {{
+ *   path: string
+ *   headers: Record<string, string>
+ *   body: string
+ * }} DocumentFixture
+ */
+/** @typedef {{ origin?: string; cookie?: string }[]} ApiRequests */
+
+/**
+ * @param {DocumentFixture} fixture
+ * @param {ApiRequests} apiRequests
+ * @param {import("node:http").IncomingMessage} request
+ * @param {import("node:http").ServerResponse} response
+ */
+function respondToFixtureRequest(fixture, apiRequests, request, response) {
+  if (request.url === fixture.path) {
+    response.writeHead(200, fixture.headers)
+    response.end(fixture.body)
+    return
+  }
+  if (request.url === "/api/probe") {
+    apiRequests.push({ origin: request.headers.origin, cookie: request.headers.cookie })
+    // Authenticated gateway API: no cross-origin read permission.
+    response.writeHead(200, { "Content-Type": "text/plain" })
+    response.end("private-api-response")
+    return
+  }
+  response.writeHead(200, {
+    "Content-Type": "text/html",
+    "Set-Cookie": "wikijump_token=browser-secret; Path=/; SameSite=Lax"
+  })
+  response.end(`<!doctype html><div id="secret">parent-secret</div>
+<script>window.addEventListener('message', event => {
+  document.body.dataset.proof = JSON.stringify({ ...event.data, origin: event.origin })
+})</script><iframe src="${fixture.path}"></iframe>`)
+}
+
 // Input is captured from the actual WWS router + HTTP Deepwell/S3 fixture.
 // No hand-written CSP or iframe sandbox attribute can mask a route regression.
 assert.ok(
@@ -17,31 +55,11 @@ for (const fixturePath of fixturePaths) {
     const fixture = JSON.parse(await readFile(fixturePath, "utf8"))
     assert.ok(fixture.path, "captured WWS route path required")
     const documentPath = fixture.path
-    /** @type {{ origin?: string; cookie?: string }[]} */
+    /** @type {ApiRequests} */
     const apiRequests = []
-    const server = createServer((request, response) => {
-      if (request.url === documentPath) {
-        response.writeHead(200, fixture.headers)
-        response.end(fixture.body)
-      } else if (request.url === "/api/probe") {
-        apiRequests.push({
-          origin: request.headers.origin,
-          cookie: request.headers.cookie
-        })
-        // Authenticated gateway API: no cross-origin read permission.
-        response.writeHead(200, { "Content-Type": "text/plain" })
-        response.end("private-api-response")
-      } else {
-        response.writeHead(200, {
-          "Content-Type": "text/html",
-          "Set-Cookie": "wikijump_token=browser-secret; Path=/; SameSite=Lax"
-        })
-        response.end(`<!doctype html><div id="secret">parent-secret</div>
-<script>window.addEventListener('message', event => {
-  document.body.dataset.proof = JSON.stringify({ ...event.data, origin: event.origin })
-})</script><iframe src="${documentPath}"></iframe>`)
-      }
-    })
+    const server = createServer((request, response) =>
+      respondToFixtureRequest(fixture, apiRequests, request, response)
+    )
     await new Promise((resolve) =>
       server.listen(0, "127.0.0.1", () => resolve(undefined))
     )
