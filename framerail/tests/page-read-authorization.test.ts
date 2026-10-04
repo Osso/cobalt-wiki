@@ -8,6 +8,8 @@ const { actions } = await vite.ssrLoadModule(
   "/src/routes/[slug]/[...extra]/+page.server.ts"
 )
 
+const { actions: rootActions } = await vite.ssrLoadModule("/src/routes/+page.server.ts")
+
 const reads = [
   { action: "fileList", method: "page_get_files" },
   { action: "history", method: "page_revision_range" },
@@ -24,14 +26,17 @@ async function readPage(
   action: string,
   method: string,
   access: Access,
-  siteId = 11,
-  pageId = 101
+  target = { siteId: 11, pageId: 101 },
+  params: Record<string, string> = { slug: "private", extra: "" }
 ) {
+  const { siteId, pageId } = target
+  const root = !params.slug && !params.extra
   const previousFetch = globalThis.fetch
   globalThis.fetch = async (_input, init) => {
     const rpc = JSON.parse(String(init?.body))
     let result
     if (rpc.method === "page_view") {
+      assert.deepEqual(rpc.params.route, root ? null : params)
       result =
         access === "viewer"
           ? {
@@ -48,7 +53,8 @@ async function readPage(
   }
   try {
     try {
-      return await actions[action]({
+      const selectedActions = root ? rootActions : actions
+      return await selectedActions[action]({
         request: new Request("http://local.test/private", {
           method: "POST",
           headers: {
@@ -64,7 +70,7 @@ async function readPage(
             limit: 20
           })
         }),
-        params: { slug: "private", extra: "" },
+        params,
         cookies: { get: () => (access === "viewer" ? "viewer-session" : undefined) },
         locals: { requestContext: { siteId: 11, page: "private" } }
       })
@@ -99,6 +105,32 @@ for (const { action, method } of reads) {
       "Secret revision / file metadata / lock reason"
     )
   })
+  test(`${action} reads the configured default page on the root route`, async () => {
+    const response = await readPage(
+      action,
+      method,
+      "viewer",
+      { siteId: 11, pageId: 101 },
+      {}
+    )
+    assert.equal(
+      response.res.private_data,
+      "Secret revision / file metadata / lock reason"
+    )
+  })
+  test(`${action} preserves route extras during page authorization`, async () => {
+    const response = await readPage(
+      action,
+      method,
+      "viewer",
+      { siteId: 11, pageId: 101 },
+      { slug: "private", extra: "noredirect/true" }
+    )
+    assert.equal(
+      response.res.private_data,
+      "Secret revision / file metadata / lock reason"
+    )
+  })
   const foreignTargets =
     action === "lockHistory"
       ? [[11, 102]]
@@ -108,7 +140,7 @@ for (const { action, method } of reads) {
         ]
   for (const [siteId, pageId] of foreignTargets) {
     test(`${action} cannot select foreign target ${siteId}:${pageId}`, async () => {
-      const response = await readPage(action, method, "viewer", siteId, pageId)
+      const response = await readPage(action, method, "viewer", { siteId, pageId })
       assert.ok(!JSON.stringify(response).includes("Secret revision"))
       assert.equal(response.status, 403)
     })
