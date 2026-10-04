@@ -36,7 +36,7 @@ unit = "cobalt-local-full-deepwell"
 database_url = local_database_url()
 if not shutil.which("sqlx"):
     raise SystemExit(
-        "sqlx not on PATH; run via nix shell nixpkgs#sqlx-cli --command ./deploy.sh"
+        "sqlx not on PATH; run via nix shell nixpkgs#sqlx-cli --command ./start-test-env.sh"
     )
 
 try:

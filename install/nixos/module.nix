@@ -13,7 +13,7 @@ let
   postgres = pkgs.postgresql_17;
   python = "${pkgs.python3}/bin/python3";
   marker = "${state}/provisioned";
-  # Development deploys (install/dev-deploy.sh) run the apps from a mutable
+  # Development deploys (./deploy.sh) run the apps from a mutable
   # directory instead of the Nix packages.
   app = cfg.appDirectory;
   deepwellBin = if app == null then "${packages.deepwell}/bin/deepwell" else "${app}/deepwell/deepwell";
@@ -218,7 +218,7 @@ in
       type = lib.types.nullOr lib.types.str;
       default = null;
       example = "/var/lib/cobalt-wiki/app";
-      description = "Run Deepwell (deepwell/{deepwell,migrations,locales}) and Framerail (framerail/{build,node_modules,package.json}) from this mutable directory, filled by install/dev-deploy.sh, instead of the Nix packages. For fast iteration only; null deploys the reproducible packages.";
+      description = "Run Deepwell (deepwell/{deepwell,migrations,locales}) and Framerail (framerail/{build,node_modules,package.json}) from this mutable directory, filled by ./deploy.sh, instead of the Nix packages. For fast iteration only; null deploys the reproducible packages.";
     };
     wikidotSync = {
       enable = lib.mkEnableOption "periodic sync of pages changed on the source Wikidot site";

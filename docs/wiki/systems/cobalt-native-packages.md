@@ -38,8 +38,8 @@ The Framerail launcher passes `HOST` and `PORT` from its runtime environment to 
 Run from the repository root against the existing configured native runtime:
 
 ```text
-install/dev-deploy.sh all
-install/dev-deploy.sh wws
+./deploy.sh all
+./deploy.sh wws
 ```
 
 `COBALT_HOST` selects the SSH host (default `sakuin`). `all` deploys Deepwell, Framerail, and WWS; `deepwell` and `framerail` select individual applications. Deepwell and Framerail use `/var/lib/cobalt-wiki/app`. WWS builds `.#wws` and copies its Nix closure; `all` completes that preparation before mutating any service. Build or closure-copy failure stops deployment before service mutation.

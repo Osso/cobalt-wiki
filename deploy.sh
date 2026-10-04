@@ -4,10 +4,10 @@
 # deploy shell (same glibc/libmagic store paths as the deployed packages),
 # rsyncs only what changed and restarts the service.
 #
-#   install/dev-deploy.sh [deepwell|framerail|wws|all] (COBALT_HOST, default sakuin)
+#   ./deploy.sh [deepwell|framerail|wws|all] (COBALT_HOST, default sakuin)
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(cd "$(dirname "$0")" && pwd)"
 HOST="${COBALT_HOST:-sakuin}"
 APP=/var/lib/cobalt-wiki/app
 WHAT="${1:-all}"

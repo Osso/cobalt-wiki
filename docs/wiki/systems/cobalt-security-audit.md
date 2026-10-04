@@ -34,7 +34,7 @@ Final follow-up acceptance: frontend `23e89d483` has 0 type errors/warnings, cle
 
 ## Independent follow-up audit (Opus 5.5) — 2026-10-04
 
-The audit above was produced by GPT-6.1-sol. A second, independent pass re-reviewed its repairs and covered the areas it left unexamined. Each fix below has a test that failed before the change; isolated PostgreSQL `cobalt_opus_test` (seeded, `files.json` emptied: no S3) and Redis. **Not deployed.**
+The audit above was produced by GPT-6.1-sol. A second, independent pass re-reviewed its repairs and covered the areas it left unexamined. Each fix below has a test that failed before the change; isolated PostgreSQL `cobalt_opus_test` (seeded, `files.json` emptied: no S3) and Redis. **Deployed 2026-10-04** with `install/dev-deploy.sh all` at `63355dfed55f` (now `./deploy.sh all`): exit 0, all four services active. Live checks: `/roster` 200; `/-/html/roster/999` returns 500 instead of a panic; an HTML payload in the block index is returned escaped (`/tmp/claude/cobalt-deploy-security.log`). Existing compiled pages pick up the gallery fix only on rerender.
 
 | Fix | Defect | Proof |
 |---|---|---|

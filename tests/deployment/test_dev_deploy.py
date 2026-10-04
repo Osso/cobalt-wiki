@@ -40,9 +40,8 @@ class DevelopmentDeployTest(unittest.TestCase):
         self.directory = tempfile.TemporaryDirectory(prefix="cobalt-deploy-test-")
         self.addCleanup(self.directory.cleanup)
         self.root = Path(self.directory.name)
-        source = Path(__file__).resolve().parents[2] / "install/dev-deploy.sh"
-        script = self.root / "install/dev-deploy.sh"
-        script.parent.mkdir()
+        source = Path(__file__).resolve().parents[2] / "deploy.sh"
+        script = self.root / "deploy.sh"
         shutil.copy2(source, script)
         (self.root / "framerail/node_modules").mkdir(parents=True)
         (self.root / "framerail/build").mkdir()
@@ -67,7 +66,7 @@ class DevelopmentDeployTest(unittest.TestCase):
         if fail:
             environment["FAIL_NIX"] = fail
         result = subprocess.run(
-            [str(self.root / "install/dev-deploy.sh"), target],
+            [str(self.root / "deploy.sh"), target],
             env=environment,
             text=True,
             capture_output=True,

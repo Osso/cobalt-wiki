@@ -16,7 +16,7 @@
         inherit pkgs;
         craneLib = crane.mkLib pkgs;
       };
-      # install/dev-deploy.sh builds in this shell, so binaries link the same
+      # ./deploy.sh builds in this shell, so binaries link the same
       # store paths as the deployed packages.
       devShells.${system}.deploy = pkgs.mkShell {
         nativeBuildInputs = [
