@@ -8,7 +8,7 @@ All **182 registered names and handler aliases** from `/tmp/cobalt-audit-all-rpc
 
 **I — inventory/source reference:** registration, handler definition, exact server request and non-import symbol references. **E — inspected enforcement:** selected handler/service/route controls in the group matrix, not every method in that group. **B — behavioral proof:** only separately supplied artifacts, with their revision and scope; no B proof is generated here. A route call path is not an assertion that an anonymous caller can complete it, that all payloads pass, or that ingress grants access.
 
-The complete Framerail scan covers `.ts`, `.js`, `.svelte` under `framerail/src`, all literal `client.request` wrappers (including `lib/server/auth`, not just `deepwell`), and their non-import references. `load/history.ts:readHistory` uses a dynamic method argument; its three fixed action method strings are included explicitly. Wrapper references are followed through named functions to route server action/load/handler or hooks references. Paths in the table give concrete source witnesses, not a deployment route certification. No AST/control-flow/type-resolution proof, runtime route traversal, alternate external clients, generated code or arbitrary dynamic dispatch audit is claimed. “Unused” means no non-import symbol reference in this scan; “no observed public caller” is not safe-to-expose approval. Internal literal callers were scanned in `tools`, `install`, and `wws/src`.
+The complete Framerail scan covers `.ts`, `.js`, `.svelte` under `framerail/src`, all literal `client.request` wrappers (including `lib/server/auth`, not just `deepwell`), and their non-import references constrained to the defining module or modules importing that symbol. String/comment matches and unrelated same-name symbols are excluded. `load/history.ts:readHistory` uses a dynamic method argument; its three fixed action method strings are included explicitly. `deepwell/page.ts:pageEdit` selects `page_edit` or `page_create` conditionally; both branches are included. Wrapper references are followed through named functions to route server action/load/handler or hooks references. Paths in the table give concrete source witnesses, not a deployment route certification. No AST/control-flow/full type-resolution proof, runtime route traversal, alternate external clients, generated code or arbitrary dynamic dispatch audit is claimed. “Unused” means no non-import symbol reference in this scan; “no observed public caller” is not safe-to-expose approval. Internal literal callers were scanned in `tools`, `install`, and `wws/src`.
 
 Related contracts: [authentication/accounts](../../specs/cobalt-accounts.md), [page read access](../../specs/cobalt-page-read-access.md), [message access](../../specs/cobalt-message-access.md), [site manager](../../specs/cobalt-site-manager.md). Existing main audit report remains independently owned and unchanged.
 
@@ -245,10 +245,5 @@ Each row defaults to **I**. Group-level **E** applies only to controls named abo
 
 ## Scan totals and unresolved dispatch
 
-- Server caller; public dispatch unresolved: **1**.
-- No observed public caller: **67**.
-- Trusted importer/maintenance/WWS caller; no observed public Framerail caller: **29**.
-- Public server call (source path): **80**.
-- Wrapper unused in scanned source: **5**.
 
-Unresolved server-dispatch entries: `ping`. The lexical witnesses do not establish action payload authorization, CSRF behavior, reachable ingress, or runtime success. Source changes after this snapshot invalidate affected citations, not the historical registration artifact.
+Unresolved server-dispatch entries: none in import-resolved named-function scan. Source paths are import-resolved named-function witnesses, not control-flow or runtime route proof. Aliased/namespace/generated/dynamic dispatch outside the explicitly handled cases remains a coverage limitation. No action payload, CSRF, ingress or runtime success certification.
