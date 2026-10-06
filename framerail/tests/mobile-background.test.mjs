@@ -20,7 +20,9 @@ async function paintedColors(page) {
     const context = canvas.getContext("2d")
     context.drawImage(image, 0, 0)
     const scale = visualViewport.scale
-    return [105, 115, 505, 905].map((x) => {
+    const points =
+      image.width === 1440 ? [105, 115, 505, 905, 1405] : [105, 115, 505, 905]
+    return points.map((x) => {
       const pixel = context.getImageData(
         Math.round((x - visualViewport.pageLeft) * scale),
         Math.round(50 * scale),
@@ -63,13 +65,13 @@ try {
           deviceScaleFactor: 1
         })
         const { body } = render(Component, { props: { siteSlug: "cobalt-company" } })
-        await page.setContent(`<meta name="viewport" content="width=device-width, initial-scale=1"><style>
+        await page.setContent(`<!doctype html><meta name="viewport" content="width=device-width, initial-scale=1"><style>
           html { background: white; }
           body { margin: 0; background-image: url("${texture}"); background-position: top left; background-repeat: repeat; background-attachment: fixed; }
           #container { min-width: 1000px; max-width: 1000px; margin: 0 auto; height: 1800px; }
           #header { height: 100px; }
           ${compiled.css.code}
-        </style>${body}`)
+        </style><div>${body}</div>`)
         if (width === 390) {
           const session = await page.context().newCDPSession(page)
           await session.send("Emulation.setPageScaleFactor", {
@@ -96,9 +98,15 @@ try {
             [18, 52, 86],
             [36, 86, 120],
             [18, 52, 86],
-            [18, 52, 86]
+            [18, 52, 86],
+            ...(width === 1440 ? [[18, 52, 86]] : [])
           ],
           "intrinsic texture must repeat across the header"
+        )
+        assert.equal(
+          geometry.bodyWidth,
+          Math.max(width, 1000),
+          "body must cover the full layout"
         )
         assert.equal(geometry.attachment, "fixed", "retain fixed background attachment")
         if (width === 390) {
@@ -109,7 +117,7 @@ try {
             y: 200,
             xDistance: -600,
             yDistance: -300,
-            gestureSourceType: "touch",
+            gestureSourceType: "mouse",
             speed: 800
           })
         } else {
@@ -160,11 +168,11 @@ try {
           isMobile: true
         })
         const { body } = render(Component, { props: { siteSlug } })
-        await page.setContent(`<meta name="viewport" content="width=device-width, initial-scale=1"><style>
+        await page.setContent(`<!doctype html><meta name="viewport" content="width=device-width, initial-scale=1"><style>
           body { margin: 0; }
           #container { width: 640px; }
           ${compiled.css.code}
-        </style>${body}`)
+        </style><div>${body}</div>`)
         assert.equal(
           await page.evaluate(() => document.body.getBoundingClientRect().width),
           390
