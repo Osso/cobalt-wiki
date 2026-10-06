@@ -6,6 +6,7 @@ Restore styling from acquired `admin:css` and `admin:font`; do not approximate t
 - Embed the acquired font CSS and redirect source attachment URLs to same-origin imported files.
 - Serve `/-/cobalt-theme.css` behind the same authentication gate as pages and attachments; emit `X-Robots-Tag: noindex, nofollow, noarchive` on all POC responses.
 - Select the source theme only for `cobalt-company`; preserve other sites' existing theme.
+- Cobalt's body background must paint across its existing 1000px layout on mobile, including zoomed-out header and horizontally scrolled regions. Preserve intrinsic texture size, repetition, fixed attachment and desktop layout; do not impose Cobalt's fixed width on other Wikidot sites.
 - Verify generated CSS, authentication, resource loading and browser appearance. Import can continue independently.
 
 ## Runtime

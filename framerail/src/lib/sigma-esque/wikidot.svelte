@@ -6,11 +6,12 @@
     content,
     footer,
     license,
+    siteSlug,
     colorProfile = "current"
   } = $props()
 </script>
 
-<div id="skrollr-body" data-color-profile={colorProfile}>
+<div id="skrollr-body" data-site-slug={siteSlug} data-color-profile={colorProfile}>
   <!-- svelte-ignore a11y_consider_explicit_label -->
   <a id="page-top"></a>
   <div id="container-wrap-wrap">
@@ -117,6 +118,11 @@
   $chrome-panel: rgb(8 12 36 / 72%);
   $chrome-text: #e6eaff;
   $chrome-link: #9fd4ff;
+
+  // Match Cobalt's overflowing layout so the body texture paints its full width.
+  body:has(#skrollr-body[data-site-slug="cobalt-company"]) {
+    min-width: 1000px;
+  }
 
   #skrollr-body {
     --tab-fill: #bcc9f2;
