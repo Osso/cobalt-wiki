@@ -2,6 +2,14 @@
 
 Verified: 2026-09-27. This records evidence, not authorization to expose source-private content or a blanket full-replica readiness claim.
 
+## Scoped final bugfix rollout
+
+verified: 2026-10-05
+
+[ListPages](../../specs/cobalt-list-pages.md) and [POC theme](../../specs/cobalt-poc-theme.md): backend `bc0cb6afbc2ba24518ca9bffe9fb975e5b418f9e` deployed via `./deploy.sh deepwell`; frontend `cbca50d54` via `./deploy.sh framerail`, both exit 0. Independent verifier matched installed artifact hashes; four services active. Live exact nine-character/eight-BGC ordering matches authenticated Wikidot; all 312 creation dates match source; homepage source hash unchanged. Mobile 390px/desktop 1440px paint and 600px pan checked; intrinsic repeating fixed texture unchanged. Targeted tests passed: 12 unit, nine DB, four frontend; two protected-archive tests ignored. Cargo fmt/check and frontend scoped lint/type/readability passed. Full native revision-ID preservation remains unproven: no baseline. No blanket readiness claim; documentation-only changes do not invalidate code gates.
+
+Artifacts: `/tmp/cobalt-independent-verification.md`, `/tmp/cobalt-independent-proof-ledger.json`.
+
 ## Production application rollout — 2026-09-27
 
 `install/dev-deploy.sh all` released `131f5bae21b1fb62960986a655eb7ea563cca156` under `/var/lib/cobalt-wiki/app` with exit 0 (`/tmp/claude/cobalt-sitechanges-production-deploy.log`). The approved order was deploy first, then import. Independent read-only production gate PASS confirms the installed Deepwell binary and all 553 Framerail build files match the release; Deepwell, Framerail, and WWS are active; and public Site Changes returns 20 default rows plus two writing/`A` pages with localized dates, zero page errors, and zero blocked writes (`/tmp/claude/cobalt-sitechanges-production-gate.json`). No broad tests/builds, authenticated browsing, or production mutation were performed.
