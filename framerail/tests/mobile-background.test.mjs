@@ -9,7 +9,7 @@ import { render } from "svelte/server"
 const texture = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><path fill="#123456" d="M0 0h20v20H0z"/><path fill="#245678" d="M10 0h10v20H10z"/></svg>')}`
 
 /** @param {import("@playwright/test").Page} page */
-async function paintedColors(page) {
+async function sampleScreenshotColors(page) {
   const screenshot = await page.screenshot()
   return page.evaluate(async (base64) => {
     const image = new Image()
@@ -108,7 +108,7 @@ try {
         console.log(JSON.stringify({ width, ...geometry }))
         assert.equal(geometry.containerWidth, 1000, "retain desktop-width layout")
         assert.equal(geometry.size, "auto", "retain intrinsic texture size")
-        const colors = await paintedColors(page)
+        const colors = await sampleScreenshotColors(page)
         console.log(JSON.stringify({ width, colors }))
         assert.deepEqual(
           colors,
