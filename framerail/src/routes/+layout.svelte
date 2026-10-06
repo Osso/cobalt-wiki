@@ -139,9 +139,9 @@
     rel="stylesheet"
   />
   <Wikidot
-    siteSlug={page.data.site?.slug}
     colorProfile={page.data.user_session?.user.color_profile}
     sideBarHtml={page.data?.compiled_side_bar_html ?? page.error?.compiled_side_bar_html}
+    siteSlug={page.data.site?.slug}
   >
     {#snippet header()}
       <h1>

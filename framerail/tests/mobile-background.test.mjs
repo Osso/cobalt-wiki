@@ -8,6 +8,7 @@ import { render } from "svelte/server"
 
 const texture = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><path fill="#123456" d="M0 0h20v20H0z"/><path fill="#245678" d="M10 0h10v20H10z"/></svg>')}`
 
+/** @param {import("@playwright/test").Page} page */
 async function paintedColors(page) {
   const screenshot = await page.screenshot()
   return page.evaluate(async (base64) => {
@@ -18,13 +19,20 @@ async function paintedColors(page) {
     canvas.width = image.width
     canvas.height = image.height
     const context = canvas.getContext("2d")
+    if (!context) {
+      throw new Error("Screenshot canvas must provide a 2D context")
+    }
+    const viewport = visualViewport
+    if (!viewport) {
+      throw new Error("Screenshot sampling requires a visual viewport")
+    }
     context.drawImage(image, 0, 0)
-    const scale = visualViewport.scale
+    const scale = viewport.scale
     const points =
       image.width === 1440 ? [105, 115, 505, 905, 1405] : [105, 115, 505, 905]
     return points.map((x) => {
       const pixel = context.getImageData(
-        Math.round((x - visualViewport.pageLeft) * scale),
+        Math.round((x - viewport.pageLeft) * scale),
         Math.round(50 * scale),
         1,
         1
@@ -45,7 +53,8 @@ const compiled = compile(prepared.code, {
   generate: "server",
   filename: "wikidot.svelte"
 })
-assert.ok(compiled.css, "layout CSS must compile")
+const css = compiled.css
+assert.ok(css, "layout CSS must compile")
 const fixture = new URL(`./.mobile-background-${process.pid}.mjs`, import.meta.url)
 await writeFile(fixture, compiled.js.code)
 const { default: Component } = await import(fixture.href)
@@ -70,7 +79,7 @@ try {
           body { margin: 0; background-image: url("${texture}"); background-position: top left; background-repeat: repeat; background-attachment: fixed; }
           #container { min-width: 1000px; max-width: 1000px; margin: 0 auto; height: 1800px; }
           #header { height: 100px; }
-          ${compiled.css.code}
+          ${css.code}
         </style><div>${body}</div>`)
         if (width === 390) {
           const session = await page.context().newCDPSession(page)
@@ -78,15 +87,24 @@ try {
             pageScaleFactor: 390 / 1000
           })
         }
-        const geometry = await page.evaluate(() => ({
-          bodyWidth: document.body.getBoundingClientRect().width,
-          containerWidth: document.querySelector("#container").getBoundingClientRect()
-            .width,
-          viewportWidth: innerWidth,
-          scale: visualViewport.scale,
-          attachment: getComputedStyle(document.body).backgroundAttachment,
-          size: getComputedStyle(document.body).backgroundSize
-        }))
+        const geometry = await page.evaluate(() => {
+          const container = document.querySelector("#container")
+          if (!container) {
+            throw new Error("Background fixture must contain #container")
+          }
+          const viewport = visualViewport
+          if (!viewport) {
+            throw new Error("Background geometry requires a visual viewport")
+          }
+          return {
+            bodyWidth: document.body.getBoundingClientRect().width,
+            containerWidth: container.getBoundingClientRect().width,
+            viewportWidth: innerWidth,
+            scale: viewport.scale,
+            attachment: getComputedStyle(document.body).backgroundAttachment,
+            size: getComputedStyle(document.body).backgroundSize
+          }
+        })
         console.log(JSON.stringify({ width, ...geometry }))
         assert.equal(geometry.containerWidth, 1000, "retain desktop-width layout")
         assert.equal(geometry.size, "auto", "retain intrinsic texture size")
@@ -123,17 +141,21 @@ try {
         } else {
           await page.evaluate(() => scrollTo(0, 300))
         }
-        const scroll = await page.evaluate(() => ({
-          left: visualViewport.pageLeft,
-          top: visualViewport.pageTop
-        }))
+        const scroll = await page.evaluate(() => {
+          const viewport = visualViewport
+          if (!viewport) {
+            throw new Error("Scroll measurements require a visual viewport")
+          }
+          return { left: viewport.pageLeft, top: viewport.pageTop }
+        })
         console.log(JSON.stringify({ width, scroll }))
         assert.ok(scroll.top >= 200, "fixture must actually scroll vertically")
-        if (width === 390)
+        if (width === 390) {
           assert.ok(
             scroll.left >= 500,
             "fixture must pan to the wide layout's right side"
           )
+        }
         const scrolled = await page.screenshot()
         // Sample the visible right side after scrolling, away from all chrome.
         const rightPixel = await page.evaluate(async (base64) => {
@@ -144,6 +166,9 @@ try {
           canvas.width = image.width
           canvas.height = image.height
           const context = canvas.getContext("2d")
+          if (!context) {
+            throw new Error("Screenshot canvas must provide a 2D context")
+          }
           context.drawImage(image, 0, 0)
           return [...context.getImageData(image.width - 20, 20, 1, 1).data].slice(0, 3)
         }, scrolled.toString("base64"))
@@ -171,7 +196,7 @@ try {
         await page.setContent(`<!doctype html><meta name="viewport" content="width=device-width, initial-scale=1"><style>
           body { margin: 0; }
           #container { width: 640px; }
-          ${compiled.css.code}
+          ${css.code}
         </style><div>${body}</div>`)
         assert.equal(
           await page.evaluate(() => document.body.getBoundingClientRect().width),

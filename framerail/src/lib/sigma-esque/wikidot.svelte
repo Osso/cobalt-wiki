@@ -11,7 +11,7 @@
   } = $props()
 </script>
 
-<div id="skrollr-body" data-site-slug={siteSlug} data-color-profile={colorProfile}>
+<div id="skrollr-body" data-color-profile={colorProfile} data-site-slug={siteSlug}>
   <!-- svelte-ignore a11y_consider_explicit_label -->
   <a id="page-top"></a>
   <div id="container-wrap-wrap">
