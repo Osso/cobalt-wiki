@@ -347,7 +347,9 @@ fn parse_order(value: &str) -> ParseResult<(OrderField, bool)> {
         _ => return Err("unsupported order".into()),
     };
     let descending = match terms.next() {
-        None | Some("asc") => false,
+        None => false,
+        // Wikidot's explicit created_at asc yields newest-first, unlike the bare field.
+        Some("asc") => field == OrderField::CreatedAt,
         Some("desc") => true,
         Some(_) => return Err("unsupported order".into()),
     };
@@ -953,6 +955,69 @@ mod tests {
     }
 
     #[test]
+    fn created_at_order_uses_wikidot_explicit_direction_compatibility() {
+        let pages: Vec<_> = [
+            ("jotz", 1788883214),
+            ("auralind", 1625380187),
+            ("valentine", 1789317142),
+        ]
+        .into_iter()
+        .map(|(name, timestamp)| ListedPage {
+            page_id: 1,
+            page_category_id: 1,
+            slug: format!("character:{name}"),
+            category: "character".into(),
+            created_at: OffsetDateTime::from_unix_timestamp(timestamp).unwrap(),
+            updated_at: None,
+            title: name.into(),
+            tags: vec!["_completed".into()],
+            wikitext_hash: vec![],
+        })
+        .collect();
+        for (order, expected) in [
+            ("created_at asc", ["valentine", "jotz", "auralind"]),
+            ("created_at desc", ["valentine", "jotz", "auralind"]),
+            ("created_at", ["auralind", "jotz", "valentine"]),
+            ("title", ["auralind", "jotz", "valentine"]),
+            ("title desc", ["valentine", "jotz", "auralind"]),
+        ] {
+            let selection = selection(&format!(" order=\"{order}\""));
+            let mut sorted: Vec<_> = pages.iter().collect();
+            sort_pages(&mut sorted, selection.order, selection.descending);
+            assert_eq!(
+                sorted.iter().map(|page| page.name()).collect::<Vec<_>>(),
+                expected,
+                "{order}"
+            );
+            let items: Vec<_> = sorted
+                .iter()
+                .map(|page| {
+                    substitute_outside_module_bodies(
+                        "%%fullname%% %%created_at%%",
+                        &PageTokens {
+                            fullname: &page.slug,
+                            title: &page.title,
+                            created_at: Some(page.created_at.unix_timestamp()),
+                            updated_at: None,
+                            form: None,
+                        },
+                    )
+                })
+                .collect();
+            let expected_items: Vec<_> = expected
+                .iter()
+                .map(|name| match *name {
+                    "valentine" => "character:valentine [[date 1789317142]]",
+                    "jotz" => "character:jotz [[date 1788883214]]",
+                    "auralind" => "character:auralind [[date 1625380187]]",
+                    _ => unreachable!(),
+                })
+                .collect();
+            assert_eq!(items, expected_items, "{order}");
+        }
+    }
+
+    #[test]
     fn required_tags_match_lowercase_metadata_regardless_of_filter_case() {
         let filter = selection(" tags=\"+Alli +Aly\"").filter();
         let tags = ["alli".to_owned(), "aly".to_owned()];
@@ -1010,11 +1075,19 @@ mod tests {
 
     #[test]
     fn unsupported_arguments_are_explicit_errors() {
-        let parse = |header| {
+        let parse = |header: &str| {
             parse_selection(&parse_attributes(header).unwrap(), "character").unwrap_err()
         };
         assert_eq!(parse(" rssTitle=\"x\""), "unsupported argument rsstitle");
-        assert_eq!(parse(" order=\"rating desc\""), "unsupported order");
+        for order in [
+            "rating desc",
+            "created_at sideways",
+            "created_at asc desc",
+            "created_at ASC",
+        ] {
+            let header = format!(" order=\"{order}\"");
+            assert_eq!(parse(&header), "unsupported order");
+        }
         assert_eq!(
             parse(" created_at=\"older than 3 days\""),
             "unsupported created_at"

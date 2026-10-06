@@ -6,7 +6,7 @@ Expand archived `[[module ListPages]]` blocks into ordinary wikitext before FTML
 
 - [x] Recognize `[[module ListPages ...]]...[[/module]]` case-insensitively, including multi-line headers, stray `\` continuations and `]]` inside quoted values; unterminated modules stay text.
 - [x] Select by `category` (default current category, `*`, `.`, `+name`, `-name`), `tags`/`tag` (plain = any, `+` = required, `-` = excluded, `-` alone = untagged; ASCII case-insensitive matching for plain, required and excluded tags, including listing invalidation), `pagetype` (`normal` default excludes `_` pages, `hidden`, `*`) and `created_at="last N days"`.
-- [x] Order by `name`, `fullname`, `title`, `created_at` or `updated_at`, `asc` default when a field is given, `created_at desc` when omitted; ties by full name.
+- [x] Order by `name`, `fullname`, `title`, `created_at` or `updated_at`; bare fields ascend, omitted order defaults to `created_at desc`, and `desc` descends; ties by full name. Observed Wikidot compatibility: explicit `created_at asc` also lists newest first (Valentine → Jotz → Isabeau), while bare `created_at` lists oldest first. This repair changes only `created_at asc`; other explicit `asc` fields retain existing behavior without claiming source parity. Unsupported order syntax remains a visible error.
 - [x] `perPage` defaults to 20, capped at 250.
 - [x] List only anonymously readable pages, because compiled HTML is shared.
 - [x] Fill item tokens: `name`, `fullname`, `title`, `linked_title`/`title_linked` (link with the target's escaped title), `link`, `created_at`/`updated_at` (date block), `form_data{field}`/`form_raw{field}` from the listed page's category form.
@@ -21,12 +21,12 @@ Expand archived `[[module ListPages]]` blocks into ordinary wikitext before FTML
 
 Each render loads the site's page metadata (id, category, name, dates, title, tags) once and evaluates every module in memory, so nested listings cost one query; this assumes a site of thousands, not millions, of pages.
 
-Imported pages carry import-time `created_at`/`updated_at`; original Wikidot creation dates were not acquired. Ordering and display by those fields ("New Characters", "New Writings", digests) is therefore wrong until original timestamps are imported.
+Original Wikidot page timestamps were acquired and reconciled; see [replica timestamp reconciliation evidence](../wiki/systems/cobalt-replica-status.md#coverage). Incorrect New Characters ordering with `created_at asc` is an order-compatibility issue, not evidence of missing source creation dates.
 
 ## Tests asserting this spec
 
-- `deepwell/tests/page_list_pages.rs`: category/tag/pagetype filtering, title order, limit, prepended table, Digest Writings multi-row table, form labels, links, anonymous-denial filtering, explicit unsupported-argument error, CountPages totals beyond one page, nested listing through an include; ignored whole-archive render check.
-- `deepwell/src/services/render/list_pages.rs`: header scanning, argument grammar, selection defaults, layouts, joined Digest Writings table through FTML; ignored `every_archived_header_is_supported` parses all 81 archived ListPages/CountPages headers.
+- `deepwell/tests/page_list_pages.rs`: persisted source creation timestamps rendered in `created_at asc`/`desc`/bare order, `_completed`/category/hidden filtering and limit boundary; category/tag/pagetype filtering, title order, limit, prepended table, Digest Writings multi-row table, form labels, links, anonymous-denial filtering, explicit unsupported-argument error, CountPages totals beyond one page, nested listing through an include; ignored whole-archive render check.
+- `deepwell/src/services/render/list_pages.rs`: concrete creation-date order and date-token regression, unsupported order syntax; header scanning, argument grammar, selection defaults, layouts, joined Digest Writings table through FTML; ignored `every_archived_header_is_supported` parses all 81 archived ListPages/CountPages headers.
 
 ## Current repair proof
 

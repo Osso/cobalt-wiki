@@ -5,7 +5,7 @@ mod common;
 
 use common::TestRunner;
 use deepwell::constants::ADMIN_USER_ID;
-use deepwell::models::{page_revision, role_permission};
+use deepwell::models::{page, page_revision, role_permission};
 use deepwell::services::page::CreatePage;
 use deepwell::services::page_revision::RerenderType;
 use deepwell::services::render::BodyArguments;
@@ -199,6 +199,100 @@ async fn list_pages_selects_orders_limits_and_fills_listed_page_tokens() {
         "{html}"
     );
     assert!(!html.contains("%%") && !html.contains("[[module"), "{html}");
+}
+
+#[tokio::test]
+async fn created_at_order_matches_wikidot_with_completed_filter_and_limit() {
+    let runner = TestRunner::setup_with_idle_job_workers().await;
+    let site_id = site_id(&runner).await;
+    for (slug, timestamp, tags) in [
+        ("character:jotz", 1788883214, &["_completed"][..]),
+        ("character:auralind", 1625380187, &["_completed"][..]),
+        ("character:valentine", 1789317142, &["_completed"][..]),
+        ("character:isabeau", 1788742239, &["_completed"][..]),
+        ("character:incomplete", 1789400000, &[][..]),
+        ("character:_hidden", 1789400001, &["_completed"][..]),
+        ("writing:other", 1789400002, &["_completed"][..]),
+    ] {
+        import_page(&runner, site_id, slug, "Character").await;
+        set_title_and_tags(&runner, site_id, slug, slug, tags).await;
+        let page =
+            PageService::get(runner.context(), site_id, Reference::Slug(slug.into()))
+                .await
+                .unwrap();
+        page::ActiveModel {
+            page_id: Set(page.page_id),
+            created_at: Set(time::OffsetDateTime::from_unix_timestamp(timestamp).unwrap()),
+            ..Default::default()
+        }
+        .update(runner.context().transaction())
+        .await
+        .unwrap();
+    }
+    for (index, order, expected) in [
+        (
+            0,
+            "created_at asc",
+            [
+                ("character:valentine", "1789317142"),
+                ("character:jotz", "1788883214"),
+            ],
+        ),
+        (
+            1,
+            "created_at desc",
+            [
+                ("character:valentine", "1789317142"),
+                ("character:jotz", "1788883214"),
+            ],
+        ),
+        (
+            2,
+            "created_at",
+            [
+                ("character:auralind", "1625380187"),
+                ("character:isabeau", "1788742239"),
+            ],
+        ),
+    ] {
+        let slug = format!("new-characters-{index}");
+        let source = format!(
+            "[[module ListPages category=\"character\" tags=\"_completed\" order=\"{order}\" limit=\"2\"]]\n%%fullname%% %%created_at%%\n[[/module]]"
+        );
+        import_page(&runner, site_id, &slug, &source).await;
+        let html = compiled_body(&runner, site_id, &slug).await;
+        let document = scraper::Html::parse_fragment(&html);
+        let items = scraper::Selector::parse(".list-pages-item").unwrap();
+        let dates = scraper::Selector::parse(".odate").unwrap();
+        let actual: Vec<_> = document
+            .select(&items)
+            .map(|item| {
+                let name = item
+                    .text()
+                    .collect::<String>()
+                    .split_whitespace()
+                    .next()
+                    .unwrap()
+                    .to_owned();
+                let date = item
+                    .select(&dates)
+                    .next()
+                    .expect(&html)
+                    .value()
+                    .classes()
+                    .find_map(|class| class.strip_prefix("time_"))
+                    .expect("rendered date carries the source Unix timestamp")
+                    .to_owned();
+                (name, date)
+            })
+            .collect();
+        assert_eq!(
+            actual,
+            expected.map(|(name, date)| (name.to_owned(), date.to_owned())),
+            "{order}: {html}"
+        );
+        assert!(!html.contains("%%"), "{html}");
+    }
 }
 
 #[tokio::test]
