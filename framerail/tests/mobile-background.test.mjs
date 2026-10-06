@@ -59,6 +59,7 @@ try {
         const page = await browser.newPage({
           viewport: { width, height: 844 },
           isMobile: width === 390,
+          hasTouch: width === 390,
           deviceScaleFactor: 1
         })
         const { body } = render(Component, { props: { siteSlug: "cobalt-company" } })
@@ -103,18 +104,28 @@ try {
         if (width === 390) {
           const session = await page.context().newCDPSession(page)
           await session.send("Emulation.setPageScaleFactor", { pageScaleFactor: 1 })
-        }
-        await page.evaluate(() => scrollTo(600, 300))
-        console.log(
-          JSON.stringify({
-            width,
-            scroll: await page.evaluate(() => ({
-              x: scrollX,
-              y: scrollY,
-              left: visualViewport.pageLeft
-            }))
+          await session.send("Input.synthesizeScrollGesture", {
+            x: 200,
+            y: 200,
+            xDistance: -600,
+            yDistance: -300,
+            gestureSourceType: "touch",
+            speed: 800
           })
-        )
+        } else {
+          await page.evaluate(() => scrollTo(0, 300))
+        }
+        const scroll = await page.evaluate(() => ({
+          left: visualViewport.pageLeft,
+          top: visualViewport.pageTop
+        }))
+        console.log(JSON.stringify({ width, scroll }))
+        assert.ok(scroll.top >= 200, "fixture must actually scroll vertically")
+        if (width === 390)
+          assert.ok(
+            scroll.left >= 500,
+            "fixture must pan to the wide layout's right side"
+          )
         const scrolled = await page.screenshot()
         // Sample the visible right side after scrolling, away from all chrome.
         const rightPixel = await page.evaluate(async (base64) => {
