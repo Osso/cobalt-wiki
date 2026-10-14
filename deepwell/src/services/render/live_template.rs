@@ -1,6 +1,6 @@
 //! Wikidot live form templates: a category's `_template` wraps each YAML page record.
 
-use super::includes::fetch_shared_source_by_slug;
+use super::includes::fetch_render_source_by_slug;
 use super::list_pages::substitute_outside_module_bodies;
 use super::page_tokens::{FormRecord, PageTokens};
 use super::prelude::*;
@@ -17,6 +17,7 @@ pub(super) async fn apply_live_template(
     ctx: &ServiceContext<'_>,
     source: String,
     page_info: &PageInfo<'_>,
+    viewer_id: Option<i64>,
 ) -> Result<String> {
     if page_info.page.starts_with('_') {
         return Ok(source);
@@ -30,7 +31,8 @@ pub(super) async fn apply_live_template(
     };
     let site =
         SiteService::get(ctx, Reference::Slug(page_info.site.as_ref().into())).await?;
-    let Some(template) = fetch_shared_source_by_slug(ctx, site.site_id, &slug).await?
+    let Some(template) =
+        fetch_render_source_by_slug(ctx, site.site_id, &slug, viewer_id).await?
     else {
         return Ok(source);
     };

@@ -1,7 +1,7 @@
 //! Wikidot `[[module ListPages]]` and `[[module CountPages]]` expansion into ordinary
 //! wikitext before FTML parsing.
 
-use super::includes::can_view_shared;
+use super::includes::can_view_render;
 use super::page_tokens::{FormRecord, PageTokens, substitute_tokens};
 
 /// Substitute tokens everywhere except nested module item templates, whose
@@ -420,6 +420,7 @@ pub(super) async fn expand_list_pages(
     mut source: String,
     page_info: &PageInfo<'_>,
     list_page: usize,
+    viewer_id: Option<i64>,
 ) -> Result<(String, Vec<ListingFilter>)> {
     let mut filters = Vec::new();
     if list_pages_blocks(&source).is_empty() {
@@ -427,7 +428,7 @@ pub(super) async fn expand_list_pages(
     }
     let site =
         SiteService::get(ctx, Reference::Slug(page_info.site.as_ref().into())).await?;
-    let mut listing = SiteListing::load(ctx, site.site_id).await?;
+    let mut listing = SiteListing::load(ctx, site.site_id, viewer_id).await?;
     // Items of an outer module may contain inner modules (nested listings).
     for _ in 0..MAX_NESTING {
         match expand_list_pages_once(
@@ -466,7 +467,10 @@ async fn expand_list_pages_once(
         "_default" => page_info.page.to_string(),
         category => format!("{category}:{}", page_info.page),
     };
-    let mut forms = FormCache::default();
+    let mut forms = FormCache {
+        viewer_id: listing.viewer_id,
+        ..Default::default()
+    };
     let mut output = String::with_capacity(source.len());
     let mut copied = 0;
     for block in &blocks {
@@ -510,12 +514,17 @@ fn error_block(kind: ModuleKind, message: &str) -> String {
 /// selection per outer item, which as separate queries exceeded the render budget.
 struct SiteListing {
     site_id: i64,
+    viewer_id: Option<i64>,
     pages: Vec<ListedPage>,
     category_visible: HashMap<i64, bool>,
 }
 
 impl SiteListing {
-    async fn load(ctx: &ServiceContext<'_>, site_id: i64) -> Result<Self> {
+    async fn load(
+        ctx: &ServiceContext<'_>,
+        site_id: i64,
+        viewer_id: Option<i64>,
+    ) -> Result<Self> {
         let statement = Statement::from_sql_and_values(
             DatabaseBackend::Postgres,
             "SELECT p.page_id, p.page_category_id, p.slug, c.slug AS category,
@@ -536,6 +545,7 @@ impl SiteListing {
             })?;
         Ok(SiteListing {
             site_id,
+            viewer_id,
             pages,
             category_visible: HashMap::new(),
         })
@@ -555,35 +565,46 @@ impl SiteListing {
             .filter(|page| selection.matches(page, created_after))
             .collect();
         sort_pages(&mut pages, selection.order, selection.descending);
-        // Compiled HTML is shared, so only anonymously readable pages may be listed.
-        // Anonymous roles never depend on the page (page-author roles require a member),
-        // so one check per category decides every page in it.
         let mut visible = Vec::new();
         for page in pages {
             if Some(visible.len()) == selection.limit {
                 break;
             }
-            let can_view = match self.category_visible.get(&page.page_category_id) {
-                Some(&can_view) => can_view,
-                None => {
-                    let can_view = can_view_shared(
-                        ctx,
-                        self.site_id,
-                        page.page_id,
-                        page.page_category_id,
-                    )
-                    .await?;
-                    self.category_visible
-                        .insert(page.page_category_id, can_view);
-                    can_view
-                }
-            };
+            let can_view = check_listing_page_access(
+                ctx,
+                &mut self.category_visible,
+                self.site_id,
+                self.viewer_id,
+                page,
+            )
+            .await?;
             if can_view {
                 visible.push(page.clone());
             }
         }
         Ok(visible)
     }
+}
+
+async fn check_listing_page_access(
+    ctx: &ServiceContext<'_>,
+    category_visible: &mut HashMap<i64, bool>,
+    site_id: i64,
+    viewer_id: Option<i64>,
+    page: &ListedPage,
+) -> Result<bool> {
+    // Only anonymous access is category-wide; a viewer may have page-author grants.
+    let shared = viewer_id.is_none();
+    if shared && let Some(&visible) = category_visible.get(&page.page_category_id) {
+        return Ok(visible);
+    }
+    let visible =
+        can_view_render(ctx, site_id, page.page_id, page.page_category_id, viewer_id)
+            .await?;
+    if shared {
+        category_visible.insert(page.page_category_id, visible);
+    }
+    Ok(visible)
 }
 
 impl Selection {
@@ -693,7 +714,10 @@ fn sort_pages(pages: &mut [&ListedPage], order: OrderField, descending: bool) {
 
 /// Per-category form schemas, loaded only when an item template uses form tokens.
 #[derive(Default)]
-struct FormCache(HashMap<String, Option<wikidot_forms::FormSchema>>);
+struct FormCache {
+    schemas: HashMap<String, Option<wikidot_forms::FormSchema>>,
+    viewer_id: Option<i64>,
+}
 
 async fn render_items(
     ctx: &ServiceContext<'_>,
@@ -731,14 +755,15 @@ async fn load_form_records<'f>(
     forms: &'f mut FormCache,
 ) -> Result<Vec<Option<FormRecord<'f>>>> {
     for page in pages {
-        if !forms.0.contains_key(&page.category) {
-            let schema = load_category_schema(ctx, site_id, &page.slug).await?;
-            forms.0.insert(page.category.clone(), schema);
+        if !forms.schemas.contains_key(&page.category) {
+            let schema =
+                load_category_schema(ctx, site_id, &page.slug, forms.viewer_id).await?;
+            forms.schemas.insert(page.category.clone(), schema);
         }
     }
     let forms = &*forms;
     let schema_of =
-        |page: &ListedPage| forms.0.get(&page.category).and_then(Option::as_ref);
+        |page: &ListedPage| forms.schemas.get(&page.category).and_then(Option::as_ref);
     let hashes: Vec<_> = pages
         .iter()
         .filter(|page| schema_of(page).is_some())
@@ -768,12 +793,14 @@ async fn load_category_schema(
     ctx: &ServiceContext<'_>,
     site_id: i64,
     page_slug: &str,
+    viewer_id: Option<i64>,
 ) -> Result<Option<wikidot_forms::FormSchema>> {
     let Some(slug) = template_slug(page_slug) else {
         return Ok(None);
     };
     let Some(template) =
-        super::includes::fetch_shared_source_by_slug(ctx, site_id, &slug).await?
+        super::includes::fetch_render_source_by_slug(ctx, site_id, &slug, viewer_id)
+            .await?
     else {
         return Ok(None);
     };

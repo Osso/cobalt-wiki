@@ -8,7 +8,7 @@ Stored HTML is reused while its rendering-input identity remains current. `deepw
 - [x] Documentation, frontend, tests and build-output changes do not change the identity.
 - [x] Backend Rust, vendored dependencies, manifests/lockfile, default configuration, embedded templates and locale changes change the identity. The hash is deliberately conservative: unrelated backend API code can still invalidate HTML; it does not attempt semantic dependency analysis.
 - [x] Adding/removing input files changes identity; missing required inputs fail with the affected path. File symlinks hash their contents, including the tracked `misc/config.toml` link.
-- [x] A current page reuses its stored HTML; a mismatched page rerenders before returning content and stores the current identity.
+- [x] Shared rendering reuses current stored HTML; a mismatched page rerenders and stores the current identity. Signed-in response-only views may expand viewer-authorized dependencies without modifying stored HTML, revision identity or compiled hashes.
 - [x] Production app and Nix packaging consume the same identity mechanism, not a repository commit or a store-path hash. FTML's commit-bearing version string must not reintroduce unrelated Git metadata into the key.
 
 ## How it works

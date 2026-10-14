@@ -237,10 +237,10 @@ pub struct RerenderPage {
     pub rerender_type: RerenderType,
 }
 
-/// A page's body and navigation HTML rendered for one viewer's show-to regions;
-/// `None` keeps the shared stored HTML.
+/// Response-only body and navigation rendered with the viewer's permissions.
+/// The body is absent when the viewer cannot read the requested page.
 #[derive(Debug, Default)]
-pub struct ShowToHtml {
+pub struct ViewerHtml {
     pub body: Option<String>,
-    pub navigation: crate::services::render::ShowToNavigation,
+    pub navigation: crate::services::render::ViewerNavigation,
 }

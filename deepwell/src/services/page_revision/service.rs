@@ -23,6 +23,7 @@ use crate::models::page_revision::{
     self, Entity as PageRevision, Model as PageRevisionModel,
 };
 use crate::models::site::Model as SiteModel;
+use crate::models::user::Model as UserModel;
 use crate::services::render::{BodyArguments, COMPILED_GENERATOR, RenderPageOutput};
 use crate::services::score::ScoreValue;
 use crate::services::{
@@ -978,17 +979,15 @@ impl PageRevisionService {
         .or_raise(make_error)
     }
 
-    /// The latest revision's body and navigation HTML for a signed-in viewer (a
-    /// user slug) listed by show-to regions in their sources, rendered without
-    /// storing; a `None` field keeps the shared stored HTML. `with_body` is false
-    /// when the viewer may not view the page and sees its permission page.
-    pub async fn render_show_to_view(
+    /// Render the latest body and navigation with the viewer's permissions,
+    /// without storing personalized HTML. A denied page never renders its body.
+    pub async fn render_viewer_page(
         ctx: &ServiceContext<'_>,
         page: PageId,
         body: &BodyArguments,
         with_body: bool,
-        viewer: &str,
-    ) -> Result<ShowToHtml> {
+        viewer: &UserModel,
+    ) -> Result<ViewerHtml> {
         let PageId {
             site_id,
             category_id,
@@ -997,7 +996,7 @@ impl PageRevisionService {
         let make_error = || {
             Error::new(
                 format!(
-                    "failed to render show-to regions of page ID {page_id} on site ID {site_id}"
+                    "failed to render viewer response for page ID {page_id} on site ID {site_id}"
                 ),
                 ErrorType::PageRevision,
             )
@@ -1011,7 +1010,7 @@ impl PageRevisionService {
             if !with_body {
                 return Ok(None);
             }
-            RenderService::render_show_to(
+            RenderService::render_viewer_html(
                 ctx,
                 &view.wikitext,
                 &page_info,
@@ -1020,8 +1019,9 @@ impl PageRevisionService {
                 viewer,
             )
             .await
+            .map(Some)
         };
-        let navigation = RenderService::render_show_to_nav(
+        let navigation = RenderService::render_viewer_nav(
             ctx,
             site_id,
             Some(category_id),
@@ -1030,7 +1030,7 @@ impl PageRevisionService {
             viewer,
         );
         let (body, navigation) = try_join!(body_html, navigation).or_raise(make_error)?;
-        Ok(ShowToHtml { body, navigation })
+        Ok(ViewerHtml { body, navigation })
     }
 
     async fn load_render_view(

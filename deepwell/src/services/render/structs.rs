@@ -48,7 +48,7 @@ pub struct RenderPageOutput {
 
 /// Navigation HTML rendered for one viewer; `None` keeps the shared stored HTML.
 #[derive(Debug, Default)]
-pub struct ShowToNavigation {
+pub struct ViewerNavigation {
     pub top_bar: Option<String>,
     pub side_bar: Option<String>,
 }

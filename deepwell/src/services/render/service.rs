@@ -21,6 +21,7 @@
 use super::list_pages::ListingFilter;
 use super::prelude::*;
 use crate::hash::TextHash;
+use crate::models::user::Model as UserModel;
 use crate::services::TextService;
 use crate::services::settings::{NavigationPageWikitext, SettingsService};
 use crate::services::text_block::{
@@ -225,7 +226,8 @@ impl RenderService {
     ) -> Result<String> {
         let settings = WikitextSettings::from_mode(WikitextMode::Page, layout);
         let rendered =
-            Self::render_html(ctx, wikitext, page_info, &settings, Some(body)).await?;
+            Self::render_html(ctx, wikitext, page_info, &settings, Some(body), None)
+                .await?;
         Ok(rendered.html_output.body)
     }
 
@@ -247,6 +249,7 @@ impl RenderService {
             page_info,
             &settings,
             Some(&BodyArguments::default()),
+            None,
         )
         .await?;
         if !rendered.errors.is_empty() {
@@ -259,37 +262,39 @@ impl RenderService {
         Ok(rendered.html_output.body)
     }
 
-    /// Render a page body (`body` is `Some`) or navigation fragment for a
-    /// signed-in viewer (a user slug), keeping the show-to regions that list them.
-    /// `None` when no region does, so the shared stored HTML applies. Nothing is
-    /// stored.
-    pub async fn render_show_to(
+    /// Render authorized dependencies and matching show-to regions for one viewer.
+    /// This response-only path never stores the personalized HTML.
+    pub async fn render_viewer_html(
         ctx: &ServiceContext<'_>,
         wikitext: &str,
         page_info: &PageInfo<'_>,
         settings: &WikitextSettings,
         body: Option<&BodyArguments>,
-        viewer: &str,
-    ) -> Result<Option<String>> {
-        let Some(wikitext) = super::show_to::reveal_show_to_regions(wikitext, viewer)
-        else {
-            return Ok(None);
-        };
-        let rendered =
-            Self::render_html(ctx, wikitext, page_info, settings, body).await?;
-        Ok(Some(rendered.html_output.body))
+        viewer: &UserModel,
+    ) -> Result<String> {
+        let source = super::show_to::reveal_show_to_regions(wikitext, &viewer.slug)
+            .unwrap_or_else(|| wikitext.to_owned());
+        let rendered = Self::render_html(
+            ctx,
+            source,
+            page_info,
+            settings,
+            body,
+            Some(viewer.user_id),
+        )
+        .await?;
+        Ok(rendered.html_output.body)
     }
 
-    /// Top and side bar HTML for a signed-in viewer (a user slug) listed by
-    /// show-to regions in the navigation pages; `None` keeps the stored HTML.
-    pub async fn render_show_to_nav(
+    /// Response-only navigation with the viewer's dependency permissions.
+    pub async fn render_viewer_nav(
         ctx: &ServiceContext<'_>,
         site_id: i64,
         category_id: Option<i64>,
         page_info: &PageInfo<'_>,
         layout: Layout,
-        viewer: &str,
-    ) -> Result<ShowToNavigation> {
+        viewer: &UserModel,
+    ) -> Result<ViewerNavigation> {
         let settings = WikitextSettings::from_mode(WikitextMode::PageNav, layout);
         let NavigationPageWikitext {
             top_bar_page_wikitext,
@@ -299,12 +304,11 @@ impl RenderService {
             let settings = &settings;
             async move {
                 match wikitext {
-                    Some(wikitext) => {
-                        Self::render_show_to(
-                            ctx, &wikitext, page_info, settings, None, viewer,
-                        )
-                        .await
-                    }
+                    Some(wikitext) => Self::render_viewer_html(
+                        ctx, &wikitext, page_info, settings, None, viewer,
+                    )
+                    .await
+                    .map(Some),
                     None => Ok(None),
                 }
             }
@@ -313,7 +317,7 @@ impl RenderService {
             render(top_bar_page_wikitext),
             render(side_bar_page_wikitext),
         )?;
-        Ok(ShowToNavigation { top_bar, side_bar })
+        Ok(ViewerNavigation { top_bar, side_bar })
     }
 
     /// Render and store the output: compiled HTML always, text blocks for pages.
@@ -339,6 +343,7 @@ impl RenderService {
             page_info,
             settings,
             page_id.map(|_| &stored_body),
+            None,
         )
         .await?;
         // Insert compiled HTML into text table
@@ -415,12 +420,13 @@ impl RenderService {
         page_info: &PageInfo<'_>,
         settings: &WikitextSettings,
         body: Option<&BodyArguments>,
+        viewer_id: Option<i64>,
     ) -> Result<RenderedHtml> {
         let config = ctx.config();
         let total_budget = config.preprocess_timeout + config.render_timeout;
         timeout(
             total_budget,
-            Self::render_html_stages(ctx, wikitext, page_info, settings, body),
+            Self::render_html_stages(ctx, wikitext, page_info, settings, body, viewer_id),
         )
         .await
         .or_raise(|| {
@@ -437,24 +443,32 @@ impl RenderService {
         page_info: &PageInfo<'_>,
         settings: &WikitextSettings,
         body: Option<&BodyArguments>,
+        viewer_id: Option<i64>,
     ) -> Result<RenderedHtml> {
         let config = ctx.config();
 
         // Database-backed expansion uses the total budget, not the FTML-only limit.
         if body.is_some() {
-            wikitext =
-                super::live_template::apply_live_template(ctx, wikitext, page_info)
-                    .await?;
+            wikitext = super::live_template::apply_live_template(
+                ctx, wikitext, page_info, viewer_id,
+            )
+            .await?;
         }
         let source = super::show_to::strip_show_to_regions(wikitext);
-        let (expanded, included_pages) =
-            super::includes::expand_includes(ctx, source, &page_info.site, settings)
-                .await?;
+        let (expanded, included_pages) = super::includes::expand_includes(
+            ctx,
+            source,
+            &page_info.site,
+            settings,
+            viewer_id,
+        )
+        .await?;
         let (listed, listings) = super::list_pages::expand_list_pages(
             ctx,
             expanded,
             page_info,
             body.map_or(1, |body| body.list_page),
+            viewer_id,
         )
         .await?;
         wikitext = listed;

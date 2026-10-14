@@ -8,9 +8,10 @@ Expand archived Wikidot includes before FTML rendering without rewriting stored 
 - [x] Ignore pipe segments without `=` (as Wikidot does) instead of dropping the whole directive.
 - [x] Apply expansion to page body and both navigation regions.
 - [x] Never insert missing, deleted, foreign-site, or anonymously unreadable target content into shared compiled HTML.
+- [x] Response-only signed-in views expand same-site includes only when that viewer may read the target page; personalized content never replaces shared compiled HTML.
 - [x] Record only resolved same-site included-page dependencies; unavailable and foreign directives create none.
 - [x] Omit `:snippets:suo` `type=showto` regions (with their markers) from shared output; an unterminated region hides the rest of the source.
-- [x] Show `:snippets:suo` `type=showto` regions to the signed-in users they list (`user`, `user0`..`user99`, compared case-insensitively with the session user's slug) and to nobody else. As on Wikidot (the snippet wraps the region in `ListUsers users="."`), anonymous visitors get nothing; unlike Wikidot, which sends the region to every signed-in user and hides it with CSS, unlisted users are never sent it. The page body, top bar or side bar whose source lists the viewer is rendered for them at view time without storing (`page_view` session only); everyone else gets the shared stored HTML.
+- [x] Show `:snippets:suo` `type=showto` regions to the signed-in users they list (`user`, `user0`..`user99`, compared case-insensitively with the session user's slug) and to nobody else. As on Wikidot (the snippet wraps the region in `ListUsers users="."`), anonymous visitors get nothing; unlike Wikidot, which sends the region to every signed-in user and hides it with CSS, unlisted users are never sent it. Signed-in page bodies and navigation render at view time with that viewer's dependency permissions without storing (`page_view` session only); show-to regions still appear only for listed viewers. Anonymous responses retain shared output.
 - [ ] Invalidate compiled output after included-page or permission changes.
 - [x] Terminate cyclic expansion with an explicit error without replacing the stored compiled revision.
 - [x] Accept terminal output at depth 16; reject an additional nesting level without replacing the stored compiled revision.
@@ -25,7 +26,7 @@ Expand archived Wikidot includes before FTML rendering without rewriting stored 
 - `deepwell/vendor/ftml/src/includes/mod.rs`: existing parser exposed for asynchronous source resolution; variable substitution remains in FTML.
 - `deepwell/src/services/render/includes.rs`: same-site source resolution and bounded expansion for shared output.
 - `deepwell/src/services/render/service.rs`: preprocessing and dependency integration.
-- `deepwell/src/services/render/show_to.rs`, `ViewService::page`, `PageRevisionService::render_show_to_view`: show-to stripping and per-viewer rendering.
+- `deepwell/src/services/render/show_to.rs`, `ViewService::page`, `PageRevisionService::render_viewer_page`: show-to stripping and per-viewer rendering.
 
 ## Tests asserting this spec
 
@@ -40,7 +41,7 @@ Expand archived Wikidot includes before FTML rendering without rewriting stored 
 - [ ] Verify actual archived homepage/navigation includes in the local browser; these still require source-grammar work.
 - [ ] Reconcile parser coverage against source syntax, including nav directives the current scanner does not parse.
 - [ ] Establish source ACL equivalence and invalidation after permission changes; target anonymous-read checks alone do not prove either.
-- [ ] Support viewer-private includes through viewer-aware rendering; shared output cannot encode viewer-specific decisions. Show-to regions are revealed only in the page's or nav page's own source; regions inside live templates or included pages stay hidden from everyone.
+Show-to regions are revealed only in the page's or navigation page's own source; regions inside live templates or included pages stay hidden from everyone, even when the included page is readable by the viewer.
 - [ ] Acquire authorized foreign include sources and establish their rendering/permission behavior.
 
 ## Out of scope

@@ -34,8 +34,9 @@ use super::prelude::*;
 use crate::models::page::Model as PageModel;
 use crate::models::page_revision::Model as PageRevisionModel;
 use crate::models::site::Model as SiteModel;
+use crate::models::user::Model as UserModel;
 use crate::services::blueprint::{BlueprintPageType, GetBlueprintPageOutput};
-use crate::services::page_revision::{RerenderType, ShowToHtml};
+use crate::services::page_revision::{RerenderType, ViewerHtml};
 use crate::services::permission::{CheckPermissionContext, PermissionService};
 use crate::services::relation::{
     GetPageAttributions, GetSiteBan, PageAttribution, RelationService,
@@ -358,7 +359,9 @@ impl ViewService {
                     // SiteChanges is a live feed even with the default URL arguments.
                     let live_site_changes =
                         compiled_body_html.contains("class=\"site-changes-box\"");
-                    if live_site_changes || body != BodyArguments::default() {
+                    if user_session.is_none()
+                        && (live_site_changes || body != BodyArguments::default())
+                    {
                         compiled_body_html = PageRevisionService::render_body_view(
                             ctx,
                             page.site_id,
@@ -507,8 +510,8 @@ impl ViewService {
             }
         };
 
-        // Content that show-to regions reserve for listed users is rendered for
-        // them here, never stored or sent to anyone else.
+        // Authorized dependencies and show-to regions are rendered only in this
+        // viewer's response, never in shared compiled storage.
         let (compiled_body_html, compiled_top_bar_html, compiled_side_bar_html) =
             match &user_session {
                 None => (
@@ -517,18 +520,18 @@ impl ViewService {
                     compiled_side_bar_html,
                 ),
                 Some(session) => {
-                    let viewer = &session.user.slug;
-                    let ShowToHtml { body, navigation } = match page_id {
+                    let viewer = &session.user;
+                    let ViewerHtml { body, navigation } = match page_id {
                         Some(page_id) => {
                             let with_body =
                                 matches!(page_status, PageStatus::Found { .. });
-                            PageRevisionService::render_show_to_view(
+                            PageRevisionService::render_viewer_page(
                                 ctx, page_id, &body, with_body, viewer,
                             )
                             .await
                         }
                         None => {
-                            Self::render_missing_page_show_to(
+                            Self::render_missing_page_for_viewer(
                                 ctx,
                                 site_id,
                                 category_id,
@@ -854,17 +857,16 @@ impl ViewService {
         })
     }
 
-    /// A missing page shows the site navigation, rendered for `viewer` when its
-    /// show-to regions list them.
-    async fn render_missing_page_show_to(
+    /// Missing-page navigation uses the viewer's dependency permissions.
+    async fn render_missing_page_for_viewer(
         ctx: &ServiceContext<'_>,
         site_id: i64,
         category_id: Option<i64>,
         page_info: &PageInfo<'_>,
-        viewer: &str,
-    ) -> Result<ShowToHtml> {
+        viewer: &UserModel,
+    ) -> Result<ViewerHtml> {
         let layout = SettingsService::get_layout(ctx, site_id, None).await?;
-        let navigation = RenderService::render_show_to_nav(
+        let navigation = RenderService::render_viewer_nav(
             ctx,
             site_id,
             category_id,
@@ -873,7 +875,7 @@ impl ViewService {
             viewer,
         )
         .await?;
-        Ok(ShowToHtml {
+        Ok(ViewerHtml {
             body: None,
             navigation,
         })

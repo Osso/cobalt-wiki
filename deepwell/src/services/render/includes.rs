@@ -51,6 +51,7 @@ pub(super) async fn expand_includes(
     mut source: String,
     site_slug: &str,
     settings: &WikitextSettings,
+    viewer_id: Option<i64>,
 ) -> Result<(String, Vec<PageRef>)> {
     if !settings.enable_page_syntax || parse_includes(&source).is_empty() {
         return Ok((source, Vec::new()));
@@ -67,8 +68,15 @@ pub(super) async fn expand_includes(
         }
         directive_count += references.len();
         check_work_limits(depth, directive_count, source.len())?;
-        fetch_include_sources(ctx, site.site_id, site_slug, &references, &mut fetched)
-            .await?;
+        fetch_include_sources(
+            ctx,
+            site.site_id,
+            site_slug,
+            &references,
+            &mut fetched,
+            viewer_id,
+        )
+        .await?;
         let (expanded, pages) = substitute_fetched_sources(&source, settings, &fetched)?;
         dependencies.extend(pages.into_iter().filter(|page| is_local(page, site_slug)));
         source = expanded;
@@ -133,6 +141,7 @@ async fn fetch_include_sources(
     site_slug: &str,
     references: &[PageRef],
     fetched: &mut FetchedIncludes,
+    viewer_id: Option<i64>,
 ) -> Result<()> {
     let pending: HashSet<_> = references
         .iter()
@@ -162,7 +171,7 @@ async fn fetch_include_sources(
         let content = if !is_local(&reference, site_slug) {
             None
         } else if let Some(page) = pages.get(reference.page()) {
-            fetch_shared_source(ctx, page).await?
+            fetch_render_source(ctx, page, viewer_id).await?
         } else {
             None
         };
@@ -171,11 +180,20 @@ async fn fetch_include_sources(
     Ok(())
 }
 
-pub(super) async fn fetch_shared_source(
+pub(super) async fn fetch_render_source(
     ctx: &ServiceContext<'_>,
     page: &page::Model,
+    viewer_id: Option<i64>,
 ) -> Result<Option<String>> {
-    if !can_view_shared(ctx, page.site_id, page.page_id, page.page_category_id).await? {
+    if !can_view_render(
+        ctx,
+        page.site_id,
+        page.page_id,
+        page.page_category_id,
+        viewer_id,
+    )
+    .await?
+    {
         return Ok(None);
     }
     let revision =
@@ -186,11 +204,12 @@ pub(super) async fn fetch_shared_source(
         .map(|source| Some(super::show_to::strip_show_to_regions(source)))
 }
 
-/// Latest source of a same-site page that anonymous readers may view.
-pub(super) async fn fetch_shared_source_by_slug(
+/// Latest same-site source visible to the render's viewer; `None` means anonymous.
+pub(super) async fn fetch_render_source_by_slug(
     ctx: &ServiceContext<'_>,
     site_id: i64,
     slug: &str,
+    viewer_id: Option<i64>,
 ) -> Result<Option<String>> {
     let page = Page::find()
         .filter(page::Column::SiteId.eq(site_id))
@@ -200,22 +219,23 @@ pub(super) async fn fetch_shared_source_by_slug(
         .await
         .or_raise(|| Error::new("failed to fetch shared page", ErrorType::Render))?;
     match page {
-        Some(page) => fetch_shared_source(ctx, &page).await,
+        Some(page) => fetch_render_source(ctx, &page, viewer_id).await,
         None => Ok(None),
     }
 }
 
-/// Compiled HTML is shared: never materialize content a privileged viewer alone may read.
-pub(super) async fn can_view_shared(
+/// Stored renders pass no viewer; only response-only renders may pass a user ID.
+pub(super) async fn can_view_render(
     ctx: &ServiceContext<'_>,
     site_id: i64,
     page_id: i64,
     category_id: i64,
+    viewer_id: Option<i64>,
 ) -> Result<bool> {
     PermissionService::check_user_can(
         ctx,
         &CheckPermissionContext {
-            user_id: None,
+            user_id: viewer_id,
             site_id,
             page_reference: Some(Reference::Id(page_id)),
         },
