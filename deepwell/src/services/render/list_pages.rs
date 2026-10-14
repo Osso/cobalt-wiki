@@ -314,7 +314,10 @@ fn parse_categories(value: Option<&String>, current: &str, selection: &mut Selec
 }
 
 fn parse_tags(value: &str, selection: &mut Selection) {
-    for term in value.split_whitespace() {
+    for term in value
+        .split(|character: char| character.is_whitespace() || character == ',')
+        .filter(|term| !term.is_empty())
+    {
         if term == "-" {
             selection.untagged = true;
         } else if let Some(tag) = term.strip_prefix('+') {
@@ -1014,6 +1017,45 @@ mod tests {
                 })
                 .collect();
             assert_eq!(items, expected_items, "{order}");
+        }
+    }
+
+    #[test]
+    fn comma_tag_selectors_preserve_operators_and_untagged_matching() {
+        for attribute in ["tags", "tag"] {
+            for separators in [",", ", \t", " "] {
+                let terms = ["Almeiria", "Shun", "+Completed", "+Alliance", "-Inactive"];
+                let header = format!(" {attribute}=\" ,{} , \"", terms.join(separators));
+                let filter = selection(&header).filter();
+                for (tags, expected) in [
+                    (vec!["almeiria", "completed", "alliance"], true),
+                    (vec!["SHUN", "COMPLETED", "ALLIANCE"], true),
+                    (vec!["shun", "completed"], false),
+                    (vec!["shun", "alliance"], false),
+                    (vec!["shun", "completed", "alliance", "INACTIVE"], false),
+                    (vec!["caspis", "completed", "alliance"], false),
+                    (vec![], false),
+                ] {
+                    let tags: Vec<String> = tags.into_iter().map(str::to_owned).collect();
+                    let page = ListingSubject {
+                        category: "character",
+                        name: "member",
+                        tags: &tags,
+                    };
+                    assert_eq!(filter.matches(&page), expected, "{header}: {tags:?}");
+                }
+            }
+            let untagged =
+                selection(&format!(" {attribute}=\" ,, -, -Inactive, \" ")).filter();
+            let tags = ["almeiria".to_owned()];
+            for (tags, expected) in [(&[][..], true), (&tags[..], false)] {
+                let page = ListingSubject {
+                    category: "character",
+                    name: "member",
+                    tags,
+                };
+                assert_eq!(untagged.matches(&page), expected, "{tags:?}");
+            }
         }
     }
 

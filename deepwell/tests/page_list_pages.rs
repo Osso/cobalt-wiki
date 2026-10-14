@@ -8,7 +8,8 @@ use deepwell::constants::ADMIN_USER_ID;
 use deepwell::models::{page, page_revision, role_permission};
 use deepwell::services::page::CreatePage;
 use deepwell::services::page_revision::RerenderType;
-use deepwell::services::render::BodyArguments;
+use deepwell::services::render::{BodyArguments, COMPILED_GENERATOR};
+use deepwell::services::view::GetPageViewOutput;
 use deepwell::services::{PageRevisionService, PageService, TextService};
 use deepwell::types::{Action, PageId, Reference, Resource};
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
@@ -166,6 +167,107 @@ async fn form_pages_render_through_their_category_template() {
     let public = compiled_body(&runner, site_id, "writing:_public").await;
     assert!(public.contains("Members only."), "{public}");
     assert!(!public.contains("Box by"), "{public}");
+}
+
+#[tokio::test]
+async fn writing_character_portraits_accept_comma_and_whitespace_separators() {
+    let runner = TestRunner::setup_with_idle_job_workers().await;
+    let site_id = site_id(&runner).await;
+    let names = [
+        "Almeiria",
+        "Anareline",
+        "Atley",
+        "Caspis",
+        "Colson",
+        "Cressidha",
+        "Gwenivene",
+        "Peixin",
+        "Costentyn",
+        "Shun",
+    ];
+    for name in names {
+        let category = if name == "Peixin" { "bgc" } else { "character" };
+        let slug = format!("{category}:{}", name.to_ascii_lowercase());
+        import_page(&runner, site_id, &slug, "Character portrait fixture").await;
+        set_title_and_tags(&runner, site_id, &slug, name, &[&name.to_ascii_lowercase()])
+            .await;
+    }
+    import_page(
+        &runner, site_id, "writingbox",
+        "[[module ListPages separate=\"no\" category=\"character bgc\" tags=\"{$characters}\" order=\"name\" perPage=\"200\" \\]]\n[[image icons/icon_%%name%%.jpg alt=\"%%title%%\" link=\"%%link%%\" width=\"120px\" style=\"margin:0.15rem;\"]] \\\n[[/module]]",
+    ).await;
+    import_page(
+        &runner, site_id, "writing:_template",
+        "[[include WritingBox\n| characters=%%form_raw{characters}%%\n]]\n\n====\n\n[[form]]\nfields:\n  characters:\n    type: text\n[[/form]]\n",
+    ).await;
+    let production_slug = "writing:2026-09-13-throne-of-thunder:council-of-elders";
+    for (index, characters) in [
+        "Almeiria, Anareline, Atley, Caspis, Colson, Cressidha, Gwenivene, Peixin, Costentyn, Shun".to_owned(),
+        names.join(" "),
+        names.join(","),
+        " ,Almeiria,\tAnareline Atley,, Caspis,Colson Cressidha, Gwenivene\tPeixin,Costentyn Shun, ".to_owned(),
+    ].into_iter().enumerate() {
+        let slug = if index == 0 { production_slug.to_owned() } else { format!("writing:separators-{index}") };
+        let record = format!("characters: '{characters}'\n");
+        import_page(&runner, site_id, &slug, &record).await;
+        let html = compiled_body(&runner, site_id, &slug).await;
+        assert_portraits(&html, &names);
+        if index != 0 {
+            continue;
+        }
+        // A newly deployed generator must replace stale one-portrait HTML on view.
+        let page = PageService::get(runner.context(), site_id, Reference::Slug(slug.clone().into())).await.unwrap();
+        let before = PageRevisionService::get_latest(runner.context(), site_id, page.page_id).await.unwrap();
+        let stale_html = TextService::create(runner.context(), "<p>Shun only from old renderer</p>".into()).await.unwrap();
+        page_revision::ActiveModel {
+            revision_id: Set(before.revision_id),
+            compiled_body_html_hash: Set(stale_html.to_vec()),
+            compiled_generator: Set("render-inputs-v1:before-comma-separators".into()),
+            ..Default::default()
+        }.update(runner.context().transaction()).await.unwrap();
+        let view = deepwell::endpoints::view::page_view(
+            runner.context(),
+            common::make_params(json!({
+                "site_id": site_id, "session_token": null, "locales": ["en"],
+                "route": {"slug": slug, "extra": ""},
+            })),
+        ).await.unwrap();
+        let GetPageViewOutput::Found { compiled_body_html, wikitext, page, .. } = view else {
+            panic!("writing page must be found: {view:?}");
+        };
+        assert_eq!(page.slug, production_slug);
+        assert_eq!(wikitext, record);
+        assert_portraits(&compiled_body_html, &names);
+        let after = PageRevisionService::get_latest(runner.context(), site_id, page.page_id).await.unwrap();
+        assert_eq!(after.revision_id, before.revision_id);
+        assert_eq!(after.wikitext_hash, before.wikitext_hash);
+        assert_eq!(after.compiled_generator, *COMPILED_GENERATOR);
+        println!("{production_slug}: {compiled_body_html}");
+    }
+}
+
+fn assert_portraits(html: &str, names: &[&str]) {
+    assert_eq!(html.matches("<img ").count(), names.len(), "{html}");
+    let mut sorted = names.to_vec();
+    sorted.sort_unstable();
+    let mut previous = None;
+    for name in sorted {
+        let slug = name.to_ascii_lowercase();
+        let category = if name == "Peixin" { "bgc" } else { "character" };
+        for attribute in [
+            format!("src=\"/-/file/icons/icon_{slug}.jpg\""),
+            format!("href=\"/{category}:{slug}\""),
+            format!("alt=\"{name}\""),
+        ] {
+            assert_eq!(html.matches(&attribute).count(), 1, "{attribute}: {html}");
+        }
+        let position = html.find(&format!("alt=\"{name}\"")).unwrap();
+        assert!(
+            previous.is_none_or(|previous| previous < position),
+            "{html}"
+        );
+        previous = Some(position);
+    }
 }
 
 #[tokio::test]
