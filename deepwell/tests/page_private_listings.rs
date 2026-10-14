@@ -24,10 +24,13 @@ use sea_orm::{ActiveModelTrait, Set};
 use serde_json::{Value, json};
 use time::{Duration, OffsetDateTime};
 
-const PORTRAIT: &str = "https://example.invalid/private-player-portrait.png";
-const RECORD: &str = "name: Private Player Orchid\nimage: https://example.invalid/private-player-portrait.png\n";
-const TEMPLATE: &str = "Profile: **%%form_data{name}%%**\n\n[[include player:_biography]]\n\n[[image %%form_raw{image}%% alt=\"Player portrait\"]]\n\n====\n\n[[form]]\nfields:\n  name:\n    type: text\n  image:\n    type: text\n[[/form]]\n";
-const LISTING: &str = "Profile directory\n\n[[module ListPages category=\"player\" order=\"name\" separate=\"no\"]]\n%%linked_title%%: %%form_data{name}%%\n\n[[image %%form_raw{image}%% alt=\"Listed player portrait\"]]\n[[/module]]\n\nDirectory end";
+const PORTRAIT: &str = "/-/file/player:orchid/private-player-portrait.png";
+const RECORD: &str =
+    "name: Private Player Orchid\nportrait: private-player-portrait.png\n";
+const PLAYER_BOX: &str =
+    "[[image {$image} style=\"margin: 0; border: 0;\" width=\"320px\" alt=\"\"]]";
+const TEMPLATE: &str = "Profile: **%%form_data{name}%%**\n\n[[include player:_biography]]\n\n[[include public:playerbox\n| image=%%fullname%%/%%form_raw{portrait}%%\n]]\n\n====\n\n[[form]]\nfields:\n  name:\n    type: text\n  portrait:\n    type: text\n[[/form]]\n";
+const LISTING: &str = "Profile directory\n\n[[module ListPages category=\"player\" order=\"name\" separate=\"no\"]]\n%%linked_title%%: %%form_data{name}%%\n\n[[include public:playerbox\n| image=%%fullname%%/%%form_raw{portrait}%%\n]]\n[[/module]]\n\nDirectory end";
 
 struct Fixture {
     site_id: i64,
@@ -226,6 +229,7 @@ async fn fixture(ctx: &ServiceContext<'_>, label: &str) -> Fixture {
     let registered_id = account(ctx, &format!("{label}-registered")).await;
     let registered = token(ctx, registered_id).await;
     for (slug, source) in [
+        ("public:playerbox", PLAYER_BOX),
         ("player:_biography", "Private included biography"),
         ("player:_template", TEMPLATE),
         ("player:orchid", RECORD),
@@ -383,7 +387,11 @@ async fn private_profile_expands_form_and_portrait_only_for_member_or_higher() {
                 view(ctx, fixture.site_id, "player:orchid", Some(token)).await,
                 &original,
             );
-            assert_eq!(form.unwrap()["values"]["image"], PORTRAIT, "{rank}");
+            assert_eq!(
+                form.unwrap()["values"]["portrait"],
+                "private-player-portrait.png",
+                "{rank}"
+            );
             assert_portrait(&html, true);
             assert!(
                 html.contains("Profile:") && html.contains("Private included biography"),
