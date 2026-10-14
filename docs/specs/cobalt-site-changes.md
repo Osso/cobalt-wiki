@@ -1,12 +1,15 @@
 # Cobalt site changes
 
-Site Changes renders the imported Wikidot `wikidot_site_change` feed in the current wiki. It targets module-behavior parity using the Files-table visual direction established by `97261dde1`, rather than copying Wikidot’s legacy styling. [Replica status](../wiki/systems/cobalt-replica-status.md) records implementation evidence and rollout limits.
+Site Changes renders native page revisions together with preserved imported Wikidot history in the current authoritative wiki. It targets module-behavior parity using the Files-table visual direction established by `97261dde1`, rather than copying Wikidot’s legacy styling. [Replica status](../wiki/systems/cobalt-replica-status.md) records implementation evidence and rollout limits.
 
 ## What it must do
 
 ### Feed and filtering
 
 - [x] Preserve revision metadata without rewriting page source or history; report feed coverage separately from rendering behavior.
+- [ ] Include committed native page creations and edits immediately on subsequent default and filtered views, without Wikidot sync or rewriting imported history.
+- [ ] Apply category/type filters and newest-first pagination to the combined feed; map native creation to N, source to S, title to T, slug to R, tags to A, and alternate title to M. Unchanged edits create no feed row.
+- [ ] Exclude imported `page_revision` rows (`from_wikidot`) from the native branch so separately imported history is not counted twice.
 - [x] Preserve module category selection: `All` wins over selected change filters; selected non-`All` filters use OR semantics.
 - [x] Preserve page sizes 10, 20, 50, 100, and 200 (default 20), reset to URL page 1 on filter change, and retain pager links.
 
@@ -28,15 +31,16 @@ Site Changes renders the imported Wikidot `wikidot_site_change` feed in the curr
 - `603ec2ce8` — frontend localization and Site Changes controls; 9/9 frontend checks pass.
 - `84d897cff` — waits for semantically localized dates and fixes type warnings, replacing the earlier Vite-overlay and SSR-before-hydration controls race evidence.
 - `131f5bae21b1` — production release installed by `install/dev-deploy.sh all`; deployment preceded the approved import work.
-- `wikidot_site_change` — imported source-feed boundary.
+- `deepwell/src/services/render/render_data.rs` — combined native revision/imported history read boundary.
 
 ## Tests asserting this spec
 
+- `deepwell/tests/page_site_changes_native.rs` — committed create/edit requests followed by fresh default/category/type/paged views; native tags, combined field flags, author, unchanged edits, and all 25 retained imported rows.
 - `deepwell/tests/page_site_changes.rs` — 3/3 targeted real-PostgreSQL tests: newest-first paging, categories/flags/page sizes/pager URLs, valid escaped table output, ISO/UTC serialization, and slugless author rendering (`/tmp/claude/cobalt-sitechanges-targeted-pass.log`).
 - Frontend Site Changes checks — 9/9 at `603ec2ce8`.
 - `framerail/tests/local/site-changes.mjs` — read-only browser proof 1/1: 20 visible Chicago-local dates with seconds and hover/focus relative time; writing/A filters across two disjoint 10-row pages; `All` reset; page sizes yield 10/20/50/99/99 (`/tmp/claude/cobalt-sitechanges-browser-ready.log`). Screenshot inspected: `/tmp/claude/cobalt-sitechanges-local.png`.
 
-## Coverage matrix
+## Historical imported-feed rollout coverage (September 2026)
 
 | Area | Status | Proof / limit |
 |---|---|---|
@@ -51,14 +55,14 @@ Site Changes renders the imported Wikidot `wikidot_site_change` feed in the curr
 ## Source evidence and data limits
 
 - Live read-only GET confirms revision-type tags and four `A`-flag rows (`/tmp/claude/cobalt-sitechanges-live-tags-proof.json`). The retained old repository has six flags, not the current live seven; it is not definitive current-source evidence.
-- Imported feed scope is only `wikidot_site_change`: 99 local rows, latest `2026-09-24T16:45:15Z`, with 43 writing-tagged rows (`/tmp/claude/cobalt-sitechanges-feed-scope.json`). It does not establish freshness against live Wikidot on 2026-09-27.
-- Source page contents and history are unchanged. The production release and its read-only gate did not import, rewrite, merge, or freshly acquire source data; no native-feed merging or privacy contract is claimed.
+- Historical imported-only feed scope was `wikidot_site_change`: 99 local rows, latest `2026-09-24T16:45:15Z`, with 43 writing-tagged rows (`/tmp/claude/cobalt-sitechanges-feed-scope.json`). It does not establish freshness against live Wikidot on 2026-09-27.
+- September production release and its read-only gate did not import, rewrite, merge, or freshly acquire source data; those historical receipts do not verify the later combined native feed.
 - Read-only dry URL inventory remains unchanged: 269 old-host tokens in 196 pages; 260 mapped targets across 189 pages; seven unconfirmed and two non-page paths. It is not syntax parsed or apply-ready. No migration, import rewrite policy, or rewrite was implemented.
 
 ## Known gaps (current cycle)
 
-- [x] Final frontend follow-up passes; inherited backend readability debt is recorded separately and was not expanded by this change.
+- [ ] Combined native feed needs main-owned final verification and production deployment. [Native-feed diagnosis](../wiki/systems/cobalt-site-changes.md) records current evidence and limits.
 
 ## Out of scope
 
-- Native-feed merging, fresh source acquisition, source freshness guarantees, privacy-policy inference, and rewriting current or archived content/history.
+- Fresh source acquisition, source freshness guarantees, new privacy-policy inference, file-revision feed expansion, and rewriting current or archived content/history.

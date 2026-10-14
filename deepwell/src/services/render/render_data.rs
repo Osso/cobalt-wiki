@@ -224,8 +224,7 @@ async fn fetch_page_images(
     Ok(rows.into_iter().map(|row| row.name).collect())
 }
 
-/// One page of Wikidot's revision list, newest first, with the category names
-/// its filter form lists.
+/// One live page of imported history and native revisions, newest first.
 async fn fetch_site_changes(
     ctx: &ServiceContext<'_>,
     site: &str,
@@ -241,12 +240,37 @@ async fn fetch_site_changes(
     let rows = Page::find()
         .from_raw_sql(Statement::from_sql_and_values(
             DatabaseBackend::Postgres,
-            "SELECT c.page_slug, c.page_title, c.flags,
+            "WITH changes AS (
+                 SELECT c.page_slug, c.page_title, c.flags, c.changed_at,
+                        c.revision_number, c.user_slug, c.user_name, c.comments
+                 FROM wikidot_site_change c
+                 JOIN site s ON s.site_id = c.site_id AND s.slug = $1
+                 UNION ALL
+                 SELECT p.slug,
+                        CASE WHEN 'title' = ANY(r.hidden) THEN '' ELSE r.title END,
+                        CASE WHEN r.revision_type = 'create' THEN 'N' ELSE
+                            concat(
+                                CASE WHEN 'wikitext' = ANY(r.changes) THEN 'S' END,
+                                CASE WHEN 'title' = ANY(r.changes) THEN 'T' END,
+                                CASE WHEN 'slug' = ANY(r.changes) THEN 'R' END,
+                                CASE WHEN 'tags' = ANY(r.changes) THEN 'A' END,
+                                CASE WHEN 'alt_title' = ANY(r.changes) THEN 'M' END)
+                        END,
+                        r.created_at, r.revision_number,
+                        coalesce(u.slug, w.slug), coalesce(u.name, w.name),
+                        CASE WHEN 'comments' = ANY(r.hidden) THEN '' ELSE r.comments END
+                 FROM page_revision r
+                 JOIN site s ON s.site_id = r.site_id AND s.slug = $1
+                 JOIN page p ON p.site_id = r.site_id AND p.page_id = r.page_id
+                 LEFT JOIN \"user\" u ON u.user_id = r.user_id
+                 LEFT JOIN wikidot_user w ON w.user_id = r.user_id
+                 WHERE NOT r.from_wikidot AND NOT ('slug' = ANY(r.hidden))
+             )
+             SELECT c.page_slug, c.page_title, c.flags,
                     EXTRACT(EPOCH FROM c.changed_at)::bigint AS changed_at,
                     c.revision_number, c.user_slug, c.user_name, c.comments,
                     COUNT(*) OVER () AS total
-             FROM wikidot_site_change c
-             JOIN site s ON s.site_id = c.site_id AND s.slug = $1
+             FROM changes c
              WHERE (cardinality($4::text[]) = 0
                     OR EXISTS (SELECT 1 FROM unnest($4::text[]) AS t(flag)
                                WHERE strpos(c.flags, t.flag) > 0))

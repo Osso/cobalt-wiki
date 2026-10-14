@@ -1,4 +1,4 @@
-//! SiteChanges lists Wikidot's revision list, newest first, 20 per page.
+//! Imported SiteChanges history retains its rendering, filters and pagination.
 
 #[macro_use]
 mod common;
@@ -54,7 +54,7 @@ async fn setup_changes() -> (TestRunner, i64) {
         ))
         .await
         .unwrap();
-    PageService::import(
+    let imported = PageService::import(
         runner.context(),
         CreatePage {
             site_id,
@@ -72,6 +72,17 @@ async fn setup_changes() -> (TestRunner, i64) {
     )
     .await
     .unwrap();
+    // This fixture exercises imported history, not a native feed-page creation.
+    runner
+        .context()
+        .transaction()
+        .execute_raw(Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            "UPDATE page_revision SET from_wikidot = true WHERE revision_id = $1",
+            [imported.revision_id.into()],
+        ))
+        .await
+        .unwrap();
     (runner, site_id)
 }
 
