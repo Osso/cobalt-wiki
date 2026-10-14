@@ -129,7 +129,7 @@ async fn rename_updates_tagged_and_drifted_character_fields_in_one_revision_and_
     );
     assert_eq!(applied.count, 2);
     for (id, before, expected_changes) in [
-        (tagged, &before_tagged, vec!["wikitext", "tags"]),
+        (tagged, &before_tagged, vec!["tags", "wikitext"]),
         (drifted, &before_drifted, vec!["wikitext"]),
     ] {
         let after = read(&runner, site, id).await;
