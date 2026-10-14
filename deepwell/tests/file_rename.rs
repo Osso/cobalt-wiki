@@ -15,14 +15,8 @@ use deepwell::types::{Action, Permission, Reference, Resource};
 use sea_orm::TransactionTrait;
 use serde_json::json;
 
-#[tokio::test]
-async fn rename_without_reupload_preserves_bytes_and_retires_old_name() {
-    let mut runner = TestRunner::setup_with_idle_job_workers().await;
-    let site_id = run_endpoint!(runner, site_get, json!({"site": "test"}))
-        .unwrap()
-        .site
-        .site_id;
-    let page_id = run_endpoint!(
+async fn import_attachment_rename_page(runner: &TestRunner, site_id: i64) -> i64 {
+    run_endpoint!(
         runner,
         page_import,
         json!({
@@ -33,7 +27,17 @@ async fn rename_without_reupload_preserves_bytes_and_retires_old_name() {
             "ip_address": "127.0.0.1"
         })
     )
-    .page_id;
+    .page_id
+}
+
+#[tokio::test]
+async fn rename_without_reupload_preserves_bytes_and_retires_old_name() {
+    let mut runner = TestRunner::setup_with_idle_job_workers().await;
+    let site_id = run_endpoint!(runner, site_get, json!({"site": "test"}))
+        .unwrap()
+        .site
+        .site_id;
+    let page_id = import_attachment_rename_page(&runner, site_id).await;
     let role = RoleService::create(
         runner.context(),
         InternalCreateRoleInput {
