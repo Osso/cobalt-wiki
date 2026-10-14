@@ -195,6 +195,7 @@ impl FileService {
         } = body;
 
         let mut new_name = ActiveValue::NotSet;
+        let mut renamed = false;
 
         // Verify name change
         //
@@ -205,7 +206,8 @@ impl FileService {
 
             check_file_name(name).or_raise(make_error)?;
 
-            if name.as_str() != last_revision.name.as_str() {
+            renamed = name.as_str() != last_revision.name.as_str();
+            if renamed {
                 Self::check_conflicts(ctx, page_id, name, "update")
                     .await
                     .or_raise(make_error)?;
@@ -217,8 +219,6 @@ impl FileService {
                     .or_raise(make_error)?;
             }
         }
-
-        let renamed = matches!(&name, Maybe::Set(name) if name != &last_revision.name);
 
         // If a new file version was uploaded, then finalize.
         //
