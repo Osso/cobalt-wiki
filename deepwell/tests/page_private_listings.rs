@@ -26,7 +26,7 @@ use time::{Duration, OffsetDateTime};
 
 const PORTRAIT: &str = "https://example.invalid/private-player-portrait.png";
 const RECORD: &str = "name: Private Player Orchid\nimage: https://example.invalid/private-player-portrait.png\n";
-const TEMPLATE: &str = "Profile: **%%form_data{name}%%**\n\n[[image %%form_data{image}%% alt=\"Player portrait\"]]\n\n====\n\n[[form]]\nfields:\n  name:\n    type: text\n  image:\n    type: text\n[[/form]]\n";
+const TEMPLATE: &str = "Profile: **%%form_data{name}%%**\n\n[[include player:_biography]]\n\n[[image %%form_data{image}%% alt=\"Player portrait\"]]\n\n====\n\n[[form]]\nfields:\n  name:\n    type: text\n  image:\n    type: text\n[[/form]]\n";
 const LISTING: &str = "Profile directory\n\n[[module ListPages category=\"player\" order=\"name\" separate=\"no\"]]\n%%linked_title%%: %%form_data{name}%%\n\n[[image %%form_data{image}%% alt=\"Listed player portrait\"]]\n[[/module]]\n\nDirectory end";
 
 struct Fixture {
@@ -226,6 +226,7 @@ async fn fixture(ctx: &ServiceContext<'_>, label: &str) -> Fixture {
     let registered_id = account(ctx, &format!("{label}-registered")).await;
     let registered = token(ctx, registered_id).await;
     for (slug, source) in [
+        ("player:_biography", "Private included biography"),
         ("player:_template", TEMPLATE),
         ("player:orchid", RECORD),
         ("public:profileindex", LISTING),
@@ -319,7 +320,9 @@ fn assert_portrait(html: &str, visible: bool) {
     );
     if !visible {
         assert!(
-            !html.contains("player:orchid") && !html.contains(PORTRAIT),
+            !html.contains("player:orchid")
+                && !html.contains(PORTRAIT)
+                && !html.contains("Private included biography"),
             "private link/URL leaked: {html}"
         );
     }
@@ -383,8 +386,8 @@ async fn private_profile_expands_form_and_portrait_only_for_member_or_higher() {
             assert_eq!(form.unwrap()["values"]["image"], PORTRAIT, "{rank}");
             assert_portrait(&html, true);
             assert!(
-                html.contains("Profile:"),
-                "template did not expand for {rank}: {html}"
+                html.contains("Profile:") && html.contains("Private included biography"),
+                "private template/include did not expand for {rank}: {html}"
             );
             assert!(
                 !html.contains("name:") && !html.contains("%%form_data"),
