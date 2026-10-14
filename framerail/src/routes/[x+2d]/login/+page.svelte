@@ -21,7 +21,7 @@
         if (result.type === "success" && result.data) {
           toast(ToastType.Success, data.internationalization!["login.toast"]!)
           isLoggedIn = true
-          await goto("/", { invalidateAll: true })
+          await goto(resolve("/", {}), { invalidateAll: true })
           return
         }
 
