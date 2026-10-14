@@ -9,7 +9,8 @@ use deepwell::services::category::CategoryService;
 use deepwell::services::page::{CreatePage, PageService};
 use deepwell::services::permission::PermissionService;
 use deepwell::services::relation::{
-    CreateSiteMember, RelationService, SiteMemberAccepted, SiteMemberData,
+    CreatePageAttribution, CreateSiteMember, PageAttributionKind,
+    PageAttributionMetadata, RelationService, SiteMemberAccepted, SiteMemberData,
 };
 use deepwell::services::role::{
     GrantUserRoleInput, InternalCreateRoleInput, RoleService, UpdateRolePermissionsInput,
@@ -375,6 +376,103 @@ async fn assert_media_permission(
         !permission.public,
         "private player media cannot be publicly cached"
     );
+}
+
+#[tokio::test]
+async fn list_pages_page_author_fallback_is_response_only_for_attributed_member() {
+    let runner = TestRunner::setup_with_idle_job_workers().await;
+    let ctx = runner.context();
+    let fixture = fixture(ctx, "author-fallback").await;
+    let site_id = fixture.site_id;
+    let category_id = CategoryService::get_or_create(ctx, site_id, "authored")
+        .await
+        .unwrap()
+        .category_id;
+    let page_author = RoleService::create(
+        ctx,
+        InternalCreateRoleInput {
+            site_id,
+            name: "page-author".into(),
+            description: None,
+            is_virtual: true,
+            parent_role_id: None,
+            creating_user_id: SYSTEM_USER_ID,
+            ip_address: common::IP_ADDRESS,
+        },
+    )
+    .await
+    .unwrap()
+    .role_id;
+    // No category-wide role grants View on authored pages.
+    allow(ctx, site_id, page_author, &[category_id]).await;
+    let author_id = account(ctx, "fallback-author").await;
+    let other_id = account(ctx, "fallback-other").await;
+    join(ctx, site_id, author_id).await;
+    join(ctx, site_id, other_id).await;
+    let author_token = token(ctx, author_id).await;
+    let other_token = token(ctx, other_id).await;
+    let page_slug = "authored:orchid";
+    import(ctx, site_id, page_slug, "Author-only orchid").await;
+    let page = PageService::get(ctx, site_id, Reference::Slug(page_slug.into()))
+        .await
+        .unwrap();
+    RelationService::create_page_attribution(
+        ctx,
+        CreatePageAttribution {
+            page_id: page.page_id,
+            user_id: author_id,
+            created_by: SYSTEM_USER_ID,
+            metadata: PageAttributionMetadata {
+                attribution_type: PageAttributionKind::Author,
+                attribution_date: OffsetDateTime::now_utc().date(),
+            },
+        },
+    )
+    .await
+    .unwrap();
+    let index_slug = "public:authorindex";
+    import(
+        ctx,
+        site_id,
+        index_slug,
+        "Author directory\n\n[[module ListPages category=\"authored\" separate=\"no\"]]\n%%linked_title%%\n[[/module]]\n\nDirectory end",
+    )
+    .await;
+    let original = shared(ctx, site_id, index_slug).await;
+    assert!(
+        !original.html.contains(page_slug),
+        "author-only page leaked into stored shared HTML: {}",
+        original.html
+    );
+    let link = Selector::parse("a[href=\"/authored:orchid\"]").unwrap();
+    // Alternate viewers to detect personalized output contaminating shared state.
+    for (viewer_token, visible) in [
+        (&author_token, true),
+        (&other_token, false),
+        (&author_token, true),
+    ] {
+        let (html, _) = found(
+            view(ctx, site_id, index_slug, Some(viewer_token)).await,
+            &original,
+        );
+        let dom = Html::parse_fragment(&html);
+        assert_eq!(
+            dom.select(&link).count(),
+            usize::from(visible),
+            "attributed member listing visibility: {html}"
+        );
+        assert!(
+            html.contains("Author directory") && html.contains("Directory end"),
+            "public index wrapper vanished: {html}"
+        );
+        if !visible {
+            assert!(
+                !html.contains(page_slug),
+                "author-only page leaked to another member: {html}"
+            );
+        }
+        assert_unchanged(ctx, site_id, index_slug, &original).await;
+    }
 }
 
 #[tokio::test]
