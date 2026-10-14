@@ -3,13 +3,15 @@
 use super::prelude::*;
 use crate::services::page::{EditPage, EditPageBody};
 use crate::services::{
-    MemberAdminService, OutdateService, PageRevisionService, PageService,
+    MemberAdminService, OutdateService, PageRevisionService, PageService, TextService,
+    ViewService,
 };
 use sea_orm::{DatabaseBackend, Statement};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::net::IpAddr;
 use time::OffsetDateTime;
+use wikidot_forms::{Mapping, Value, apply_field_updates, extract_form_view};
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct TagNames {
@@ -106,6 +108,7 @@ struct TaggedPage {
     page: AffectedPage,
     revision_id: i64,
     tags: Vec<String>,
+    renamed_source: Option<String>,
 }
 
 #[derive(Debug)]
@@ -162,7 +165,10 @@ impl SiteTagAdminService {
                     user_id,
                     tagged.page.page_id,
                     tagged.revision_id,
-                    after.clone(),
+                    EditPageBody {
+                        tags: Maybe::Set(after.clone()),
+                        ..Default::default()
+                    },
                     input.ip_address,
                     "Site tag add",
                 )
@@ -184,7 +190,7 @@ impl SiteTagAdminService {
     ) -> Result<TagPreview> {
         let (site_id, _) = require_admin(ctx).await?;
         let names = normalize_names(names)?;
-        let pages = tagged_pages(ctx, site_id, &names.source_tag).await?;
+        let pages = tagged_pages(ctx, site_id, &names).await?;
         Ok(build_preview(site_id, names, &pages))
     }
 
@@ -198,7 +204,7 @@ impl SiteTagAdminService {
             target_tag: input.target_tag,
         })?;
         lock_site_tags(ctx, site_id).await?;
-        let pages = tagged_pages(ctx, site_id, &names.source_tag).await?;
+        let pages = tagged_pages(ctx, site_id, &names).await?;
         let preview = build_preview(site_id, names, &pages);
         if preview.preview_token != input.preview_token || pages.is_empty() {
             bail!(Error::new(
@@ -211,11 +217,15 @@ impl SiteTagAdminService {
         // phase never leaves changes in an externally managed transaction.
         for tagged in &pages {
             require_editable(ctx, site_id, user_id, tagged.page.page_id).await?;
-            changed.push(replace_tag(
-                &tagged.tags,
-                &preview.source_tag,
-                preview.target_tag.as_deref(),
-            ));
+            changed.push(if tagged.tags.contains(&preview.source_tag) {
+                replace_tag(
+                    &tagged.tags,
+                    &preview.source_tag,
+                    preview.target_tag.as_deref(),
+                )
+            } else {
+                tagged.tags.clone()
+            });
         }
         let operation_id =
             insert_operation(ctx, site_id, user_id, &preview, input.ip_address).await?;
@@ -227,7 +237,14 @@ impl SiteTagAdminService {
                     user_id,
                     tagged.page.page_id,
                     tagged.revision_id,
-                    after.clone(),
+                    EditPageBody {
+                        tags: Maybe::Set(after.clone()),
+                        wikitext: tagged
+                            .renamed_source
+                            .clone()
+                            .map_or(Maybe::Unset, Maybe::Set),
+                        ..Default::default()
+                    },
                     input.ip_address,
                     "Site tag change",
                 )
@@ -319,7 +336,11 @@ impl SiteTagAdminService {
                     user_id,
                     record.page.page_id,
                     record.resulting_revision_id,
-                    record.before_tags.clone(),
+                    EditPageBody {
+                        tags: Maybe::Set(record.before_tags.clone()),
+                        wikitext: source_before_operation(ctx, site_id, record).await?,
+                        ..Default::default()
+                    },
                     input.ip_address,
                     "Undo site tag change",
                 )
@@ -484,7 +505,7 @@ fn build_preview(site_id: i64, names: TagNames, tagged: &[TaggedPage]) -> TagPre
             &names.target_tag,
             tagged
                 .iter()
-                .map(|p| (&p.page, p.revision_id, &p.tags))
+                .map(|p| (&p.page, p.revision_id, &p.tags, &p.renamed_source))
                 .collect::<Vec<_>>(),
         ))
         .expect("serializable tag preview"),
@@ -501,13 +522,122 @@ fn build_preview(site_id: i64, names: TagNames, tagged: &[TaggedPage]) -> TagPre
 async fn tagged_pages(
     ctx: &ServiceContext<'_>,
     site_id: i64,
-    source: &str,
+    names: &TagNames,
 ) -> Result<Vec<TaggedPage>> {
     let rows = ctx.transaction().query_all_raw(statement(
-        "SELECT p.page_id, p.slug, r.title, r.revision_id, r.tags FROM page p JOIN page_revision r ON r.revision_id = p.latest_revision_id WHERE p.site_id = $1 AND p.deleted_at IS NULL AND $2 = ANY(r.tags) ORDER BY p.page_id",
-        [site_id.into(), source.into()],
+        "SELECT p.page_id, p.slug, r.title, r.revision_id, r.tags FROM page p JOIN page_revision r ON r.revision_id = p.latest_revision_id WHERE p.site_id = $1 AND p.deleted_at IS NULL AND ($2 = ANY(r.tags) OR ($3::text IS NOT NULL AND p.slug LIKE 'writing:%' AND p.slug NOT LIKE 'writing:!_%' ESCAPE '!')) ORDER BY p.page_id",
+        [site_id.into(), names.source_tag.clone().into(), names.target_tag.clone().into()],
     )).await.or_raise(query_error)?;
-    read_tagged_pages(&rows)
+    let candidates = read_tagged_pages(&rows)?;
+    let template = if names.target_tag.is_some()
+        && candidates.iter().any(|p| normal_writing_page(&p.page.slug))
+    {
+        ViewService::load_visible_template_source(
+            ctx,
+            site_id,
+            ctx.request().user_id,
+            "writing:_template",
+        )
+        .await?
+    } else {
+        None
+    };
+    let mut pages = Vec::new();
+    for mut page in candidates {
+        if normal_writing_page(&page.page.slug)
+            && let (Some(template), Some(target)) =
+                (template.as_deref(), names.target_tag.as_deref())
+        {
+            let revision = PageRevisionService::get_direct(ctx, page.revision_id).await?;
+            let source = TextService::get(ctx, &revision.wikitext_hash).await?;
+            page.renamed_source =
+                rename_characters(template, &source, &names.source_tag, target)
+                    .or_raise(|| {
+                        Error::new(
+                            format!(
+                                "failed to rename writing characters on {}",
+                                page.page.slug
+                            ),
+                            ErrorType::BadRequest,
+                        )
+                    })?;
+        }
+        if page.tags.contains(&names.source_tag) || page.renamed_source.is_some() {
+            pages.push(page);
+        }
+    }
+    Ok(pages)
+}
+
+fn normal_writing_page(slug: &str) -> bool {
+    slug.strip_prefix("writing:")
+        .is_some_and(|name| !name.starts_with('_'))
+}
+
+fn rename_characters(
+    template: &str,
+    source: &str,
+    old: &str,
+    new: &str,
+) -> std::result::Result<Option<String>, wikidot_forms::FormError> {
+    let Some(form) = extract_form_view(template, source)? else {
+        return Ok(None);
+    };
+    if !form
+        .schema
+        .fields
+        .iter()
+        .any(|field| field.name == "characters")
+    {
+        return Ok(None);
+    }
+    let key = Value::String("characters".into());
+    let Some(Value::String(characters)) = form.values.get(&key) else {
+        return Ok(None);
+    };
+    let renamed = replace_character_tokens(characters, old, new);
+    if renamed == *characters {
+        return Ok(None);
+    }
+    let mut updates = Mapping::new();
+    updates.insert(key, Value::String(renamed));
+    apply_field_updates(&form.schema, &form.values, &updates).map(Some)
+}
+
+fn replace_character_tokens(characters: &str, old: &str, new: &str) -> String {
+    characters
+        .split_inclusive(|c: char| c == ',' || c.is_whitespace())
+        .map(|part| {
+            let token = part.trim_end_matches(|c: char| c == ',' || c.is_whitespace());
+            if token.to_lowercase() == old {
+                format!("{new}{}", &part[token.len()..])
+            } else {
+                part.to_owned()
+            }
+        })
+        .collect()
+}
+
+async fn source_before_operation(
+    ctx: &ServiceContext<'_>,
+    site_id: i64,
+    record: &RecordedPage,
+) -> Result<Maybe<String>> {
+    let revision =
+        PageRevisionService::get_direct(ctx, record.resulting_revision_id).await?;
+    if !revision.changes.iter().any(|change| change == "wikitext") {
+        return Ok(Maybe::Unset);
+    }
+    let previous = PageRevisionService::get(
+        ctx,
+        site_id,
+        record.page.page_id,
+        revision.revision_number - 1,
+    )
+    .await?;
+    Ok(Maybe::Set(
+        TextService::get(ctx, &previous.wikitext_hash).await?,
+    ))
 }
 
 fn read_tagged_pages(rows: &[sea_orm::QueryResult]) -> Result<Vec<TaggedPage>> {
@@ -521,6 +651,7 @@ fn read_tagged_pages(rows: &[sea_orm::QueryResult]) -> Result<Vec<TaggedPage>> {
                 },
                 revision_id: get(row, "revision_id")?,
                 tags: get(row, "tags")?,
+                renamed_source: None,
             })
         })
         .collect()
@@ -573,10 +704,11 @@ async fn edit_tags(
     user_id: i64,
     page_id: i64,
     revision_id: i64,
-    tags: Vec<String>,
+    mut body: EditPageBody,
     ip_address: IpAddr,
     comments: &str,
 ) -> Result<i64> {
+    body.preserve_draft = true;
     let output = PageService::edit(
         ctx,
         EditPage {
@@ -585,11 +717,7 @@ async fn edit_tags(
             last_revision_id: revision_id,
             revision_comments: comments.to_owned(),
             user_id,
-            body: EditPageBody {
-                tags: Maybe::Set(tags),
-                preserve_draft: true,
-                ..Default::default()
-            },
+            body,
             ip_address,
         },
     )
