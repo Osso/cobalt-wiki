@@ -48,13 +48,9 @@ fn rows(html: &str) -> Vec<String> {
         .collect()
 }
 
-#[tokio::test]
-async fn committed_native_edits_join_imported_history_in_live_filtered_views() {
-    let runner = TestRunner::setup_with_idle_job_workers().await;
-    let tx = runner.state().database.begin().await.unwrap();
-    let ctx = ServiceContext::new(runner.state(), &tx);
-    let site_id = SiteService::create(
-        &ctx,
+async fn create_owned_site(ctx: &ServiceContext<'_>) -> i64 {
+    SiteService::create(
+        ctx,
         CreateSite {
             slug: format!("native-changes-{}", Uuid::new_v4().simple()),
             name: "Native changes fixture".into(),
@@ -69,62 +65,89 @@ async fn committed_native_edits_join_imported_history_in_live_filtered_views() {
     )
     .await
     .unwrap()
-    .site_id;
-    for (name, virtual_role, actions) in [
-        ("everyone", true, vec![Action::View]),
-        ("changes-editor", false, vec![Action::Create, Action::Edit]),
-    ] {
-        let role_id = RoleService::create(
-            &ctx,
-            InternalCreateRoleInput {
-                site_id,
-                name: name.into(),
-                description: None,
-                is_virtual: virtual_role,
-                parent_role_id: None,
-                creating_user_id: SYSTEM_USER_ID,
-                ip_address: common::IP_ADDRESS,
-            },
-        )
-        .await
-        .unwrap()
-        .role_id;
-        PermissionService::update_permissions_for_role(
-            &ctx,
-            UpdateRolePermissionsInput {
-                site_id,
-                role_reference: Reference::Id(role_id),
-                new_permissions: actions
-                    .into_iter()
-                    .map(|action| Permission {
-                        resource_type: Resource::Page,
-                        resource_category: None,
-                        action,
-                    })
-                    .collect(),
-                cascade_removals: false,
-                updating_user_id: SYSTEM_USER_ID,
-                ip_address: common::IP_ADDRESS,
-            },
-        )
-        .await
-        .unwrap();
-        if !virtual_role {
-            RoleService::grant_role_to_user(
-                &ctx,
-                GrantUserRoleInput {
-                    site_id,
-                    user_id: ADMIN_USER_ID,
-                    role_id,
-                    assigning_user_id: SYSTEM_USER_ID,
-                    expires_at: None,
-                    ip_address: common::IP_ADDRESS,
-                },
-            )
-            .await
-            .unwrap();
-        }
-    }
+    .site_id
+}
+
+async fn create_feed_role(
+    ctx: &ServiceContext<'_>,
+    site_id: i64,
+    name: &str,
+    is_virtual: bool,
+) -> i64 {
+    RoleService::create(
+        ctx,
+        InternalCreateRoleInput {
+            site_id,
+            name: name.into(),
+            description: None,
+            is_virtual,
+            parent_role_id: None,
+            creating_user_id: SYSTEM_USER_ID,
+            ip_address: common::IP_ADDRESS,
+        },
+    )
+    .await
+    .unwrap()
+    .role_id
+}
+
+async fn update_feed_permissions(
+    ctx: &ServiceContext<'_>,
+    site_id: i64,
+    role_id: i64,
+    actions: Vec<Action>,
+) {
+    let permissions = actions
+        .into_iter()
+        .map(|action| Permission {
+            resource_type: Resource::Page,
+            resource_category: None,
+            action,
+        })
+        .collect();
+    PermissionService::update_permissions_for_role(
+        ctx,
+        UpdateRolePermissionsInput {
+            site_id,
+            role_reference: Reference::Id(role_id),
+            new_permissions: permissions,
+            cascade_removals: false,
+            updating_user_id: SYSTEM_USER_ID,
+            ip_address: common::IP_ADDRESS,
+        },
+    )
+    .await
+    .unwrap();
+}
+
+async fn grant_feed_permissions(ctx: &ServiceContext<'_>, site_id: i64) {
+    let everyone = create_feed_role(ctx, site_id, "everyone", true).await;
+    update_feed_permissions(ctx, site_id, everyone, vec![Action::View]).await;
+    let editor = create_feed_role(ctx, site_id, "changes-editor", false).await;
+    update_feed_permissions(ctx, site_id, editor, vec![Action::Create, Action::Edit])
+        .await;
+    RoleService::grant_role_to_user(
+        ctx,
+        GrantUserRoleInput {
+            site_id,
+            user_id: ADMIN_USER_ID,
+            role_id: editor,
+            assigning_user_id: SYSTEM_USER_ID,
+            expires_at: None,
+            ip_address: common::IP_ADDRESS,
+        },
+    )
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn committed_native_edits_join_imported_history_in_live_filtered_views() {
+    let runner = TestRunner::setup_with_idle_job_workers().await;
+    let tx = runner.state().database.begin().await.unwrap();
+    let ctx = ServiceContext::new(runner.state(), &tx);
+    let site_id = create_owned_site(&ctx).await;
+    grant_feed_permissions(&ctx, site_id).await;
     tx.execute_raw(Statement::from_sql_and_values(
         DatabaseBackend::Postgres,
         "INSERT INTO wikidot_site_change
