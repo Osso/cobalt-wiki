@@ -7,7 +7,7 @@ use deepwell::constants::ADMIN_USER_ID;
 use deepwell::error::ErrorType;
 use deepwell::services::{PageRevisionService, RequestContext};
 use deepwell::types::Reference;
-use sea_orm::ConnectionTrait;
+use sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
 use serde_json::json;
 
 const TEMPLATE: &str = "[[include writingbox | characters=%%form_raw{characters}%%]]\n\nCopy tags: %%form_raw{characters}%%\n\n====\n\n[[form]]\nfields:\n  characters:\n    type: text\n  content:\n    type: wiki\n[[/form]]";
@@ -18,22 +18,36 @@ async fn setup() -> (TestRunner, i64) {
     let mut runner = TestRunner::setup_with_idle_job_workers().await;
     // Isolated native fixture predates tag-admin tables. Exercise current schema
     // inside this rollback-only transaction, without changing the shared fixture.
-    runner
+    let installed = runner
         .context()
         .transaction()
-        .execute_unprepared(include_str!(
-            "../migrations/20260928000000_site_tag_operation.sql"
+        .query_one_raw(Statement::from_string(
+            DatabaseBackend::Postgres,
+            "SELECT to_regclass('site_tag_operation') IS NOT NULL AS installed",
         ))
         .await
+        .unwrap()
+        .unwrap()
+        .try_get::<bool>("", "installed")
         .unwrap();
-    runner
-        .context()
-        .transaction()
-        .execute_unprepared(include_str!(
-            "../migrations/20260929000000_site_tag_add.sql"
-        ))
-        .await
-        .unwrap();
+    if !installed {
+        runner
+            .context()
+            .transaction()
+            .execute_unprepared(include_str!(
+                "../migrations/20260928000000_site_tag_operation.sql"
+            ))
+            .await
+            .unwrap();
+        runner
+            .context()
+            .transaction()
+            .execute_unprepared(include_str!(
+                "../migrations/20260929000000_site_tag_add.sql"
+            ))
+            .await
+            .unwrap();
+    }
     let site = run_endpoint!(runner, site_get, json!({"site":"test"}))
         .unwrap()
         .site
@@ -98,6 +112,15 @@ async fn rename_updates_tagged_and_drifted_character_fields_in_one_revision_and_
         site,
         "writing:unaffected",
         unaffected_source,
+        &["other"],
+    )
+    .await;
+    let internal_source = "characters: old\ncontent: old";
+    let internal = import(
+        &runner,
+        site,
+        "writing:_settings",
+        internal_source,
         &["other"],
     )
     .await;
@@ -168,6 +191,10 @@ async fn rename_updates_tagged_and_drifted_character_fields_in_one_revision_and_
         read(&runner, site, biography).await.wikitext.as_deref(),
         Some("characters: old\ncontent: old")
     );
+    assert_eq!(
+        read(&runner, site, internal).await.wikitext.as_deref(),
+        Some(internal_source)
+    );
     run_endpoint!(
         runner,
         site_tag_undo,
@@ -231,11 +258,115 @@ async fn field_only_rename_works_without_any_source_tag_and_stale_preview_is_ato
 }
 
 #[tokio::test]
+async fn locked_field_only_page_prevents_partial_tag_and_form_changes() {
+    let (runner, site) = setup().await;
+    let tagged = import(&runner, site, "writing:unlocked", SOURCE, &["old"]).await;
+    let field_only = import(&runner, site, "writing:locked", SOURCE, &["new"]).await;
+    let tagged_before = read(&runner, site, tagged).await;
+    let field_before = read(&runner, site, field_only).await;
+    let preview = run_endpoint!(
+        runner,
+        site_tag_preview,
+        json!({"source_tag":"old","target_tag":"new"})
+    );
+    run_endpoint!(
+        runner,
+        page_lock_create,
+        json!({"page":field_only,"lock_type":"permission-only","expires_at":null,"reason":null,"override_existing":false,"ip_address":common::IP_ADDRESS})
+    );
+    let error = run_endpoint_err!(
+        runner,
+        site_tag_apply,
+        json!({"source_tag":"old","target_tag":"new","preview_token":preview.preview_token,"ip_address":common::IP_ADDRESS})
+    );
+    assert_contains_error!(error, ErrorType::TagPageNotEditable);
+    for (id, before) in [(tagged, tagged_before), (field_only, field_before)] {
+        let after = read(&runner, site, id).await;
+        assert_eq!(after.revision_id, before.revision_id);
+        assert_eq!(after.wikitext, before.wikitext);
+        assert_eq!(after.tags, before.tags);
+    }
+    assert!(run_endpoint!(runner, site_tag_history).is_empty());
+}
+
+#[tokio::test]
+async fn later_field_edit_blocks_undo_without_reverting_other_pages() {
+    let (mut runner, site) = setup().await;
+    let tagged = import(&runner, site, "writing:undo-tagged", SOURCE, &["old"]).await;
+    let field_only = import(&runner, site, "writing:undo-field", SOURCE, &["new"]).await;
+    let preview = run_endpoint!(
+        runner,
+        site_tag_preview,
+        json!({"source_tag":"old","target_tag":"new"})
+    );
+    let applied = run_endpoint!(
+        runner,
+        site_tag_apply,
+        json!({"source_tag":"old","target_tag":"new","preview_token":preview.preview_token,"ip_address":common::IP_ADDRESS})
+    );
+    let tagged_after = read(&runner, site, tagged).await;
+    let before = read(&runner, site, field_only).await;
+    runner.set_request_context(RequestContext {
+        site_id: Some(site),
+        user_id: Some(ADMIN_USER_ID),
+        page_reference: Some(Reference::Id(field_only)),
+        ..Default::default()
+    });
+    run_endpoint!(
+        runner,
+        page_edit,
+        json!({"site_id":site,"page":field_only,"user_id":ADMIN_USER_ID,"last_revision_id":before.revision_id,"form_updates":{"content":"Later biography"},"revision_comments":"later field edit","ip_address":common::IP_ADDRESS})
+    );
+    let later = read(&runner, site, field_only).await;
+    let error = run_endpoint_err!(
+        runner,
+        site_tag_undo,
+        json!({"operation_id":applied.operation_id,"ip_address":common::IP_ADDRESS})
+    );
+    assert_contains_error!(error, ErrorType::TagUndoConflict);
+    assert_eq!(
+        read(&runner, site, tagged).await.revision_id,
+        tagged_after.revision_id
+    );
+    assert_eq!(
+        read(&runner, site, field_only).await.revision_id,
+        later.revision_id
+    );
+    let values = wikidot_forms::parse_values(later.wikitext.as_deref().unwrap()).unwrap();
+    assert_eq!(
+        values.get("content").unwrap().as_str(),
+        Some("Later biography")
+    );
+    assert_eq!(values.get("characters").unwrap().as_str(), Some(AFTER));
+    assert!(!run_endpoint!(runner, site_tag_history)[0].reversed);
+}
+
+#[tokio::test]
 async fn delete_and_nonstring_characters_preserve_source() {
     let (runner, site) = setup().await;
     let text = import(&runner, site, "writing:delete", SOURCE, &["old"]).await;
     let numeric_source = "characters: 7\ncontent: old\nunknown: true";
     let numeric = import(&runner, site, "writing:number", numeric_source, &["old"]).await;
+    let preview = run_endpoint!(
+        runner,
+        site_tag_preview,
+        json!({"source_tag":"old","target_tag":"new"})
+    );
+    let applied = run_endpoint!(
+        runner,
+        site_tag_apply,
+        json!({"source_tag":"old","target_tag":"new","preview_token":preview.preview_token,"ip_address":common::IP_ADDRESS})
+    );
+    assert_eq!(read(&runner, site, numeric).await.tags, ["new"]);
+    assert_eq!(
+        read(&runner, site, numeric).await.wikitext.as_deref(),
+        Some(numeric_source)
+    );
+    run_endpoint!(
+        runner,
+        site_tag_undo,
+        json!({"operation_id":applied.operation_id,"ip_address":common::IP_ADDRESS})
+    );
     let preview = run_endpoint!(
         runner,
         site_tag_preview,
