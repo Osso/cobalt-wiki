@@ -6,6 +6,7 @@ FTML must render same-site attachment references through the deployed site's pro
 
 - [x] Emit same-origin file URLs for current-page, same-site other-page, and explicitly same-site references. A bare current-page reference retains its complete canonical page name: on `character:melancholy`, `[[image Melancholy_Outfits]]` must resolve to `/-/file/character:melancholy/Melancholy_Outfits`, never the root `melancholy` owner; later colons remain intact.
 - [x] Preserve explicit external URLs and unrelated cross-site references.
+- [x] Ordinary image markup in both layouts must not force anonymous CORS mode. Authorized same-origin private-file URLs may redirect to signed object-store images without requiring the store to grant CORS. Preserve image URLs, layout, links and supported source attributes; page/file authorization and private/no-store remain unchanged.
 - [x] Preserve source bytes and revision identity while refreshing derived HTML.
 - [x] Serve actual imported image bytes behind authentication and no-index controls.
 - [x] Render Wikidot `[[gallery]]` markup: bare galleries list the page's image attachments in Wikidot's en_US name order, `: file` lists keep source order; originals are shown at Wikidot's thumbnail sizes because there is no resizer. A [file rename](cobalt-page-files.md) refreshes the owner's stored gallery URLs without changing page source or page revision identity.

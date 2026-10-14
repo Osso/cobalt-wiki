@@ -6,6 +6,8 @@ Unmatched `))` in acquired source previously panicked during page import. Source
 
 The lexer now tries existing whitespace rules immediately after raw/comment delimiters, before text and symbols. This preserves token priority for overlapping markup while reducing repeated ordered-choice checks on whitespace-heavy pages. A standalone debug Pest benchmark with identical baseline and reordered grammars matched token rules, slices, and byte spans; median lexer time fell from 724 to 430 ms on ~60 KB and 2,958 to 1,168 ms on ~121 KB. These are tokenizer-only measurements, not preview latency or timeout proof.
 
+Ordinary images no longer receive an unsolicited `crossorigin` flag in either layout. That flag selects CORS mode and blocked authorized private-image redirects to object storage; the same browser image loads without it. Native private-profile/index regressions check this rendered request-mode contract, and image golden outputs retain all other attributes/links.
+
 Cargo and native Nix builds use the same local dependency. Replace this copy with a registry release once that release passes the regression. Upstream license remains in `ftml/LICENSE.md`.
 
 # wikidot-normalize patch

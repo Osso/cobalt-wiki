@@ -94,8 +94,7 @@ fn render_image_element_wikidot(
     let build_image = |ctx: &mut HtmlContext| {
         ctx.html().img().attr(attr!(
             "src" => image_url,
-            "class" => "image",
-            "crossorigin";;
+            "class" => "image";;
             attributes,
         ));
     };
@@ -143,8 +142,7 @@ fn render_image_element_wikijump(
             let build_image = |ctx: &mut HtmlContext| {
                 ctx.html().img().attr(attr!(
                     "class" => "wj-image",
-                    "src" => image_url,
-                    "crossorigin";;
+                    "src" => image_url;;
                     attributes
                 ));
             };
