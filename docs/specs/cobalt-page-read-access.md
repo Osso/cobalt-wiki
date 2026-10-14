@@ -7,6 +7,7 @@ Framerail's legacy page-pane actions in `src/lib/server/load/page.ts` expose met
 - [x] File listing, native history/revision, parent list, vote list, score and lock history require the same current Page/View access as the routed page: denied pages return 403, missing pages 404, without returning private read data.
 - [x] Submitted page IDs must match the authorized route; submitted site IDs, where used, must match trusted ingress context. Authorized pane reads remain available.
 - [x] Root-route reads resolve the configured default page, preserving normal loader routing semantics.
+- [x] Routed read authorization supplies the request languages and configured default locale, including requests without Accept-Language. Private-page denial must not become a translation error carrying page diagnostics.
 - [x] Vote cast and cancel use the same routed-page Page/View check: another page or an unviewable page returns 403 without changing votes. `vote_set` accepts only -1, 0 or +1 (Wikidot up/down sum); other values fail `BadRequest` without storing a vote. Tests: `framerail/tests/actor-session.test.ts`, `deepwell/tests/page_vote.rs`.
 
 ## Player-page privacy

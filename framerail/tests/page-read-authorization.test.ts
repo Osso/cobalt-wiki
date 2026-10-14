@@ -46,6 +46,19 @@ async function readPage(
     const rpc = JSON.parse(String(init?.body))
     let result
     if (rpc.method === "page_view") {
+      if (!rpc.params.locales?.length) {
+        return new Response(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id: rpc.id,
+            error: {
+              code: 5005,
+              message: "No locales were specified in the request",
+              data: { call_trace: "Secret revision / file metadata / lock reason" }
+            }
+          })
+        )
+      }
       assert.deepEqual(rpc.params.route, root ? null : params)
       result = buildPageViewReply(access)
     } else if (rpc.method === method) {
