@@ -26,8 +26,8 @@ use time::{Duration, OffsetDateTime};
 
 const PORTRAIT: &str = "https://example.invalid/private-player-portrait.png";
 const RECORD: &str = "name: Private Player Orchid\nimage: https://example.invalid/private-player-portrait.png\n";
-const TEMPLATE: &str = "Profile: **%%form_data{name}%%**\n\n[[include player:_biography]]\n\n[[image %%form_data{image}%% alt=\"Player portrait\"]]\n\n====\n\n[[form]]\nfields:\n  name:\n    type: text\n  image:\n    type: text\n[[/form]]\n";
-const LISTING: &str = "Profile directory\n\n[[module ListPages category=\"player\" order=\"name\" separate=\"no\"]]\n%%linked_title%%: %%form_data{name}%%\n\n[[image %%form_data{image}%% alt=\"Listed player portrait\"]]\n[[/module]]\n\nDirectory end";
+const TEMPLATE: &str = "Profile: **%%form_data{name}%%**\n\n[[include player:_biography]]\n\n[[image %%form_raw{image}%% alt=\"Player portrait\"]]\n\n====\n\n[[form]]\nfields:\n  name:\n    type: text\n  image:\n    type: text\n[[/form]]\n";
+const LISTING: &str = "Profile directory\n\n[[module ListPages category=\"player\" order=\"name\" separate=\"no\"]]\n%%linked_title%%: %%form_data{name}%%\n\n[[image %%form_raw{image}%% alt=\"Listed player portrait\"]]\n[[/module]]\n\nDirectory end";
 
 struct Fixture {
     site_id: i64,
