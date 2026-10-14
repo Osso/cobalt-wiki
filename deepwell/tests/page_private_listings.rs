@@ -308,14 +308,20 @@ fn assert_portrait(html: &str, visible: bool) {
     let images = Selector::parse("img").unwrap();
     let portraits: Vec<_> = dom
         .select(&images)
-        .filter_map(|image| image.value().attr("src"))
-        .filter(|src| *src == PORTRAIT)
+        .filter(|image| image.value().attr("src") == Some(PORTRAIT))
         .collect();
     assert_eq!(
         portraits.len(),
         usize::from(visible),
         "portrait visibility: {html}"
     );
+    for portrait in portraits {
+        assert_eq!(
+            portrait.value().attr("crossorigin"),
+            None,
+            "portrait source requests no CORS; preserve browser image request mode: {html}"
+        );
+    }
     let text = dom.root_element().text().collect::<String>();
     assert_eq!(
         text.contains("Private Player Orchid"),
