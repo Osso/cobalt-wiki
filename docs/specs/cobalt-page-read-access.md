@@ -9,6 +9,11 @@ Framerail's legacy page-pane actions in `src/lib/server/load/page.ts` expose met
 - [x] Root-route reads resolve the configured default page, preserving normal loader routing semantics.
 - [x] Vote cast and cancel use the same routed-page Page/View check: another page or an unviewable page returns 403 without changing votes. `vote_set` accepts only -1, 0 or +1 (Wikidot up/down sum); other values fail `BadRequest` without storing a vote. Tests: `framerail/tests/actor-session.test.ts`, `deepwell/tests/page_vote.rs`.
 
+## Player-page privacy
+
+- Player-category pages are private to site members (including moderator, administrator and root roles); anonymous visitors and signed-in nonmembers must not receive page content, source or form data.
+- Provision these category-scoped Page/View grants through `tools/cobalt_migration/private_categories.sql`; changing grants requires invalidating the site's permission cache. Default public-page access remains unchanged.
+
 ## Deleted-page restore lookup
 
 - [x] The public `deletedGet` action remains available to restore UI and binds submitted site/slug to trusted request context, including the configured root default page.
