@@ -1,12 +1,13 @@
 import defaults from "$lib/defaults"
 import { deepwellErrorStatus, requireDeepwellError } from "$lib/deepwell-errors"
+import { parseLoginReturnPath } from "$lib/login-return"
 
 import { authLogin } from "$lib/server/auth/login"
 import { setSessionCookie } from "$lib/server/auth/sessionCookie"
 import { translate } from "$lib/server/deepwell/translate"
 import { loadSiteChrome } from "$lib/server/load/site-chrome"
 import { loadSiteInfo } from "$lib/server/load/site-info"
-import { fail } from "@sveltejs/kit"
+import { fail, redirect } from "@sveltejs/kit"
 import { superValidate } from "sveltekit-superforms"
 import { valibot } from "sveltekit-superforms/adapters"
 import { boolean, minLength, object, optional, pipe, string } from "valibot"
@@ -28,6 +29,8 @@ export async function loadLoginPage(
   const locales = parentData.locales
 
   const isLoggedIn = Boolean(parentData.user_session)
+  const returnPath = parseLoginReturnPath(new URL(request.url))
+  if (isLoggedIn && returnPath) redirect(303, returnPath)
 
   const translateKeys: TranslateKeys = {
     ...defaults.translateKeys,
@@ -88,6 +91,8 @@ export async function loginAction({ request, getClientAddress, cookies }: Reques
 
     if (res.session_token) {
       setSessionCookie(cookies, res.session_token, data.rememberMe)
+      const returnPath = parseLoginReturnPath(new URL(request.url))
+      if (returnPath) redirect(303, returnPath)
     }
 
     return { form, session_token: res.session_token, isLoggedIn: true }

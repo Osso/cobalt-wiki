@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { goto, invalidateAll } from "$app/navigation"
+  import { goto } from "$app/navigation"
   import { resolve } from "$app/paths"
   import { page } from "$app/state"
   import { errorPopupState } from "$lib/stores.svelte"
@@ -14,12 +14,6 @@
 
   let isLoggedIn = $derived<boolean>(data.isLoggedIn)
 
-  // The header's Sign in link passes the page to return to, as Wikidot does.
-  const returnPath = $derived.by(() => {
-    const origUrl = page.url.searchParams.get("origUrl") ?? "/"
-    return origUrl.startsWith("/") && !origUrl.startsWith("//") ? origUrl : "/"
-  })
-
   const { form, enhance } = superForm(
     untrack(() => data.loginForm),
     {
@@ -27,8 +21,7 @@
         if (result.type === "success" && result.data) {
           toast(ToastType.Success, data.internationalization!["login.toast"]!)
           isLoggedIn = true
-          await invalidateAll()
-          await goto(returnPath)
+          await goto("/", { invalidateAll: true })
           return
         }
 
