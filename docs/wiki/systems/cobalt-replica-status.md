@@ -2,6 +2,14 @@
 
 Verified: 2026-09-27. This records evidence, not authorization to expose source-private content or a blanket full-replica readiness claim.
 
+## Current authority and rename-process rollout — 2026-10-14
+
+verified: 2026-10-14
+
+Current wiki authority and sync policy live in [Sakuin's authority SSOT](../../../../sakuin/docs/cobalt-wiki-host.md#wiki-authority). Sakuin `99db867` was activated by `ops/deploy.sh` with exit 0 on 2026-10-14: system `/nix/store/pnvdk2z4298sd7cwj22kj2wnxp8akm1a-nixos-system-sakuin-digital-ocean-26.05.20260606.9b69646`; receipt `/tmp/cobalt-wikidot-sync-disable-deploy.log`. Enabled-sync statements and sync receipts below are historical, not current scheduling evidence.
+
+Rename-process fixes `6dd8b1fbd` (WWS missing-filename responses use `no-store`) and `d5250aa71` (Deepwell refreshes owner-gallery URLs on attachment rename) were deployed via `deploy.sh wws` and `deploy.sh deepwell`, both exit 0, as reported by main. Independent verification remains pending; deployment exit codes do not establish a final pass. Scope is the rename process, not repair of existing images; no existing-image repair was performed.
+
 ## Scoped final bugfix rollout
 
 verified: 2026-10-05
