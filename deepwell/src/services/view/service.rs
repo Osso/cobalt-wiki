@@ -602,7 +602,14 @@ impl ViewService {
             },
         };
 
-        Ok(output)
+        super::join::hide_member_join(
+            ctx,
+            site_id,
+            user_session.as_ref().map(|session| session.user.user_id),
+            output,
+        )
+        .await
+        .or_raise(make_error)
     }
 
     pub async fn user(

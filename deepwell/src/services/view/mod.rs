@@ -26,6 +26,7 @@ mod prelude {
 }
 
 pub(crate) mod form;
+mod join;
 mod options;
 mod service;
 mod structs;
