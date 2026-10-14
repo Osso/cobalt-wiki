@@ -216,9 +216,14 @@ pub async fn build_basic_error_response(
     const HTML_END: &str = "</article></body></html>\n";
 
     let html = format!("{HTML_START}{title}{HTML_MIDDLE}{body}{HTML_END}");
-    Response::builder()
+    let mut response = Response::builder()
         .status(status)
-        .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
+        .header(header::CONTENT_TYPE, "text/html; charset=utf-8");
+    if matches!(basic_error, BasicError::FileName { .. }) {
+        // A missing filename can become valid after a rename or upload.
+        response = response.header(header::CACHE_CONTROL, "no-store");
+    }
+    response
         .body(Body::from(html))
         .expect("Unable to convert response data")
 }

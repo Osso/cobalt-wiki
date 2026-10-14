@@ -488,6 +488,92 @@ async fn same_filename_replacement_serves_current_bytes_after_cache_warmup() {
     );
 }
 
+#[tokio::test]
+#[ignore = "needs isolated Redis at WWS_TEST_REDIS_URL"]
+async fn missing_filename_is_not_cached_before_rename_makes_it_available() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    let renamed = Arc::new(AtomicBool::new(false));
+    let current = Arc::clone(&renamed);
+    let rpc = Router::new().route(
+        "/",
+        post(move |body: String| {
+            let current = Arc::clone(&current);
+            async move {
+                let request: Value = serde_json::from_str(&body).unwrap();
+                let result = match request["method"].as_str().unwrap() {
+                    "file_get" => {
+                        let name = if current.load(Ordering::SeqCst) {
+                            "icon_zath.jpg"
+                        } else {
+                            "icon_tyrrell.jpg"
+                        };
+                        if request["params"]["file"] == name {
+                            json!({"file_id": 1405, "mime": "image/jpeg", "size": 4,
+                                "s3_hash": "unchanged"})
+                        } else {
+                            Value::Null
+                        }
+                    }
+                    "basic_error_missing_file_name" => {
+                        json!({"title": "Missing file", "body": "<p>Missing file</p>"})
+                    }
+                    _ => return fake_deepwell(body).await.into_response(),
+                };
+                (
+                    [(CONTENT_TYPE, "application/json")],
+                    json!({"jsonrpc": "2.0", "id": request["id"], "result": result})
+                        .to_string(),
+                )
+                    .into_response()
+            }
+        }),
+    );
+    let storage = Router::new().route(
+        "/wikijump-files/unchanged",
+        axum::routing::get(|| async { "jpeg" }),
+    );
+    let router = router_with_sources(
+        start_http_fixture(rpc).await,
+        start_http_fixture(storage).await,
+    )
+    .await;
+    let site_id = unique_site_id();
+    let owner = "writing:2021-10-21-to-paint-a-picture:the-game";
+    for route in ["file", "download"] {
+        let path = format!("/-/{route}/{owner}/icon_zath.jpg");
+        let missing = request(&router, Method::GET, site_id, &path, None).await;
+        assert_eq!(missing.status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            missing
+                .headers()
+                .get(CACHE_CONTROL)
+                .map(|value| value.to_str().unwrap()),
+            Some("no-store"),
+            "a pre-rename 404 must not hide a subsequently renamed attachment"
+        );
+    }
+
+    renamed.store(true, Ordering::SeqCst);
+    for route in ["file", "download"] {
+        let path = format!("/-/{route}/{owner}/icon_zath.jpg");
+        let response = request(&router, Method::GET, site_id, &path, None).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(header(&response, CACHE_CONTROL), "public, no-cache");
+        assert_eq!(header(&response, ETAG), "\"unchanged\"");
+        assert_eq!(
+            axum::body::to_bytes(response.into_body(), 100)
+                .await
+                .unwrap(),
+            "jpeg"
+        );
+        let old_path = format!("/-/{route}/{owner}/icon_tyrrell.jpg");
+        let retired = request(&router, Method::GET, site_id, &old_path, None).await;
+        assert_eq!(retired.status(), StatusCode::NOT_FOUND);
+        assert_eq!(header(&retired, CACHE_CONTROL), "no-store");
+    }
+}
+
 /// Fresh site ID per run, so earlier runs' cached pages and files never match.
 fn unique_site_id() -> i64 {
     let nanos = SystemTime::now()
