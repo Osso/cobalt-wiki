@@ -225,7 +225,12 @@ async fn committed_native_edits_join_imported_history_in_live_filtered_views() {
         "revision_comments": "No revision for unchanged tags", "ip_address": common::IP_ADDRESS,
     }))).await.unwrap();
     tx.commit().await.unwrap();
-    let combined = render(&runner, site_id, "p/1/category/writing/types/STM").await;
+    let combined = render(
+        &runner,
+        site_id,
+        "p/1/category/writing/perpage/50/types/STM",
+    )
+    .await;
     let author = runner
         .state()
         .database

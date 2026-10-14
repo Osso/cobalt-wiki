@@ -4,10 +4,17 @@
 mod common;
 
 use common::TestRunner;
-use deepwell::constants::ADMIN_USER_ID;
+use deepwell::constants::{ADMIN_USER_ID, SYSTEM_USER_ID};
+use deepwell::license::License;
 use deepwell::services::PageService;
 use deepwell::services::page::CreatePage;
+use deepwell::services::permission::PermissionService;
+use deepwell::services::role::{
+    InternalCreateRoleInput, RoleService, UpdateRolePermissionsInput,
+};
+use deepwell::services::site::{CreateSite, SiteService};
 use deepwell::services::view::GetPageViewOutput;
+use deepwell::types::{Action, Permission, Reference, Resource};
 use scraper::{ElementRef, Html, Selector};
 use sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
 use serde_json::json;
@@ -32,10 +39,56 @@ async fn view(runner: &TestRunner, site_id: i64, extra: &str) -> String {
 
 async fn setup_changes() -> (TestRunner, i64) {
     let runner = TestRunner::setup().await;
-    let site_id = run_endpoint!(runner, site_get, json!({"site": "test"}))
-        .unwrap()
-        .site
-        .site_id;
+    // Own site: seeded native pages must not contaminate imported-history assertions.
+    let site_id = SiteService::create(
+        runner.context(),
+        CreateSite {
+            slug: "imported-changes-fixture".into(),
+            name: "Imported changes fixture".into(),
+            tagline: String::new(),
+            description: "Imported-only history rendering".into(),
+            default_page: None,
+            layout: None,
+            license: License::CcBySa40,
+            locale: "en".into(),
+            ip_address: common::IP_ADDRESS,
+        },
+    )
+    .await
+    .unwrap()
+    .site_id;
+    let role_id = RoleService::create(
+        runner.context(),
+        InternalCreateRoleInput {
+            site_id,
+            name: "everyone".into(),
+            description: None,
+            is_virtual: true,
+            parent_role_id: None,
+            creating_user_id: SYSTEM_USER_ID,
+            ip_address: common::IP_ADDRESS,
+        },
+    )
+    .await
+    .unwrap()
+    .role_id;
+    PermissionService::update_permissions_for_role(
+        runner.context(),
+        UpdateRolePermissionsInput {
+            site_id,
+            role_reference: Reference::Id(role_id),
+            new_permissions: vec![Permission {
+                resource_type: Resource::Page,
+                resource_category: None,
+                action: Action::View,
+            }],
+            cascade_removals: false,
+            updating_user_id: SYSTEM_USER_ID,
+            ip_address: common::IP_ADDRESS,
+        },
+    )
+    .await
+    .unwrap();
     // 25 revisions of one page, a minute apart; revision 0 is its creation.
     runner
         .context()
