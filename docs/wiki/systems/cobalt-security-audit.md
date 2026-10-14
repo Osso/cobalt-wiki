@@ -1,6 +1,16 @@
 # Cobalt security/bug audit — 2026-10-04
 
-Recorded: 2026-10-04. Initial repair acceptance through `dd931fa3d`; follow-up repairs and their revision-scoped proof below. Bounded source audit and local regression evidence, not exhaustive security assurance. **No production deployment of these changes.** Read-only runtime inspection found active services at deployed Deepwell commit `fdb02cd205250c0a3c2ac0eada2b9919d194e28d`, not these repairs.
+Recorded: 2026-10-04. Initial repair acceptance through `dd931fa3d`; follow-up repairs and their revision-scoped proof below. Bounded source audit and local regression evidence, not exhaustive security assurance. At that initial inspection, these changes were not deployed: active Deepwell was `fdb02cd205250c0a3c2ac0eada2b9919d194e28d`. Later deployment records below supersede that historical observation.
+
+## Player privacy and Join follow-up — 2026-10-14
+
+verified: 2026-10-14 (bounded evidence; final acceptance pending)
+
+[Player-page and pane policy](../../specs/cobalt-page-read-access.md#player-page-privacy) is the policy SSOT. `80ac39f3a` adds player-category grants in `tools/cobalt_migration/private_categories.sql`; main applied the SQL to production site `6000000`, player category `100000029`, returning `INSERT 4`. Verifier 20 proved 29 anonymous RPC denials, actual regular-member access, and guest media 403. It also found 12 pane actions returning 400 locale errors with metadata diagnostics: that receipt is not a privacy pass.
+
+`641114755` supplies request languages and configured locale to pane authorization; 48 SSR regressions pass. The helper fix is deployed (see [rollout SSOT](cobalt-replica-status.md#player-privacy-and-join-rollout--2026-10-14)), but final verifier 22 remains pending. No post-fix deployed pane-denial acceptance is claimed; main owns the final acceptance receipt.
+
+`678f3c39b` implements response-only Join-module filtering by the actual native `site_member` relation, preserving shared compiled caches. [Member applications](../../specs/cobalt-member-applications.md) owns that contract; deployment does not establish live-browser acceptance.
 
 ## Coverage and outcomes
 

@@ -12,6 +12,16 @@ Rename-process fixes `6dd8b1fbd` (WWS missing-filename responses use `no-store`)
 
 The [native Recent Changes feed rollout](cobalt-site-changes.md#production-rollout) is included in the final Deepwell deployment.
 
+## Player privacy and Join rollout — 2026-10-14
+
+verified: 2026-10-14 (deployment recorded; final acceptance pending)
+
+Both `deploy.sh deepwell` and `deploy.sh framerail` completed at `641114755`, exit 0. Logs: `/tmp/cobalt-player-join-deepwell-deploy.log`, `/tmp/cobalt-player-join-framerail-deploy.log`. [Security follow-up](cobalt-security-audit.md#player-privacy-and-join-follow-up--2026-10-14) owns the applied player grants, bounded production authorization evidence, locale-error finding and pending final verifier 22. Contracts: [page reads](../../specs/cobalt-page-read-access.md), [Join display](../../specs/cobalt-member-applications.md). No final pass or live-browser Join proof is claimed.
+
+### Tag-cap diagnostic boundary
+
+Requested tag-count and joined-character cases at 1999, 2000 and 2001 were all accepted in an isolated outer rollback. Verifier 20 reviewed the full `/tmp/cobalt-diagnostic-tag-boundary-ledger.json`. This is bounded diagnostic evidence, not unlimited-tag support or live-browser proof; the reported live cap was not identified. [Tag administration](../../specs/cobalt-tag-admin.md) remains the contract; no policy change follows from these probes.
+
 ## Writing field compatibility — 2026-10-14
 
 verified: 2026-10-14
