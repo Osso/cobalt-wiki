@@ -3356,6 +3356,7 @@ dependencies = [
  "headers",
  "jsonrpsee",
  "paste",
+ "percent-encoding",
  "rand",
  "redis",
  "ref-map",

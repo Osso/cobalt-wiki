@@ -343,6 +343,40 @@ async fn document_isolation_keeps_file_bytes_types_and_download_disposition() {
 
 #[tokio::test]
 #[ignore = "needs isolated Redis at WWS_TEST_REDIS_URL"]
+async fn private_file_accepts_browser_encoded_session_cookie() {
+    let router = active_content_router().await;
+    let site_id = unique_site_id();
+    for route in ["file", "download"] {
+        let path = format!("/-/{route}/admin:css/pixel.png");
+        let response = request(
+            &router,
+            Method::GET,
+            site_id,
+            &path,
+            Some("wj%3Amember-session"),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::FOUND);
+        assert_eq!(header(&response, CACHE_CONTROL), "private, no-store");
+        assert!(
+            header(&response, LOCATION).contains("response-content-type=image%2Fpng")
+        );
+        for invalid in [
+            None,
+            Some("wj%253Amember-session"),
+            Some("wj%3Aother"),
+            Some("%FF"),
+        ] {
+            let denied = request(&router, Method::GET, site_id, &path, invalid).await;
+            assert_eq!(denied.status(), StatusCode::FORBIDDEN);
+            assert_eq!(header(&denied, CACHE_CONTROL), "private, no-store");
+            assert!(denied.headers().get(LOCATION).is_none());
+        }
+    }
+}
+
+#[tokio::test]
+#[ignore = "needs isolated Redis at WWS_TEST_REDIS_URL"]
 async fn active_private_file_keeps_denial_and_presigned_redirect() {
     let router = active_content_router().await;
     let site_id = unique_site_id();

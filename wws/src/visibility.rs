@@ -28,6 +28,7 @@ use axum::http::StatusCode;
 use axum::http::header::{self, HeaderMap};
 use axum::response::{IntoResponse, Response};
 use headers::{Cookie, HeaderMapExt};
+use percent_encoding::percent_decode_str;
 
 /// Framerail's session cookie.
 const SESSION_COOKIE: &str = "wikijump_token";
@@ -39,10 +40,10 @@ pub const CACHE_PUBLIC: &str = "public, no-cache";
 pub const CACHE_PRIVATE: &str = "private, no-store";
 
 pub fn get_session_token(headers: &HeaderMap) -> Option<String> {
-    headers
-        .typed_get::<Cookie>()?
-        .get(SESSION_COOKIE)
-        .map(str::to_owned)
+    let cookies = headers.typed_get::<Cookie>()?;
+    let encoded = cookies.get(SESSION_COOKIE)?;
+    let decoded = percent_decode_str(encoded).decode_utf8().ok()?;
+    Some(decoded.into_owned())
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -91,6 +92,34 @@ mod tests {
     fn session_token_from_login_cookie() {
         let headers = cookie_headers("theme=dark; wikijump_token=wj:abc123; lang=en");
         assert_eq!(get_session_token(&headers).as_deref(), Some("wj:abc123"));
+    }
+
+    #[test]
+    fn browser_cookie_decodes_reserved_session_characters() {
+        let headers = cookie_headers(
+            "theme=dark; wikijump_token=wj%3Amember%2Bsession%2F; lang=en",
+        );
+        assert_eq!(
+            get_session_token(&headers).as_deref(),
+            Some("wj:member+session/")
+        );
+    }
+
+    #[test]
+    fn browser_cookie_is_decoded_only_once() {
+        let headers = cookie_headers("wikijump_token=wj%253Amember-session");
+        assert_eq!(
+            get_session_token(&headers).as_deref(),
+            Some("wj%3Amember-session")
+        );
+    }
+
+    #[test]
+    fn invalid_utf8_session_cookie_is_anonymous() {
+        assert_eq!(
+            get_session_token(&cookie_headers("wikijump_token=%FF")),
+            None
+        );
     }
 
     #[test]
