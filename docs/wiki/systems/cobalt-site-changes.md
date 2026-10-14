@@ -24,6 +24,10 @@ No event duplication, scheduler, migration, backfill or write-path change is nee
 
 Targeted RED: `cargo test --test page_site_changes_native -- --test-threads=1`, `/tmp/cobalt-native-changes-red.log`; persisted tag edit absent from a subsequent default feed view. Targeted GREEN: 4/4 at `1d7f94ee4`, `cargo test --test page_site_changes_native --test page_site_changes -- --test-threads=1`, `/tmp/cobalt-native-changes-green-final.log`. Fixture extraction at `e6675928a` reran only the changed native test (1/1), `/tmp/cobalt-native-changes-extracted-green.log`; unchanged imported tests retain their earlier proof. Ledger: `/tmp/cobalt-native-changes-proof.json`. Isolated PostgreSQL `25432/cobalt_test`, Valkey `26381/14`, RAM Silo `29000`; protected environment unchanged.
 
-Main owns final gates and `deploy.sh deepwell` to Sakuin, including production read-only smoke proof. No frontend deployment is required by this change. No production mutation, deployment, push or restart occurred in this slice.
+## Production rollout
+
+verified: 2026-10-14
+
+Main deployed `fb3dcd511` via `deploy.sh deepwell`, exit 0; receipt `/tmp/cobalt-native-changes-deploy.log`. Independent verification matched the running binary to the build, confirmed four healthy wiki services, and passed 6/6 read-only Recent Changes requests across Deepwell, gateway and public edge. October 14 native `bgc:bun`, `bgc:bael` and `bgc:audric` tag edits now appear. Rust fmt/check passed without warnings; test evidence above remains valid. Proof: `/tmp/cobalt-rename-independent-verification.md`, `/tmp/cobalt-integrated-feed-known-rows.json`. No frontend deployment, production test mutation or historical-row repair was needed.
 
 The existing migration/sync path also created some revisions with `from_wikidot=false`; this read path cannot retrospectively infer their authorship. It includes those stored rows rather than deleting history or guessing provenance. File-revision feed expansion and new per-page visibility policy are not covered by this slice. Native slug-change flags and hidden-field handling are not asserted by the new regression; author display is asserted, but native profile-link routing is not.
