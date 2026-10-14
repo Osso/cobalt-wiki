@@ -18,6 +18,8 @@ verified: 2026-10-14 (deployment recorded; final acceptance pending)
 
 Both `deploy.sh deepwell` and `deploy.sh framerail` completed at `641114755`, exit 0. Logs: `/tmp/cobalt-player-join-deepwell-deploy.log`, `/tmp/cobalt-player-join-framerail-deploy.log`. [Security follow-up](cobalt-security-audit.md#player-privacy-and-join-follow-up--2026-10-14) owns the applied player grants, bounded production authorization evidence, locale-error finding and pending final verifier 22. Contracts: [page reads](../../specs/cobalt-page-read-access.md), [Join display](../../specs/cobalt-member-applications.md). No final pass or live-browser Join proof is claimed.
 
+The subsequent [member profile rendering regression](cobalt-security-audit.md#member-profile-rendering-regression--2026-10-14) separates working sampled media authorization from missing private template/ListPages output for actual members. Response-only repair `0f4d09575` is committed, not accepted as deployed; native GREEN, deployment and final verification remain pending with main. Earlier rollout receipts do not prove this repair.
+
 ### Tag-cap diagnostic boundary
 
 Requested tag-count and joined-character cases at 1999, 2000 and 2001 were all accepted in an isolated outer rollback. Verifier 20 reviewed the full `/tmp/cobalt-diagnostic-tag-boundary-ledger.json`. This is bounded diagnostic evidence, not unlimited-tag support or live-browser proof; the reported live cap was not identified. [Tag administration](../../specs/cobalt-tag-admin.md) remains the contract; no policy change follows from these probes.

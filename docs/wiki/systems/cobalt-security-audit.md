@@ -12,6 +12,16 @@ verified: 2026-10-14 (bounded evidence; final acceptance pending)
 
 `678f3c39b` implements response-only Join-module filtering by the actual native `site_member` relation, preserving shared compiled caches. [Member applications](../../specs/cobalt-member-applications.md) owns that contract; deployment does not establish live-browser acceptance.
 
+## Member profile rendering regression — 2026-10-14
+
+verified: 2026-10-14 (diagnosis and source; GREEN/deploy/final acceptance pending)
+
+Access remains [member rank or higher](../../specs/cobalt-page-read-access.md#player-page-privacy); no public-media exception or new membership grant. Main's read-only production receipt `/tmp/cobalt-member-profile-diagnosis.log` establishes an actual regular-member session: `player:alli` and `membersonly:players` were found but returned zero images/profile links. `membersonly:player-icons` returned 26 images; two sampled media probes returned member 302 versus anonymous 403, both `private, no-store`. Media authorization works at that sampled boundary; the renderer omitted private template/ListPages dependencies by checking anonymous visibility even for members.
+
+`93d979d0c` adds two native regressions; `/tmp/cobalt-private-listings-red.log` records both failing on missing portraits/profile listings. `0f4d09575` passes viewer identity only through response rendering, including template/include and per-page ListPages checks; shared render paths retain `None` and shared compiled storage is unchanged. Current names are `ViewerHtml`, `ViewerNavigation`, and `render_viewer_page` (formerly `ShowToHtml`, `ShowToNavigation`, `render_show_to_view`). Contracts: [live templates](../../specs/cobalt-live-templates.md), [includes](../../specs/cobalt-includes.md), [ListPages](../../specs/cobalt-list-pages.md), [render identity](../../specs/cobalt-render-identity.md). Follow-up test commit `f8ed304e5` exercises private includes; the earlier RED receipt does not cover that revision.
+
+Native GREEN, deployment and final verification remain pending. Main owns critical code/integration, deployment and final receipt; [rollout status](cobalt-replica-status.md#player-privacy-and-join-rollout--2026-10-14) must not treat this source repair as deployed acceptance.
+
 ## Coverage and outcomes
 
 | Boundary | Inspected behavior / outcome | Proof and limits |
