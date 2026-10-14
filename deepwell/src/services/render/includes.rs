@@ -232,12 +232,32 @@ pub(super) async fn can_view_render(
     category_id: i64,
     viewer_id: Option<i64>,
 ) -> Result<bool> {
+    check_render_view(ctx, site_id, Some(page_id), category_id, viewer_id).await
+}
+
+/// Category-wide view access, excluding page-author grants.
+pub(super) async fn can_view_category_render(
+    ctx: &ServiceContext<'_>,
+    site_id: i64,
+    category_id: i64,
+    viewer_id: Option<i64>,
+) -> Result<bool> {
+    check_render_view(ctx, site_id, None, category_id, viewer_id).await
+}
+
+async fn check_render_view(
+    ctx: &ServiceContext<'_>,
+    site_id: i64,
+    page_id: Option<i64>,
+    category_id: i64,
+    viewer_id: Option<i64>,
+) -> Result<bool> {
     PermissionService::check_user_can(
         ctx,
         &CheckPermissionContext {
             user_id: viewer_id,
             site_id,
-            page_reference: Some(Reference::Id(page_id)),
+            page_reference: page_id.map(Reference::Id),
         },
         Permission {
             resource_type: Resource::Page,

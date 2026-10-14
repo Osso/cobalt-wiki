@@ -1,7 +1,7 @@
 //! Wikidot `[[module ListPages]]` and `[[module CountPages]]` expansion into ordinary
 //! wikitext before FTML parsing.
 
-use super::includes::can_view_render;
+use super::includes::{can_view_category_render, can_view_render};
 use super::page_tokens::{FormRecord, PageTokens, substitute_tokens};
 
 /// Substitute tokens everywhere except nested module item templates, whose
@@ -593,18 +593,23 @@ async fn check_listing_page_access(
     viewer_id: Option<i64>,
     page: &ListedPage,
 ) -> Result<bool> {
-    // Only anonymous access is category-wide; a viewer may have page-author grants.
-    let shared = viewer_id.is_none();
-    if shared && let Some(&visible) = category_visible.get(&page.page_category_id) {
-        return Ok(visible);
+    // Page-author grants only add roles, so category-wide access covers every
+    // page in it; per-page checks per listed page exceeded the render budget.
+    let category_id = page.page_category_id;
+    let category_wide = match category_visible.get(&category_id) {
+        Some(&visible) => visible,
+        None => {
+            let visible =
+                can_view_category_render(ctx, site_id, category_id, viewer_id).await?;
+            category_visible.insert(category_id, visible);
+            visible
+        }
+    };
+    let needs_page_check = !category_wide && viewer_id.is_some();
+    if needs_page_check {
+        return can_view_render(ctx, site_id, page.page_id, category_id, viewer_id).await;
     }
-    let visible =
-        can_view_render(ctx, site_id, page.page_id, page.page_category_id, viewer_id)
-            .await?;
-    if shared {
-        category_visible.insert(page.page_category_id, visible);
-    }
-    Ok(visible)
+    Ok(category_wide)
 }
 
 impl Selection {
