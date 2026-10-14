@@ -32,8 +32,11 @@ use crate::services::file_revision::{
     GetFileRevision,
 };
 use crate::services::filter::{FilterClass, FilterType};
-use crate::services::{BlobService, FileRevisionService, FilterService, PageService};
-use crate::types::{FileOrder, FileRevisionType};
+use crate::services::page_revision::RerenderType;
+use crate::services::{
+    BlobService, FileRevisionService, FilterService, PageRevisionService, PageService,
+};
+use crate::types::{FileOrder, FileRevisionType, PageId};
 use crate::utils::trim_spaces_in_place;
 use sea_orm::ActiveValue;
 use std::net::IpAddr;
@@ -215,6 +218,8 @@ impl FileService {
             }
         }
 
+        let renamed = matches!(&name, Maybe::Set(name) if name != &last_revision.name);
+
         // If a new file version was uploaded, then finalize.
         //
         // Get the blob struct for conditionally adding to
@@ -281,6 +286,19 @@ impl FileService {
         )
         .await
         .or_raise(make_error)?;
+
+        if renamed {
+            let owner = PageService::get(ctx, site_id, Reference::Id(page_id))
+                .await
+                .or_raise(make_error)?;
+            PageRevisionService::rerender(
+                ctx,
+                PageId::from_page_model(&owner),
+                RerenderType::Standalone,
+            )
+            .await
+            .or_raise(make_error)?;
+        }
 
         Ok(revision_output)
     }

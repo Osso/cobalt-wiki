@@ -17,7 +17,7 @@ The Wikidot-layout Files pane presents attached-file information using the exist
 - [x] Dispatch file revision rollback from the page route to the existing RPC, preserving the request IP and accepting its revised file response.
 - [x] Serialize an omitted rollback comment as an empty string for the RPC wire contract.
 - [x] Complete the disposable Files lifecycle: upload, rename, byte replacement, revision-history read, rollback, move, delete, restore, and final deletion. The run preserves original fixture files and pages.
-- [x] A filename-only edit needs no re-upload: retain file identity, bytes, hash, MIME and size; resolve the new name, retire the old name and record a name-only revision. Missing-name cache behavior is governed by [media routing](cobalt-media-routing.md).
+- [x] A filename-only edit needs no re-upload: retain file identity, bytes, hash, MIME and size; resolve the new name, retire the old name and record a name-only revision. Refresh the owner's derived gallery HTML before returning without editing page source or creating a page revision. Missing-name cache behavior is governed by [media routing](cobalt-media-routing.md).
 - [x] Let the current-page uploader select one or more files. A single file retains optional rename and comment fields and closes on success; a multi-file selection uploads each original filename with one shared comment.
 - [x] Submit a selected batch sequentially through the existing same-page `?/fileUpload` action, not a backend batch API. Show each file's status or error and refresh the listing after completed uploads.
 - [x] Uploader presents a drop zone (drag-and-drop or browse) with selected count and total size; a queue lists each file's name, size, text state label, and error; queued files can be removed before submit; a summary counts uploaded/failed with a segmented meter. Visual evidence: `/tmp/claude-1000/up-{empty,queued,uploading,done}.png` (mocked responses, no writes).
@@ -35,6 +35,7 @@ The Wikidot-layout Files pane presents attached-file information using the exist
 
 ## Implementation inventory
 
+- `deepwell/src/services/file/service.rs` — file edits refresh owner-derived HTML after a filename change.
 - `framerail/src/routes/[slug]/[...extra]/FilePane.svelte` — list, aggregate, information, and uploader placement.
 - `framerail/src/routes/[slug]/[...extra]/FileUploadForm.svelte` — single- and multi-file upload form.
 - `framerail/src/lib/fileUploadBatch.ts` — sequential per-file upload state and receipt handling.
@@ -47,7 +48,7 @@ The Wikidot-layout Files pane presents attached-file information using the exist
 - `framerail/tests/local/remaining-actions.mjs` — local browser information, total, and close coverage.
 - `framerail/tests/local/file-action-mutations.mjs` — disposable browser file-mutation lifecycle; main GREEN 1/1 covers upload, rename, byte replacement, history read, rollback, move, delete, restore, final deletion, and original-fixture preservation.
 - `deepwell/tests/file_permission.rs` — endpoint-authorization coverage; targeted GREEN 3/3 after `e974e6f84` initializes rollback creation revision `0`.
-- `deepwell/tests/file_rename.rs` — isolated real S3 upload followed by authenticated filename-only edit and name-based byte/revision readback; preserves identity, hash, MIME and size without another upload, and retires the old name.
+- `deepwell/tests/file_rename.rs` — isolated real S3 upload, owner bare-gallery warmup, authenticated filename-only edit and name-based byte/revision readback; preserves identity, hash, MIME and size without another upload, retires the old name, refreshes gallery URLs and preserves page source/revision identity.
 - `framerail/tests/file-upload-form.test.ts` — seven unit cases for single and batch selection, request sequencing, shared comments, collision retention, receipt handling, and completion state.
 - `framerail/tests/local/batch-upload.mjs` — local browser batch lifecycle.
 - `framerail/tests/local/file-action-transport.test.mjs` — native multipart request-guard coverage.

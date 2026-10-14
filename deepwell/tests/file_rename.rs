@@ -118,6 +118,38 @@ async fn rename_without_reupload_preserves_bytes_and_retires_old_name() {
             "ip_address": "127.0.0.1"
         })
     );
+    let page_revision = run_endpoint!(
+        runner,
+        page_get,
+        json!({"site_id": site_id, "page": page_id})
+    )
+    .unwrap();
+    run_endpoint!(
+        runner,
+        page_edit,
+        json!({
+            "site_id": site_id, "page": page_id, "user_id": ADMIN_USER_ID,
+            "last_revision_id": page_revision.revision_id, "wikitext": "[[gallery]]",
+            "revision_comments": "Show attachment gallery", "ip_address": "127.0.0.1"
+        })
+    );
+    let gallery_before = run_endpoint!(
+        runner,
+        page_get,
+        json!({
+            "site_id": site_id, "page": page_id,
+            "details": {"compiled_html": true, "wikitext": true}
+        })
+    )
+    .unwrap();
+    assert!(
+        gallery_before
+            .compiled_body_html
+            .as_ref()
+            .unwrap()
+            .contains("/-/file/attachment-rename-regression/icon_tyrrell.jpg"),
+        "fixture gallery must contain the original name before rename"
+    );
     let before = run_endpoint!(
         runner,
         file_get,
@@ -173,4 +205,25 @@ async fn rename_without_reupload_preserves_bytes_and_retires_old_name() {
     .expect("read rename revision");
     assert_eq!(revision.name, after.name);
     assert_eq!(revision.changes, ["name"]);
+    let gallery_after = run_endpoint!(
+        runner,
+        page_get,
+        json!({
+            "site_id": site_id, "page": page_id,
+            "details": {"compiled_html": true, "wikitext": true}
+        })
+    )
+    .unwrap();
+    let html = gallery_after.compiled_body_html.unwrap();
+    assert!(
+        html.contains("/-/file/attachment-rename-regression/icon_zath.jpg"),
+        "owner gallery must render the new filename after rename: {html}"
+    );
+    assert!(!html.contains("icon_tyrrell.jpg"), "{html}");
+    assert_eq!(gallery_after.wikitext, gallery_before.wikitext);
+    assert_eq!(gallery_after.revision_id, gallery_before.revision_id);
+    assert_eq!(
+        gallery_after.revision_number,
+        gallery_before.revision_number
+    );
 }
