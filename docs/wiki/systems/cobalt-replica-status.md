@@ -12,6 +12,14 @@ Rename-process fixes `6dd8b1fbd` (WWS missing-filename responses use `no-store`)
 
 The [native Recent Changes feed rollout](cobalt-site-changes.md#production-rollout) is included in the final Deepwell deployment.
 
+## Writing field compatibility — 2026-10-14
+
+verified: 2026-10-14
+
+Deepwell fixes `b210aacaa` ([comma-separated name selectors](../../specs/cobalt-list-pages.md)) and `3979d6781` ([adjacent content-warning guards](../../specs/cobalt-live-templates.md)) are deployed through `52d2704c2` via `deploy.sh deepwell`, exit 0. Independent production checks confirm all 10 Council of Elders portraits load, and Letter to Ben Hazan shows no warning icons with all four editor choices set to `No`. Native/renderer tests cover all 16 warning combinations; editor SSR checks matching radio choices. Final Rust fmt/check and scoped Prettier pass; changed-code readability has no violations, running/build hashes match, four wiki services are healthy. No user content edits were performed.
+
+Proof: `/tmp/cobalt-comma-independent-verification.md`, `/tmp/cobalt-warning-integrated-verification.md`, `/tmp/cobalt-warning-deploy.log`. Rendering-input identity matches final source despite the build's earlier dirty Git label (only the subsequent spec checkbox was committed). Missing stored warning fields retain existing empty-token semantics; backend missing-field icons remain untested. No blanket parser-parity claim.
+
 ## Scoped final bugfix rollout
 
 verified: 2026-10-05
