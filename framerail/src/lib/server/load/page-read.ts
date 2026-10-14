@@ -5,19 +5,28 @@ import { loadSiteInfo } from "$lib/server/load/site-info"
 import { error } from "@sveltejs/kit"
 import type { RequestEvent } from "@sveltejs/kit"
 
+/**
+ * Read the routed page with the same language defaults as normal page
+ * loading.
+ */
+export async function loadRoutedPageView({ request, params, cookies }: RequestEvent) {
+  const { siteId } = loadSiteInfo(request.headers)
+  const route =
+    params.slug || params.extra ? { slug: params.slug, extra: params.extra ?? "" } : null
+  const locales = [...parseAcceptLangHeader(request), defaults.fallbackLocale]
+  return pageView(siteId, locales, route, cookies.get("wikijump_token"))
+}
+
 /** Public pane reads may only query their authorized, routed page. */
 export async function authorizePageRead(
-  { request, params, cookies }: RequestEvent,
+  event: RequestEvent,
   target: { siteId?: number; pageId: number }
 ) {
-  const { siteId } = loadSiteInfo(request.headers)
+  const { siteId } = loadSiteInfo(event.request.headers)
   if (target.siteId !== undefined && target.siteId !== siteId) {
     error(403, "Page target does not match this site.")
   }
-  const route =
-    params.slug || params.extra ? { slug: params.slug, extra: params.extra } : null
-  const locales = [...parseAcceptLangHeader(request), defaults.fallbackLocale]
-  const view = await pageView(siteId, locales, route, cookies.get("wikijump_token"))
+  const view = await loadRoutedPageView(event)
   if (view.type === "permissions") error(403, "Page view denied.")
   if (view.type === "missing") error(404, "Page not found.")
   if (view.data.page.page_id !== target.pageId) {

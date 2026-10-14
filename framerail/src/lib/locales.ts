@@ -3,6 +3,7 @@ import { parse } from "accept-language-parser"
 export function parseAcceptLangHeader(req: Request) {
   const language = req.headers.get("Accept-Language") ?? undefined
   const locales = parse(language)
+    .filter((lang) => lang.code !== "*")
     .sort((a, b) => b.quality - a.quality)
     .map((lang) => {
       const parts = [lang.code]

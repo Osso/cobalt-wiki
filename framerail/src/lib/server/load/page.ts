@@ -42,7 +42,7 @@ import {
 import { translate } from "$lib/server/deepwell/translate"
 import { pageView } from "$lib/server/deepwell/views"
 import { loadSiteInfo } from "$lib/server/load/site-info"
-import { authorizePageRead } from "$lib/server/load/page-read"
+import { authorizePageRead, loadRoutedPageView } from "$lib/server/load/page-read"
 import { DeleteOptions, Layout, PageLockType } from "$lib/types"
 import { deepwellErrorStatus, requireDeepwellError } from "$lib/deepwell-errors"
 import { applyTagChanges } from "$lib/tag-buttons"
@@ -948,18 +948,11 @@ export async function pageHistoryAction(event: RequestEvent) {
 }
 
 /* ----- Imported Wikidot History ----- */
-async function resolveImportedHistoryPage({
-  request,
-  params,
-  cookies
-}: RequestEvent): Promise<{ siteId: number; pageId: number } | { status: 403 | 404 }> {
-  const { siteId } = loadSiteInfo(request.headers)
-  const view = await pageView(
-    siteId,
-    [],
-    { slug: params.slug, extra: params.extra },
-    cookies.get("wikijump_token")
-  )
+async function resolveImportedHistoryPage(
+  event: RequestEvent
+): Promise<{ siteId: number; pageId: number } | { status: 403 | 404 }> {
+  const { siteId } = loadSiteInfo(event.request.headers)
+  const view = await loadRoutedPageView(event)
   if (view.type === "permissions") return { status: 403 }
   if (view.type === "missing") return { status: 404 }
   return { siteId, pageId: view.data.page.page_id }

@@ -1,6 +1,6 @@
 import { fail } from "@sveltejs/kit"
 import { client } from "$lib/server/deepwell"
-import { pageView } from "$lib/server/deepwell/views"
+import { loadRoutedPageView } from "./page-read"
 import { deepwellErrorStatus, requireDeepwellError } from "$lib/deepwell-errors"
 import { loadSiteInfo } from "./site-info"
 import { getRequestContext } from "./request-ctx"
@@ -21,10 +21,7 @@ export interface PageBacklinks {
 export async function pageBacklinksAction(event: RequestEvent) {
   try {
     const { siteId } = loadSiteInfo(event.request.headers)
-    const route = event.params.slug
-      ? { slug: event.params.slug, extra: event.params.extra ?? "" }
-      : null
-    const view = await pageView(siteId, [], route, event.cookies.get("wikijump_token"))
+    const view = await loadRoutedPageView(event)
     if (view.type === "permissions") {
       return fail(403, { message: "Page backlinks unavailable" })
     }

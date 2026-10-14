@@ -1,6 +1,6 @@
 import { fail } from "@sveltejs/kit"
 import { client } from "$lib/server/deepwell"
-import { pageView } from "$lib/server/deepwell/views"
+import { loadRoutedPageView } from "./page-read"
 import { deepwellErrorStatus, requireDeepwellError } from "$lib/deepwell-errors"
 import { loadSiteInfo } from "./site-info"
 import { getRequestContext } from "./request-ctx"
@@ -117,12 +117,7 @@ async function resolvePage(
   event: RequestEvent
 ): Promise<{ status: 403 | 404 } | { site_id: number; page_id: number }> {
   const { siteId } = loadSiteInfo(event.request.headers)
-  const view = await pageView(
-    siteId,
-    [],
-    event.params.slug ? { slug: event.params.slug, extra: event.params.extra } : null,
-    event.cookies.get("wikijump_token")
-  )
+  const view = await loadRoutedPageView(event)
   if (view.type === "permissions") return { status: 403 as const }
   if (view.type !== "found") return { status: 404 as const }
   return { site_id: siteId, page_id: view.data.page.page_id }
