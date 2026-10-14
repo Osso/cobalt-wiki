@@ -7,9 +7,9 @@ Site Changes renders native page revisions together with preserved imported Wiki
 ### Feed and filtering
 
 - [x] Preserve revision metadata without rewriting page source or history; report feed coverage separately from rendering behavior.
-- [ ] Include committed native page creations and edits immediately on subsequent default and filtered views, without Wikidot sync or rewriting imported history.
+- [x] Include committed native page creations and edits immediately on subsequent default and filtered views, without Wikidot sync or rewriting imported history.
 - [ ] Apply category/type filters and newest-first pagination to the combined feed; map native creation to N, source to S, title to T, slug to R, tags to A, and alternate title to M. Unchanged edits create no feed row.
-- [ ] Exclude imported `page_revision` rows (`from_wikidot`) from the native branch so separately imported history is not counted twice.
+- [x] Exclude imported `page_revision` rows (`from_wikidot`) from the native branch so separately imported history is not counted twice.
 - [x] Preserve module category selection: `All` wins over selected change filters; selected non-`All` filters use OR semantics.
 - [x] Preserve page sizes 10, 20, 50, 100, and 200 (default 20), reset to URL page 1 on filter change, and retain pager links.
 
