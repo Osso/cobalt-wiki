@@ -12,6 +12,14 @@ Rename-process fixes `6dd8b1fbd` (WWS missing-filename responses use `no-store`)
 
 The [native Recent Changes feed rollout](cobalt-site-changes.md#production-rollout) is included in the final Deepwell deployment.
 
+## Login return-to rollout — 2026-10-14
+
+verified: 2026-10-14
+
+[Account return-path contract](../../specs/cobalt-accounts.md): `7bb7d8028`, with route-resolver follow-up `8af440d7b`, deployed through `deploy.sh framerail`, exit 0. Exact authenticated `/-/login?origUrl=%2Fplayer%3Aalli` now returns 303 to `/player:alli`; member/owner destination HTTP and page-data reads succeed, and an independent existing-session browser reaches the hydrated Alli page. Anonymous login retains its form and private-page denial. Default, unsafe-target and query/fragment behavior passed the bounded installed matrix.
+
+Focused regressions pass 21/21; scoped lint/types/Svelte/format/style/readability checks pass, installed/local Framerail hashes match for all 583 files, and four application services are healthy. Proof: `/tmp/cobalt-login-return-independent-verification.md`; final deployment: `/tmp/cobalt-login-return-resolved-deploy.log`. Actual fresh browser credential submission was not performed; successful fresh return-to is registered-action fixture/framework proof. Inherited build/setup warnings remain documented, not suppressed. Backend, rank/membership policy, credentials and page content were unchanged.
+
 ## Player privacy and Join rollout — 2026-10-14
 
 verified: 2026-10-14
