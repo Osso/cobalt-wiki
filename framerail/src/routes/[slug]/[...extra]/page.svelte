@@ -591,6 +591,13 @@
     list-style: none;
   }
 
+  .page-tags > span {
+    display: flex;
+    flex-wrap: wrap;
+    min-width: 0;
+    max-width: 100%;
+  }
+
   .page-meta-info-container {
     text-align: right;
   }
