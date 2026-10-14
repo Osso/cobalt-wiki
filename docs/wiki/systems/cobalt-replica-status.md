@@ -14,11 +14,11 @@ The [native Recent Changes feed rollout](cobalt-site-changes.md#production-rollo
 
 ## Player privacy and Join rollout — 2026-10-14
 
-verified: 2026-10-14 (deployment recorded; final acceptance pending)
+verified: 2026-10-14
 
-Both `deploy.sh deepwell` and `deploy.sh framerail` completed at `641114755`, exit 0. Logs: `/tmp/cobalt-player-join-deepwell-deploy.log`, `/tmp/cobalt-player-join-framerail-deploy.log`. [Security follow-up](cobalt-security-audit.md#player-privacy-and-join-follow-up--2026-10-14) owns the applied player grants, bounded production authorization evidence, locale-error finding and pending final verifier 22. Contracts: [page reads](../../specs/cobalt-page-read-access.md), [Join display](../../specs/cobalt-member-applications.md). No final pass or live-browser Join proof is claimed.
+Initial Deepwell/Framerail deployment at `641114755` completed with exit 0; the final pane-authorization Framerail repair `d4b6ba4bd` also deployed with exit 0 (`/tmp/cobalt-routed-locales-deploy.log`). [Security follow-up](cobalt-security-audit.md#player-privacy-and-join-follow-up--2026-10-14) owns scoped acceptance for player grants, pane denials and member-aware Join display. Contracts: [page reads](../../specs/cobalt-page-read-access.md), [Join display](../../specs/cobalt-member-applications.md).
 
-The subsequent [member profile rendering regression](cobalt-security-audit.md#member-profile-rendering-regression--2026-10-14) separates working sampled media authorization from missing private template/ListPages output for actual members. Response-only repair `0f4d09575` is committed, not accepted as deployed; native GREEN, deployment and final verification remain pending with main. Earlier rollout receipts do not prove this repair.
+Response-only renderer repair `0f4d09575`, with aligned tests through `a9cc542cc`, deployed via `deploy.sh deepwell`, exit 0 (`/tmp/cobalt-viewer-render-deploy.log`). The [member profile rendering acceptance](cobalt-security-audit.md#member-profile-rendering-regression--2026-10-14) records restored member-or-higher views, retained guest denial, shared-storage isolation, sampled budgets and the remaining missing Chem icon. No privacy rollback, public-media exception or membership grant was made.
 
 ### Tag-cap diagnostic boundary
 

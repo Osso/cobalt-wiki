@@ -4,23 +4,25 @@ Recorded: 2026-10-04. Initial repair acceptance through `dd931fa3d`; follow-up r
 
 ## Player privacy and Join follow-up — 2026-10-14
 
-verified: 2026-10-14 (bounded evidence; final acceptance pending)
+verified: 2026-10-14
 
 [Player-page and pane policy](../../specs/cobalt-page-read-access.md#player-page-privacy) is the policy SSOT. `80ac39f3a` adds player-category grants in `tools/cobalt_migration/private_categories.sql`; main applied the SQL to production site `6000000`, player category `100000029`, returning `INSERT 4`. Verifier 20 proved 29 anonymous RPC denials, actual regular-member access, and guest media 403. It also found 12 pane actions returning 400 locale errors with metadata diagnostics: that receipt is not a privacy pass.
 
-`641114755` supplies request languages and configured locale to pane authorization; 48 SSR regressions pass. The helper fix is deployed (see [rollout SSOT](cobalt-replica-status.md#player-privacy-and-join-rollout--2026-10-14)), but final verifier 22 remains pending. No post-fix deployed pane-denial acceptance is claimed; main owns the final acceptance receipt.
+`641114755` repaired seven pane guards; `d4b6ba4bd` then unified native/imported history and backlinks through the same routed view and excluded wildcard language ranges from locale identifiers. Focused SSR proof passes 112/112. Final installed follow-up passes 52/52 anonymous pane denials and 24/24 member history/backlink reads across gateway/Framerail with headerless and wildcard requests; no diagnostic metadata on denials. Report: `/tmp/cobalt-routed-locales-final-verification.md`. [Rollout SSOT](cobalt-replica-status.md#player-privacy-and-join-rollout--2026-10-14).
 
-`678f3c39b` implements response-only Join-module filtering by the actual native `site_member` relation, preserving shared compiled caches. [Member applications](../../specs/cobalt-member-applications.md) owns that contract; deployment does not establish live-browser acceptance.
+`678f3c39b` implements response-only Join-module filtering by the actual native `site_member` relation, preserving shared compiled caches. Native membership-change/cache ordering and installed member/guest response checks pass in `/tmp/cobalt-player-final-verification.md`; the later renderer gate retains the affected Join test. [Member applications](../../specs/cobalt-member-applications.md) owns that contract.
 
 ## Member profile rendering regression — 2026-10-14
 
-verified: 2026-10-14 (diagnosis and source; GREEN/deploy/final acceptance pending)
+verified: 2026-10-14
 
 Access remains [member rank or higher](../../specs/cobalt-page-read-access.md#player-page-privacy); no public-media exception or new membership grant. Main's read-only production receipt `/tmp/cobalt-member-profile-diagnosis.log` establishes an actual regular-member session: `player:alli` and `membersonly:players` were found but returned zero images/profile links. `membersonly:player-icons` returned 26 images; two sampled media probes returned member 302 versus anonymous 403, both `private, no-store`. Media authorization works at that sampled boundary; the renderer omitted private template/ListPages dependencies by checking anonymous visibility even for members.
 
 `93d979d0c` adds two native regressions; `/tmp/cobalt-private-listings-red.log` records both failing on missing portraits/profile listings. `0f4d09575` passes viewer identity only through response rendering, including template/include and per-page ListPages checks; shared render paths retain `None` and shared compiled storage is unchanged. Current names are `ViewerHtml`, `ViewerNavigation`, and `render_viewer_page` (formerly `ShowToHtml`, `ShowToNavigation`, `render_show_to_view`). Contracts: [live templates](../../specs/cobalt-live-templates.md), [includes](../../specs/cobalt-includes.md), [ListPages](../../specs/cobalt-list-pages.md), [render identity](../../specs/cobalt-render-identity.md). Follow-up test commit `f8ed304e5` exercises private includes; the earlier RED receipt does not cover that revision.
 
-Native GREEN, deployment and final verification remain pending. Main owns critical code/integration, deployment and final receipt; [rollout status](cobalt-replica-status.md#player-privacy-and-join-rollout--2026-10-14) must not treat this source repair as deployed acceptance.
+Production-aligned native regressions at `a9cc542cc` pass 2/2; the affected include/Join/show-to/privacy batch passes 9/9. Independent runtime proof confirms all 27 profiles render images for a regular member, with root/admin also allowed and guests denied; moderator and registered-only boundaries are native-test proof, not live-session proof. Alli's portrait and all 26 existing owner icons load bytes; shared source/revision/compiled hashes remain stable over 16 warmed member↔guest HTTP reads. Rust fmt/check pass without warnings, no new readability violations, running/build hashes match and four services are healthy. Sampled roster HTTP times are 2.03–2.23 seconds against a 2.5-second render budget, not a load guarantee. Report: `/tmp/cobalt-private-final-verification.md`; [deployment receipt](cobalt-replica-status.md#player-privacy-and-join-rollout--2026-10-14).
+
+Remaining data gap: index 32 image references resolve to 27 unique paths; `icon_chem.jpg` has no native attachment record and no file in the captured import manifest. Main's explicit-language follow-up returns member 404/no-store with `Accept-Language: en`; the verifier's wildcard requests return 504 through WWS's error renderer, not an ACL denial. No replacement image was invented or imported; recovery awaits a user decision. Evidence: `/tmp/cobalt-private-asset-followup.md`. HTTP HTML has no explicit Cache-Control/Vary header; no intermediary leak was observed or universal cache-safety claim made.
 
 ## Coverage and outcomes
 
