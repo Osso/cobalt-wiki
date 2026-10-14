@@ -19,7 +19,7 @@ pub(super) fn strip_comments(source: String) -> String {
     let mut index = 0;
     while index < source.len() {
         let rest = &source[index..];
-        if rest.starts_with(RAW) {
+        if starts_raw_span(&source, index) {
             let end = raw_span_end(&source, index);
             output.push_str(&source[index..end]);
             index = end;
@@ -39,6 +39,12 @@ pub(super) fn strip_comments(source: String) -> String {
     output
 }
 
+/// Wikidot's `(?<!@)@@` opener cannot restart inside an already consumed marker.
+fn starts_raw_span(source: &str, start: usize) -> bool {
+    let preceded_by_at = start > 0 && source.as_bytes()[start - 1] == b'@';
+    source[start..].starts_with(RAW) && !preceded_by_at
+}
+
 /// End of the raw span opening at `start`, or just past an unpaired marker.
 fn raw_span_end(source: &str, start: usize) -> usize {
     let after = start + RAW.len();
@@ -56,7 +62,7 @@ fn comment_end(source: &str, start: usize) -> Option<usize> {
     let mut index = start;
     while index < source.len() {
         let rest = &source[index..];
-        if rest.starts_with(RAW) {
+        if starts_raw_span(source, index) {
             index = raw_span_end(source, index);
         } else if rest.starts_with(CLOSE) {
             return Some(index + CLOSE.len());
@@ -77,6 +83,33 @@ mod tests {
     fn a_raw_marker_value_hides_the_guarded_row() {
         let source = ROW.replace("{v}", "@@");
         assert_eq!(strip_comments(source), "\n|| Gender || Male ||");
+    }
+
+    #[test]
+    fn adjacent_raw_marker_guards_hide_only_their_own_unselected_warning() {
+        let warnings = ["sexual-content", "violence", "language", "substance-abuse"];
+        for selected in 0..16 {
+            let source: String = warnings
+                .iter()
+                .enumerate()
+                .map(|(index, warning)| {
+                    let value = if selected & (1 << index) == 0 {
+                        "@@"
+                    } else {
+                        warning
+                    };
+                    format!("[!--{value}--]@@@@[[image cw_{warning}.png]][!-- --]")
+                })
+                .collect();
+            let rendered = strip_comments(source);
+            for (index, warning) in warnings.iter().enumerate() {
+                assert_eq!(
+                    rendered.contains(&format!("cw_{warning}.png")),
+                    selected & (1 << index) != 0,
+                    "selection {selected}: {rendered}"
+                );
+            }
+        }
     }
 
     #[test]
