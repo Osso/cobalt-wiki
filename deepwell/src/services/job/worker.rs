@@ -22,7 +22,7 @@
 
 use super::prelude::*;
 use crate::api::ServerState;
-use crate::services::character_rename::CharacterRenameService;
+use crate::services::character_rename::{CharacterRenameService, RUNNING_RECHECK_DELAY};
 use crate::services::page_revision::RerenderType;
 use crate::services::{
     BlobService, PageRevisionService, RelationService, SessionService, TextService,
@@ -317,10 +317,19 @@ impl JobWorker {
                 debug!("Running character rename {operation_id}");
                 // Uses its own transactions: the rename outlasts the queue's
                 // process time, and a failure must still be recorded.
-                CharacterRenameService::run_job(&self.state, operation_id)
-                    .await
-                    .or_raise(make_error)?;
-                NextJob::Done
+                let running_elsewhere =
+                    CharacterRenameService::run_job(&self.state, operation_id)
+                        .await
+                        .or_raise(make_error)?;
+                if running_elsewhere {
+                    // Keep a job queued in case that worker dies.
+                    NextJob::Next {
+                        job: Job::CharacterRename { operation_id },
+                        delay: Some(RUNNING_RECHECK_DELAY),
+                    }
+                } else {
+                    NextJob::Done
+                }
             }
         };
 

@@ -19,7 +19,7 @@ Decisions (user, 2026-10-15): anyone who can edit the character page may rename 
 ## How it works
 
 - `deepwell/src/services/character_rename.rs`: planning (candidate pages: tag overlap or the name as a word in the source), preview token, job body `execute`, and `run_job`, which locks the queued row (`FOR UPDATE SKIP LOCKED`) in the transaction that runs `execute`, and records failure in a separate one.
-- The job runs on the existing worker queue. It may outlast the queue's 30 s process time; a redelivered message finds the row locked and does nothing. If the worker dies, the lock is released and a redelivery runs the rename from the start (progress resets to 0).
+- The job runs on the existing worker queue. It may outlast the queue's 30 s process time; a redelivered message that finds the row locked queues a check 30 s later instead of finishing, so a job exists until the rename commits or fails. If the worker dies, its lock is released and the next check runs the rename from the start (progress resets to 0).
 - Progress is a Redis counter (`character-rename:progress:<id>`, 24 h expiry), because uncommitted edits are invisible to status reads. The `character_rename` row holds the final outcome.
 - Idle workers poll every `min-delay-poll-secs` doubling up to `max-delay-poll-secs`; the NixOS module sets the cap to 10 s (default 360 s, which made a live rename wait 23 s at 0/N), so a rename starts within about 10 s.
 - The job holds the site tag lock for its whole run, so ordinary page edits and imports on the site wait until it finishes. At about 76 ms per real page, a character on 1,000 pages blocks edits for roughly 75 s.
@@ -34,10 +34,15 @@ Decisions (user, 2026-10-15): anyone who can edit the character page may rename 
 
 ## Tests asserting this spec
 
-- `deepwell/tests/character_rename.rs` — registered preview/start/status plus the job body against the native DB, S3 and rendering: move, tags, writing/arc name lists, `pagename` and link rewrites with rendered icon/link, untouched prose page, icon rename, revision counts, progress `done`; slug/tag/icon/name/category conflicts; locked affected and character pages; stale preview at start and at job time; a `_template` edit after preview makes start stale. 6/6 (`/tmp/claude/character-rename-native-3.out`); the template case fails with templates removed from the token (`/tmp/claude/character-rename-template-mutant.out`). With the reference rewrite and job stale check disabled, 3/5 fail (`/tmp/claude/character-rename-mutant.out`).
+- `deepwell/tests/character_rename.rs` — `redelivered_job_for_a_running_rename_checks_again_later` (committed row locked by another transaction: `run_job` asks for a later check; finished row: no further job; RED with the old drop-the-job behavior, `/tmp/claude/character-rename-redelivery-mutant.out`; 7/7 `/tmp/claude/character-rename-native-4.out`). Registered preview/start/status plus the job body against the native DB, S3 and rendering: move, tags, writing/arc name lists, `pagename` and link rewrites with rendered icon/link, untouched prose page, icon rename, revision counts, progress `done`; slug/tag/icon/name/category conflicts; locked affected and character pages; stale preview at start and at job time; a `_template` edit after preview makes start stale. 6/6 (`/tmp/claude/character-rename-native-3.out`); the template case fails with templates removed from the token (`/tmp/claude/character-rename-template-mutant.out`). With the reference rewrite and job stale check disabled, 3/5 fail (`/tmp/claude/character-rename-mutant.out`).
 - `deepwell/src/services/character_rename.rs` unit tests — reference rewrite boundaries (including a non-RelationshipBox `pagename`) and new-name validation, 2/2.
 
 ## Known gaps (current cycle)
 
-- `run_job` (row lock, own transactions, deferred jobs, failure recording) is not covered by the rollback-only test harness.
+- `run_job` is covered only for the locked-row and finished-row claim outcomes; the commit/rollback path with deferred jobs is proven by one production run, not a test.
+- A failed commit, rollback, or `discard_deferred_jobs` skips `record_failure`, so the queue retries the rename (up to max-attempts) instead of marking it failed.
+- If sending held rerender jobs fails partway after commit, the rest are lost and their pending markers block requeueing for up to 1 h.
+- A rerender already queued before the rename can run during it and render the old state; the rename does not queue it again.
+- A failed rename's status shows the progress count of the rolled-back attempt.
+- Rewriting name lists re-serializes the page's form data (e.g. `author: 'x'` becomes `author: x`); values are unchanged.
 - `[[include CharacterList | tags=…]]` terms and absolute `https://…/character:<name>` URLs are not rewritten (4 and 2 occurrences site-wide for the five most-referenced characters).

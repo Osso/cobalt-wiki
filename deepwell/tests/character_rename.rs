@@ -518,3 +518,77 @@ async fn edits_after_preview_or_start_make_the_rename_stale() {
         "character:old"
     );
 }
+
+fn sql(query: &str) -> Statement {
+    Statement::from_string(DatabaseBackend::Postgres, query)
+}
+
+/// A redelivered job must not drop the rename while another worker's
+/// transaction holds it: if that worker dies, only a queued job can run it.
+/// Runs against committed rows, as the worker does, and deletes its row.
+#[tokio::test]
+async fn redelivered_job_for_a_running_rename_checks_again_later() {
+    let runner = TestRunner::setup_with_idle_job_workers().await;
+    let state = runner.state();
+    let database = &state.database;
+    let installed = database
+        .query_one_raw(sql(
+            "SELECT to_regclass('character_rename') IS NOT NULL AS installed",
+        ))
+        .await
+        .unwrap()
+        .unwrap()
+        .try_get::<bool>("", "installed")
+        .unwrap();
+    if !installed {
+        database
+            .execute_unprepared(include_str!(
+                "../migrations/20261015000000_character_rename.sql"
+            ))
+            .await
+            .unwrap();
+    }
+    let operation_id: i64 = database
+        .query_one_raw(sql(&format!(
+            "INSERT INTO character_rename (site_id, page_id, actor_user_id, old_name, new_name, new_slug, preview_token, ip_address, total)
+             SELECT site_id, page_id, {ADMIN_USER_ID}, 'old', 'new', 'character:new', 'token', '127.0.0.1', 1
+             FROM page WHERE deleted_at IS NULL ORDER BY page_id LIMIT 1
+             RETURNING operation_id"
+        )))
+        .await
+        .unwrap()
+        .unwrap()
+        .try_get("", "operation_id")
+        .unwrap();
+
+    let running = database.begin().await.unwrap();
+    running
+        .execute_unprepared(&format!(
+            "SELECT 1 FROM character_rename WHERE operation_id = {operation_id} FOR UPDATE"
+        ))
+        .await
+        .unwrap();
+    let running_elsewhere = CharacterRenameService::run_job(state, operation_id)
+        .await
+        .unwrap();
+    running.rollback().await.unwrap();
+
+    database
+        .execute_unprepared(&format!(
+            "UPDATE character_rename SET status = 'done' WHERE operation_id = {operation_id}"
+        ))
+        .await
+        .unwrap();
+    let after_done = CharacterRenameService::run_job(state, operation_id)
+        .await
+        .unwrap();
+    database
+        .execute_unprepared(&format!(
+            "DELETE FROM character_rename WHERE operation_id = {operation_id}"
+        ))
+        .await
+        .unwrap();
+
+    assert!(running_elsewhere, "locked rename must be checked again");
+    assert!(!after_done, "finished rename needs no further job");
+}

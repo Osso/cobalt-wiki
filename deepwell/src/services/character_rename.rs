@@ -34,6 +34,9 @@ const ICON_PAGE: &str = "icons";
 /// Lets the starting request commit before a worker reads its row.
 const START_DELAY: Duration = Duration::from_secs(1);
 
+/// How long a redelivered job waits before checking a running rename again.
+pub const RUNNING_RECHECK_DELAY: Duration = Duration::from_secs(30);
+
 /// Progress counters outlive any rename; the row holds the final outcome.
 const PROGRESS_EXPIRY_SECS: u64 = 86_400;
 
@@ -301,14 +304,24 @@ impl CharacterRenameService {
     }
 
     /// Job body. The row lock is taken in the rename's own transaction, so a
-    /// worker that dies mid-run releases it and a redelivered job runs the
-    /// rename again; a redelivery while it still runs finds it locked and stops.
+    /// worker that dies mid-run releases it. A redelivery while the rename
+    /// still runs finds the row locked and returns `true`: the caller checks
+    /// again later, so a job exists until the rename commits or fails.
     /// Jobs queued by the rename are sent only after it commits.
-    pub async fn run_job(state: &ServerState, operation_id: i64) -> Result<()> {
+    pub async fn run_job(state: &ServerState, operation_id: i64) -> Result<bool> {
         let txn = state.database.begin().await.or_raise(query_error)?;
-        let Some(request) = claim(&txn, operation_id).await? else {
-            info!("Character rename {operation_id} finished or running elsewhere");
-            return txn.rollback().await.or_raise(query_error);
+        let request = match claim(&txn, operation_id).await? {
+            Claim::Run(request) => request,
+            Claim::RunningElsewhere => {
+                info!("Character rename {operation_id} is running elsewhere");
+                txn.rollback().await.or_raise(query_error)?;
+                return Ok(true);
+            }
+            Claim::Finished => {
+                info!("Character rename {operation_id} already finished");
+                txn.rollback().await.or_raise(query_error)?;
+                return Ok(false);
+            }
         };
         let ctx = ServiceContext::new(state, &txn).with_request(request);
         ctx.defer_jobs();
@@ -318,7 +331,8 @@ impl CharacterRenameService {
         match result {
             Ok(()) => {
                 txn.commit().await.or_raise(query_error)?;
-                JobService::send_deferred_jobs(&mut state.rsmq.clone(), &jobs).await
+                JobService::send_deferred_jobs(&mut state.rsmq.clone(), &jobs).await?;
+                Ok(false)
             }
             Err(error) => {
                 txn.rollback().await.or_raise(query_error)?;
@@ -327,7 +341,8 @@ impl CharacterRenameService {
                 let rpc = exn_error_to_rpc_error(error);
                 let message = format!("[{}] {}", rpc.code(), rpc.message());
                 warn!("Character rename {operation_id} failed: {message}");
-                record_failure(state, operation_id, &message).await
+                record_failure(state, operation_id, &message).await?;
+                Ok(false)
             }
         }
     }
@@ -728,36 +743,43 @@ async fn read_progress(
         })
 }
 
-/// Locks a queued rename for this transaction; `None` if it is finished or
-/// another worker holds it.
-async fn claim(
-    txn: &sea_orm::DatabaseTransaction,
-    operation_id: i64,
-) -> Result<Option<RequestContext>> {
+enum Claim {
+    /// Locked for this transaction, to run as this user and page.
+    Run(RequestContext),
+    /// Queued, but another worker's transaction holds it.
+    RunningElsewhere,
+    Finished,
+}
+
+/// Locks a queued rename for this transaction.
+async fn claim(txn: &sea_orm::DatabaseTransaction, operation_id: i64) -> Result<Claim> {
     let row = txn.query_one_raw(statement(
         "SELECT site_id, page_id, actor_user_id FROM character_rename WHERE operation_id = $1 AND status = 'queued' FOR UPDATE SKIP LOCKED",
         [operation_id.into()],
     )).await.or_raise(query_error)?;
     let Some(row) = row else {
-        let exists = txn
+        let status = txn
             .query_one_raw(statement(
-                "SELECT 1 FROM character_rename WHERE operation_id = $1",
+                "SELECT status FROM character_rename WHERE operation_id = $1",
                 [operation_id.into()],
             ))
             .await
-            .or_raise(query_error)?
-            .is_some();
-        if !exists {
+            .or_raise(query_error)?;
+        let Some(status) = status else {
             // Not committed yet: fail so the queue delivers the job again.
             bail!(Error::new(
                 format!("character rename {operation_id} not visible yet"),
                 ErrorType::Job
             ));
-        }
-        return Ok(None);
+        };
+        return Ok(if get::<String>(&status, "status")? == "queued" {
+            Claim::RunningElsewhere
+        } else {
+            Claim::Finished
+        });
     };
     let page_id: i64 = get(&row, "page_id")?;
-    Ok(Some(RequestContext {
+    Ok(Claim::Run(RequestContext {
         session: None,
         user_id: Some(get(&row, "actor_user_id")?),
         site_id: Some(get(&row, "site_id")?),
