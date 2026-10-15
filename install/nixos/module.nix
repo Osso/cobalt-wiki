@@ -38,6 +38,9 @@ let
       # Sessions slide on use; 400 days matches the longest cookie browsers
       # keep, so "Keep me signed in" members are never logged out by expiry.
       security.session.duration-session-minutes = 576000;
+      # Idle workers back off to this poll interval; a character rename waits
+      # for the next poll before it starts, so keep it short.
+      job.max-delay-poll-secs = 10;
       email = {
         mock-mailcheck = false;
         automation-address = "noreply@${cfg.mainDomain}";

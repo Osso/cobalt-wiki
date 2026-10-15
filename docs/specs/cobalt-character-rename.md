@@ -21,6 +21,7 @@ Decisions (user, 2026-10-15): anyone who can edit the character page may rename 
 - `deepwell/src/services/character_rename.rs`: planning (candidate pages: tag overlap or the name as a word in the source), preview token, job body `execute`, and `run_job`, which locks the queued row (`FOR UPDATE SKIP LOCKED`) in the transaction that runs `execute`, and records failure in a separate one.
 - The job runs on the existing worker queue. It may outlast the queue's 30 s process time; a redelivered message finds the row locked and does nothing. If the worker dies, the lock is released and a redelivery runs the rename from the start (progress resets to 0).
 - Progress is a Redis counter (`character-rename:progress:<id>`, 24 h expiry), because uncommitted edits are invisible to status reads. The `character_rename` row holds the final outcome.
+- Idle workers poll every `min-delay-poll-secs` doubling up to `max-delay-poll-secs`; the NixOS module sets the cap to 10 s (default 360 s, which made a live rename wait 23 s at 0/N), so a rename starts within about 10 s.
 - The job holds the site tag lock for its whole run, so ordinary page edits and imports on the site wait until it finishes. At about 76 ms per real page, a character on 1,000 pages blocks edits for roughly 75 s.
 
 ## Implementation inventory
@@ -37,7 +38,6 @@ Decisions (user, 2026-10-15): anyone who can edit the character page may rename 
 - `deepwell/src/services/character_rename.rs` unit tests — reference rewrite boundaries (including a non-RelationshipBox `pagename`) and new-name validation, 2/2.
 
 ## Known gaps (current cycle)
-- Idle workers back off to `max-delay-poll-secs` (production 360 s), so a rename can wait minutes before starting; the pane shows 0/N meanwhile. The live run waited 23 s.
 
 - `run_job` (row lock, own transactions, deferred jobs, failure recording) is not covered by the rollback-only test harness.
 - `[[include CharacterList | tags=…]]` terms and absolute `https://…/character:<name>` URLs are not rewritten (4 and 2 occurrences site-wide for the five most-referenced characters).
