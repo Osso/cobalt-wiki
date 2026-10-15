@@ -10,7 +10,9 @@ use deepwell::types::Reference;
 use sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
 use serde_json::json;
 
-const TEMPLATE: &str = "[[include writingbox | characters=%%form_raw{characters}%%]]\n\nCopy tags: %%form_raw{characters}%%\n\n====\n\n[[form]]\nfields:\n  characters:\n    type: text\n  content:\n    type: wiki\n[[/form]]";
+const TEMPLATE: &str = "[[include writingbox | characters=%%form_raw{characters}%%]]\n\nCopy tags: %%form_raw{characters}%%\n\n====\n\n[[form]]\nfields:\n  characters:\n    type: text\n  references:\n    type: text\n  content:\n    type: wiki\n[[/form]]";
+// Production arc:_template and chain:_template feed `characters` to their portrait box.
+const GROUP_TEMPLATE: &str = "[[include writingbox | characters=%%form_raw{characters}%%]]\n\n====\n\n[[form]]\nfields:\n  characters:\n    type: text\n[[/form]]";
 const SOURCE: &str = "characters: ' ,OLD, oldish\tkeep  old,,OLD, '\ncontent: 'old biography stays old'\nunknown: true\ncount: 7\nempty: null\n";
 const AFTER: &str = " ,new, oldish\tkeep  new,,new, ";
 
@@ -292,6 +294,71 @@ async fn rename_updates_tagged_and_drifted_character_fields_in_one_revision_and_
         assert_eq!(restored.wikitext, before.wikitext);
         assert_eq!(restored.tags, before.tags);
     }
+}
+
+#[tokio::test]
+async fn rename_rewrites_arc_and_chain_characters_and_writing_references() {
+    let (runner, site) = setup().await;
+    import(&runner, site, "arc:_template", GROUP_TEMPLATE, &[]).await;
+    import(&runner, site, "chain:_template", GROUP_TEMPLATE, &[]).await;
+    let arc = import(&runner, site, "arc:saga", "characters: 'old keep'\n", &[]).await;
+    let chain = import(&runner, site, "chain:link", "characters: OLD\n", &[]).await;
+    let writing = import(
+        &runner,
+        site,
+        "writing:mention",
+        "characters: keep\nreferences: 're:keep, RE:OLD re:oldish'\n",
+        &["keep", "re:new"],
+    )
+    .await;
+    assert!(
+        !read(&runner, site, arc)
+            .await
+            .compiled_body_html
+            .unwrap()
+            .contains("icon_new.jpg")
+    );
+
+    let preview = run_endpoint!(
+        runner,
+        site_tag_preview,
+        json!({"source_tag":"old", "target_tag":"new"})
+    );
+    let slugs: Vec<&str> = preview.pages.iter().map(|p| p.slug.as_str()).collect();
+    assert_eq!(slugs, ["arc:saga", "chain:link"]);
+    run_endpoint!(
+        runner,
+        site_tag_apply,
+        json!({"source_tag":"old","target_tag":"new","preview_token":preview.preview_token,"ip_address":common::IP_ADDRESS})
+    );
+    for (page, expected) in [(arc, "new keep"), (chain, "new")] {
+        let after = read(&runner, site, page).await;
+        let values =
+            wikidot_forms::parse_values(after.wikitext.as_deref().unwrap()).unwrap();
+        assert_eq!(values.get("characters").unwrap().as_str(), Some(expected));
+        assert!(after.compiled_body_html.unwrap().contains("icon_new.jpg"));
+    }
+
+    let preview = run_endpoint!(
+        runner,
+        site_tag_preview,
+        json!({"source_tag":"re:old", "target_tag":"re:new"})
+    );
+    let slugs: Vec<&str> = preview.pages.iter().map(|p| p.slug.as_str()).collect();
+    assert_eq!(slugs, ["writing:mention"]);
+    run_endpoint!(
+        runner,
+        site_tag_apply,
+        json!({"source_tag":"re:old","target_tag":"re:new","preview_token":preview.preview_token,"ip_address":common::IP_ADDRESS})
+    );
+    let after = read(&runner, site, writing).await;
+    let values = wikidot_forms::parse_values(after.wikitext.as_deref().unwrap()).unwrap();
+    assert_eq!(
+        values.get("references").unwrap().as_str(),
+        Some("re:keep, re:new re:oldish")
+    );
+    assert_eq!(values.get("characters").unwrap().as_str(), Some("keep"));
+    assert_eq!(after.tags, ["keep", "re:new"]);
 }
 
 #[tokio::test]

@@ -9,6 +9,7 @@ use crate::services::{
 use sea_orm::{DatabaseBackend, Statement};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::collections::HashMap;
 use std::net::IpAddr;
 use time::OffsetDateTime;
 use wikidot_forms::{Mapping, Value, apply_field_updates, extract_form_view};
@@ -525,42 +526,43 @@ async fn tagged_pages(
     names: &TagNames,
 ) -> Result<Vec<TaggedPage>> {
     let rows = ctx.transaction().query_all_raw(statement(
-        "SELECT p.page_id, p.slug, r.title, r.revision_id, r.tags FROM page p JOIN page_revision r ON r.revision_id = p.latest_revision_id WHERE p.site_id = $1 AND p.deleted_at IS NULL AND ($2 = ANY(r.tags) OR ($3::text IS NOT NULL AND p.slug LIKE 'writing:%' AND p.slug NOT LIKE 'writing:!_%' ESCAPE '!')) ORDER BY p.page_id",
+        "SELECT p.page_id, p.slug, r.title, r.revision_id, r.tags FROM page p JOIN page_revision r ON r.revision_id = p.latest_revision_id WHERE p.site_id = $1 AND p.deleted_at IS NULL AND ($2 = ANY(r.tags) OR ($3::text IS NOT NULL AND split_part(p.slug, ':', 1) IN ('writing', 'arc', 'chain') AND split_part(p.slug, ':', 2) NOT LIKE '!_%' ESCAPE '!')) ORDER BY p.page_id",
         [site_id.into(), names.source_tag.clone().into(), names.target_tag.clone().into()],
     )).await.or_raise(query_error)?;
     let candidates = read_tagged_pages(&rows)?;
-    let template = if names.target_tag.is_some()
-        && candidates.iter().any(|p| normal_writing_page(&p.page.slug))
-    {
-        ViewService::load_visible_template_source(
-            ctx,
-            site_id,
-            ctx.request().user_id,
-            "writing:_template",
-        )
-        .await?
-    } else {
-        None
-    };
+    let mut templates: HashMap<&str, Option<String>> = HashMap::new();
     let mut pages = Vec::new();
     for mut page in candidates {
-        if normal_writing_page(&page.page.slug)
-            && let (Some(template), Some(target)) =
-                (template.as_deref(), names.target_tag.as_deref())
-        {
-            let revision = PageRevisionService::get_direct(ctx, page.revision_id).await?;
-            let source = TextService::get(ctx, &revision.wikitext_hash).await?;
-            page.renamed_source =
-                rename_characters(template, &source, &names.source_tag, target)
-                    .or_raise(|| {
-                        Error::new(
-                            format!(
-                                "failed to rename writing characters on {}",
-                                page.page.slug
-                            ),
-                            ErrorType::BadRequest,
-                        )
-                    })?;
+        if let (Some(template_slug), Some(target)) = (
+            name_list_template(&page.page.slug),
+            names.target_tag.as_deref(),
+        ) {
+            if !templates.contains_key(template_slug) {
+                let template = ViewService::load_visible_template_source(
+                    ctx,
+                    site_id,
+                    ctx.request().user_id,
+                    template_slug,
+                )
+                .await?;
+                templates.insert(template_slug, template);
+            }
+            if let Some(template) = templates[template_slug].as_deref() {
+                let revision =
+                    PageRevisionService::get_direct(ctx, page.revision_id).await?;
+                let source = TextService::get(ctx, &revision.wikitext_hash).await?;
+                page.renamed_source =
+                    rename_name_lists(template, &source, &names.source_tag, target)
+                        .or_raise(|| {
+                            Error::new(
+                                format!(
+                                    "failed to rename name lists on {}",
+                                    page.page.slug
+                                ),
+                                ErrorType::BadRequest,
+                            )
+                        })?;
+            }
         }
         if page.tags.contains(&names.source_tag) || page.renamed_source.is_some() {
             pages.push(page);
@@ -569,12 +571,24 @@ async fn tagged_pages(
     Ok(pages)
 }
 
-fn normal_writing_page(slug: &str) -> bool {
-    slug.strip_prefix("writing:")
-        .is_some_and(|name| !name.starts_with('_'))
+/// Form fields listing tag names: characters present (`dara`) and mentioned (`re:dara`).
+const NAME_LIST_FIELDS: [&str; 2] = ["characters", "references"];
+
+/// The data form template of a normal writing, arc, or chain page.
+fn name_list_template(slug: &str) -> Option<&'static str> {
+    let (category, name) = slug.split_once(':')?;
+    if name.starts_with('_') {
+        return None;
+    }
+    match category {
+        "writing" => Some("writing:_template"),
+        "arc" => Some("arc:_template"),
+        "chain" => Some("chain:_template"),
+        _ => None,
+    }
 }
 
-fn rename_characters(
+fn rename_name_lists(
     template: &str,
     source: &str,
     old: &str,
@@ -583,24 +597,23 @@ fn rename_characters(
     let Some(form) = extract_form_view(template, source)? else {
         return Ok(None);
     };
-    if !form
-        .schema
-        .fields
-        .iter()
-        .any(|field| field.name == "characters")
-    {
-        return Ok(None);
-    }
-    let key = Value::String("characters".into());
-    let Some(Value::String(characters)) = form.values.get(&key) else {
-        return Ok(None);
-    };
-    let renamed = replace_character_tokens(characters, old, new);
-    if renamed == *characters {
-        return Ok(None);
-    }
     let mut updates = Mapping::new();
-    updates.insert(key, Value::String(renamed));
+    for field in &form.schema.fields {
+        if !NAME_LIST_FIELDS.contains(&field.name.as_str()) {
+            continue;
+        }
+        let key = Value::String(field.name.clone());
+        let Some(Value::String(names)) = form.values.get(&key) else {
+            continue;
+        };
+        let renamed = replace_character_tokens(names, old, new);
+        if renamed != *names {
+            updates.insert(key, Value::String(renamed));
+        }
+    }
+    if updates.is_empty() {
+        return Ok(None);
+    }
     apply_field_updates(&form.schema, &form.values, &updates).map(Some)
 }
 
