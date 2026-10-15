@@ -45,7 +45,7 @@ import { loadSiteInfo } from "$lib/server/load/site-info"
 import { authorizePageRead, loadRoutedPageView } from "$lib/server/load/page-read"
 import { DeleteOptions, Layout, PageLockType } from "$lib/types"
 import { deepwellErrorStatus, requireDeepwellError } from "$lib/deepwell-errors"
-import { applyTagChanges } from "$lib/tag-buttons"
+import { applyTagChanges, splitTagInput } from "$lib/tag-buttons"
 import { error, redirect } from "@sveltejs/kit"
 import { fail, superValidate, withFiles } from "sveltekit-superforms"
 import { valibot } from "sveltekit-superforms/adapters"
@@ -505,7 +505,7 @@ export async function pageEditAction({
       layout,
       doNotNotifyWatchers
     } = form.data
-    const tags = tagsStr.split(" ").filter((tag) => tag.length)
+    const tags = splitTagInput(tagsStr)
     const { siteId } = loadSiteInfo(request.headers)
     const res = await pageEdit(
       siteId,

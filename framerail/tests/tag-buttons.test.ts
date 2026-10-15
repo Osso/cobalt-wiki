@@ -1,6 +1,10 @@
 import assert from "node:assert/strict"
 import { after, test } from "node:test"
-import { applyTagChanges, tagChangesBetween } from "../src/lib/tag-buttons.ts"
+import {
+  applyTagChanges,
+  splitTagInput,
+  tagChangesBetween
+} from "../src/lib/tag-buttons.ts"
 import { createSsrServer } from "./ssr-server.ts"
 
 // writing:_template's Publish button: [[button set-tags +_completed -@@ text="Publish"]]
@@ -37,6 +41,16 @@ test("changes apply in order", () => {
 test("the tag editor's edit becomes removals then additions", () => {
   assert.equal(tagChangesBetween(["a", "b", "c"], ["c", "d", "a"]), "-b +d")
   assert.equal(tagChangesBetween(["a"], ["a"]), "")
+})
+
+// writing:_template's copy box pastes the raw `characters` field, which members
+// often write comma-separated; Wikidot split tags on spaces and commas.
+const COPY_BOX = "Gabriella, Lericten,Mayellen  re:dara , re:zath"
+const COPY_BOX_TAGS = ["Gabriella", "Lericten", "Mayellen", "re:dara", "re:zath"]
+
+test("tag editor input splits on commas as well as whitespace", () => {
+  assert.deepEqual(splitTagInput(COPY_BOX), COPY_BOX_TAGS)
+  assert.deepEqual(splitTagInput(" , "), [])
 })
 
 const { vite, close } = await createSsrServer()
@@ -127,6 +141,52 @@ test("editor's Publish edits only the tags of the current revision", async () =>
   // Deepwell checks permission again against the trusted session and page.
   assert.equal(calls[3].headers["X-Deepwell-Session-Token"], "session-secret")
   assert.equal(calls[3].headers["X-Deepwell-Page"], "writing:draft")
+})
+
+test("page edit sends comma-separated tags as separate tags", async () => {
+  const previousFetch = globalThis.fetch
+  const calls: Rpc[] = []
+  globalThis.fetch = async (_input, init) => {
+    const rpc = JSON.parse(String(init?.body)) as Rpc
+    calls.push(rpc)
+    const result =
+      rpc.method === "session_get"
+        ? { user_id: 42, restricted: false }
+        : { revision_id: 902, revision_number: 3 }
+    return new Response(JSON.stringify({ jsonrpc: "2.0", id: rpc.id, result }))
+  }
+  try {
+    await actions.edit({
+      request: new Request("http://local.test/writing:draft", {
+        method: "POST",
+        headers: { "X-Wikijump-Site-Id": "6000000", "X-Wikijump-Site-Slug": "cobalt" },
+        body: new URLSearchParams({
+          siteId: "6000000",
+          pageId: "77",
+          lastRevisionId: "901",
+          title: "Draft",
+          altTitle: "",
+          wikitext: "Draft body",
+          tags: COPY_BOX,
+          comments: ""
+        })
+      }),
+      params: { slug: "writing:draft", extra: "" },
+      cookies: { get: () => "session-secret" },
+      getClientAddress: () => "127.0.0.1",
+      locals: {
+        requestContext: {
+          siteId: 6000000,
+          page: "writing:draft",
+          sessionToken: "session-secret"
+        }
+      }
+    })
+  } finally {
+    globalThis.fetch = previousFetch
+  }
+  const edit = calls.find((call) => call.method === "page_edit")
+  assert.deepEqual((edit?.params as { tags: string[] }).tags, COPY_BOX_TAGS)
 })
 
 test("a visitor without edit permission gets the Edit button's error and no edit", async () => {

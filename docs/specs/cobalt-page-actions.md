@@ -35,6 +35,7 @@ Bottom-page controls follow supplied Tags/History screenshots and retained Wikid
 - [x] Render Page Tags, explanatory links, labeled form-table input, space-separated hint, and close/clear/save controls.
 - [x] Display Wikidot tags sorted; retain set-based additions/removals rather than promise backend array order.
 - [x] Clear empties only the input; close discards unsaved input. Neither sends tag changes.
+- [x] Tags typed or pasted into the Tags pane or the editor's tags field split on whitespace and commas, as Wikidot's `saveTagsEvent` did (`preg_split("/[ ,]+/")`), so pasting writing:_template's copy box with a comma-separated `characters` field yields separate tags, not `name,` tags. `framerail/tests/tag-buttons.test.ts` (shared splitter and the actual edit action): RED 8/10 with the whitespace-only split, GREEN 10/10.
 - [x] Save submits the exact additions/removals. The exercised authorized fixture saves, reads back, and restores its original tag set without changing page source.
 - [ ] Independently exercise denied tag-save authorization; successful authorized fixture testing does not prove denial behavior.
 
@@ -58,6 +59,7 @@ Bottom-page controls follow supplied Tags/History screenshots and retained Wikid
 - `deepwell/tests/page_move_dependencies.rs` — selected Move dependency authorization, preservation, native-lock skip, duplicate-source revision, direct-revision/draft, and split-leftover coverage; targeted 4/4 GREEN.
 - Mutation authorization tests — 27/27 pass. Block policy and native-lock preservation have separate coverage in the 12/12 `member_admin` target.
 - `framerail/tests/page-bottom-tags.test.ts` — SSR bottom-action and Tags behavior.
+- `framerail/tests/tag-buttons.test.ts` — tag button changes, Publish, and comma/whitespace tag input splitting through the page edit action.
 - `framerail/tests/local/page-bottom-actions.mjs` — Tags save/readback/restore with a fixture-only write guard.
 - `framerail/tests/local/history-actions.mjs` — local History browser coverage.
 - `framerail/tests/local/remaining-actions.mjs` — local panel, Files, Parent, Backlinks, and Print browser coverage.

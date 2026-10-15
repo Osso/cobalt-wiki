@@ -21,6 +21,14 @@ export function applyTagChanges(tags: readonly string[], changes: string): strin
   return result
 }
 
+/**
+ * Tags typed or pasted into a tag field; Wikidot split them on spaces and
+ * commas.
+ */
+export function splitTagInput(text: string): string[] {
+  return text.split(/[\s,]+/).filter(Boolean)
+}
+
 /** The changes that turn `before` into `after`, e.g. `-old +new`. */
 export function tagChangesBetween(
   before: readonly string[],

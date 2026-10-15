@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { tagChangesBetween } from "$lib/tag-buttons"
+  import { splitTagInput, tagChangesBetween } from "$lib/tag-buttons"
   import { pageLayoutState } from "$lib/stores.svelte"
   import { Layout } from "$lib/types"
   import { untrack } from "svelte"
@@ -22,7 +22,7 @@
 
   function submit(event: SubmitEvent) {
     event.preventDefault()
-    saveTagChanges(tagChangesBetween(current, value.split(/\s+/).filter(Boolean)))
+    saveTagChanges(tagChangesBetween(current, splitTagInput(value)))
   }
 </script>
 
