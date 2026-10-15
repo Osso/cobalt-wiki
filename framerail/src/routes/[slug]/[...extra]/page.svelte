@@ -17,9 +17,11 @@
   } from "."
   import { resolve } from "$app/paths"
   import { clickTagButton } from "$lib/tag-buttons"
+  import { isCharacterPage } from "$lib/character-rename"
   import WatchControls from "$lib/component/WatchControls.svelte"
   import BacklinksPane from "./BacklinksPane.svelte"
   import BlockPane from "./BlockPane.svelte"
+  import CharacterRenamePane from "./CharacterRenamePane.svelte"
 
   import type { PageProps } from "./$types"
   import type { Optional } from "$lib/types"
@@ -349,6 +351,21 @@
         >
           {data.internationalization?.move}
         </a>
+        {#if isCharacterPage(data.page?.slug ?? "")}
+          <!-- svelte-ignore a11y_invalid_attribute -->
+          <a
+            id="character-rename-button"
+            class="btn btn-default"
+            href="javascript:;"
+            onclick={() => {
+              showSource = false
+              pagePaneState = PagePane.CharacterRename
+            }}
+            type="button"
+          >
+            Rename character
+          </a>
+        {/if}
         <!-- svelte-ignore a11y_invalid_attribute -->
         <a
           id="delete-button"
@@ -390,6 +407,8 @@
         <BacklinksPane />
       {:else if pagePaneState === PagePane.Move}
         <MovePane bind:pagePaneState {...props} />
+      {:else if pagePaneState === PagePane.CharacterRename}
+        <CharacterRenamePane close={() => (pagePaneState = PagePane.None)} {...props} />
       {:else if pagePaneState === PagePane.Layout}
         <LayoutPane bind:pagePaneState {...props} />
       {:else if pagePaneState === PagePane.Parent}

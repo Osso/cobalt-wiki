@@ -36,6 +36,11 @@ import {
 import { pagePreviewAction } from "$lib/server/load/page-preview"
 import { pageBacklinksAction } from "$lib/server/load/page-backlinks"
 import {
+  characterRenamePreviewAction,
+  characterRenameStartAction,
+  characterRenameStatusAction
+} from "$lib/server/load/character-rename"
+import {
   historyListAction,
   historyRevisionAction,
   historyCompareAction
@@ -104,6 +109,9 @@ export const actions = {
   lockHistory: pageLockHistoryAction,
   lockRemove: pageLockRemoveAction,
   move: pageMoveAction,
+  characterRenamePreview: characterRenamePreviewAction,
+  characterRenameStart: characterRenameStartAction,
+  characterRenameStatus: characterRenameStatusAction,
   parentSet: pageParentSetAction,
   parentGet: pageParentGetAction,
   voteGet: pageVoteGetAction,

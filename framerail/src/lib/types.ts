@@ -216,7 +216,8 @@ export enum PagePane {
   Delete = "delete",
   Lock = "lock",
   Tags = "tags",
-  Backlinks = "backlinks"
+  Backlinks = "backlinks",
+  CharacterRename = "character-rename"
 }
 export enum UserType {
   Regular = "regular",

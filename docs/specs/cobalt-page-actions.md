@@ -39,6 +39,16 @@ Bottom-page controls follow supplied Tags/History screenshots and retained Wikid
 - [x] Save submits the exact additions/removals. The exercised authorized fixture saves, reads back, and restores its original tag set without changing page source.
 - [ ] Independently exercise denied tag-save authorization; successful authorized fixture testing does not prove denial behavior.
 
+### Rename character
+
+- [x] More options shows Rename character on Wikidot-layout pages whose slug is `character:<name>` or `bgc:<name>`, except `_template`. Every visitor sees it; Deepwell enforces `Page/Edit` and the pane shows its refusal.
+- [x] The pane states: "Changes the page URL, tags, writing/arc/chain name lists, relationship boxes, links and icon. The display name is not changed." Only the short name changes.
+- [x] Preview sends the page ID and trimmed new name (`character_rename_preview`) and shows old → new slug, the affected page count, every affected page's title and slug, and whether the icon file is renamed. A blank name or invalid page ID never reaches Deepwell. Cancel before confirmation closes the pane without a start request.
+- [x] Confirm rename is explicit: `character_rename_start` runs only with `confirmed=yes` and the preview token, and forwards the client IP. A refused start returns to the name input so the next attempt previews again.
+- [x] The pane polls `character_rename_status` every second, showing `Renaming <old> → <new>: <done>/<total> pages (<s>s)`. `done` navigates to the new slug; `failed` shows the job error and stops polling. Closing the pane stops polling, not the job.
+- [x] Deepwell refusals map to messages: `3106` permission (HTTP 403); `4000` backend message, `2104` existing page, `2105` existing icon, `4306` locked page, `4304` stale preview, `4307` name used as a tag (HTTP 400).
+- [ ] Browser-exercise the button placement, polling, and navigation; SSR tests cover the slug gate function, not the rendered options bar, and no test drives the polling loop.
+
 ## How it works
 
 - [Page backlinks](cobalt-page-backlinks.md) defines the permission-filtered incoming-link read API.
@@ -50,6 +60,7 @@ Bottom-page controls follow supplied Tags/History screenshots and retained Wikid
 - `framerail/src/routes/[slug]/[...extra]/FilePane.svelte` — Files list and information view.
 - `framerail/src/routes/[slug]/[...extra]/ParentPane.svelte` — parent editor.
 - `framerail/src/routes/[slug]/[...extra]/BlockPane.svelte` — Wikidot Block checkbox pane.
+- `framerail/src/routes/[slug]/[...extra]/CharacterRenamePane.svelte` and `CharacterRenameConfirm.svelte` — Rename character input, preview, confirmation, and progress; `framerail/src/lib/server/load/character-rename.ts` — form validation and error mapping.
 
 ## Tests asserting this spec
 
@@ -60,6 +71,7 @@ Bottom-page controls follow supplied Tags/History screenshots and retained Wikid
 - Mutation authorization tests — 27/27 pass. Block policy and native-lock preservation have separate coverage in the 12/12 `member_admin` target.
 - `framerail/tests/page-bottom-tags.test.ts` — SSR bottom-action and Tags behavior.
 - `framerail/tests/tag-buttons.test.ts` — tag button changes, Publish, and comma/whitespace tag input splitting through the page edit action.
+- `framerail/tests/character-rename.test.ts` — Rename character slug gate, SSR pane and confirmation step, preview/start/status actions with mocked Deepwell, and error mapping; RED 0/8, GREEN 8/8.
 - `framerail/tests/local/page-bottom-actions.mjs` — Tags save/readback/restore with a fixture-only write guard.
 - `framerail/tests/local/history-actions.mjs` — local History browser coverage.
 - `framerail/tests/local/remaining-actions.mjs` — local panel, Files, Parent, Backlinks, and Print browser coverage.
