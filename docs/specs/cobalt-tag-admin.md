@@ -67,6 +67,8 @@ Progress indicator, verified 2026-09-29 UTC: `install/dev-deploy.sh framerail` d
 
 Listing batching and deferred bars, verified 2026-09-29 UTC: production Deepwell reports `603f7af7a` (active since 08:45 UTC, deployed by a concurrent session), which contains `7f781806e` and `b60b8f48d`. No production bulk tag operation was run to measure them.
 
+Character-field rename, verified 2026-10-15 UTC: Deepwell `5f5180708`..`329bcac99` deployed with `d0a27a049`. Renames #2–#9 (2026-09-29 and 2026-10-14) predated it and left old names in writing `characters` fields (132 writings). Re-running each rename through `/-/admin/tags` as `cobalt-import` repaired them as undoable operations #10 `lericten→leric` (26), #11 `tyrrell→zath` (4), #12 `amadella→robin` (13), #13 `daratennerow→dara` (89); previews matched pre-repair SQL counts exactly. Afterward no live writing `characters` field contains any of the four old names; tags, other names, delimiters and prose stayed unchanged; sampled pages render the new portraits (`icon_leric`, `icon_zath`, `icon_robin`, `icon_dara`). `robin→robinbanks` (#7) needed no repair: the only writing listing `robin` was written after #8.
+
 ## Known gaps (current cycle)
 
 Bulk-add is deployed, but no production add operation or authenticated admin workflow was exercised. No Sentry integration evidence exists.
