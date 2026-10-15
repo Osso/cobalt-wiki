@@ -7,9 +7,13 @@ mod common;
 use common::TestRunner;
 use deepwell::constants::ADMIN_USER_ID;
 use deepwell::error::ErrorType;
+use deepwell::services::PageService;
 use deepwell::services::blob::StartBlobUpload;
-use deepwell::services::character_rename::CharacterRenameService;
+use deepwell::services::character_rename::{
+    CharacterRenameService, RenameCharacter, StartCharacterRename,
+};
 use deepwell::services::job::{Job, JobService};
+use deepwell::services::page::CreatePage;
 use deepwell::services::page_revision::RerenderType;
 use deepwell::services::{BlobService, RequestContext, ServiceContext};
 use deepwell::types::PageId;
@@ -630,14 +634,9 @@ fn sql(query: &str) -> Statement {
     Statement::from_string(DatabaseBackend::Postgres, query)
 }
 
-/// A redelivered job must not drop the rename while another worker's
-/// transaction holds it: if that worker dies, only a queued job can run it.
-/// Runs against committed rows, as the worker does, and deletes its row.
-#[tokio::test]
-async fn redelivered_job_for_a_running_rename_checks_again_later() {
-    let runner = TestRunner::setup_with_idle_job_workers().await;
-    let state = runner.state();
-    let database = &state.database;
+/// Tests of the worker's own transactions need the table outside the
+/// rollback-only test transaction.
+async fn install_committed_table(database: &sea_orm::DatabaseConnection) {
     let installed = database
         .query_one_raw(sql(
             "SELECT to_regclass('character_rename') IS NOT NULL AS installed",
@@ -655,6 +654,17 @@ async fn redelivered_job_for_a_running_rename_checks_again_later() {
             .await
             .unwrap();
     }
+}
+
+/// A redelivered job must not drop the rename while another worker's
+/// transaction holds it: if that worker dies, only a queued job can run it.
+/// Runs against committed rows, as the worker does, and deletes its row.
+#[tokio::test]
+async fn redelivered_job_for_a_running_rename_checks_again_later() {
+    let runner = TestRunner::setup_with_idle_job_workers().await;
+    let state = runner.state();
+    let database = &state.database;
+    install_committed_table(database).await;
     let operation_id: i64 = database
         .query_one_raw(sql(&format!(
             "INSERT INTO character_rename (site_id, page_id, actor_user_id, old_name, new_name, new_slug, preview_token, ip_address, total)
@@ -698,4 +708,118 @@ async fn redelivered_job_for_a_running_rename_checks_again_later() {
 
     assert!(running_elsewhere, "locked rename must be checked again");
     assert!(!after_done, "finished rename needs no further job");
+}
+
+/// A rename whose commit fails is rolled back by the database; it must be
+/// recorded as failed, not left queued for the queue to run again.
+#[tokio::test]
+async fn failed_commit_is_recorded_as_a_failure_and_changes_nothing() {
+    let runner = TestRunner::setup_with_idle_job_workers().await;
+    let state = runner.state();
+    let database = &state.database;
+    install_committed_table(database).await;
+    let site: i64 = database
+        .query_one_raw(sql("SELECT site_id FROM site WHERE slug = 'test'"))
+        .await
+        .unwrap()
+        .unwrap()
+        .try_get("", "site_id")
+        .unwrap();
+    let suffix = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let old_name = format!("commitfail{suffix}");
+    let slug = format!("character:{old_name}");
+
+    // A committed character page and a confirmed rename, as the RPCs leave them.
+    let setup = database.begin().await.unwrap();
+    let ctx = ServiceContext::new(state, &setup).with_request(RequestContext {
+        site_id: Some(site),
+        user_id: Some(ADMIN_USER_ID),
+        page_reference: Some(Reference::Slug(slug.clone().into())),
+        ..Default::default()
+    });
+    let page_id = PageService::import(
+        &ctx,
+        CreatePage {
+            site_id: site,
+            wikitext: "Commit failure fixture".into(),
+            title: slug.clone(),
+            alt_title: None,
+            slug: slug.clone(),
+            layout: None,
+            revision_comments: "fixture".into(),
+            tags: vec![old_name.clone()],
+            user_id: ADMIN_USER_ID,
+            bypass_filter: true,
+            ip_address: common::IP_ADDRESS,
+        },
+    )
+    .await
+    .unwrap()
+    .page_id;
+    let new_name = format!("{old_name}-new");
+    let preview = CharacterRenameService::preview(
+        &ctx,
+        RenameCharacter {
+            page_id,
+            new_name: new_name.clone(),
+        },
+    )
+    .await
+    .unwrap();
+    let operation_id = CharacterRenameService::start(
+        &ctx,
+        StartCharacterRename {
+            page_id,
+            new_name,
+            preview_token: preview.preview_token,
+            ip_address: common::IP_ADDRESS,
+        },
+    )
+    .await
+    .unwrap()
+    .operation_id;
+    drop(ctx);
+    setup.commit().await.unwrap();
+
+    // Fails the rename's COMMIT once its row is marked done.
+    database
+        .execute_unprepared(&format!(
+            "CREATE FUNCTION fail_commit_{operation_id}() RETURNS trigger LANGUAGE plpgsql
+               AS $$ BEGIN RAISE EXCEPTION 'forced commit failure'; END $$;
+             CREATE CONSTRAINT TRIGGER fail_commit_{operation_id} AFTER UPDATE ON character_rename
+               DEFERRABLE INITIALLY DEFERRED FOR EACH ROW
+               WHEN (NEW.status = 'done' AND NEW.operation_id = {operation_id})
+               EXECUTE FUNCTION fail_commit_{operation_id}();"
+        ))
+        .await
+        .unwrap();
+    let ran = CharacterRenameService::run_job(state, operation_id).await;
+    let outcome = database
+        .query_one_raw(sql(&format!(
+            "SELECT r.status, p.slug FROM character_rename r JOIN page p ON p.page_id = r.page_id
+             WHERE r.operation_id = {operation_id}"
+        )))
+        .await
+        .unwrap()
+        .unwrap();
+    let status: String = outcome.try_get("", "status").unwrap();
+    let current_slug: String = outcome.try_get("", "slug").unwrap();
+    database
+        .execute_unprepared(&format!(
+            "DROP TRIGGER fail_commit_{operation_id} ON character_rename;
+             DROP FUNCTION fail_commit_{operation_id}();
+             DELETE FROM character_rename WHERE operation_id = {operation_id};"
+        ))
+        .await
+        .unwrap();
+
+    assert!(
+        matches!(ran, Ok(false)),
+        "the failure is handled, not left to the queue"
+    );
+    assert_eq!(status, "failed");
+    assert_eq!(current_slug, slug, "the rolled-back move must not persist");
 }
