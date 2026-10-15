@@ -21,9 +21,12 @@
 use super::prelude::*;
 use crate::services::page_revision::RerenderType;
 use crate::types::PageId;
+use rand::RngExt;
 use redis::AsyncCommands;
+use redis::aio::MultiplexedConnection as RedisMultiplexedConnection;
 use rsmq_async::{Rsmq, RsmqConnection};
 use std::time::Duration;
+use tokio::time;
 
 pub const JOB_QUEUE_NAME: &str = "job";
 
@@ -68,33 +71,47 @@ impl JobService {
         Self::queue_job_inner(&mut rsmq, job, delay).await
     }
 
-    /// Sends jobs held during a transaction that has now committed.
+    /// Sends jobs held during a transaction that has now committed. Rerenders
+    /// are checked against pending ones only now: a job pending during the
+    /// transaction may have started meanwhile and read the old state.
+    ///
+    /// The change is already committed, so each job is retried with backoff,
+    /// and a job that still fails does not stop the others.
     pub async fn send_deferred_jobs(
+        redis: &mut RedisMultiplexedConnection,
         rsmq: &mut Rsmq,
         jobs: &[(Job, Option<Duration>)],
     ) -> Result<()> {
+        let mut failed = 0;
         for (job, delay) in jobs {
-            Self::queue_job_inner(rsmq, job, *delay).await?;
-        }
-        Ok(())
-    }
-
-    /// Drops jobs held during a transaction that rolled back, clearing their
-    /// pending-rerender markers so later changes can queue those pages again.
-    pub async fn discard_deferred_jobs(
-        redis: &mut redis::aio::MultiplexedConnection,
-        jobs: &[(Job, Option<Duration>)],
-    ) -> Result<()> {
-        for (job, _) in jobs {
-            if let Job::RerenderPage { id, r#type } = job {
-                let key = pending_rerender_key(*id, *r#type);
-                let _: () = redis.del(&key).await.or_raise(|| {
-                    Error::new(
-                        format!("failed to clear pending rerender job: {key}"),
-                        ErrorType::Job,
-                    )
-                })?;
+            let mut attempt = 0;
+            loop {
+                let sent = match job {
+                    Job::RerenderPage { id, r#type } => {
+                        Self::mark_and_queue_rerender(redis, rsmq, *id, *r#type).await
+                    }
+                    _ => Self::queue_job_inner(rsmq, job, *delay).await,
+                };
+                match sent {
+                    Ok(()) => break,
+                    Err(error) if attempt + 1 < DEFERRED_SEND_ATTEMPTS => {
+                        warn!("Retrying deferred job {job:?}: {error}");
+                        time::sleep(deferred_send_backoff(attempt)).await;
+                        attempt += 1;
+                    }
+                    Err(error) => {
+                        error!("Dropping deferred job {job:?}: {error}");
+                        failed += 1;
+                        break;
+                    }
+                }
             }
+        }
+        if failed > 0 {
+            bail!(Error::new(
+                format!("failed to send {failed} of {} deferred jobs", jobs.len()),
+                ErrorType::Job,
+            ));
         }
         Ok(())
     }
@@ -148,12 +165,34 @@ impl JobService {
         Self::queue_rerender(ctx, id, RerenderType::NavigationOnly).await
     }
 
-    /// Queues a rerender job unless the same one is already pending.
-    ///
-    /// A pending job has not started yet, so it will read the change that is
-    /// queuing it now. Its marker is removed when a worker starts it.
+    /// Queues a rerender job unless the same one is already pending; while
+    /// jobs are deferred, holds it for `send_deferred_jobs` instead.
     async fn queue_rerender(
         ctx: &ServiceContext<'_>,
+        id: PageId,
+        rerender_type: RerenderType,
+    ) -> Result<()> {
+        let job = Job::RerenderPage {
+            id,
+            r#type: rerender_type,
+        };
+        if ctx.try_defer_job(&job, None) {
+            return Ok(());
+        }
+        Self::mark_and_queue_rerender(
+            &mut ctx.redis(),
+            &mut ctx.rsmq(),
+            id,
+            rerender_type,
+        )
+        .await
+    }
+
+    /// A pending job has not started yet, so it will read the change that is
+    /// queuing it now. Its marker is removed when a worker starts it.
+    async fn mark_and_queue_rerender(
+        redis: &mut RedisMultiplexedConnection,
+        rsmq: &mut Rsmq,
         id: PageId,
         rerender_type: RerenderType,
     ) -> Result<()> {
@@ -165,14 +204,13 @@ impl JobService {
             )
         };
 
-        let mut redis = ctx.redis();
         let marked: Option<String> = redis::cmd("SET")
             .arg(&key)
             .arg(1)
             .arg("NX")
             .arg("EX")
             .arg(PENDING_RERENDER_EXPIRY_SECS)
-            .query_async(&mut redis)
+            .query_async(redis)
             .await
             .or_raise(make_error)?;
         if marked.is_none() {
@@ -188,7 +226,7 @@ impl JobService {
             id,
             r#type: rerender_type,
         };
-        if let Err(error) = Self::queue_job(ctx, &job, None).await {
+        if let Err(error) = Self::queue_job_inner(rsmq, &job, None).await {
             let _: () = redis.del(&key).await.or_raise(make_error)?;
             return Err(error);
         }
@@ -212,6 +250,15 @@ impl JobService {
         })?;
         Ok(())
     }
+}
+
+/// Sends of a deferred job, the first included.
+const DEFERRED_SEND_ATTEMPTS: u32 = 5;
+
+/// 200 ms doubling per attempt, plus up to as much again of jitter.
+fn deferred_send_backoff(attempt: u32) -> Duration {
+    let base = 200 * 2_u64.pow(attempt);
+    Duration::from_millis(base + rand::rng().random_range(0..=base))
 }
 
 /// How long a pending-rerender marker lives. A worker removes it when the job

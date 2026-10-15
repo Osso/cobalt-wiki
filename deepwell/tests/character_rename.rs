@@ -9,6 +9,8 @@ use deepwell::constants::ADMIN_USER_ID;
 use deepwell::error::ErrorType;
 use deepwell::services::blob::StartBlobUpload;
 use deepwell::services::character_rename::CharacterRenameService;
+use deepwell::services::job::{Job, JobService};
+use deepwell::services::page_revision::RerenderType;
 use deepwell::services::{BlobService, RequestContext, ServiceContext};
 use deepwell::types::Reference;
 use sea_orm::{ConnectionTrait, DatabaseBackend, Statement, TransactionTrait};
@@ -516,6 +518,71 @@ async fn edits_after_preview_or_start_make_the_rename_stale() {
     assert_eq!(
         read(&runner, f.site, f.character).await.slug,
         "character:old"
+    );
+}
+
+/// A rerender pending when the rename starts can begin while the rename runs
+/// and read the old state, so pending rerenders are checked only after commit.
+#[tokio::test]
+async fn rerenders_pending_during_the_rename_are_queued_again_after_it() {
+    let (runner, f) = setup().await;
+    let preview = run_endpoint!(
+        runner,
+        character_rename_preview,
+        json!({"page_id":f.character, "new_name":"new"})
+    );
+    let started = run_endpoint!(
+        runner,
+        character_rename_start,
+        json!({"page_id":f.character, "new_name":"new", "preview_token":preview.preview_token, "ip_address":common::IP_ADDRESS})
+    );
+    let state = runner.state();
+    let mut redis = state.redis.clone();
+    let pending = format!("job:rerender-pending:{}:Standalone", f.writing);
+    let _: () = redis::cmd("SET")
+        .arg(&pending)
+        .arg(1)
+        .arg("EX")
+        .arg(60)
+        .query_async(&mut redis)
+        .await
+        .unwrap();
+
+    runner.context().defer_jobs();
+    CharacterRenameService::execute(runner.context(), started.operation_id)
+        .await
+        .expect("rename job");
+    // The earlier job starts before the rename commits.
+    let _: () = redis::cmd("DEL")
+        .arg(&pending)
+        .query_async(&mut redis)
+        .await
+        .unwrap();
+    let jobs = runner.context().take_deferred_jobs();
+    JobService::send_deferred_jobs(&mut redis, &mut state.rsmq.clone(), &jobs)
+        .await
+        .expect("send held jobs");
+
+    let queued_again: bool = redis::cmd("EXISTS")
+        .arg(&pending)
+        .query_async(&mut redis)
+        .await
+        .unwrap();
+    let _: () = redis::cmd("DEL")
+        .arg(&pending)
+        .query_async(&mut redis)
+        .await
+        .unwrap();
+    assert!(
+        jobs.iter().any(|(job, _)| matches!(
+            job,
+            Job::RerenderPage { id, r#type: RerenderType::Standalone } if id.page_id == f.writing
+        )),
+        "the writing's rerender must be held for after the rename"
+    );
+    assert!(
+        queued_again,
+        "the writing must be queued again after the rename"
     );
 }
 

@@ -35,7 +35,7 @@ When a page changes, Deepwell queues `rerender_page` jobs (Valkey rsmq queue `rs
 
 ## Known gaps (current cycle)
 
-- [ ] Jobs are queued before the change's transaction commits (existing ordering). With deduplication, a second change that finds its job pending relies on that job reading after the second change commits; a job received within that commit window renders the older state.
+- [ ] Jobs are queued before the change's transaction commits (existing ordering), except in a [character rename](cobalt-character-rename.md), which holds them and checks pending rerenders after commit. With deduplication, a second change that finds its job pending relies on that job reading after the second change commits; a job received within that commit window renders the older state.
 
 ## Out of scope
 

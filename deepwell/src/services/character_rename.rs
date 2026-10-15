@@ -328,16 +328,28 @@ impl CharacterRenameService {
         let result = Self::execute(&ctx, operation_id).await;
         let jobs = ctx.take_deferred_jobs();
         drop(ctx);
+        // A failed commit rolls back too, so it is recorded like any failure.
+        let result = match result {
+            Ok(()) => txn.commit().await.or_raise(query_error),
+            Err(error) => {
+                if let Err(rollback) = txn.rollback().await {
+                    // The server rolls back when the connection closes.
+                    warn!("Character rename {operation_id} rollback failed: {rollback}");
+                }
+                Err(error)
+            }
+        };
         match result {
             Ok(()) => {
-                txn.commit().await.or_raise(query_error)?;
-                JobService::send_deferred_jobs(&mut state.rsmq.clone(), &jobs).await?;
+                JobService::send_deferred_jobs(
+                    &mut state.redis.clone(),
+                    &mut state.rsmq.clone(),
+                    &jobs,
+                )
+                .await?;
                 Ok(false)
             }
             Err(error) => {
-                txn.rollback().await.or_raise(query_error)?;
-                JobService::discard_deferred_jobs(&mut state.redis.clone(), &jobs)
-                    .await?;
                 let rpc = exn_error_to_rpc_error(error);
                 let message = format!("[{}] {}", rpc.code(), rpc.message());
                 warn!("Character rename {operation_id} failed: {message}");
