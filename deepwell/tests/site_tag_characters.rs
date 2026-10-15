@@ -101,6 +101,93 @@ async fn read(
 }
 
 #[tokio::test]
+async fn long_writing_characters_survive_form_edit_and_render_200_portraits() {
+    let (mut runner, site) = setup().await;
+    let names: Vec<String> = (0..200)
+        .map(|index| format!("portrait{index:03}"))
+        .collect();
+    let characters: String = names
+        .iter()
+        .enumerate()
+        .map(|(index, name)| match index {
+            0 => name.clone(),
+            index if index % 2 == 0 => format!(", {name}"),
+            _ => format!(" {name}"),
+        })
+        .collect();
+    assert!(characters.len() > 1_500);
+
+    // Import fixtures in the rollback-only transaction, not through user-facing
+    // create/edit flows (which would render and notify for every portrait).
+    for (index, name) in names.iter().enumerate() {
+        let category = if index % 2 == 0 { "character" } else { "bgc" };
+        import(
+            &runner,
+            site,
+            &format!("{category}:{name}"),
+            "Portrait fixture",
+            &[name.as_str()],
+        )
+        .await;
+    }
+    import(&runner, site, "long-writingbox", "[[module ListPages separate=\"no\" category=\"character bgc\" tags=\"{$characters}\" order=\"name\" perPage=\"200\" \\]]\n[[image icons/icon_%%name%%.jpg alt=\"%%title%%\"]]\n[[/module]]", &[]).await;
+    import(&runner, site, "long-writing:_template", "[[include long-writingbox | characters=%%form_raw{characters}%%]]\n\n====\n\n[[form]]\nfields:\n  characters:\n    type: text\n    width: 80\n[[/form]]", &[]).await;
+    let page = import(
+        &runner,
+        site,
+        "long-writing:roster",
+        "characters: portrait000\n",
+        &[],
+    )
+    .await;
+    let before = read(&runner, site, page).await;
+    assert_eq!(
+        before.compiled_body_html.unwrap().matches("<img ").count(),
+        1
+    );
+    runner.set_request_context(RequestContext {
+        site_id: Some(site),
+        user_id: Some(ADMIN_USER_ID),
+        page_reference: Some(Reference::Id(page)),
+        ..Default::default()
+    });
+    let edited = run_endpoint!(
+        runner,
+        page_edit,
+        json!({"site_id":site,"page":page,"user_id":ADMIN_USER_ID,
+            "last_revision_id":before.revision_id,
+            "form_updates":{"characters":characters},
+            "revision_comments":"long character list regression",
+            "ip_address":common::IP_ADDRESS})
+    )
+    .expect("form edit must create a revision");
+    let after = read(&runner, site, page).await;
+    assert_eq!(after.revision_id, edited.revision_id);
+    assert_ne!(after.revision_id, before.revision_id);
+    let source = after.wikitext.unwrap();
+    let values = wikidot_forms::parse_values(&source).unwrap();
+    assert_eq!(
+        values.get("characters").unwrap().as_str(),
+        Some(characters.as_str())
+    );
+    assert!(
+        source.contains(&characters),
+        "persisted source lost the exact list: {source}"
+    );
+    let html = after.compiled_body_html.unwrap();
+    assert_eq!(html.matches("<img ").count(), 200, "{html}");
+    for (index, name) in names.iter().enumerate() {
+        let category = if index % 2 == 0 { "character" } else { "bgc" };
+        for attribute in [
+            format!("src=\"/-/file/icons/icon_{name}.jpg\""),
+            format!("alt=\"{category}:{name}\""),
+        ] {
+            assert_eq!(html.matches(&attribute).count(), 1, "{attribute}: {html}");
+        }
+    }
+}
+
+#[tokio::test]
 async fn rename_updates_tagged_and_drifted_character_fields_in_one_revision_and_undo() {
     let (runner, site) = setup().await;
     let tagged = import(&runner, site, "writing:tagged", SOURCE, &["old", "other"]).await;
