@@ -30,6 +30,8 @@ Renderer `fad710519` removes that flag from both image layouts and updates golde
 
 Remaining data gap: index 32 image references resolve to 27 unique paths; `icon_chem.jpg` has no native attachment record and no file in the captured import manifest. Main's explicit-language follow-up returns member 404/no-store with `Accept-Language: en`; the verifier's wildcard requests return 504 through WWS's error renderer, not an ACL denial. The user approved one-time source recovery; authenticated browser inspection and main's direct checks both found HTTP 404 at the exact Wikidot/wdfiles file routes. No original was recovered and no replacement was invented or uploaded; automated sync remains off. Evidence: `/tmp/cobalt-private-asset-followup.md`, `/tmp/cobalt-chem-source-recovery.json`. HTTP HTML has no explicit Cache-Control/Vary header; no intermediary leak was observed or universal cache-safety claim made.
 
+Resolved 2026-10-15 (user-approved): Wikidot also lacks the file (`icon_chem.jpg`, `icon_Chem.jpg`, `icon_chem.png`, `icon_badchemistry.jpg` all return "The file does not exist" to an authenticated member, and Wikidot's players page shows the same broken image). `icon_chem.jpg` (file 1484) was made from BadChemistry's own `player:chem` portrait (`https://i.imgur.com/vRvZyhy.jpeg`), cropped to the bird and resized to 144×144, and uploaded as Cobalt Import. `membersonly:players` now loads it at 144×144 with 0 of 32 images broken (`/tmp/cobalt-chem-icon-upload.log`).
+
 ## Coverage and outcomes
 
 | Boundary | Inspected behavior / outcome | Proof and limits |
