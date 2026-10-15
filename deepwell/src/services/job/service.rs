@@ -84,15 +84,13 @@ impl JobService {
     ) -> Result<()> {
         let mut failed = 0;
         for (job, delay) in jobs {
+            // The marker this job set, so a retry does not mistake it for
+            // another pending rerender.
+            let mut marked = None;
             let mut attempt = 0;
             loop {
-                let sent = match job {
-                    Job::RerenderPage { id, r#type } => {
-                        Self::mark_and_queue_rerender(redis, rsmq, *id, *r#type).await
-                    }
-                    _ => Self::queue_job_inner(rsmq, job, *delay).await,
-                };
-                match sent {
+                match Self::send_deferred_job(redis, rsmq, job, *delay, &mut marked).await
+                {
                     Ok(()) => break,
                     Err(error) if attempt + 1 < DEFERRED_SEND_ATTEMPTS => {
                         warn!("Retrying deferred job {job:?}: {error}");
@@ -102,6 +100,11 @@ impl JobService {
                     Err(error) => {
                         error!("Dropping deferred job {job:?}: {error}");
                         failed += 1;
+                        if let Some(key) = &marked
+                            && let Err(error) = redis.del::<_, ()>(key).await
+                        {
+                            error!("Pending rerender marker {key} kept: {error}");
+                        }
                         break;
                     }
                 }
@@ -165,6 +168,29 @@ impl JobService {
         Self::queue_rerender(ctx, id, RerenderType::NavigationOnly).await
     }
 
+    /// One send of a held job. A rerender is marked pending first, once:
+    /// `marked` holds the marker this job set, and a rerender that is already
+    /// pending is not sent.
+    async fn send_deferred_job(
+        redis: &mut RedisMultiplexedConnection,
+        rsmq: &mut Rsmq,
+        job: &Job,
+        delay: Option<Duration>,
+        marked: &mut Option<String>,
+    ) -> Result<()> {
+        if let Job::RerenderPage { id, r#type } = job
+            && marked.is_none()
+        {
+            let key = pending_rerender_key(*id, *r#type);
+            if !Self::mark_rerender_pending(redis, &key).await? {
+                debug!("Rerender job already pending: {key}");
+                return Ok(());
+            }
+            *marked = Some(key);
+        }
+        Self::queue_job_inner(rsmq, job, delay).await
+    }
+
     /// Queues a rerender job unless the same one is already pending; while
     /// jobs are deferred, holds it for `send_deferred_jobs` instead.
     async fn queue_rerender(
@@ -197,23 +223,7 @@ impl JobService {
         rerender_type: RerenderType,
     ) -> Result<()> {
         let key = pending_rerender_key(id, rerender_type);
-        let make_error = || {
-            Error::new(
-                format!("failed to mark rerender job pending: {key}"),
-                ErrorType::Job,
-            )
-        };
-
-        let marked: Option<String> = redis::cmd("SET")
-            .arg(&key)
-            .arg(1)
-            .arg("NX")
-            .arg("EX")
-            .arg(PENDING_RERENDER_EXPIRY_SECS)
-            .query_async(redis)
-            .await
-            .or_raise(make_error)?;
-        if marked.is_none() {
+        if !Self::mark_rerender_pending(redis, &key).await? {
             debug!("Rerender job already pending: {key}");
             return Ok(());
         }
@@ -227,11 +237,38 @@ impl JobService {
             r#type: rerender_type,
         };
         if let Err(error) = Self::queue_job_inner(rsmq, &job, None).await {
-            let _: () = redis.del(&key).await.or_raise(make_error)?;
+            let _: () = redis.del(&key).await.or_raise(|| {
+                Error::new(
+                    format!("failed to clear pending rerender job: {key}"),
+                    ErrorType::Job,
+                )
+            })?;
             return Err(error);
         }
 
         Ok(())
+    }
+
+    /// Marks a rerender pending; `false` if it already was.
+    async fn mark_rerender_pending(
+        redis: &mut RedisMultiplexedConnection,
+        key: &str,
+    ) -> Result<bool> {
+        let marked: Option<String> = redis::cmd("SET")
+            .arg(key)
+            .arg(1)
+            .arg("NX")
+            .arg("EX")
+            .arg(PENDING_RERENDER_EXPIRY_SECS)
+            .query_async(redis)
+            .await
+            .or_raise(|| {
+                Error::new(
+                    format!("failed to mark rerender job pending: {key}"),
+                    ErrorType::Job,
+                )
+            })?;
+        Ok(marked.is_some())
     }
 
     /// Called by a worker when it starts a rerender job, so that later

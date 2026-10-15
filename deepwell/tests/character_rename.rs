@@ -12,7 +12,9 @@ use deepwell::services::character_rename::CharacterRenameService;
 use deepwell::services::job::{Job, JobService};
 use deepwell::services::page_revision::RerenderType;
 use deepwell::services::{BlobService, RequestContext, ServiceContext};
+use deepwell::types::PageId;
 use deepwell::types::Reference;
+use rsmq_async::Rsmq;
 use sea_orm::{ConnectionTrait, DatabaseBackend, Statement, TransactionTrait};
 use serde_json::json;
 
@@ -584,6 +586,44 @@ async fn rerenders_pending_during_the_rename_are_queued_again_after_it() {
         queued_again,
         "the writing must be queued again after the rename"
     );
+}
+
+/// A held rerender that cannot be sent after the rename commits is dropped
+/// without leaving its pending marker, so the page's next change queues it.
+#[tokio::test]
+async fn held_rerender_that_cannot_be_sent_leaves_no_pending_marker() {
+    let runner = TestRunner::setup_with_idle_job_workers().await;
+    let mut redis = runner.state().redis.clone();
+    // A namespace without the job queue: every send fails.
+    let mut missing_queue = Rsmq::new_with_connection(
+        redis.clone(),
+        false,
+        Some("character-rename-no-queue"),
+    )
+    .await
+    .unwrap();
+    let id = PageId {
+        site_id: 1,
+        category_id: 1,
+        page_id: 999_000_001,
+    };
+    let pending = format!("job:rerender-pending:{}:Standalone", id.page_id);
+    let job = Job::RerenderPage {
+        id,
+        r#type: RerenderType::Standalone,
+    };
+
+    let sent =
+        JobService::send_deferred_jobs(&mut redis, &mut missing_queue, &[(job, None)])
+            .await;
+    let marked: bool = redis::cmd("EXISTS")
+        .arg(&pending)
+        .query_async(&mut redis)
+        .await
+        .unwrap();
+
+    assert!(sent.is_err(), "a dropped job must be reported");
+    assert!(!marked, "a dropped rerender must not stay pending");
 }
 
 fn sql(query: &str) -> Statement {

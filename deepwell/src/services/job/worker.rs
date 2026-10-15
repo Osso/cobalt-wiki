@@ -322,14 +322,18 @@ impl JobWorker {
                         .await
                         .or_raise(make_error)?;
                 if running_elsewhere {
-                    // Keep a job queued in case that worker dies.
-                    NextJob::Next {
-                        job: Job::CharacterRename { operation_id },
-                        delay: Some(RUNNING_RECHECK_DELAY),
-                    }
-                } else {
-                    NextJob::Done
+                    // Keep a job queued in case that worker dies. Queued before
+                    // this message is deleted: a duplicate check is harmless,
+                    // a lost one leaves the rename queued with no job.
+                    JobService::queue_job(
+                        ctx,
+                        &Job::CharacterRename { operation_id },
+                        Some(RUNNING_RECHECK_DELAY),
+                    )
+                    .await
+                    .or_raise(make_error)?;
                 }
+                NextJob::Done
             }
         };
 
