@@ -163,9 +163,13 @@ impl OutdateService {
             .or_raise(make_error)?;
 
         for &page_id in &page_ids {
-            let page = PageService::get_direct(ctx, page_id, false)
+            // Deleted pages keep their links but are never rendered.
+            let Some(page) = PageService::get_direct_optional(ctx, page_id, false)
                 .await
-                .or_raise(make_error)?;
+                .or_raise(make_error)?
+            else {
+                continue;
+            };
 
             let id = PageId::from_page_model(&page);
             JobService::queue_rerender_page(ctx, id)

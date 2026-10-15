@@ -6,6 +6,7 @@ When a page changes, Deepwell queues `rerender_page` jobs (Valkey rsmq queue `rs
 
 - [x] A change (edit, create, delete, move, restore, attachment) queues every affected page at that moment: pages that include it (includes are recorded transitively), pages in its category when it is a `_template`, listing pages whose [ListPages](cobalt-list-pages.md) selection matches it (including ASCII case-insensitive plain, required, and excluded tags), linking pages on create/delete, and a navigation rerender of every page using it as a top or side bar. (Linking-page invalidation on create/delete is existing behavior without a dedicated test here.)
 - [x] A queued page that is itself a navigation page also queues a navigation rerender of every page using that bar, at the same moment (bars are compiled into each page and are not recorded as dependencies).
+- [x] Deleted pages are never queued. They keep their link rows, so a deleted page can appear among another page's dependents; a page linked only from deleted pages can be deleted, moved and renamed (before `outdate_pages` skipped them, these failed with 2005, affecting 143 live production pages on 2026-10-15).
 - [x] Dependent jobs are `standalone` rerenders and queue nothing further; one change produces at most one job per affected page and type.
 - [x] A job for a page and type that is already pending is not queued again. The marker (`job:rerender-pending:<page_id>:<type>`, 1 h expiry) is cleared when a worker starts the job, so a later change queues the page again.
 - [x] A rerender caused by a [compiled-render identity](cobalt-render-identity.md) change queues no dependents: a `full` rerender outdates dependents only when the page's stored output came from the current identity and the new output differs (its source changed without an edit). A `full` rerender with unchanged output queues nothing.
@@ -27,6 +28,7 @@ When a page changes, Deepwell queues `rerender_page` jobs (Valkey rsmq queue `rs
 ## Tests asserting this spec
 
 - `deepwell/tests/page_rerender_fanout.rs` (dedicated Redis, `--ignored`): renderer-version sweep queues nothing; a nested include change queues each dependent once plus one navigation rerender per page, and draining queues nothing; pending jobs collapse until a worker starts them; a navigation page edited twice shows its last text in another page's bar.
+- `deepwell/tests/page_delete_backlinks.rs`: a page linked from an already deleted page can be deleted (RED 2005 `/tmp/claude/page-delete-backlinks-red.out`, GREEN `/tmp/claude/page-delete-backlinks-green.out`).
 - `deepwell/tests/page_standalone_rerender.rs`: standalone and unchanged `full` rerenders queue nothing; `full` after an out-of-band source change queues dependents.
 - `deepwell/tests/page_listing_invalidation.rs`, `deepwell/tests/file_attachment_invalidation.rs`: listing and attachment dependents.
 - Unit tests: `job::structs` (a queued job with `depth` deserializes), `config::file` (config with `rerender-skip` loads).
