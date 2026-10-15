@@ -20,7 +20,7 @@ use crate::services::{
 };
 use redis::AsyncCommands;
 use regex::Regex;
-use sea_orm::TransactionTrait;
+use sea_orm::{ConnectionTrait, TransactionTrait};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -36,6 +36,12 @@ const START_DELAY: Duration = Duration::from_secs(1);
 
 /// Progress counters outlive any rename; the row holds the final outcome.
 const PROGRESS_EXPIRY_SECS: u64 = 86_400;
+
+/// A `RelationshipBox` include up to its first closing `]]`; its `pagename`
+/// comes before any nested link in the relationship text.
+static RELATIONSHIP_BOX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?is)\[\[\s*include\s+relationshipbox\b.*?\]\]").unwrap()
+});
 
 static SHORT_NAME: LazyLock<Regex> =
     LazyLock::new(|| Regex::new("^[a-z0-9]+(-[a-z0-9]+)*$").unwrap());
@@ -191,11 +197,14 @@ impl CharacterRenameService {
                 ErrorType::PermissionDenied
             ));
         }
-        let status: String = get(&row, "status")?;
+        let stored: String = get(&row, "status")?;
         let total: i32 = get(&row, "total")?;
-        let done = match status.as_str() {
-            "done" => i64::from(total),
-            _ => read_progress(ctx, input.operation_id).await?,
+        let progress = read_progress(ctx, input.operation_id).await?;
+        // A running job's row stays queued until it commits; progress shows it started.
+        let (status, done) = match (stored.as_str(), progress) {
+            ("done", _) => (stored, i64::from(total)),
+            ("queued", Some(done)) => ("running".to_owned(), done),
+            (_, progress) => (stored, progress.unwrap_or(0)),
         };
         Ok(CharacterRenameStatus {
             operation_id: input.operation_id,
@@ -222,6 +231,7 @@ impl CharacterRenameService {
             .parse::<IpAddr>()
             .or_raise(query_error)?;
         lock_site_tags(ctx, site_id).await?;
+        reset_progress(ctx, operation_id).await?;
         let plan = read_plan(ctx, get(&row, "page_id")?, &new_name).await?;
         if plan.preview_token != token {
             bail!(Error::new(
@@ -290,19 +300,30 @@ impl CharacterRenameService {
         Ok(())
     }
 
-    /// Job body: claims the queued rename, runs it in its own transaction, and
-    /// records failure separately so the rolled-back work leaves a reason.
+    /// Job body. The row lock is taken in the rename's own transaction, so a
+    /// worker that dies mid-run releases it and a redelivered job runs the
+    /// rename again; a redelivery while it still runs finds it locked and stops.
+    /// Jobs queued by the rename are sent only after it commits.
     pub async fn run_job(state: &ServerState, operation_id: i64) -> Result<()> {
-        let Some(request) = claim(state, operation_id).await? else {
-            info!("Character rename {operation_id} already claimed; skipping");
-            return Ok(());
-        };
         let txn = state.database.begin().await.or_raise(query_error)?;
+        let Some(request) = claim(&txn, operation_id).await? else {
+            info!("Character rename {operation_id} finished or running elsewhere");
+            return txn.rollback().await.or_raise(query_error);
+        };
         let ctx = ServiceContext::new(state, &txn).with_request(request);
-        match Self::execute(&ctx, operation_id).await {
-            Ok(()) => txn.commit().await.or_raise(query_error),
+        ctx.defer_jobs();
+        let result = Self::execute(&ctx, operation_id).await;
+        let jobs = ctx.take_deferred_jobs();
+        drop(ctx);
+        match result {
+            Ok(()) => {
+                txn.commit().await.or_raise(query_error)?;
+                JobService::send_deferred_jobs(&mut state.rsmq.clone(), &jobs).await
+            }
             Err(error) => {
                 txn.rollback().await.or_raise(query_error)?;
+                JobService::discard_deferred_jobs(&mut state.redis.clone(), &jobs)
+                    .await?;
                 let rpc = exn_error_to_rpc_error(error);
                 let message = format!("[{}] {}", rpc.code(), rpc.message());
                 warn!("Character rename {operation_id} failed: {message}");
@@ -334,7 +355,8 @@ async fn read_plan(
     require_unused_name(ctx, site_id, &new_name).await?;
     let icon = read_icon(ctx, site_id, old_name, &new_name).await?;
     let candidates = read_candidates(ctx, site_id, old_name).await?;
-    let pages = plan_pages(ctx, site_id, candidates, old_name, &new_name).await?;
+    let (pages, templates) =
+        plan_pages(ctx, site_id, candidates, old_name, &new_name).await?;
     let character_revision_id = character.latest_revision_id.ok_or_raise(|| {
         Error::new("character page has no revision", ErrorType::BadRequest)
     })?;
@@ -344,6 +366,7 @@ async fn read_plan(
         character_revision_id,
         &new_name,
         &pages,
+        &templates,
         icon.as_ref(),
     );
     Ok(Plan {
@@ -488,7 +511,7 @@ async fn plan_pages(
     candidates: Vec<Candidate>,
     old_name: &str,
     new_name: &str,
-) -> Result<Vec<PlannedPage>> {
+) -> Result<(Vec<PlannedPage>, Vec<Option<String>>)> {
     let renames = [
         (old_name.to_owned(), new_name.to_owned()),
         (format!("re:{old_name}"), format!("re:{new_name}")),
@@ -537,7 +560,10 @@ async fn plan_pages(
             });
         }
     }
-    Ok(pages)
+    // Sorted so the preview token does not depend on page order.
+    let mut used: Vec<_> = templates.into_iter().collect();
+    used.sort_unstable_by_key(|(slug, _)| *slug);
+    Ok((pages, used.into_iter().map(|(_, source)| source).collect()))
 }
 
 fn rename_tags(tags: &[String], renames: &[(String, String)]) -> Vec<String> {
@@ -546,18 +572,29 @@ fn rename_tags(tags: &[String], renames: &[(String, String)]) -> Vec<String> {
     })
 }
 
-/// Rewrites `RelationshipBox`-style `pagename=<name>` values and
-/// `[[[character:<name>…]]]`/`[[[bgc:<name>…]]]` link targets.
-/// Prose and other words containing the name stay unchanged.
+/// Rewrites `pagename=<name>` inside `RelationshipBox` includes and
+/// `[[[character:<name>…]]]`/`[[[bgc:<name>…]]]` link targets. Prose, other
+/// includes' `pagename`, and other words containing the name stay unchanged.
 fn rewrite_references(source: &str, old_name: &str, new_name: &str) -> String {
-    let pattern = format!(
-        r"(?i)(pagename\s*=\s*|\[\[\[\s*(?:character|bgc):){}([\s|\]#]|$)",
-        regex::escape(old_name)
+    let old_name = regex::escape(old_name);
+    let replace = |pattern: String, text: &str| -> String {
+        Regex::new(&pattern)
+            .expect("valid reference pattern")
+            .replace_all(text, |captures: &regex::Captures| {
+                format!("{}{new_name}{}", &captures[1], &captures[2])
+            })
+            .into_owned()
+    };
+    let linked = replace(
+        format!(r"(?i)(\[\[\[\s*(?:character|bgc):){old_name}([\s|\]#]|$)"),
+        source,
     );
-    let regex = Regex::new(&pattern).expect("valid reference pattern");
-    regex
-        .replace_all(source, |captures: &regex::Captures| {
-            format!("{}{new_name}{}", &captures[1], &captures[2])
+    RELATIONSHIP_BOX
+        .replace_all(&linked, |include: &regex::Captures| {
+            replace(
+                format!(r"(?i)(pagename\s*=\s*){old_name}([\s|\]]|$)"),
+                &include[0],
+            )
         })
         .into_owned()
 }
@@ -568,6 +605,7 @@ fn preview_token(
     revision_id: i64,
     new_name: &str,
     pages: &[PlannedPage],
+    templates: &[Option<String>],
     icon: Option<&IconFile>,
 ) -> String {
     let mut digest = Sha256::new();
@@ -582,6 +620,7 @@ fn preview_token(
                 .map(|p| (p.page.page_id, p.revision_id))
                 .collect::<Vec<_>>(),
             icon.map(|icon| (icon.file_id, icon.revision_id)),
+            templates,
         ))
         .expect("serializable character rename preview"),
     );
@@ -664,22 +703,39 @@ async fn record_progress(ctx: &ServiceContext<'_>, operation_id: i64) -> Result<
     Ok(())
 }
 
-async fn read_progress(ctx: &ServiceContext<'_>, operation_id: i64) -> Result<i64> {
-    let done: Option<i64> =
-        ctx.redis()
-            .get(progress_key(operation_id))
-            .await
-            .or_raise(|| {
-                Error::new("failed to read character rename progress", ErrorType::Job)
-            })?;
-    Ok(done.unwrap_or(0))
+/// A retried job starts counting again from zero.
+async fn reset_progress(ctx: &ServiceContext<'_>, operation_id: i64) -> Result<()> {
+    let _: () = ctx
+        .redis()
+        .set_ex(progress_key(operation_id), 0, PROGRESS_EXPIRY_SECS)
+        .await
+        .or_raise(|| {
+            Error::new("failed to reset character rename progress", ErrorType::Job)
+        })?;
+    Ok(())
 }
 
-/// Marks a queued rename running; `None` if another worker already took it.
-async fn claim(state: &ServerState, operation_id: i64) -> Result<Option<RequestContext>> {
-    let txn = state.database.begin().await.or_raise(query_error)?;
+/// `None` until a job starts running the rename.
+async fn read_progress(
+    ctx: &ServiceContext<'_>,
+    operation_id: i64,
+) -> Result<Option<i64>> {
+    ctx.redis()
+        .get(progress_key(operation_id))
+        .await
+        .or_raise(|| {
+            Error::new("failed to read character rename progress", ErrorType::Job)
+        })
+}
+
+/// Locks a queued rename for this transaction; `None` if it is finished or
+/// another worker holds it.
+async fn claim(
+    txn: &sea_orm::DatabaseTransaction,
+    operation_id: i64,
+) -> Result<Option<RequestContext>> {
     let row = txn.query_one_raw(statement(
-        "UPDATE character_rename SET status = 'running' WHERE operation_id = $1 AND status = 'queued' RETURNING site_id, page_id, actor_user_id",
+        "SELECT site_id, page_id, actor_user_id FROM character_rename WHERE operation_id = $1 AND status = 'queued' FOR UPDATE SKIP LOCKED",
         [operation_id.into()],
     )).await.or_raise(query_error)?;
     let Some(row) = row else {
@@ -700,7 +756,6 @@ async fn claim(state: &ServerState, operation_id: i64) -> Result<Option<RequestC
         }
         return Ok(None);
     };
-    txn.commit().await.or_raise(query_error)?;
     let page_id: i64 = get(&row, "page_id")?;
     Ok(Some(RequestContext {
         session: None,
@@ -717,7 +772,7 @@ async fn record_failure(
 ) -> Result<()> {
     let txn = state.database.begin().await.or_raise(query_error)?;
     txn.execute_raw(statement(
-        "UPDATE character_rename SET status = 'failed', error = $2, finished_at = now() WHERE operation_id = $1",
+        "UPDATE character_rename SET status = 'failed', error = $2, finished_at = now() WHERE operation_id = $1 AND status = 'queued'",
         [operation_id.into(), message.into()],
     ))
     .await
@@ -734,13 +789,15 @@ mod tests {
         let source = "[[include RelationshipBox | pagename=Dara | name=Dara]]\n\
             [[include RelationshipBox | pagename= dara|name=x]]\n\
             [[[character:dara|Dara]]] [[[bgc:dara]]] [[[character:dara#bio|b]]]\n\
-            [[[character:darab|x]]] pagename=dara-x dara stays [[[writing:dara]]]";
+            [[[character:darab|x]]] pagename=dara-x dara stays [[[writing:dara]]]\n\
+            [[include PetBox | pagename=dara]]";
         assert_eq!(
             rewrite_references(source, "dara", "tennerow"),
             "[[include RelationshipBox | pagename=tennerow | name=Dara]]\n\
             [[include RelationshipBox | pagename= tennerow|name=x]]\n\
             [[[character:tennerow|Dara]]] [[[bgc:tennerow]]] [[[character:tennerow#bio|b]]]\n\
-            [[[character:darab|x]]] pagename=dara-x dara stays [[[writing:dara]]]"
+            [[[character:darab|x]]] pagename=dara-x dara stays [[[writing:dara]]]\n\
+            [[include PetBox | pagename=dara]]"
         );
     }
 

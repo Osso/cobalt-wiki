@@ -61,8 +61,42 @@ impl JobService {
         job: &Job,
         delay: Option<Duration>,
     ) -> Result<()> {
+        if ctx.try_defer_job(job, delay) {
+            return Ok(());
+        }
         let mut rsmq = ctx.rsmq();
         Self::queue_job_inner(&mut rsmq, job, delay).await
+    }
+
+    /// Sends jobs held during a transaction that has now committed.
+    pub async fn send_deferred_jobs(
+        rsmq: &mut Rsmq,
+        jobs: &[(Job, Option<Duration>)],
+    ) -> Result<()> {
+        for (job, delay) in jobs {
+            Self::queue_job_inner(rsmq, job, *delay).await?;
+        }
+        Ok(())
+    }
+
+    /// Drops jobs held during a transaction that rolled back, clearing their
+    /// pending-rerender markers so later changes can queue those pages again.
+    pub async fn discard_deferred_jobs(
+        redis: &mut redis::aio::MultiplexedConnection,
+        jobs: &[(Job, Option<Duration>)],
+    ) -> Result<()> {
+        for (job, _) in jobs {
+            if let Job::RerenderPage { id, r#type } = job {
+                let key = pending_rerender_key(*id, *r#type);
+                let _: () = redis.del(&key).await.or_raise(|| {
+                    Error::new(
+                        format!("failed to clear pending rerender job: {key}"),
+                        ErrorType::Job,
+                    )
+                })?;
+            }
+        }
+        Ok(())
     }
 
     pub async fn queue_job_inner(

@@ -24,6 +24,7 @@ use crate::error::prelude::*;
 use crate::locales::Localizations;
 use crate::models::session::Model as SessionModel;
 use crate::services::blob::MimeAnalyzer;
+use crate::services::job::Job;
 use crate::services::outdate::{DeferredOutdates, ListingChange};
 use crate::services::permission::{CheckPermissionContext, PermissionService};
 use crate::types::{PageId, Permission, Reference};
@@ -33,6 +34,7 @@ use s3::bucket::Bucket;
 use sea_orm::DatabaseTransaction;
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use tokio::sync::OnceCell;
 
 /// Per-request context derived from HTTP headers by the middleware layer.
@@ -87,6 +89,7 @@ pub struct ServiceContext<'txn> {
     request_ctx: RequestContext,
     user_permissions: OnceCell<HashSet<Permission<'static>>>,
     deferred_outdates: Mutex<Option<DeferredOutdates>>,
+    deferred_jobs: Mutex<Option<Vec<(Job, Option<Duration>)>>>,
 }
 
 impl<'txn> ServiceContext<'txn> {
@@ -101,6 +104,7 @@ impl<'txn> ServiceContext<'txn> {
             request_ctx: RequestContext::default(),
             user_permissions: OnceCell::new(),
             deferred_outdates: Mutex::new(None),
+            deferred_jobs: Mutex::new(None),
         }
     }
 
@@ -152,6 +156,32 @@ impl<'txn> ServiceContext<'txn> {
         match self.deferred_outdates.lock().unwrap().as_mut() {
             Some(deferred) => {
                 deferred.navigation.push(id);
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Holds jobs queued from now on until `take_deferred_jobs`, so a caller
+    /// can send them only after its transaction commits.
+    pub fn defer_jobs(&self) {
+        *self.deferred_jobs.lock().unwrap() = Some(Vec::new());
+    }
+
+    /// Stops holding jobs, returning those queued meanwhile.
+    pub fn take_deferred_jobs(&self) -> Vec<(Job, Option<Duration>)> {
+        self.deferred_jobs
+            .lock()
+            .unwrap()
+            .take()
+            .unwrap_or_default()
+    }
+
+    /// Holds `job` if deferral is active; returns whether it was held.
+    pub fn try_defer_job(&self, job: &Job, delay: Option<Duration>) -> bool {
+        match self.deferred_jobs.lock().unwrap().as_mut() {
+            Some(jobs) => {
+                jobs.push((job.clone(), delay));
                 true
             }
             None => false,

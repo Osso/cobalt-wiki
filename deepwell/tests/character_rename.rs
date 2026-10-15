@@ -47,6 +47,21 @@ async fn setup() -> (TestRunner, Fixture) {
         .unwrap()
         .try_get::<bool>("", "installed")
         .unwrap();
+    // Operation IDs restart in each rolled-back table, so earlier runs' progress
+    // counters in the shared Redis database would match them.
+    let mut redis = runner.state().redis.clone();
+    let stale: Vec<String> = redis::cmd("KEYS")
+        .arg("character-rename:progress:*")
+        .query_async(&mut redis)
+        .await
+        .unwrap();
+    if !stale.is_empty() {
+        let _: () = redis::cmd("DEL")
+            .arg(stale)
+            .query_async(&mut redis)
+            .await
+            .unwrap();
+    }
     if !installed {
         runner
             .context()
@@ -415,6 +430,43 @@ async fn locked_pages_and_stale_previews_change_nothing() {
         json!({"page_id":f.character, "new_name":"new"})
     );
     assert_contains_error!(error, ErrorType::PermissionDenied);
+}
+
+/// The writing still changes its tags either way, so only the template decides
+/// whether its `references` are rewritten as the preview showed.
+#[tokio::test]
+async fn template_edits_after_preview_make_the_rename_stale() {
+    let (mut runner, f) = setup().await;
+    let preview = run_endpoint!(
+        runner,
+        character_rename_preview,
+        json!({"page_id":f.character, "new_name":"new"})
+    );
+    let template = run_endpoint!(
+        runner,
+        page_get,
+        json!({"site_id":f.site, "page":"writing:_template", "details":{}})
+    )
+    .unwrap();
+    runner.set_request_context(RequestContext {
+        site_id: Some(f.site),
+        user_id: Some(ADMIN_USER_ID),
+        page_reference: Some(Reference::Id(template.page_id)),
+        ..Default::default()
+    });
+    let without_references =
+        WRITING_TEMPLATE.replace("  references:\n    type: text\n", "");
+    run_endpoint!(
+        runner,
+        page_edit,
+        json!({"site_id":f.site,"page":template.page_id,"user_id":ADMIN_USER_ID,"last_revision_id":template.revision_id,"wikitext":without_references,"revision_comments":"drop references","ip_address":common::IP_ADDRESS})
+    );
+    let error = run_endpoint_err!(
+        runner,
+        character_rename_start,
+        json!({"page_id":f.character, "new_name":"new", "preview_token":preview.preview_token, "ip_address":common::IP_ADDRESS})
+    );
+    assert_contains_error!(error, ErrorType::TagPreviewStale);
 }
 
 #[tokio::test]
