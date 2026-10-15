@@ -22,6 +22,7 @@
 
 use super::prelude::*;
 use crate::api::ServerState;
+use crate::services::character_rename::CharacterRenameService;
 use crate::services::page_revision::RerenderType;
 use crate::services::{
     BlobService, PageRevisionService, RelationService, SessionService, TextService,
@@ -311,6 +312,15 @@ impl JobWorker {
                     job: Job::LiftExpiredPunishments,
                     delay: Some(self.state.config.job_lift_expired_punishments),
                 }
+            }
+            Job::CharacterRename { operation_id } => {
+                debug!("Running character rename {operation_id}");
+                // Uses its own transactions: the rename outlasts the queue's
+                // process time, and a failure must still be recorded.
+                CharacterRenameService::run_job(&self.state, operation_id)
+                    .await
+                    .or_raise(make_error)?;
+                NextJob::Done
             }
         };
 

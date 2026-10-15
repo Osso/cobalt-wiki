@@ -215,6 +215,7 @@ pub enum ErrorType {
     TagPreviewStale,
     TagUndoConflict,
     TagPageNotEditable,
+    CharacterNameInUse,
 
     // 4400
     FileNameEmpty,
@@ -524,6 +525,7 @@ impl ErrorType {
             ErrorType::TagPreviewStale => 4304,
             ErrorType::TagUndoConflict => 4305,
             ErrorType::TagPageNotEditable => 4306,
+            ErrorType::CharacterNameInUse => 4307,
 
             // 4400 - File
             ErrorType::FileNameEmpty => 4400,
@@ -807,6 +809,7 @@ impl ErrorType {
             ErrorType::TagPageNotEditable => {
                 "Affected page is locked or cannot be edited"
             }
+            ErrorType::CharacterNameInUse => "Character name is already used as a tag",
 
             // 4400
             ErrorType::FileNameEmpty => "File name cannot be empty",

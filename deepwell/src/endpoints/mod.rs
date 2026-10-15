@@ -53,6 +53,7 @@ pub mod all {
     pub use super::basic_error::*;
     pub use super::blob::*;
     pub use super::category::*;
+    pub use super::character_rename::*;
     pub use super::domain::*;
     pub use super::editor_lookup::*;
     pub use super::editor_pages::*;
@@ -96,6 +97,7 @@ pub mod auth;
 pub mod basic_error;
 pub mod blob;
 pub mod category;
+pub mod character_rename;
 pub mod domain;
 pub mod editor_lookup;
 pub mod editor_pages;

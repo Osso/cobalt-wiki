@@ -32,6 +32,7 @@ pub enum Job {
     PruneText,
     NameChangeRefill,
     LiftExpiredPunishments,
+    CharacterRename { operation_id: i64 },
 }
 
 #[cfg(test)]

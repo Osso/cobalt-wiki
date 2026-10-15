@@ -66,6 +66,7 @@ pub mod blob;
 pub mod blueprint;
 pub mod caddy;
 pub mod category;
+pub mod character_rename;
 pub mod domain;
 pub mod email;
 pub mod file;

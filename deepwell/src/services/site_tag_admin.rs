@@ -472,7 +472,11 @@ async fn add_pages(
     read_tagged_pages(&rows)
 }
 
-fn replace_tag(tags: &[String], source: &str, target: Option<&str>) -> Vec<String> {
+pub(crate) fn replace_tag(
+    tags: &[String],
+    source: &str,
+    target: Option<&str>,
+) -> Vec<String> {
     let target_present =
         target.is_some_and(|target| tags.iter().any(|tag| tag == target));
     let mut inserted_target = false;
@@ -575,7 +579,7 @@ async fn tagged_pages(
 const NAME_LIST_FIELDS: [&str; 2] = ["characters", "references"];
 
 /// The data form template of a normal writing, arc, or chain page.
-fn name_list_template(slug: &str) -> Option<&'static str> {
+pub(crate) fn name_list_template(slug: &str) -> Option<&'static str> {
     let (category, name) = slug.split_once(':')?;
     if name.starts_with('_') {
         return None;
@@ -588,7 +592,7 @@ fn name_list_template(slug: &str) -> Option<&'static str> {
     }
 }
 
-fn rename_name_lists(
+pub(crate) fn rename_name_lists(
     template: &str,
     source: &str,
     old: &str,
@@ -694,7 +698,7 @@ async fn recorded_pages(
         .collect()
 }
 
-async fn require_editable(
+pub(crate) async fn require_editable(
     ctx: &ServiceContext<'_>,
     site_id: i64,
     user_id: i64,
@@ -711,7 +715,7 @@ async fn require_editable(
         })
 }
 
-async fn edit_tags(
+pub(crate) async fn edit_tags(
     ctx: &ServiceContext<'_>,
     site_id: i64,
     user_id: i64,
@@ -795,15 +799,21 @@ pub(crate) async fn lock_site_tags(ctx: &ServiceContext<'_>, site_id: i64) -> Re
     Ok(())
 }
 
-fn statement(sql: &str, values: impl IntoIterator<Item = sea_orm::Value>) -> Statement {
+pub(crate) fn statement(
+    sql: &str,
+    values: impl IntoIterator<Item = sea_orm::Value>,
+) -> Statement {
     Statement::from_sql_and_values(DatabaseBackend::Postgres, sql, values)
 }
 
-fn get<T: sea_orm::TryGetable>(row: &sea_orm::QueryResult, column: &str) -> Result<T> {
+pub(crate) fn get<T: sea_orm::TryGetable>(
+    row: &sea_orm::QueryResult,
+    column: &str,
+) -> Result<T> {
     row.try_get("", column).or_raise(query_error)
 }
 
-fn query_error() -> Error {
+pub(crate) fn query_error() -> Error {
     Error::new(
         "failed to query site tag operation",
         ErrorType::DatabaseQuery,

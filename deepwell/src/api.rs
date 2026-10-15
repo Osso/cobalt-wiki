@@ -378,6 +378,9 @@ async fn build_module(app_state: ServerState) -> Result<RpcModule<ServerState>> 
     register!("site_tag_apply", site_tag_apply);
     register!("site_tag_history", site_tag_history);
     register!("site_tag_undo", site_tag_undo);
+    register!("character_rename_preview", character_rename_preview);
+    register!("character_rename_start", character_rename_start);
+    register!("character_rename_status", character_rename_status);
 
     // Watcher preferences and subscriptions use the authenticated request user.
     register!("watching_preferences_get", watching_preferences_get);
