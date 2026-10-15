@@ -47,7 +47,7 @@ Bottom-page controls follow supplied Tags/History screenshots and retained Wikid
 - [x] Confirm rename is explicit: `character_rename_start` runs only with `confirmed=yes` and the preview token, and forwards the client IP. A refused start returns to the name input so the next attempt previews again.
 - [x] The pane polls `character_rename_status` every second, showing `Renaming <old> → <new>: <done>/<total> pages (<s>s)`. `done` navigates to the new slug; `failed` shows the job error and stops polling. Closing the pane stops polling, not the job.
 - [x] Deepwell refusals map to messages: `3106` permission (HTTP 403); `4000` backend message, `2104` existing page, `2105` existing icon, `4306` locked page, `4304` stale preview, `4307` name used as a tag (HTTP 400).
-- [ ] Browser-exercise the button placement, polling, and navigation; SSR tests cover the slug gate function, not the rendered options bar, and no test drives the polling loop.
+- [x] Browser-exercised on production 2026-10-15 (`bgc:zz-rename-probe`): More options showed Rename character; preview listed 2 pages and the icon; Confirm showed `0/4` then `4/4 (26s)` and navigated to `/bgc:zz-rename-probe2` (`/tmp/cobalt-rename-probe-pane.log`). Status updates arrived about every 2 s (1 s wait plus request time). No automated test drives the polling loop.
 
 ## How it works
 

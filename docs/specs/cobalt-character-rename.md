@@ -14,7 +14,7 @@ Decisions (user, 2026-10-15): anyone who can edit the character page may rename 
 - [x] The job re-checks the token under the site tag lock, then in one transaction moves the page to `<category>:<new>`, makes one ordinary revision per affected page (the character page gets its move revision plus one), and renames the icon file. Any failure rolls everything back and records the reason; nothing is retried. Rerender jobs caused by the edits are queued only after commit and dropped on rollback. Changes after confirmation make the job fail stale.
 - [x] `character_rename_status {operation_id}` returns `{operation_id,status,done,total,error,new_slug}` to the renaming user only; `status` is `queued`, `running`, `done`, or `failed`. `total` counts the move, each page edit, and the icon rename.
 - [x] The Rename character pane on character/bgc pages previews, confirms, shows progress, and opens the new page when done ([page actions](cobalt-page-actions.md)); `22c347754`, `framerail/tests/character-rename.test.ts` 8/8.
-- [ ] Production rename verified end to end, including the worker transaction and progress polling.
+- [x] Production rename verified end to end, including the worker transaction and progress polling (2026-10-15, throwaway `bgc:zz-rename-probe` → `zz-rename-probe2` through the pane; a concurrent edit after start made operation 1 fail 4304 with nothing changed; proof `/tmp/cobalt-character-rename-live-proof.md`). Partial-edit rollback mid-run was not exercised live.
 
 ## How it works
 
@@ -37,6 +37,7 @@ Decisions (user, 2026-10-15): anyone who can edit the character page may rename 
 - `deepwell/src/services/character_rename.rs` unit tests — reference rewrite boundaries (including a non-RelationshipBox `pagename`) and new-name validation, 2/2.
 
 ## Known gaps (current cycle)
+- Idle workers back off to `max-delay-poll-secs` (production 360 s), so a rename can wait minutes before starting; the pane shows 0/N meanwhile. The live run waited 23 s.
 
 - `run_job` (row lock, own transactions, deferred jobs, failure recording) is not covered by the rollback-only test harness.
 - `[[include CharacterList | tags=…]]` terms and absolute `https://…/character:<name>` URLs are not rewritten (4 and 2 occurrences site-wide for the five most-referenced characters).
