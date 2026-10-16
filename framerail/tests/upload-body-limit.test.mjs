@@ -38,6 +38,7 @@ function runtimeEnvironment() {
   return JSON.parse(result.stdout)
 }
 
+/** @param {string} directory */
 function writeFixture(directory) {
   mkdirSync(join(directory, "src/routes"), { recursive: true })
   symlinkSync(join(framerail, "node_modules"), join(directory, "node_modules"), "dir")
@@ -60,6 +61,7 @@ function writeFixture(directory) {
   )
 }
 
+/** @param {string} directory */
 async function exerciseAdapter(directory) {
   const { build } = await import("vite")
   await build({
@@ -71,8 +73,11 @@ async function exerciseAdapter(directory) {
     pathToFileURL(join(directory, "build/handler.js")).href
   )
   const server = createServer(handler)
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve))
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve(undefined)))
   const address = server.address()
+  assert.ok(address && typeof address !== "string")
+  const origin = process.env.ORIGIN
+  assert.ok(origin)
   const url = `http://127.0.0.1:${address.port}/`
   try {
     const fileSize = 578 * 1024
@@ -83,7 +88,7 @@ async function exerciseAdapter(directory) {
     )
     const response = await fetch(url, {
       method: "POST",
-      headers: { origin: process.env.ORIGIN },
+      headers: { origin },
       body: form
     })
     const accepted = { status: response.status, body: await response.text() }
@@ -95,7 +100,7 @@ async function exerciseAdapter(directory) {
           {
             method: "POST",
             headers: {
-              origin: process.env.ORIGIN,
+              origin,
               "content-type": "multipart/form-data; boundary=probe",
               "content-length": 100 * 1024 * 1024 + 1
             }
@@ -129,8 +134,9 @@ if (process.argv[2] === "--fixture") {
       const configured = runtimeEnvironment()
       const environment = { ...process.env, ...configured }
       delete environment.BODY_SIZE_LIMIT
-      if (configured.BODY_SIZE_LIMIT !== undefined)
+      if (configured.BODY_SIZE_LIMIT !== undefined) {
         environment.BODY_SIZE_LIMIT = configured.BODY_SIZE_LIMIT
+      }
       const result = spawnSync(
         process.execPath,
         [fileURLToPath(import.meta.url), "--fixture", directory],
