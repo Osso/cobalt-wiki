@@ -20,6 +20,7 @@ Decisions (user, 2026-10-15): anyone who can edit the character page may rename 
 ## Deployment
 
 - 2026-10-15: `./deploy.sh deepwell` and `./deploy.sh framerail` exited 0 at `438b2a047`; all four wiki services remained active. This deploy adds destination-tag confirmation; no live character rename or tag cleanup was performed. The reported Costentyn→Shine conflict was 20 live pages with `re:shine`, not a stale plain `shine` tag. Logs: `/tmp/cobalt-upload-rename-deploy-{deepwell,framerail}.log`.
+- Live authenticated preview verified for Costentyn→Shine: 402 affected pages, 20 destination-tag pages, preservation warning and “Confirm rename and keep existing tags” button. Preview canceled without starting a job; screenshot `/tmp/cobalt-rename-shine-confirmation-live.jpg`. Initial automation clicks failed, but normal DOM click events opened the pane; Svelte's event handlers were present under `Symbol(events)`, so the earlier absence of a `__click` property was not evidence of missing hydration.
 
 ## How it works
 
