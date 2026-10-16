@@ -82,7 +82,8 @@
           pageId: String(data.page?.page_id ?? ""),
           newName: confirmed.new_name,
           previewToken: confirmed.preview_token,
-          confirmed: "yes"
+          confirmed: "yes",
+          allowExistingTags: confirmed.destination_tag_pages > 0 ? "yes" : "no"
         }
       ).catch((cause) => {
         // Nothing started; every refusal needs a fresh preview.

@@ -32,6 +32,7 @@ const preview = {
   new_slug: "character:atly",
   preview_token: "snapshot-token",
   icon: true,
+  destination_tag_pages: 0,
   count: 2,
   pages: [
     { page_id: 77, slug: "character:atley", title: "Atley Vance" },
@@ -161,6 +162,35 @@ test("confirmation step lists the slug change, every affected page and the icon"
   assert.doesNotMatch(single, /first-light/)
 })
 
+test("destination tags need an informative explicit confirmation", async () => {
+  const body = await renderText("CharacterRenameConfirm", {
+    preview: { ...preview, destination_tag_pages: 20 },
+    busy: false,
+    confirm() {},
+    cancel() {}
+  })
+  assert.match(body, /20 pages already use/)
+  assert.match(body, /atly/)
+  assert.match(body, /re:atly/)
+  assert.match(body, /Existing tags will be kept/)
+  assert.match(body, /value="Confirm rename and keep existing tags"/)
+})
+
+test("destination-tag acknowledgment is forwarded only when explicitly accepted", async () => {
+  for (const [allowExistingTags, expected] of [
+    ["yes", true],
+    ["no", false],
+    ["", false]
+  ] as const) {
+    const { calls } = await submit(
+      "characterRenameStart",
+      { ...startFields, allowExistingTags },
+      () => ({ result: { operation_id: 5 } })
+    )
+    assert.equal(calls[0].params.allow_existing_tags, expected)
+  }
+})
+
 test("preview forwards the page and trimmed name with the page's request context", async () => {
   const { value, calls } = await submit(
     "characterRenamePreview",
@@ -214,6 +244,7 @@ test("start requires explicit confirmation and the preview token", async () => {
           page_id: 77,
           new_name: "atly",
           preview_token: "snapshot-token",
+          allow_existing_tags: false,
           ip_address: "203.0.113.9"
         }
       ]
@@ -256,7 +287,12 @@ test("Deepwell refusals become rename messages with matching HTTP status", async
       "One of the affected pages is locked or not editable"
     ],
     [4304, "Preview stale", 400, "Affected pages changed; preview again"],
-    [4307, "Name in use", 400, "That name is already used as a tag"]
+    [
+      4307,
+      "Name in use",
+      400,
+      "Preview again and confirm keeping existing destination tags"
+    ]
   ]
   for (const [code, backendMessage, status, message] of cases) {
     const { value } = await submit("characterRenameStart", startFields, () => ({

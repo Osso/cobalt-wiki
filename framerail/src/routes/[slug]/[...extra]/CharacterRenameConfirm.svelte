@@ -31,6 +31,15 @@
   <p>
     {preview.icon ? "The icon file will be renamed." : "No icon file will be renamed."}
   </p>
+  {#if preview.destination_tag_pages > 0}
+    <p>
+      {preview.destination_tag_pages}
+      {preview.destination_tag_pages === 1 ? "page already uses" : "pages already use"}
+      <strong>{preview.new_name}</strong> or <strong>re:{preview.new_name}</strong>.
+      Existing tags will be kept. Renamed references will join these tags, with duplicates
+      removed. Confirm only if these tags should refer to this character.
+    </p>
+  {/if}
   <div class="buttons">
     <input
       class="btn btn-danger"
@@ -44,7 +53,9 @@
       disabled={busy}
       onclick={confirm}
       type="button"
-      value="Confirm rename"
+      value={preview.destination_tag_pages > 0
+        ? "Confirm rename and keep existing tags"
+        : "Confirm rename"}
     />
   </div>
 </section>

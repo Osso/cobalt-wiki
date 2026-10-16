@@ -14,6 +14,7 @@ export interface CharacterRenamePreview {
   new_slug: string
   preview_token: string
   icon: boolean
+  destination_tag_pages: number
   count: number
   pages: CharacterRenamePage[]
 }
@@ -43,6 +44,7 @@ export async function characterRenameStart(
   pageId: number,
   newName: string,
   previewToken: string,
+  allowExistingTags: boolean,
   ipAddress: string,
   context: RequestContext
 ): Promise<{ operation_id: number }> {
@@ -52,6 +54,7 @@ export async function characterRenameStart(
       page_id: pageId,
       new_name: newName,
       preview_token: previewToken,
+      allow_existing_tags: allowExistingTags,
       ip_address: ipAddress
     },
     context

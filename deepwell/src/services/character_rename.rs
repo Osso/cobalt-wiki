@@ -60,6 +60,8 @@ pub struct StartCharacterRename {
     pub page_id: i64,
     pub new_name: String,
     pub preview_token: String,
+    #[serde(default)]
+    pub allow_existing_tags: bool,
     pub ip_address: IpAddr,
 }
 
@@ -76,6 +78,7 @@ pub struct CharacterRenamePreview {
     pub new_slug: String,
     pub preview_token: String,
     pub icon: bool,
+    pub destination_tag_pages: usize,
     pub count: usize,
     pub pages: Vec<AffectedPage>,
 }
@@ -105,6 +108,7 @@ struct Plan {
     old_slug: String,
     new_slug: String,
     pages: Vec<PlannedPage>,
+    destination_tag_pages: usize,
     icon: Option<IconFile>,
     preview_token: String,
 }
@@ -150,6 +154,7 @@ impl CharacterRenameService {
             new_slug: plan.new_slug,
             preview_token: plan.preview_token,
             icon: plan.icon.is_some(),
+            destination_tag_pages: plan.destination_tag_pages,
             count: plan.pages.len(),
             pages: plan.pages.into_iter().map(|p| p.page).collect(),
         })
@@ -169,6 +174,12 @@ impl CharacterRenameService {
             ));
         }
         require_plan_editable(ctx, &plan).await?;
+        if plan.destination_tag_pages > 0 && !input.allow_existing_tags {
+            bail!(Error::new(
+                "confirm keeping existing destination tags before starting",
+                ErrorType::CharacterNameInUse
+            ));
+        }
         let total = step_count(&plan);
         let row = ctx.transaction().query_one_raw(statement(
             "INSERT INTO character_rename (site_id, page_id, actor_user_id, old_name, new_name, new_slug, preview_token, ip_address, total) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING operation_id",
@@ -379,7 +390,9 @@ async fn read_plan(
     .await?;
     let new_name = validate_new_name(new_name, old_name)?;
     let new_slug = format!("{category}:{new_name}");
-    require_unused_name(ctx, site_id, &new_name).await?;
+    require_unused_character_slug(ctx, site_id, &new_name).await?;
+    let destination_tag_pages =
+        read_destination_tag_pages(ctx, site_id, &new_name).await?;
     let icon = read_icon(ctx, site_id, old_name, &new_name).await?;
     let candidates = read_candidates(ctx, site_id, old_name).await?;
     let (pages, templates) =
@@ -395,6 +408,7 @@ async fn read_plan(
         &pages,
         &templates,
         icon.as_ref(),
+        &destination_tag_pages,
     );
     Ok(Plan {
         site_id,
@@ -405,6 +419,7 @@ async fn read_plan(
         old_slug: character.slug.clone(),
         new_slug,
         pages,
+        destination_tag_pages: destination_tag_pages.len(),
         icon,
         preview_token,
     })
@@ -440,7 +455,7 @@ fn validate_new_name(new_name: &str, old_name: &str) -> Result<String> {
     Ok(new_name)
 }
 
-async fn require_unused_name(
+async fn require_unused_character_slug(
     ctx: &ServiceContext<'_>,
     site_id: i64,
     new_name: &str,
@@ -449,10 +464,9 @@ async fn require_unused_name(
         .iter()
         .map(|category| format!("{category}:{new_name}"))
         .collect();
-    let tags = vec![new_name.to_owned(), format!("re:{new_name}")];
     let row = ctx.transaction().query_one_raw(statement(
-        "SELECT EXISTS (SELECT 1 FROM page WHERE site_id = $1 AND deleted_at IS NULL AND slug = ANY($2)) AS slug_taken, (SELECT count(*) FROM page p JOIN page_revision r ON r.revision_id = p.latest_revision_id WHERE p.site_id = $1 AND p.deleted_at IS NULL AND r.tags && $3) AS tagged",
-        [site_id.into(), slugs.into(), tags.into()],
+        "SELECT EXISTS (SELECT 1 FROM page WHERE site_id = $1 AND deleted_at IS NULL AND slug = ANY($2)) AS slug_taken",
+        [site_id.into(), slugs.into()],
     )).await.or_raise(query_error)?.ok_or_raise(query_error)?;
     if get::<bool>(&row, "slug_taken")? {
         bail!(Error::new(
@@ -460,14 +474,22 @@ async fn require_unused_name(
             ErrorType::PageSlugExists
         ));
     }
-    let tagged: i64 = get(&row, "tagged")?;
-    if tagged > 0 {
-        bail!(Error::new(
-            format!("{tagged} pages already use the tag {new_name} or re:{new_name}"),
-            ErrorType::CharacterNameInUse
-        ));
-    }
     Ok(())
+}
+
+/// Only membership matters: unrelated edits on destination-only pages do not
+/// change what the user confirms, and those pages will not be edited.
+async fn read_destination_tag_pages(
+    ctx: &ServiceContext<'_>,
+    site_id: i64,
+    new_name: &str,
+) -> Result<Vec<i64>> {
+    let tags = vec![new_name.to_owned(), format!("re:{new_name}")];
+    let rows = ctx.transaction().query_all_raw(statement(
+        "SELECT p.page_id FROM page p JOIN page_revision r ON r.revision_id = p.latest_revision_id WHERE p.site_id = $1 AND p.deleted_at IS NULL AND r.tags && $2 ORDER BY p.page_id",
+        [site_id.into(), tags.into()],
+    )).await.or_raise(query_error)?;
+    rows.iter().map(|row| get(row, "page_id")).collect()
 }
 
 async fn read_icon(
@@ -634,6 +656,7 @@ fn preview_token(
     pages: &[PlannedPage],
     templates: &[Option<String>],
     icon: Option<&IconFile>,
+    destination_tag_pages: &[i64],
 ) -> String {
     let mut digest = Sha256::new();
     digest.update(
@@ -648,6 +671,7 @@ fn preview_token(
                 .collect::<Vec<_>>(),
             icon.map(|icon| (icon.file_id, icon.revision_id)),
             templates,
+            destination_tag_pages,
         ))
         .expect("serializable character rename preview"),
     );

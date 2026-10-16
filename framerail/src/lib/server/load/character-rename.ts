@@ -19,7 +19,7 @@ const ERRORS: Record<number, string> = {
   2105: "An icon with that name already exists",
   4304: "Affected pages changed; preview again",
   4306: "One of the affected pages is locked or not editable",
-  4307: "That name is already used as a tag"
+  4307: "Preview again and confirm keeping existing destination tags"
 }
 
 class InvalidRenameForm extends Error {}
@@ -83,6 +83,7 @@ export function characterRenameStartAction(event: RequestEvent) {
       readId(form, "pageId"),
       readName(form),
       previewToken,
+      formText(form, "allowExistingTags") === "yes",
       event.getClientAddress(),
       context
     )

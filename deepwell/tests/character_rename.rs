@@ -370,7 +370,6 @@ async fn conflicts_and_invalid_names_are_rejected_before_any_change() {
     .await;
     let cases = [
         (f.character, "taken", ErrorType::PageSlugExists),
-        (f.character, "used", ErrorType::CharacterNameInUse),
         (f.character, "two words", ErrorType::BadRequest),
         (f.character, "old", ErrorType::BadRequest),
         (f.writing, "fresh", ErrorType::BadRequest),
@@ -383,6 +382,149 @@ async fn conflicts_and_invalid_names_are_rejected_before_any_change() {
         );
         assert_contains_error!(error, found if *found == expected);
     }
+}
+
+#[tokio::test]
+async fn existing_destination_tags_require_confirmation_and_are_preserved() {
+    let (runner, f) = setup().await;
+    let existing = import(
+        &runner,
+        f.site,
+        "writing:pretagged",
+        "content: x\n",
+        &["new", "re:new", "keep"],
+    )
+    .await;
+    let overlapping = import(
+        &runner,
+        f.site,
+        "writing:overlap",
+        "characters: 'old new'\nreferences: 're:old re:new'\n",
+        &["old", "new", "re:old", "re:new", "keep"],
+    )
+    .await;
+    let before = read(&runner, f.site, existing).await;
+    let preview = run_endpoint!(
+        runner,
+        character_rename_preview,
+        json!({"page_id":f.character,"new_name":"new"})
+    );
+    assert_eq!(
+        serde_json::to_value(&preview).unwrap()["destination_tag_pages"],
+        2
+    );
+    assert!(!preview.pages.iter().any(|p| p.page_id == existing));
+    for acknowledgment in [None, Some(false)] {
+        let mut params = json!({"page_id":f.character,"new_name":"new","preview_token":preview.preview_token,"ip_address":common::IP_ADDRESS});
+        if let Some(value) = acknowledgment {
+            params["allow_existing_tags"] = json!(value);
+        }
+        let error = run_endpoint_err!(runner, character_rename_start, params);
+        assert_contains_error!(error, ErrorType::CharacterNameInUse);
+        assert_eq!(
+            read(&runner, f.site, f.character).await.slug,
+            "character:old"
+        );
+    }
+    let started = run_endpoint!(
+        runner,
+        character_rename_start,
+        json!({"page_id":f.character,"new_name":"new","preview_token":preview.preview_token,"allow_existing_tags":true,"ip_address":common::IP_ADDRESS})
+    );
+    CharacterRenameService::execute(runner.context(), started.operation_id)
+        .await
+        .unwrap();
+    let preserved = read(&runner, f.site, existing).await;
+    assert_eq!(preserved.tags, before.tags);
+    assert_eq!(preserved.revision_id, before.revision_id);
+    let merged = read(&runner, f.site, overlapping).await;
+    assert_eq!(merged.tags, ["new", "re:new", "keep"]);
+    assert_eq!(
+        field(merged.wikitext.as_deref().unwrap(), "characters"),
+        "new"
+    );
+    assert_eq!(
+        field(merged.wikitext.as_deref().unwrap(), "references"),
+        "re:new"
+    );
+    assert_eq!(
+        read(&runner, f.site, f.character).await.slug,
+        "character:new"
+    );
+    assert!(
+        read(&runner, f.site, f.friend)
+            .await
+            .wikitext
+            .unwrap()
+            .contains("character:new")
+    );
+}
+
+#[tokio::test]
+async fn destination_tag_membership_changes_make_start_and_job_stale() {
+    let (runner, f) = setup().await;
+    let preview = run_endpoint!(
+        runner,
+        character_rename_preview,
+        json!({"page_id":f.character,"new_name":"new"})
+    );
+    import(
+        &runner,
+        f.site,
+        "writing:pretagged",
+        "content: x\n",
+        &["re:new"],
+    )
+    .await;
+    let error = run_endpoint_err!(
+        runner,
+        character_rename_start,
+        json!({"page_id":f.character,"new_name":"new","preview_token":preview.preview_token,"allow_existing_tags":true,"ip_address":common::IP_ADDRESS})
+    );
+    assert_contains_error!(error, ErrorType::TagPreviewStale);
+    let preview = run_endpoint!(
+        runner,
+        character_rename_preview,
+        json!({"page_id":f.character,"new_name":"new"})
+    );
+    let started = run_endpoint!(
+        runner,
+        character_rename_start,
+        json!({"page_id":f.character,"new_name":"new","preview_token":preview.preview_token,"allow_existing_tags":true,"ip_address":common::IP_ADDRESS})
+    );
+    import(
+        &runner,
+        f.site,
+        "writing:another-pretagged",
+        "content: y\n",
+        &["new"],
+    )
+    .await;
+    let error = CharacterRenameService::execute(runner.context(), started.operation_id)
+        .await
+        .expect_err("destination tags changed");
+    assert_contains_error!(error, ErrorType::TagPreviewStale);
+    assert_eq!(
+        read(&runner, f.site, f.character).await.slug,
+        "character:old"
+    );
+}
+
+#[tokio::test]
+async fn confirmation_does_not_allow_character_slug_collisions() {
+    let (runner, f) = setup().await;
+    let preview = run_endpoint!(
+        runner,
+        character_rename_preview,
+        json!({"page_id":f.character,"new_name":"new"})
+    );
+    import(&runner, f.site, "bgc:new", "New", &[]).await;
+    let error = run_endpoint_err!(
+        runner,
+        character_rename_start,
+        json!({"page_id":f.character,"new_name":"new","preview_token":preview.preview_token,"allow_existing_tags":true,"ip_address":common::IP_ADDRESS})
+    );
+    assert_contains_error!(error, ErrorType::PageSlugExists);
 }
 
 #[tokio::test]
