@@ -19,7 +19,7 @@ const ERRORS: Record<number, string> = {
   2105: "An icon with that name already exists",
   4304: "Affected pages changed; preview again",
   4306: "One of the affected pages is locked or not editable",
-  4307: "Preview again and confirm keeping existing destination tags"
+  4307: "Reload this page, then preview and confirm keeping existing destination tags"
 }
 
 class InvalidRenameForm extends Error {}
