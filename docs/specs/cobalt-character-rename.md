@@ -17,6 +17,10 @@ Decisions (user, 2026-10-15): anyone who can edit the character page may rename 
 - Destination-tag confirmation in `e76275d9d..28a07a3e8` has no deployment proof yet. The production evidence below predates that change.
 - [x] Production rename verified end to end, including the worker transaction and progress polling (2026-10-15, throwaway `bgc:zz-rename-probe` → `zz-rename-probe2` through the pane; a concurrent edit after start made operation 1 fail 4304 with nothing changed; proof `/tmp/cobalt-character-rename-live-proof.md`). Partial-edit rollback mid-run was not exercised live.
 
+## Deployment
+
+- 2026-10-15: `./deploy.sh deepwell` and `./deploy.sh framerail` exited 0 at `438b2a047`; all four wiki services remained active. This deploy adds destination-tag confirmation; no live character rename or tag cleanup was performed. The reported Costentyn→Shine conflict was 20 live pages with `re:shine`, not a stale plain `shine` tag. Logs: `/tmp/cobalt-upload-rename-deploy-{deepwell,framerail}.log`.
+
 ## How it works
 
 - `deepwell/src/services/character_rename.rs`: planning (candidate pages: tag overlap or the name as a word in the source), preview token, job body `execute`, and `run_job`, which locks the queued row (`FOR UPDATE SKIP LOCKED`) in the transaction that runs `execute`, and records failure in a separate one.
