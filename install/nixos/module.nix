@@ -436,6 +436,8 @@ in
           NODE_ENV = "production";
           HOST = "127.0.0.1";
           PORT = "3393";
+          # Match the POC gateway's finite multipart request allowance.
+          BODY_SIZE_LIMIT = "100M";
           ORIGIN = "https://${cfg.mainDomain}";
           DEEPWELL_HOST = "127.0.0.1";
           DEEPWELL_PORT = "2747";

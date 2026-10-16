@@ -1,5 +1,7 @@
 # Cobalt page files
 
+- Native Framerail accepts multipart upload requests up to 100 MiB, matching the gateway's request limit (file bytes plus multipart overhead). The backend's file validation and access checks still apply. `framerail/tests/upload-body-limit.test.mjs` evaluates the actual NixOS environment and exercises adapter-node over HTTP: the reported 578 KiB image reaches multipart parsing; a request exceeding 100 MiB is rejected. This fixes the unset adapter-node 512 KiB default that appeared as an empty invalid upload form (status 400).
+
 The Wikidot-layout Files pane presents attached-file information using the existing page-file list and supports new uploads on the current page. The retained reference is `templates/modules/files/{PageFilesModule,FileInformationWinModule}.tpl` in `/home/osso/Repos/wikidot`; its uploader is also single-file, so this contract makes no claim about historical batch support.
 
 ## What it must do
