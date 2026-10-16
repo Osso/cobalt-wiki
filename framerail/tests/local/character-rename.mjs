@@ -177,7 +177,7 @@ async function confirmRename(preview) {
 
 /**
  * @param {import("@playwright/test").Page} page @param {string} prefix
- *   @param {number} character
+ * @param {number} character
  */
 async function assertOldPayloadRecovery(page, prefix, character) {
   await page.evaluate(() => sessionStorage.setItem("simulate-predeploy-tab", "yes"))
@@ -198,7 +198,7 @@ async function assertOldPayloadRecovery(page, prefix, character) {
 
 /**
  * @param {import("@playwright/test").Page} page @param {string} newName
- *   @param {number[]} fixtures
+ * @param {number[]} fixtures
  */
 async function assertConfirmedRename(page, newName, fixtures) {
   await page.evaluate(() => sessionStorage.removeItem("simulate-predeploy-tab"))
