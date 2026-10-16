@@ -392,7 +392,7 @@ async fn existing_destination_tags_require_confirmation_and_are_preserved() {
         f.site,
         "writing:pretagged",
         "content: x\n",
-        &["new", "re:new", "keep"],
+        &["re:new", "keep"],
     )
     .await;
     let overlapping = import(
