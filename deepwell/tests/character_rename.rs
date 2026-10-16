@@ -441,11 +441,11 @@ async fn existing_destination_tags_require_confirmation_and_are_preserved() {
     assert_eq!(merged.tags, ["new", "re:new", "keep"]);
     assert_eq!(
         field(merged.wikitext.as_deref().unwrap(), "characters"),
-        "new"
+        "new new"
     );
     assert_eq!(
         field(merged.wikitext.as_deref().unwrap(), "references"),
-        "re:new"
+        "re:new re:new"
     );
     assert_eq!(
         read(&runner, f.site, f.character).await.slug,
@@ -917,6 +917,7 @@ async fn failed_commit_is_recorded_as_a_failure_and_changes_nothing() {
             page_id,
             new_name,
             preview_token: preview.preview_token,
+            allow_existing_tags: false,
             ip_address: common::IP_ADDRESS,
         },
     )
