@@ -1,5 +1,7 @@
 # Cobalt page files
 
+Upload-limit rollout (2026-10-15): Sakuin pin `2465d44` activates Cobalt `28a07a3e8` through `ops/deploy.sh`; the live unit has `BODY_SIZE_LIMIT=100M`. A 578 KiB multipart probe now reaches ordinary field validation (`posted=true`), rather than the previous empty invalid form. No file field was sent, so this proves request parsing, not authenticated storage completion. Host readiness and all four wiki services passed. Logs: `/tmp/cobalt-upload-host-deploy.log`, `/tmp/cobalt-upload-postdeploy-multipart.txt`.
+
 The Wikidot-layout Files pane presents attached-file information using the existing page-file list and supports new uploads on the current page. The retained reference is `templates/modules/files/{PageFilesModule,FileInformationWinModule}.tpl` in `/home/osso/Repos/wikidot`; its uploader is also single-file, so this contract makes no claim about historical batch support.
 
 ## What it must do
