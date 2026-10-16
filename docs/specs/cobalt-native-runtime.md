@@ -26,6 +26,7 @@ Local preview deployment requires SQLx CLI on PATH (for example, `nix shell nixp
 - [ ] Create separate `cobalt-wiki-files` and `cobalt-wiki-text-blocks` buckets without public bucket policies.
 - [ ] Disable seeding during ordinary startup and refuse backend startup before explicit production provisioning.
 - [x] Offer a manual-only bootstrap unit when a private reviewed seed directory is explicitly supplied; apply packaged migrations, seed, and mark success only after both commands succeed.
+- [ ] Set native Framerail's adapter-node `BODY_SIZE_LIMIT=100M` (100 MiB per complete request, including multipart overhead), matching the gateway allowance; retain backend file validation and permissions. See [upload behavior and regression coverage](cobalt-page-files.md). Host activation is not yet verified.
 - [x] Use a fixed HTTPS Framerail origin and production adapter-node server, without disabling CSRF checks. Framerail permits cross-origin form POSTs only when `FRAMERAIL_ENV=local`; production and unset environments retain same-origin enforcement.
 - [x] Keep dependent WWS/Framerail startup ordered after a successful Deepwell JSON-RPC ping, with bounded retries for transient startup failures. Four HTTP tests pass; production switch completed with successful first WWS ping and zero automatic restarts.
 

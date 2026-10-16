@@ -1,11 +1,10 @@
 # Cobalt page files
 
-- Native Framerail accepts multipart upload requests up to 100 MiB, matching the gateway's request limit (file bytes plus multipart overhead). The backend's file validation and access checks still apply. `framerail/tests/upload-body-limit.test.mjs` evaluates the actual NixOS environment and exercises adapter-node over HTTP: the reported 578 KiB image reaches multipart parsing; a request exceeding 100 MiB is rejected. This fixes the unset adapter-node 512 KiB default that appeared as an empty invalid upload form (status 400).
-
 The Wikidot-layout Files pane presents attached-file information using the existing page-file list and supports new uploads on the current page. The retained reference is `templates/modules/files/{PageFilesModule,FileInformationWinModule}.tpl` in `/home/osso/Repos/wikidot`; its uploader is also single-file, so this contract makes no claim about historical batch support.
 
 ## What it must do
 
+- [ ] Under the [native runtime](cobalt-native-runtime.md), accept multipart requests up to 100 MiB including multipart overhead, not 100 MiB per file; reject oversized requests with HTTP 413. Backend file validation and access checks still apply. Host activation is not yet verified.
 - [x] Show total bytes for listed nondeleted files, including a zero-byte total for a nonempty active list; omit the total for an empty list.
 - [x] List rows align in one grid with an extension badge, date (full timestamp on hover), readable size (exact bytes on hover), and quiet row actions with Delete in red; a footer shows file count and exact total. Narrow screens stack each row. `framerail/tests/page-files.test.ts` asserts readable sizes, byte titles, and totals.
 - [x] Offer each active file a closable, read-only information view with its name, existing file URL, byte size, MIME type, local `file_created_at` value, and nonempty revision comment.
@@ -43,6 +42,8 @@ The Wikidot-layout Files pane presents attached-file information using the exist
 - `framerail/src/lib/fileUploadBatch.ts` — sequential per-file upload state and receipt handling.
 
 ## Tests asserting this spec
+
+- `framerail/tests/upload-body-limit.test.mjs` evaluates the NixOS Framerail environment and exercises an isolated adapter-node HTTP fixture: a 578 KiB image reaches multipart parsing; a declared Content-Length above 100 MiB returns 413. It does not test a production upload or the backend file path. The unset adapter-node 512 KiB default previously surfaced as an empty invalid upload form (400).
 
 - `framerail/tests/page-files.test.ts` — nine SSR cases for existing totals and readable sizes, information/hidden comments/encoded URLs, alternate layout, and sorting/pagination: 40 visible alphabetical rows, full-list totals with retained deleted rows, case-insensitive ordering with file-ID ties, and bounded controls.
 - `framerail/tests/local/file-pagination.mjs` — local browser coverage for 82 mock file-list entries: alphabetical 40-row first and second pages plus a two-row third page, ListPages-style navigation without URL changes, retained deleted row and all-file total, and clamping to a valid first page after the refreshed list shrinks to five entries.
