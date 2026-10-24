@@ -220,7 +220,7 @@ function isRetainedStylesheet(request, url) {
 
 /**
  * @param {import("@playwright/test").Request} request @param {string} path
- *   @param {Fixture} fixture
+ * @param {Fixture} fixture
  */
 function isLocalRead(request, path, fixture) {
   if (["GET", "HEAD", "OPTIONS"].includes(request.method())) return true

@@ -13,7 +13,7 @@ const passwordFile = process.env.COBALT_POC_PASSWORD_FILE
 
 /**
  * @param {import("@playwright/test").Page} page @param {string} button
- *   @param {string} name
+ * @param {string} name
  */
 async function submit(page, button, name) {
   await page.goto(`${origin}/new-writing`, { waitUntil: "networkidle" })
