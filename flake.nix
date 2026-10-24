@@ -18,7 +18,7 @@
       system = "x86_64-linux";
       pkgs = import nixpkgs { inherit system; };
       nodePkgs = import nodeNixpkgs { inherit system; };
-      nodejs = import ./install/nixos/nodejs.nix { inherit nodePkgs; };
+      nodejs = nodePkgs.nodejs_26;
     in
     {
       packages.${system} = import ./install/nixos/packages.nix {

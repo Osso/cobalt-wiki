@@ -167,8 +167,7 @@ in
     enable = lib.mkEnableOption "isolated native Cobalt Wikijump runtime";
     packages = lib.mkOption {
       type = lib.types.attrsOf lib.types.package;
-      default = import ./packages.nix { inherit pkgs; };
-      description = "Native deepwell, wws, framerail, and silo packages.";
+      description = "Cobalt flake packages, including nodejs, deepwell, wws, framerail, and silo.";
     };
     environmentFile = lib.mkOption {
       type = lib.types.str;
