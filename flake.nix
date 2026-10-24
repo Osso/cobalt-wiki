@@ -2,19 +2,27 @@
   description = "Native Cobalt Company Wikijump packages";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/9b696460ac78b5ccfc17c854d8c976f20456e943";
+  # Isolate Node upgrades from the host and Rust package set.
+  inputs.nodeNixpkgs.url = "github:NixOS/nixpkgs/da6dc0e7b26060f2f71ce3ef7088fb56ee44fa36";
   # Caches Rust dependencies in their own derivation, so deploys rebuild only Deepwell.
   inputs.crane.url = "github:ipetkov/crane";
 
   outputs =
-    { nixpkgs, crane, ... }:
+    {
+      nixpkgs,
+      nodeNixpkgs,
+      crane,
+      ...
+    }:
     let
       system = "x86_64-linux";
       pkgs = import nixpkgs { inherit system; };
-      nodejs = import ./install/nixos/nodejs.nix { inherit pkgs; };
+      nodePkgs = import nodeNixpkgs { inherit system; };
+      nodejs = import ./install/nixos/nodejs.nix { inherit nodePkgs; };
     in
     {
       packages.${system} = import ./install/nixos/packages.nix {
-        inherit pkgs;
+        inherit pkgs nodejs;
         craneLib = crane.mkLib pkgs;
       };
       # ./deploy.sh builds in this shell, so binaries link the same

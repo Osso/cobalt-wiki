@@ -11,7 +11,7 @@ let
   state = "/var/lib/cobalt-wiki";
   socket = "/run/cobalt-wiki-postgresql";
   postgres = pkgs.postgresql_17;
-  nodejs = import ./nodejs.nix { inherit pkgs; };
+  nodejs = packages.nodejs;
   python = "${pkgs.python3}/bin/python3";
   marker = "${state}/provisioned";
   # Development deploys (./deploy.sh) run the apps from a mutable

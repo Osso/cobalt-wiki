@@ -1,8 +1,11 @@
-{ pkgs, craneLib }:
+{
+  pkgs,
+  craneLib,
+  nodejs,
+}:
 let
   inherit (pkgs) lib;
   root = ../..;
-  nodejs = import ./nodejs.nix { inherit pkgs; };
   pnpm = pkgs.pnpm.override { inherit nodejs; };
   version = "2026.8.20";
 
@@ -181,6 +184,7 @@ let
 in
 {
   inherit
+    nodejs
     deepwell
     wws
     framerail
