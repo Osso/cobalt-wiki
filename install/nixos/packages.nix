@@ -2,7 +2,7 @@
 let
   inherit (pkgs) lib;
   root = ../..;
-  nodejs = pkgs.nodejs_22;
+  nodejs = import ./nodejs.nix { inherit pkgs; };
   pnpm = pkgs.pnpm.override { inherit nodejs; };
   version = "2026.8.20";
 

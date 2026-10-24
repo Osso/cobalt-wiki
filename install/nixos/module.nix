@@ -11,6 +11,7 @@ let
   state = "/var/lib/cobalt-wiki";
   socket = "/run/cobalt-wiki-postgresql";
   postgres = pkgs.postgresql_17;
+  nodejs = import ./nodejs.nix { inherit pkgs; };
   python = "${pkgs.python3}/bin/python3";
   marker = "${state}/provisioned";
   # Development deploys (./deploy.sh) run the apps from a mutable
@@ -447,7 +448,7 @@ in
             if app == null then
               "${packages.framerail}/bin/framerail"
             else
-              "${pkgs.nodejs_22}/bin/node ${app}/framerail/build/index.js";
+              "${nodejs}/bin/node ${app}/framerail/build/index.js";
         };
       };
       cobalt-wiki-wws = {

@@ -10,6 +10,7 @@
     let
       system = "x86_64-linux";
       pkgs = import nixpkgs { inherit system; };
+      nodejs = import ./install/nixos/nodejs.nix { inherit pkgs; };
     in
     {
       packages.${system} = import ./install/nixos/packages.nix {
@@ -23,8 +24,8 @@
           pkgs.cargo
           pkgs.rustc
           pkgs.pkg-config
-          pkgs.nodejs_22
-          pkgs.pnpm
+          nodejs
+          (pkgs.pnpm.override { inherit nodejs; })
         ];
         buildInputs = [ pkgs.file ];
       };

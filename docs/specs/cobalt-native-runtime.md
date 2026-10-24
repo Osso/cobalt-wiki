@@ -12,6 +12,14 @@ Framerail uses four native media queries sharing `$small-screen-max: 850px`; typ
 
 Local preview deployment requires SQLx CLI on PATH (for example, `nix shell nixpkgs#sqlx-cli --command ./start-test-env.sh`). `start-test-env.sh` validates the protected local `environment.json` DATABASE_URL targets `cobalt_local_full` on loopback port 25432, confirms the preview unit is active, builds Deepwell, runs `sqlx migrate run` against that database from `deepwell/`, then restarts the unit only after migration success. This workflow does not deploy production Sakuin.
 
+## Node/Brotli security pin contract
+
+For CVE-2026-111497, the targeted runtime override in `install/nixos/nodejs.nix` must pin both Node.js 22.23.4 source with its upstream hash and Brotli 1.2.1. These versions follow the upstream Node release of October 21, 2026, verified by the deployment owner. Updating Node source alone is insufficient: the Nix Node build links the system C Brotli library. The deploy shell in `flake.nix`, Framerail packaging in `install/nixos/packages.nix`, and the `appDirectory` Framerail unit in `install/nixos/module.nix` must use the same shared helper so build and runtime selection cannot diverge.
+
+Sakuin owns the deployed NixOS runtime through its separate repository, `/syncthing/Sync/Projects/sakuin`, whose pinned `cobaltWiki` input follows the host's nixpkgs. After committing the Cobalt integration, update that input pin and deploy the host with Sakuin's `./ops/deploy.sh`. Cobalt's `./deploy.sh framerail` alone does not change the service's Node interpreter. Deployment and live Node/Brotli verification remain pending; this contract is not deployment proof.
+
+Retire these targeted security pins once the host's normal pinned nixpkgs supplies fixed Node and linked Brotli versions. Reconcile every helper consumer in the same change, then activate and verify the host runtime; do not remove only one pin or retain an alternate insecure runtime path.
+
 ## Application-only deployment
 
 - [x] `./deploy.sh wws` builds `.#wws`, copies its Nix closure to the selected host, and activates that package's executable. `all` includes WWS and builds/copies it before service mutations.
